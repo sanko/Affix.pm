@@ -51,11 +51,11 @@ package Dyn 0.03 {
         #use Data::Dump; ddx \@_;
         my ( $library, $library_version, $signature, $symbol, $full_name );
         for my $attribute (@attributes) {
-            if ( $attribute =~ m[^Native\s*\(\s*(.+)\s*\)\s*$] ) {
+            if ( $attribute =~ m[^native\s*\(\s*(.+)\s*\)\s*$] ) {
                 ( $library, $library_version ) = Text::ParseWords::parse_line( '\s*,\s*', 1, $1 );
                 $library_version //= 0;
             }
-            elsif ( $attribute =~ m[^Symbol\s*\(\s*(['"])?\s*(.+)\s*\1\s*\)$] ) {
+            elsif ( $attribute =~ m[^symbol\s*\(\s*(['"])?\s*(.+)\s*\1\s*\)$] ) {
                 $symbol = $2;
             }
             elsif ( $attribute =~ m[^Signature\s*?\(\s*(['"])?\s*(.+)\s*\1\s*\)$] ) {    # direct
@@ -273,7 +273,7 @@ Dyn - dyncall Backed FFI
 
     use Dyn qw[:sugar];
     sub pow
-        : Native( $^O eq 'MSWin32' ? 'ntdll.dll' : ('libm', v6) )
+        : native( $^O eq 'MSWin32' ? 'ntdll.dll' : ('libm', v6) )
         : Signature(Double, Double => Double);
 
     print pow( 2, 10 );    # 1024
@@ -312,27 +312,27 @@ Honestly, you should be using one of the above packages rather than this one as
 they provide clean wrappers of dyncall's C functions. This package contains the
 sugary API.
 
-=head1 C<:Native> CODE attribute
+=head1 C<:native> CODE attribute
 
 While most of the upstream API is covered in the L<Dyn::Call>,
 L<Dyn::Callback>, and L<Dyn::Load> packages, all the sugar is right here in
 C<Dyn>. The most simple use of C<Dyn> would look something like this:
 
     use Dyn ':sugar';
-    sub some_argless_function() : Native('somelib.so') : Signature('()v');
+    sub some_argless_function() : native('somelib.so') : Signature('()v');
     some_argless_function();
 
 Be aware that this will look a lot more like L<NativeCall from
 Raku|https://docs.raku.org/language/nativecall> before v1.0!
 
 The second line above looks like a normal Perl sub declaration but includes the
-C<:Native> attribute to specify that the sub is actually defined in a native
+C<:native> attribute to specify that the sub is actually defined in a native
 library.
 
 To avoid banging your head on a built-in function, you may name your sub
 anything else and let Dyn know what symbol to attach:
 
-    sub my_abs : Native('my_lib.dll') : Signature('(d)d') : Symbol('abs');
+    sub my_abs : native('my_lib.dll') : Signature('(d)d') : symbol('abs');
     CORE::say my_abs( -75 ); # Should print 75 if your abs is something that makes sense
 
 This is by far the fastest way to work with this distribution but it's not by

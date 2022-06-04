@@ -11,13 +11,13 @@ package Dyn::Call 0.03 {
                 dcArgFloat dcArgDouble
                 dcArgPointer
                 dcArgString
-                dcArgStruct
+                dcArgAggr
             ]
         ],
         callvm => [qw[dcNewCallVM dcFree dcMode dcReset]],
-        call   => [qw[dcCallVoid dcCallInt dcCallPointer dcCallString]],
-        struct =>
-            [qw[dcNewStruct dcCloseStruct dcStructSize dcStructField dcSubStruct dcFreeStruct]],
+        call   => [qw[dcCallVoid dcCallChar dcCallInt dcCallPointer dcCallAggr dcCallString]],
+        aggregates =>
+            [qw[dcNewAggr dcAggrField dcCloseAggr dcFreeAggr dcBeginCallAggr]],
         vars => [
             qw[
                 DC_CALL_C_DEFAULT

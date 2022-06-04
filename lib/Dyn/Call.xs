@@ -13,7 +13,61 @@
 #include <dyncall_callback.h>
 //#include <dyncall/dyncall_signature.h>
 
+#include <dyncall/dyncall/dyncall_aggregate.h>
+
 #include "lib/types.h"
+typedef
+struct aggr_ptr {
+    union {
+      int intNum;
+      float floatNum;
+      double doubleNum;
+      unsigned char a;
+    };
+}aggr_ptr;
+
+typedef struct
+{unsigned char a;} U_8;
+
+
+#include "object_pad.h"
+
+#include "/home/sanko/Downloads/libui-ng-master/ui.h"
+
+uiMultilineEntry *e;
+
+int sayTime(void *data)
+{
+	time_t t;
+	char *s;
+
+	t = time(NULL);
+	s = ctime(&t);
+
+	uiMultilineEntryAppend(e, s);
+	return 1;
+}
+
+int onClosing(uiWindow *w, void *data)
+{
+	uiQuit();
+	return 1;
+}
+
+void saySomething(uiButton *b, void *data)
+{
+	uiMultilineEntryAppend(e, "Saying something\n");
+}
+
+
+
+typedef struct xStruct {
+    size_t size;
+
+
+    }
+    xStruct;
+
 
 MODULE = Dyn::Call   PACKAGE = Dyn::Call
 
@@ -21,17 +75,32 @@ DCCallVM *
 dcNewCallVM(DCsize size);
 
 void
-dcFree(DCCallVM * vm);
+dcFree(DCCallVM * vm)
 CODE:
     dcFree(vm);
     SV* sv = (SV*) &PL_sv_undef;
     sv_setsv(ST(0), sv);
 
-void
-dcMode(DCCallVM * vm, DCint mode);
+void *
+dcAllocMem(size_t size)
+CODE:
+    dcAllocMem(RETVAL, size, void *);
+OUTPUT:
+    RETVAL
+
+
 
 void
 dcReset(DCCallVM * vm);
+
+
+void
+dcMode(DCCallVM * vm, DCint mode);
+
+
+void
+dcBeginCallAggr(DCCallVM * vm, DCaggr * ag);
+
 
 void
 dcArgBool(DCCallVM * vm, DCbool arg);
@@ -74,7 +143,7 @@ CODE:
         croak("arg is not of type Dyn::pointer");
 
 void
-dcArgStruct(DCCallVM * vm, DCstruct * s, DCpointer value);
+dcArgAggr(DCCallVM * vm, DCaggr * s, void * value);
 
 =pod
 
@@ -116,6 +185,50 @@ dcCallDouble(DCCallVM * vm, DCpointer funcptr);
 
 DCpointer
 dcCallPointer(DCCallVM * vm, DCpointer funcptr);
+
+DCpointer
+dcCallAggr(DCCallVM * vm, DCpointer funcptr, DCaggr * ag);
+CODE:
+    //aggr_ptr struct_rep;
+    void * struct_rep;
+    struct_rep = malloc(sizeof(&ag));
+    warn ("sizeof(&ag) == %d", sizeof(&ag));
+    RETVAL = dcCallAggr(vm, funcptr, ag, &struct_rep);
+    //warn(".a == %c", struct_rep.a);
+    unsigned char *ptr = (unsigned char*)&struct_rep + offsetof(U_8, a);
+    //*(int*)ptr = 42;
+    char *base;
+    size_t offset;
+    int *b;
+    // get base address
+    base = (char *)struct_rep;
+
+    // and the offset to member_b
+    offset = offsetof(U_8, a);
+
+    // Compute address of member_b
+    b = (int *)(base+offset);
+
+    warn(".a == %c", (unsigned char) b);
+
+    DCsize i = ag->n_fields;
+
+    warn("ag->n_fields == %d", ag->n_fields);
+    for (int i=0;i<ag->n_fields;++i) {
+      warn("i==%d", i);
+      switch(ag->fields[i].type){
+        case DC_SIGCHAR_BOOL: break;
+        case DC_SIGCHAR_UCHAR: warn ("uchar!!!!!");break;
+
+
+
+        }
+
+
+    }
+
+OUTPUT:
+    RETVAL
 
 const char *
 dcCallString(DCCallVM * vm, DCpointer funcptr);
@@ -162,55 +275,81 @@ CODE:
         } S;
 
         size_t size;
-        DCstruct* s = dcNewStruct(4, DEFAULT_ALIGNMENT);
-        dcStructField(s, DC_SIGCHAR_DOUBLE, DEFAULT_ALIGNMENT, 1);
-        dcStructField(s, DC_SIGCHAR_DOUBLE, DEFAULT_ALIGNMENT, 1);
-        dcStructField(s, DC_SIGCHAR_DOUBLE, DEFAULT_ALIGNMENT, 1);
-        dcStructField(s, DC_SIGCHAR_DOUBLE, DEFAULT_ALIGNMENT, 1);
-        dcCloseStruct(s);
 
-        //DC_TEST_STRUCT_SIZE(S, s);
-        dcFreeStruct(s);
+
     }
 
-DCstruct *
-dcNewStruct( DCsize fieldCount, DCint alignment )
+DCaggr *
+dcNewAggr( DCsize maxFieldCount, DCsize size )
 
 void
-dcStructField( DCstruct* s, int type, DCint alignment, DCsize arrayLength )
+dcFreeAggr( DCaggr * ag )
+CODE:
+    dcFreeAggr(ag);
+    SV* sv = (SV*) &PL_sv_undef;
+    sv_setsv(ST(0), sv);
 
 void
-dcSubStruct( DCstruct *s, DCsize fieldCount, DCint alignment, DCsize arrayLength )
+dcAggrField( DCaggr * ag, DCsigchar type, DCint offset, DCsize arrayLength, ... )
 
 void
-dcCloseStruct( DCstruct *s )
+dcCloseAggr( DCaggr * ag )
 
-DCsize
-dcStructSize( DCstruct *s )
 
-DCsize
-dcStructAlignment( DCstruct *s )
 
-void
-dcFreeStruct( DCstruct * s )
 
-DCstruct *
-dcDefineStruct( const char * signature );
+DCpointer *
+newStruct(int value)
+CODE:
+    warn("newStruct(...)");
+    xStruct * c;//c->size=value;
+    RETVAL= (void **)&c;
+OUTPUT:
+    RETVAL
 
-=pod
+void AggTest(int in)
+CODE:
+    DCaggr * ag;
+    ag = dcNewAggr(1, sizeof(size_t));
+    dcAggrField(ag, 'i', 0, 0);
+    dcCloseAggr(ag);
 
-DC_API DCstruct*  dcNewStruct      (DCsize fieldCount, DCint alignment);
-DC_API void       dcStructField    (DCstruct* s, DCint type, DCint alignment, DCsize arrayLength);
-DC_API void       dcSubStruct      (DCstruct* s, DCsize fieldCount, DCint alignment, DCsize arrayLength);
-/* Each dcNewStruct or dcSubStruct call must be paired with a dcCloseStruct. */
-DC_API void       dcCloseStruct    (DCstruct* s);
-DC_API DCsize     dcStructSize     (DCstruct* s);
-DC_API DCsize     dcStructAlignment(DCstruct* s);
-DC_API void       dcFreeStruct     (DCstruct* s);
 
-DC_API DCstruct*  dcDefineStruct  (const char* signature);
+void letsgo(DCpointer * in)
+CODE:
+	uiInitOptions * o;
+    o = (uiInitOptions *) in;
+	uiWindow *w;
+	uiBox *b;
+	uiButton *btn;
 
-=cut
+	memset(o, 0, sizeof (uiInitOptions));
+	if (uiInit(o) != NULL)
+		abort();
+
+	w = uiNewWindow("Hello", 320, 240, 0);
+	uiWindowSetMargined(w, 1);
+
+	b = uiNewVerticalBox();
+	uiBoxSetPadded(b, 1);
+	uiWindowSetChild(w, uiControl(b));
+
+	e = uiNewMultilineEntry();
+	uiMultilineEntrySetReadOnly(e, 1);
+
+	btn = uiNewButton("Say Something");
+	uiButtonOnClicked(btn, saySomething, NULL);
+	uiBoxAppend(b, uiControl(btn), 0);
+
+	uiBoxAppend(b, uiControl(e), 1);
+
+	uiTimer(1000, sayTime, NULL);
+
+	uiWindowOnClosing(w, onClosing, NULL);
+	uiControlShow(uiControl(w));
+	uiMain();
+
+
 
 BOOT:
 {
@@ -271,7 +410,7 @@ BOOT:
     newCONSTSUB(stash, "DC_SIGCHAR_DOUBLE", newSViv(DC_SIGCHAR_DOUBLE));
     newCONSTSUB(stash, "DC_SIGCHAR_POINTER", newSViv(DC_SIGCHAR_POINTER));
     newCONSTSUB(stash, "DC_SIGCHAR_STRING", newSViv(DC_SIGCHAR_STRING));/* in theory same as 'p', but convenient to disambiguate */
-    newCONSTSUB(stash, "DC_SIGCHAR_STRUCT", newSViv(DC_SIGCHAR_STRUCT));
+    newCONSTSUB(stash, "DC_SIGCHAR_AGGREGATE", newSViv(DC_SIGCHAR_AGGREGATE));
     newCONSTSUB(stash, "DC_SIGCHAR_ENDARG", newSViv(DC_SIGCHAR_ENDARG));/* also works for end struct */
 
     /* calling convention / mode signatures */
@@ -292,8 +431,5 @@ BOOT:
     // Error codes
     newCONSTSUB(stash, "DC_ERROR_NONE", newSViv(DC_ERROR_NONE));
     newCONSTSUB(stash, "DC_ERROR_UNSUPPORTED_MODE", newSViv(DC_ERROR_UNSUPPORTED_MODE));
-
-    // Struct alignment
-    newCONSTSUB(stash, "DEFAULT_ALIGNMENT", newSViv(DEFAULT_ALIGNMENT));
 }
 

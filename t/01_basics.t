@@ -58,6 +58,14 @@ LIB_EXPORT char * p2Z ( Human * person ) { return person->name; }
 LIB_EXPORT int    p2i ( Human * person ) { return person->dob;  }
 LIB_EXPORT const char * cb  ( int (*f)(int) )  { return f(100) == 101 ? "Yes!" : "No..."; }
 LIB_EXPORT unsigned long sizeof_double() { return sizeof(double); }
+
+typedef struct {
+	unsigned char a;
+} U8;
+LIB_EXPORT U8 A2A (U8 in) {in.a++; return in;}
+LIB_EXPORT unsigned char A2C (U8 in) {in.a++; return in.a;}
+LIB_EXPORT U8 C2A (unsigned char in) {U8 out; out.a = in; return out;}
+
 END
     }
     ok -e $source_file, "generated '$source_file'";
@@ -127,19 +135,43 @@ SKIP: {
         #diag `nm $lib_file`;
         #diag dlSymsNameFromValue($dsyms, 0000000000001110);
     };
-    subtest 'struct builder' => sub {
-    TODO: {
-            local $TODO = 'struct support is not yet ready';
-            my $s = dcNewStruct( 4, 0 );    # DEFAULT_STRUCT_ALIGNMENT
-            dcStructField( $s, DC_SIGCHAR_DOUBLE, DEFAULT_ALIGNMENT, 1 );
-            dcStructField( $s, DC_SIGCHAR_DOUBLE, DEFAULT_ALIGNMENT, 1 );
-            dcStructField( $s, DC_SIGCHAR_DOUBLE, DEFAULT_ALIGNMENT, 1 );
-            dcStructField( $s, DC_SIGCHAR_DOUBLE, DEFAULT_ALIGNMENT, 1 );
-            dcCloseStruct($s);
-            my $sizeof_double = Dyn::wrap( $lib_file, 'sizeof_double', ')J' );
-            is dcStructSize($s), ( 4 * $sizeof_double->() ), 'dcStructSize( ... )';
-            dcFreeStruct($s);
-        }
+    subtest 'aggregate builder [struct arg]' => sub {
+        use Dyn qw[:all];          # Exports nothing by default
+        my $lib = dlLoadLibrary($lib_file);
+        my $ptr = dlFindSymbol( $lib, 'A2C' );
+        my $cvm = dcNewCallVM(1024);
+        dcMode( $cvm, DC_CALL_C_DEFAULT );
+        dcReset($cvm);
+        my $s = dcNewAggr( 1, 1 );
+        isa_ok $s, 'Dyn::aggr';    # TODO: Fix case
+        dcAggrField( $s, chr DC_SIGCHAR_UCHAR, 0, 1 );
+        dcCloseAggr($s);
+        dcReset($cvm);
+        dcBeginCallAggr( $cvm, $s );
+        dcArgChar( $cvm, 'Y' );
+        is dcCallChar( $cvm, $ptr ), 'Z', 'struct.a++ == Z';
+        dcFreeAggr($s);
+    };
+        subtest 'aggregate builder [struct return]' => sub {
+        use Dyn qw[:all];          # Exports nothing by default
+        my $lib = dlLoadLibrary($lib_file);
+        my $ptr = dlFindSymbol( $lib, 'C2A' );
+        my $cvm = dcNewCallVM(1024);
+        dcMode( $cvm, DC_CALL_C_DEFAULT );
+        dcReset($cvm);
+        my $s = dcNewAggr( 1, 1 );
+        #isa_ok $s, 'Dyn::aggr';    # TODO: Fix case
+        dcAggrField( $s, chr DC_SIGCHAR_UCHAR, 0, 1 );
+        dcCloseAggr($s);
+        dcReset($cvm);
+        		dcBeginCallAggr($cvm, $s);
+
+        dcArgChar( $cvm, 'Y' );
+        warn ord 'Y';
+        warn ord 'Z';
+        ok dcCallAggr($cvm, $ptr, $s);
+        dcFreeAggr($s);
+
     };
     diag 'Here';
     subtest 'Dyn synopsis' => sub {

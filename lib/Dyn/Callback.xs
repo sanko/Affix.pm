@@ -72,7 +72,7 @@ static char callback_handler(DCCallback * cb, DCArgs * args, DCValue * result, v
                 case DC_SIGCHAR_POINTER:
                 case DC_SIGCHAR_STRING:
                     XPUSHs(newSVpv((const char *) dcbArgPointer(args), 0) ); break;
-                case DC_SIGCHAR_STRUCT:
+                case DC_SIGCHAR_AGGREGATE:
                     warn("Unhandled callback argument '%c' at %s line %d.", signature[i], __FILE__, __LINE__);
                     break;
                 case DC_SIGCHAR_ENDARG:
@@ -191,7 +191,7 @@ static char callback_handler(DCCallback * cb, DCArgs * args, DCValue * result, v
                 croak("Unexpected return values");
             result->Z = POPpx;
             break;
-        case DC_SIGCHAR_STRUCT: // string
+        case DC_SIGCHAR_AGGREGATE: // string
             if (count != 1)
                 croak("Unexpected return values");
             warn("Unhandled return type at %s line %d.", __FILE__, __LINE__);
@@ -357,7 +357,7 @@ CODE:
                 break;
             case DC_SIGCHAR_STRING:
                 dcArgPointer(container->cvm, SvPV_nolen(ST(i)));   break;
-            case DC_SIGCHAR_STRUCT:
+            case DC_SIGCHAR_AGGREGATE:
                 warn("Unhandled return type [%c] at %s line %d.", container->ret_type, __FILE__, __LINE__);
                 break;
             case DC_SIGCHAR_ENDARG:
@@ -412,7 +412,7 @@ CODE:
         case DC_SIGCHAR_STRING:
             RETVAL = newSVpv((const char *) dcCallPointer(container->cvm, self), 0);
             break;
-        case DC_SIGCHAR_STRUCT:
+        case DC_SIGCHAR_AGGREGATE:
             warn("Unhandled return type [%c] at %s line %d.", container->ret_type, __FILE__, __LINE__);
             XSRETURN_UNDEF;
             break;

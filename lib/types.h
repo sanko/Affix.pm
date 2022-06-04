@@ -26,3 +26,12 @@ typedef struct _callback
     SV *userdata;
     DCCallVM *cvm;
 } _callback;
+
+struct Struct {
+	union {
+		char   alpha;
+		int    num;
+        char * string;
+        void * pointer;
+	};
+};

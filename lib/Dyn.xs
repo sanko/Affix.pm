@@ -46,6 +46,13 @@ char * clean(char *str) {
     return str;
 }
 
+typedef struct xStruct {
+    size_t size;
+
+
+    }
+    xStruct;
+
 #define _call_ \
     dXSTARG;\
     /*//warn("items == %d", items);*/\
@@ -67,7 +74,6 @@ char * clean(char *str) {
                 case DC_SIGCHAR_CHAR:\
                     dcArgChar(call->cvm, (char) SvIV(ST(pos))); break;\
                 case DC_SIGCHAR_FLOAT:\
-                    /*//warn(" float ==> %f", SvNV(ST(pos)));*/ \
                     dcArgFloat(call->cvm, (float) SvNV(ST(pos))); break;\
                 case DC_SIGCHAR_USHORT:\
                     dcArgShort(call->cvm, (unsigned short) SvUV(ST(pos))); break;\
@@ -96,7 +102,19 @@ char * clean(char *str) {
                     dcArgDouble(call->cvm, (double) SvNV(ST(pos))); break;\
                 case DC_SIGCHAR_STRING:\
                     dcArgPointer(call->cvm, SvPVutf8_nolen(ST(pos))); break;\
-                case DC_SIGCHAR_STRUCT: /* XXX: dyncall structs aren't ready yet*/\
+                case DC_SIGCHAR_AGGREGATE: /* XXX: dyncall structs/union/array aren't ready yet*/\
+                    warn("passing aggregate");\
+                        DCaggr * ag;\
+                        xStruct  structure;	memset(&structure, 0, sizeof (xStruct));structure.size=0;\
+                                            warn("passing aggregate 1");\
+    ag = dcNewAggr(1, sizeof(xStruct));\
+                        warn("passing aggregate 2");\
+    dcAggrField(ag, 'i', 0, 0);\
+                        warn("passing aggregate 3");\
+    dcCloseAggr(ag);\
+                        warn("passing aggregate 4");\
+                    dcArgAggr(call->cvm, ag, &structure /*ST(pos)*/); \
+                                        warn("passing aggregate 5");\
                     break;\
                 default:\
                     break;\
@@ -158,7 +176,7 @@ char * clean(char *str) {
             case DC_SIGCHAR_VOID:\
                 dcCallVoid(call->cvm, call->fptr); XSRETURN_EMPTY; \
                 break;\
-            case DC_SIGCHAR_STRUCT: /* TODO: dyncall structs aren't ready upstream yet*/\
+            case DC_SIGCHAR_AGGREGATE: /* TODO: dyncall structs/union/array aren't ready upstream yet*/\
                 break;\
             default:\
                 /*croak("Help: %c", call->ret);*/\
@@ -243,7 +261,7 @@ _load(pTHX_ DLLib * lib, const char * symbol, const char * sig) {
             case DC_SIGCHAR_DOUBLE:
             case DC_SIGCHAR_POINTER:
             case DC_SIGCHAR_STRING:
-            case DC_SIGCHAR_STRUCT:
+            case DC_SIGCHAR_AGGREGATE:
                 RETVAL->perl_sig[sig_pos] = '$';
                 RETVAL->sig[sig_pos]      = sig[i];
                 ++sig_pos;
