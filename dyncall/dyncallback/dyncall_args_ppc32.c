@@ -23,70 +23,82 @@
 
 */
 
-
 #include "dyncall_args_ppc32.h"
 
-DCint       dcbArgInt      (DCArgs* p) 
-{
-  DCint value;
-  if (p->ireg_count < 8)
-    value = p->ireg_data[p->ireg_count++];
-  else
-    value = *( (int*) p->stackptr );
-  p->stackptr += sizeof(int);
-  return value;
+DCint dcbArgInt(DCArgs *p) {
+    DCint value;
+    if (p->ireg_count < 8)
+        value = p->ireg_data[p->ireg_count++];
+    else
+        value = *((int *)p->stackptr);
+    p->stackptr += sizeof(int);
+    return value;
 }
-DCuint      dcbArgUInt     (DCArgs* p) { return (DCuint)  dcbArgInt(p);  }
-
-DCulonglong  dcbArgULongLong (DCArgs* p) 
-{
-  DCulonglong value;
-  value  = ( (DCulonglong) dcbArgUInt(p) ) << 32UL;
-  value |= dcbArgUInt(p);
-  return value;
-}
-DClonglong  dcbArgLongLong(DCArgs* p) { return (DClonglong)dcbArgULongLong(p); }
-
-DClong      dcbArgLong     (DCArgs* p) { return (DClong)  dcbArgUInt(p); }
-DCulong     dcbArgULong    (DCArgs* p) { return (DCulong) dcbArgUInt(p); }
-DCchar      dcbArgChar     (DCArgs* p) { return (DCchar)  dcbArgUInt(p); }
-DCuchar     dcbArgUChar    (DCArgs* p) { return (DCuchar) dcbArgUInt(p); }
-DCshort     dcbArgShort    (DCArgs* p) { return (DCshort) dcbArgUInt(p); }
-DCushort    dcbArgUShort   (DCArgs* p) { return (DCushort)dcbArgUInt(p); }
-DCbool      dcbArgBool     (DCArgs* p) { return (DCbool)  dcbArgUInt(p); }
-
-DCpointer   dcbArgPointer  (DCArgs* p) { return (DCpointer)dcbArgUInt(p); }
-
-DCdouble    dcbArgDouble   (DCArgs* p) 
-{ 
-  DCdouble result;
-  if (p->ireg_count < 7) { 
-    p->ireg_count+=2;
-  } else if (p->ireg_count == 7) {
-    p->ireg_count = 8;
-  }
-  if (p->freg_count < 13) {
-    result = p->freg_data[p->freg_count++];
-  } else {
-    result = * ( (double*) p->stackptr );
-  }
-  p->stackptr += sizeof(double);
-  return result;
-}
-DCfloat     dcbArgFloat    (DCArgs* p)
-{ 
-  DCfloat result;
-  if (p->ireg_count < 8)
-    p->ireg_count++;
-  if (p->freg_count < 13) {
-    result = (DCfloat) p->freg_data[p->freg_count++];
-  } else {
-    result = * ( (float*) p->stackptr );
-  }
-  p->stackptr += sizeof(float);
-  return result; 
+DCuint dcbArgUInt(DCArgs *p) {
+    return (DCuint)dcbArgInt(p);
 }
 
-DCpointer   dcbArgAggr     (DCArgs* p, DCpointer target)                   { /* @@@AGGR not impl */ }
-void        dcbReturnAggr  (DCArgs *args, DCValue *result, DCpointer ret)  { /* @@@AGGR not impl */ }
+DCulonglong dcbArgULongLong(DCArgs *p) {
+    DCulonglong value;
+    value = ((DCulonglong)dcbArgUInt(p)) << 32UL;
+    value |= dcbArgUInt(p);
+    return value;
+}
+DClonglong dcbArgLongLong(DCArgs *p) {
+    return (DClonglong)dcbArgULongLong(p);
+}
 
+DClong dcbArgLong(DCArgs *p) {
+    return (DClong)dcbArgUInt(p);
+}
+DCulong dcbArgULong(DCArgs *p) {
+    return (DCulong)dcbArgUInt(p);
+}
+DCchar dcbArgChar(DCArgs *p) {
+    return (DCchar)dcbArgUInt(p);
+}
+DCuchar dcbArgUChar(DCArgs *p) {
+    return (DCuchar)dcbArgUInt(p);
+}
+DCshort dcbArgShort(DCArgs *p) {
+    return (DCshort)dcbArgUInt(p);
+}
+DCushort dcbArgUShort(DCArgs *p) {
+    return (DCushort)dcbArgUInt(p);
+}
+DCbool dcbArgBool(DCArgs *p) {
+    return (DCbool)dcbArgUInt(p);
+}
+
+DCpointer dcbArgPointer(DCArgs *p) {
+    return (DCpointer)dcbArgUInt(p);
+}
+
+DCdouble dcbArgDouble(DCArgs *p) {
+    DCdouble result;
+    if (p->ireg_count < 7) { p->ireg_count += 2; }
+    else if (p->ireg_count == 7) {
+        p->ireg_count = 8;
+    }
+    if (p->freg_count < 13) { result = p->freg_data[p->freg_count++]; }
+    else {
+        result = *((double *)p->stackptr);
+    }
+    p->stackptr += sizeof(double);
+    return result;
+}
+DCfloat dcbArgFloat(DCArgs *p) {
+    DCfloat result;
+    if (p->ireg_count < 8) p->ireg_count++;
+    if (p->freg_count < 13) { result = (DCfloat)p->freg_data[p->freg_count++]; }
+    else {
+        result = *((float *)p->stackptr);
+    }
+    p->stackptr += sizeof(float);
+    return result;
+}
+
+DCpointer dcbArgAggr(DCArgs *p, DCpointer target) { /* @@@AGGR not impl */
+}
+void dcbReturnAggr(DCArgs *args, DCValue *result, DCpointer ret) { /* @@@AGGR not impl */
+}

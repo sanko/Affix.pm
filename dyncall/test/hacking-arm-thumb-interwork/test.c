@@ -3,7 +3,7 @@
  Package: dyncall
  Library: test
  File: test/hacking-arm-thumb-interwork/test.c
- Description: 
+ Description:
  License:
 
    Copyright (c) 2011-2018 Daniel Adler <dadler@uni-goettingen.de>,
@@ -29,11 +29,10 @@
 void arm();
 void thumb();
 
-int main(int argc, char* argv[])
-{
-	arm();
-	thumb();
-	printf("arm: %d\n", (ptrdiff_t) &arm);
-	printf("thumb: %d\n", (ptrdiff_t) &thumb);
-	return 0;
+int main(int argc, char *argv[]) {
+    arm();
+    thumb();
+    printf("arm: %d\n", (ptrdiff_t)&arm);
+    printf("thumb: %d\n", (ptrdiff_t)&thumb);
+    return 0;
 }

@@ -6,7 +6,7 @@
  Description: formatted call interface to dyncall
  License:
 
-   Copyright (c) 2007-2018 Daniel Adler <dadler@uni-goettingen.de>, 
+   Copyright (c) 2007-2018 Daniel Adler <dadler@uni-goettingen.de>,
                            Tassilo Philipp <tphilipp@potion-studios.com>
 
    Permission to use, copy, modify, and distribute this software for any
@@ -23,17 +23,14 @@
 
 */
 
-
-
 /*
 
   dyncall formatted calls C API
 
   REVISION
   2007/12/11 initial
-  
-*/
 
+*/
 
 #ifndef DYNCALL_CALLF_H
 #define DYNCALL_CALLF_H
@@ -46,11 +43,11 @@
 
 #include <stdarg.h>
 
-void dcArgF (DCCallVM* vm, const DCsigchar* signature, ...);
-void dcVArgF(DCCallVM* vm, const DCsigchar* signature, va_list args);
+void dcArgF(DCCallVM *vm, const DCsigchar *signature, ...);
+void dcVArgF(DCCallVM *vm, const DCsigchar *signature, va_list args);
 
-void dcCallF (DCCallVM* vm, DCValue* result, DCpointer funcptr, const DCsigchar* signature, ...);
-void dcVCallF(DCCallVM* vm, DCValue* result, DCpointer funcptr, const DCsigchar* signature, va_list args);
+void dcCallF(DCCallVM *vm, DCValue *result, DCpointer funcptr, const DCsigchar *signature, ...);
+void dcVCallF(DCCallVM *vm, DCValue *result, DCpointer funcptr, const DCsigchar *signature,
+              va_list args);
 
 #endif /* DYNCALL_CALLF_H */
-

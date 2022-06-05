@@ -23,46 +23,41 @@
 
 */
 
-
 #include "dyncall_callback.h"
 #include "dyncall_alloc_wx.h"
 #include "dyncall_thunk.h"
-
 
 /* Callback symbol. */
 extern void dcCallbackThunkEntry();
 
 struct DCCallback               /*  off  size */
 {                               /* ----|----- */
-  DCThunk            thunk;     /*   0     32 */
-  DCCallbackHandler* handler;   /*  32      8 */
-  void*              userdata;  /*  40      8 */
-};                              /* total   48 */ 
-                                /* aligned 48 */ 
+    DCThunk thunk;              /*   0     32 */
+    DCCallbackHandler *handler; /*  32      8 */
+    void *userdata;             /*  40      8 */
+};                              /* total   48 */
+                                /* aligned 48 */
 
-void dcbInitCallback2(DCCallback* pcb, const DCsigchar* signature, DCCallbackHandler* handler, void* userdata, DCaggr *const * aggrs)
-{
-  pcb->handler = handler;
-  pcb->userdata = userdata;
+void dcbInitCallback2(DCCallback *pcb, const DCsigchar *signature, DCCallbackHandler *handler,
+                      void *userdata, DCaggr *const *aggrs) {
+    pcb->handler = handler;
+    pcb->userdata = userdata;
 }
 
+DCCallback *dcbNewCallback2(const DCsigchar *signature, DCCallbackHandler *handler, void *userdata,
+                            DCaggr *const *aggrs) {
+    DCCallback *pcb;
+    int err = dcAllocWX(sizeof(DCCallback), (void **)&pcb);
+    if (err) return NULL;
 
-DCCallback* dcbNewCallback2(const DCsigchar* signature, DCCallbackHandler* handler, void* userdata, DCaggr *const * aggrs)
-{
-  DCCallback* pcb;
-  int err = dcAllocWX(sizeof(DCCallback), (void**)&pcb);
-  if(err)
-    return NULL;
+    dcbInitCallback2(pcb, signature, handler, userdata, aggrs);
+    dcbInitThunk(&pcb->thunk, dcCallbackThunkEntry);
 
-  dcbInitCallback2(pcb, signature, handler, userdata, aggrs);
-  dcbInitThunk(&pcb->thunk, dcCallbackThunkEntry);
+    err = dcInitExecWX(pcb, sizeof(DCCallback));
+    if (err) {
+        dcFreeWX(pcb, sizeof(DCCallback));
+        return NULL;
+    }
 
-  err = dcInitExecWX(pcb, sizeof(DCCallback));
-  if(err) {
-    dcFreeWX(pcb, sizeof(DCCallback));
-    return NULL;
-  }
-
-  return pcb;
+    return pcb;
 }
-

@@ -14,11 +14,10 @@ package Dyn::Call 0.03 {
                 dcArgAggr
             ]
         ],
-        callvm => [qw[dcNewCallVM dcFree dcMode dcReset]],
-        call   => [qw[dcCallVoid dcCallChar dcCallInt dcCallPointer dcCallAggr dcCallString]],
-        aggregates =>
-            [qw[dcNewAggr dcAggrField dcCloseAggr dcFreeAggr dcBeginCallAggr]],
-        vars => [
+        callvm     => [qw[dcNewCallVM dcFree dcMode dcReset]],
+        call       => [qw[dcCallVoid dcCallChar dcCallInt dcCallPointer dcCallAggr dcCallString]],
+        aggregates => [qw[dcNewAggr dcAggrField dcCloseAggr dcFreeAggr dcBeginCallAggr]],
+        vars       => [
             qw[
                 DC_CALL_C_DEFAULT
                 DC_CALL_C_ELLIPSIS DC_CALL_C_ELLIPSIS_VARARGS

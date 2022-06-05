@@ -23,8 +23,6 @@
 
 */
 
-
-
 #ifndef DYNCALL_CALLVM_MIPS_N64_H
 #define DYNCALL_CALLVM_MIPS_N64_H
 
@@ -34,7 +32,6 @@
 #ifdef __cplusplus
 extern "C" {
 #endif
-
 
 /*
   two register-files for integer (promoted to 64-bit) and float (not promoted!)
@@ -54,26 +51,28 @@ extern "C" {
 
 typedef struct
 {
-  DClonglong                       mIntData[8];
+    DClonglong mIntData[8];
 #if defined(DC__ABI_HARDFLOAT)
-  union { DCfloat f; DCdouble d; } mFloatData[8];
-  DClonglong                       mUseDouble; /* bitmask: lower 8 bits specify to use float or double from union array. */
-#endif /* DC__ABI_HARDFLOAT */
+    union
+    {
+        DCfloat f;
+        DCdouble d;
+    } mFloatData[8];
+    DClonglong
+        mUseDouble; /* bitmask: lower 8 bits specify to use float or double from union array. */
+#endif              /* DC__ABI_HARDFLOAT */
 } DCRegData_mips_n64;
-
 
 typedef struct
 {
-  DCCallVM           mInterface;
-  DCint              mRegCount;
-  DCRegData_mips_n64 mRegData;
-  DCVecHead          mVecHead;
+    DCCallVM mInterface;
+    DCint mRegCount;
+    DCRegData_mips_n64 mRegData;
+    DCVecHead mVecHead;
 } DCCallVM_mips_n64;
-
 
 #ifdef __cplusplus
 }
 #endif
 
 #endif /* DYNCALL_CALLVM_MIPS_N64_H */
-

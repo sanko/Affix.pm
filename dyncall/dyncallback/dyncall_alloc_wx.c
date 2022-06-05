@@ -23,7 +23,6 @@
 
 */
 
-
 #include "../dyncall/dyncall_macros.h"
 
 #if defined(DC_WINDOWS)
@@ -33,4 +32,3 @@
 #else
 #include "dyncall_alloc_wx_malloc.c"
 #endif
-

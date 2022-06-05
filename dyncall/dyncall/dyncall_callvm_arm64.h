@@ -3,10 +3,10 @@
  Package: dyncall
  Library: dyncall
  File: dyncall/dyncall_callvm_arm64.h
- Description: 
+ Description:
  License:
 
-   Copyright (c) 2015-2020 Daniel Adler <dadler@uni-goettingen.de>, 
+   Copyright (c) 2015-2020 Daniel Adler <dadler@uni-goettingen.de>,
                            Tassilo Philipp <tphilipp@potion-studios.com>
 
    Permission to use, copy, modify, and distribute this software for any
@@ -31,16 +31,16 @@
 
 typedef struct
 {
-  DCCallVM mInterface;
-  unsigned int i;	/* int register counter */
-  unsigned int f;	/* float register counter */
-  union {		/* float register buffer */
-    DCfloat  S[16];
-    DCdouble D[8];
-  } u;
-  unsigned long long I[8]; /* int register buffer */
-  DCVecHead mVecHead;	/* argument buffer head */
+    DCCallVM mInterface;
+    unsigned int i; /* int register counter */
+    unsigned int f; /* float register counter */
+    union
+    { /* float register buffer */
+        DCfloat S[16];
+        DCdouble D[8];
+    } u;
+    unsigned long long I[8]; /* int register buffer */
+    DCVecHead mVecHead;      /* argument buffer head */
 } DCCallVM_arm64;
 
 #endif /* DYNCALL_CALLVM_ARM64_DEBIAN_H */
-

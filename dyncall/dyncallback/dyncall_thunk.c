@@ -23,22 +23,20 @@
 
 */
 
-
 #include "dyncall_thunk.h"
 
-
 #if defined(DC__Arch_Intel_x86)
-# include "dyncall_thunk_x86.c"
+#include "dyncall_thunk_x86.c"
 #elif defined(DC__Arch_AMD64)
-# include "dyncall_thunk_x64.c"
+#include "dyncall_thunk_x64.c"
 #elif defined(DC__Arch_PPC32)
-# if defined(DC__OS_Darwin)
-#   include "dyncall_thunk_ppc32.c"
-# else
-#   include "dyncall_thunk_ppc32_sysv.c"
-# endif
+#if defined(DC__OS_Darwin)
+#include "dyncall_thunk_ppc32.c"
+#else
+#include "dyncall_thunk_ppc32_sysv.c"
+#endif
 #elif defined(DC__Arch_PPC64)
-# include "dyncall_thunk_ppc64.c"
+#include "dyncall_thunk_ppc64.c"
 #elif defined(DC__Arch_ARM)
 #include "dyncall_thunk_arm32.c"
 #elif defined(DC__Arch_MIPS)
@@ -52,4 +50,3 @@
 #elif defined(DC__Arch_ARM64)
 #include "dyncall_thunk_arm64.c"
 #endif
-

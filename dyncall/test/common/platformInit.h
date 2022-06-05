@@ -3,10 +3,10 @@
  Package: dyncall
  Library: test
  File: test/common/platformInit.h
- Description: 
+ Description:
  License:
 
-   Copyright (c) 2007-2018 Daniel Adler <dadler@uni-goettingen.de>, 
+   Copyright (c) 2007-2018 Daniel Adler <dadler@uni-goettingen.de>,
                            Tassilo Philipp <tphilipp@potion-studios.com>
 
    Permission to use, copy, modify, and distribute this software for any
@@ -23,40 +23,36 @@
 
 */
 
-
 #ifndef PLATFORMINIT_H
 #define PLATFORMINIT_H
-
 
 #include "../../dyncall/dyncall_macros.h"
 
 #if defined(DC__OS_NDS)
-#  include <nds.h>
-#  include <stdio.h>
+#include <nds.h>
+#include <stdio.h>
 #elif defined(DC__OS_PSP)
-#  include <pspkernel.h>
-#  include <pspdebug.h>
-#  include <pspdisplay.h>
-#  include <stdio.h>
-#  define printf pspDebugScreenPrintf
+#include <pspkernel.h>
+#include <pspdebug.h>
+#include <pspdisplay.h>
+#include <stdio.h>
+#define printf pspDebugScreenPrintf
 /* All other platforms, usually just pulling in standard headers and empty init function. */
 #else
-#  if defined(__cplusplus)
-#    if defined(__SUNPRO_CC) || defined(__ANDROID__) /* needed by SunPro .. otherwise printf not included */
-#      include <stdio.h>
-#    else
-#      include <cstdio>
-#    endif
-#  else
-#    include <stdio.h>
-#  endif
+#if defined(__cplusplus)
+#if defined(__SUNPRO_CC) ||                                                                        \
+    defined(__ANDROID__) /* needed by SunPro .. otherwise printf not included */
+#include <stdio.h>
+#else
+#include <cstdio>
 #endif
-
+#else
+#include <stdio.h>
+#endif
+#endif
 
 /* Init/shutdown forwards, should be used by every (portable) test. */
 void dcTest_initPlatform();
 void dcTest_deInitPlatform();
 
-
 #endif /* PLATFORMINIT_H */
-

@@ -29,12 +29,11 @@
 
 struct DCArgs
 {
-  long long      ireg_data[8];
-  double         freg_data[13];
-  unsigned char* stackptr;
-  int            ireg_count;
-  int            freg_count;
+    long long ireg_data[8];
+    double freg_data[13];
+    unsigned char *stackptr;
+    int ireg_count;
+    int freg_count;
 };
 
 #endif /* DYNCALLBACK_ARGS_PPC64_H */
-

@@ -27,11 +27,13 @@ typedef struct _callback
     DCCallVM *cvm;
 } _callback;
 
-struct Struct {
-	union {
-		char   alpha;
-		int    num;
-        char * string;
-        void * pointer;
-	};
+struct Struct
+{
+    union
+    {
+        char alpha;
+        int num;
+        char *string;
+        void *pointer;
+    };
 };

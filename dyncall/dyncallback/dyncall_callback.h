@@ -35,24 +35,28 @@ typedef struct DCCallback DCCallback;
 /* callback handler:
    - handlers return value signature char (see dyncall_signature.h) of callback's return value type
    - callback return value is written to the corresponding type's field of result
-   - if callback return value is an aggregate (by value), use dcbReturnAggr() as a helper to write to result
+   - if callback return value is an aggregate (by value), use dcbReturnAggr() as a helper to write
+   to result
 */
-typedef DCsigchar (DCCallbackHandler)(DCCallback* pcb, DCArgs* args, DCValue* result, void* userdata);
+typedef DCsigchar(DCCallbackHandler)(DCCallback *pcb, DCArgs *args, DCValue *result,
+                                     void *userdata);
 
 #ifdef __cplusplus
 extern "C" {
-#endif 
+#endif
 
-DCCallback* dcbNewCallback  (const DCsigchar* signature, DCCallbackHandler* funcptr, void* userdata);
-DCCallback* dcbNewCallback2 (const DCsigchar* signature, DCCallbackHandler* funcptr, void* userdata, DCaggr *const * aggrs);
-void        dcbInitCallback (DCCallback* pcb, const DCsigchar* signature, DCCallbackHandler* handler, void* userdata);
-void        dcbInitCallback2(DCCallback* pcb, const DCsigchar* signature, DCCallbackHandler* handler, void* userdata, DCaggr *const * aggrs);
-void        dcbFreeCallback (DCCallback* pcb);
-void*       dcbGetUserData  (DCCallback* pcb);
+DCCallback *dcbNewCallback(const DCsigchar *signature, DCCallbackHandler *funcptr, void *userdata);
+DCCallback *dcbNewCallback2(const DCsigchar *signature, DCCallbackHandler *funcptr, void *userdata,
+                            DCaggr *const *aggrs);
+void dcbInitCallback(DCCallback *pcb, const DCsigchar *signature, DCCallbackHandler *handler,
+                     void *userdata);
+void dcbInitCallback2(DCCallback *pcb, const DCsigchar *signature, DCCallbackHandler *handler,
+                      void *userdata, DCaggr *const *aggrs);
+void dcbFreeCallback(DCCallback *pcb);
+void *dcbGetUserData(DCCallback *pcb);
 
 #ifdef __cplusplus
 }
-#endif 
+#endif
 
 #endif /* DYNCALL_CALLBACK_H */
-

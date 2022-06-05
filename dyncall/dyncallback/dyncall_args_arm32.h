@@ -23,7 +23,6 @@
 
 */
 
-
 #ifndef DYNCALLBACK_ARGS_ARM32_H
 #define DYNCALLBACK_ARGS_ARM32_H
 
@@ -31,16 +30,15 @@
 
 struct DCArgs
 {
-	/* Don't change order! */
-	long  reg_data[4];
-	int   reg_count;
-	long* stack_ptr;
+    /* Don't change order! */
+    long reg_data[4];
+    int reg_count;
+    long *stack_ptr;
 #if defined(DC__ABI_ARM_HF)
-	DCfloat f[16];
-	int     freg_count;
-	int     dreg_count;
+    DCfloat f[16];
+    int freg_count;
+    int dreg_count;
 #endif
 };
 
 #endif /* DYNCALLBACK_ARGS_ARM32_H */
-

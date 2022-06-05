@@ -3,7 +3,7 @@
  Package: dyncall
  Library: dyncall
  File: dyncall/dyncall_callvm_ppc64.h
- Description: 
+ Description:
  License:
 
    Copyright (c) 2014-2015 Masanori Mitsugi <mitsugi@linux.vnet.ibm.com>
@@ -23,7 +23,6 @@
 
 */
 
-
 #ifndef DYNCALL_CALLVM_PPC64_H
 #define DYNCALL_CALLVM_PPC64_H
 
@@ -39,26 +38,22 @@
 
 */
 
-
 #include "dyncall_callvm.h"
 #include "dyncall_vector.h"
 
-
 typedef struct
 {
-  DClonglong mIntData[8];
-  DCdouble   mFloatData[13];
+    DClonglong mIntData[8];
+    DCdouble mFloatData[13];
 } DCRegData_ppc64;
 
 typedef struct
 {
-  DCCallVM        mInterface;
-  int             mIntRegs;
-  int             mFloatRegs;
-  DCRegData_ppc64 mRegData;
-  DCVecHead       mVecHead;
+    DCCallVM mInterface;
+    int mIntRegs;
+    int mFloatRegs;
+    DCRegData_ppc64 mRegData;
+    DCVecHead mVecHead;
 } DCCallVM_ppc64;
 
-
 #endif /* DYNCALL_CALLVM_PPC64_H */
-

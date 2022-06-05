@@ -6,7 +6,7 @@
  Description: Macro configuration file for non-standard C types
  License:
 
-   Copyright (c) 2007-2018 Daniel Adler <dadler@uni-goettingen.de>, 
+   Copyright (c) 2007-2018 Daniel Adler <dadler@uni-goettingen.de>,
                            Tassilo Philipp <tphilipp@potion-studios.com>
 
    Permission to use, copy, modify, and distribute this software for any
@@ -23,8 +23,6 @@
 
 */
 
-
-
 /*
 
   dyncall type configuration
@@ -39,9 +37,8 @@
 
 #include "dyncall_macros.h"
 
-#define DC_BOOL         int
-#define DC_LONG_LONG    long long
-#define DC_POINTER      void*
+#define DC_BOOL int
+#define DC_LONG_LONG long long
+#define DC_POINTER void *
 
 #endif /* DYNCALL_CONFIG_H */
-

@@ -3,10 +3,10 @@
  Package: dyncall
  Library: dynload
  File: dynload/dynload_syms.c
- Description: 
+ Description:
  License:
 
-   Copyright (c) 2007-2018 Daniel Adler <dadler@uni-goettingen.de>, 
+   Copyright (c) 2007-2018 Daniel Adler <dadler@uni-goettingen.de>,
                            Tassilo Philipp <tphilipp@potion-studios.com>
 
    Permission to use, copy, modify, and distribute this software for any
@@ -23,8 +23,6 @@
 
 */
 
-
-
 #include "dynload.h"
 #include "../autovar/autovar_ABI.h"
 #if defined(ABI_PE)
@@ -34,4 +32,3 @@
 #elif defined(ABI_ELF)
 #include "dynload_syms_elf.c"
 #endif
-

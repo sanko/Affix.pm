@@ -23,8 +23,6 @@
 
 */
 
-
-
 #include "dyncall_thunk.h"
 
 /*
@@ -32,12 +30,12 @@
 Thunk Register: x9
 
 Thunk:
-	adr x9,  Thunk
-	ldr x10, .target
-	br  x10
-	nop
+        adr x9,  Thunk
+        ldr x10, .target
+        br  x10
+        nop
 .target:
-	.xword 0
+        .xword 0
 
 -- Encoded in:
 
@@ -52,13 +50,11 @@ Thunk:
   14:	fedcba98 	.word	0xfedcba98
 */
 
-void dcbInitThunk(DCThunk* p, void (*entry)())
-{
-  p->code[0] = 0x10000009; //   adr x9, 0
-  p->code[1] = 0x5800006a; //	ldr x9, entry
-  p->code[2] = 0xd61f0140; //   br  x9
-  p->code[3] = 0xd503201f; //   nop
-  p->entry   = entry;      // entry: 
-                           //   .xword 0
+void dcbInitThunk(DCThunk *p, void (*entry)()) {
+    p->code[0] = 0x10000009; //   adr x9, 0
+    p->code[1] = 0x5800006a; //	ldr x9, entry
+    p->code[2] = 0xd61f0140; //   br  x9
+    p->code[3] = 0xd503201f; //   nop
+    p->entry = entry;        // entry:
+                             //   .xword 0
 }
-

@@ -23,8 +23,6 @@
 
 */
 
-
-
 #ifndef DYNCALL_ARGS_X86_H_
 #define DYNCALL_ARGS_X86_H_
 
@@ -32,10 +30,10 @@
 
 typedef struct
 {
-	DCint      (*i32)(DCArgs*);
-	DClonglong (*i64)(DCArgs*);
-	DCfloat    (*f32)(DCArgs*);
-	DCdouble   (*f64)(DCArgs*);
+    DCint (*i32)(DCArgs *);
+    DClonglong (*i64)(DCArgs *);
+    DCfloat (*f32)(DCArgs *);
+    DCdouble (*f64)(DCArgs *);
 } DCArgsVT;
 
 extern DCArgsVT dcArgsVT_default;
@@ -45,15 +43,15 @@ extern DCArgsVT dcArgsVT_fast_gnu;
 
 struct DCArgs
 {
-	/* callmode */
-	DCArgsVT* vt;
+    /* callmode */
+    DCArgsVT *vt;
 
-	/* state */
-	int* stack_ptr;
+    /* state */
+    int *stack_ptr;
 
-	/* fast data / 'this-ptr' info */
-	int  fast_data[2];
-	int  fast_count;
+    /* fast data / 'this-ptr' info */
+    int fast_data[2];
+    int fast_count;
 };
 
 #endif /* DYNCALL_ARGS_X86_H_ */

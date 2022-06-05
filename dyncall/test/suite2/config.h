@@ -3,7 +3,7 @@
  Package: dyncall
  Library: test
  File: test/suite2/config.h
- Description: 
+ Description:
  License:
 
    Copyright (c) 2011-2018 Daniel Adler <dadler@uni-goettingen.de>,

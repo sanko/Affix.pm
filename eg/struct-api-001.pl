@@ -112,20 +112,15 @@ package Dynamo {
     }
 
     #sub Pointer (){}
-
-
-        package Dynamo::Type::void {    # nada
+    package Dynamo::Type::void {    # nada
 
         sub new {
             my ( $package, $f, @etc ) = @_;
-
-@etc && return ();
+            @etc && return ();
             return bless \0, $package;
         }
-
-                    sub sizeof() {0}
-
-        }
+        sub sizeof() {0}
+    }
 
     package Dynamo::Type::bool {
         use overload '""' => sub {
@@ -151,11 +146,12 @@ package Dynamo {
         }
         sub sizeof() {1}
     }
-    package Dynamo::Type::byte {    # char
-                use parent -norequire, 'Dynamo::Type::u8';
 
+    package Dynamo::Type::byte {    # char
+        use parent -norequire, 'Dynamo::Type::u8';
     }
-    package Dynamo::Type::i8 {    # char
+
+    package Dynamo::Type::i8 {      # char
         use overload
             '0+' => sub {
             my $s = shift;
@@ -475,23 +471,20 @@ package Dynamo {
             warn 'UNION';
 
             #warn $$ref;
-            $$ref =~ s[\s*(?<name>\S+?)\s+{\s*(?<types>.*?)\s*}\s*;][Dynamo::union(name   => $+{name}, fields => { i => Dynamo::i32(), f => Dynamo::f32(), c => Dynamo::u16() } );]s;
+            $$ref
+                =~ s[\s*(?<name>\S+?)\s+{\s*(?<types>.*?)\s*}\s*;][Dynamo::union(name   => $+{name}, fields => { i => Dynamo::i32(), f => Dynamo::f32(), c => Dynamo::u16() } );]s;
+
             #warn $1;
             #warn $2;
             warn $+{types};
             warn join '|', _csv( $+{types} );
-
-            my @types= map {
-              warn $_;
-            }
-
-            split ';', $+{types};
-ddx
-\@types;
-Dynamo::union(name   => $+{name}, fields => { i => Dynamo::i32(), f => Dynamo::f32(), c => Dynamo::u16() } );
-
-
-die $$ref;
+            my @types = map { warn $_; } split ';', $+{types};
+            ddx \@types;
+            Dynamo::union(
+                name   => $+{name},
+                fields => { i => Dynamo::i32(), f => Dynamo::f32(), c => Dynamo::u16() }
+            );
+            die $$ref;
         };
         Keyword::Simple::define 'enum', sub {
             my ($ref) = @_;
@@ -668,8 +661,6 @@ subtest 'Dynamo::Union' => sub {
     is $union->f, U(), '$union->f is now undefined';
 };
 done_testing;
-
-
 __END__
 union Test::Union {
     field $a: isa(i8);

@@ -23,13 +23,12 @@
 
 */
 
-
 #ifndef DYNCALL_THUNK_SPARC64_H
 #define DYNCALL_THUNK_SPARC64_H
 
 struct DCThunk_
 {
-  unsigned int code[14];
+    unsigned int code[14];
 };
 
 #define DCTHUNK_SIZE_SPARC64 56

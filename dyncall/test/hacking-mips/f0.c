@@ -3,7 +3,7 @@
  Package: dyncall
  Library: test
  File: test/hacking-mips/f0.c
- Description: 
+ Description:
  License:
 
    Copyright (c) 2011-2018 Daniel Adler <dadler@uni-goettingen.de>,
@@ -23,7 +23,4 @@
 
 */
 
-void f0()
-{
-}
-
+void f0() {}

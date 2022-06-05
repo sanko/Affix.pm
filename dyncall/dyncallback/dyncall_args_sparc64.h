@@ -23,7 +23,6 @@
 
 */
 
-
 #ifndef DYNCALLBACK_ARGS_SPARC64_H
 #define DYNCALLBACK_ARGS_SPARC64_H
 
@@ -32,11 +31,10 @@
 #define DCARGS_SPARC64_NUM_DOUBLE_REGS 16
 struct DCArgs
 {
-	/* Don't change order or types, laid out for asm code to fill in! */
-	DClonglong *arg_ptr;
-	DCdouble   dreg_data[DCARGS_SPARC64_NUM_DOUBLE_REGS];
-	DClonglong i; /* args fetched */
+    /* Don't change order or types, laid out for asm code to fill in! */
+    DClonglong *arg_ptr;
+    DCdouble dreg_data[DCARGS_SPARC64_NUM_DOUBLE_REGS];
+    DClonglong i; /* args fetched */
 };
 
 #endif /* DYNCALLBACK_ARGS_SPARC64_H */
-

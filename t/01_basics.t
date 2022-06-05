@@ -152,7 +152,7 @@ SKIP: {
         is dcCallChar( $cvm, $ptr ), 'Z', 'struct.a++ == Z';
         dcFreeAggr($s);
     };
-        subtest 'aggregate builder [struct return]' => sub {
+    subtest 'aggregate builder [struct return]' => sub {
         use Dyn qw[:all];          # Exports nothing by default
         my $lib = dlLoadLibrary($lib_file);
         my $ptr = dlFindSymbol( $lib, 'C2A' );
@@ -160,18 +160,35 @@ SKIP: {
         dcMode( $cvm, DC_CALL_C_DEFAULT );
         dcReset($cvm);
         my $s = dcNewAggr( 1, 1 );
+
         #isa_ok $s, 'Dyn::aggr';    # TODO: Fix case
         dcAggrField( $s, chr DC_SIGCHAR_UCHAR, 0, 1 );
         dcCloseAggr($s);
         dcReset($cvm);
-        		dcBeginCallAggr($cvm, $s);
-
         dcArgChar( $cvm, 'Y' );
         warn ord 'Y';
         warn ord 'Z';
-        ok dcCallAggr($cvm, $ptr, $s);
+        isa_ok dcCallAggr( $cvm, $ptr, $s ), 'Dyn::aggr';
         dcFreeAggr($s);
+    };
+    subtest 'aggregate builder [struct arg and return]' => sub {
+        use Dyn qw[:all];          # Exports nothing by default
+        my $lib = dlLoadLibrary($lib_file);
+        my $ptr = dlFindSymbol( $lib, 'A2A' );
+        my $cvm = dcNewCallVM(1024);
+        dcMode( $cvm, DC_CALL_C_DEFAULT );
+        dcReset($cvm);
+        my $s = dcNewAggr( 1, 1 );
+        isa_ok $s, 'Dyn::aggr';    # TODO: Fix case
+        dcAggrField( $s, chr DC_SIGCHAR_UCHAR, 0, 1 );
+        dcCloseAggr($s);
+        dcReset($cvm);
+        dcBeginCallAggr( $cvm, $s );
+        dcArgChar( $cvm, 'Y' );
+        isa_ok dcCallAggr( $cvm, $ptr, $s ), 'Dyn::aggr';
 
+        #is dcCallChar( $cvm, $ptr ), 'Z', 'struct.a++ == Z';
+        dcFreeAggr($s);
     };
     diag 'Here';
     subtest 'Dyn synopsis' => sub {

@@ -23,7 +23,6 @@
 
 */
 
-
 #ifndef DYNCALL_ALLOC_WX_HPP
 #define DYNCALL_ALLOC_WX_HPP
 
@@ -36,14 +35,12 @@ extern "C" {
 #endif
 
 /* returns 0 on success */
-DCerror dcAllocWX   (DCsize size, void** p);
-DCerror dcInitExecWX(void* p, DCsize size);
-void    dcFreeWX    (void* p, DCsize size);
+DCerror dcAllocWX(DCsize size, void **p);
+DCerror dcInitExecWX(void *p, DCsize size);
+void dcFreeWX(void *p, DCsize size);
 
 #ifdef __cplusplus
 }
 #endif
 
-
 #endif /* DYNCALL_ALLOC_WX_HPP */
-

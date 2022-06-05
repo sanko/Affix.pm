@@ -3,7 +3,7 @@
  Package: dyncall
  Library: test
  File: test/hacking-mips/main.c
- Description: 
+ Description:
  License:
 
    Copyright (c) 2011-2018 Daniel Adler <dadler@uni-goettingen.de>,
@@ -33,20 +33,16 @@
 #define v4 4
 #define v5 5
 
-void ext()
-{
-}
+void ext() {}
 
-int main(int argc, char* argv[])
-{
-  int result;
-  call_f0();
-  call_f4();
-  call_f8();
-  n0();
-  n8(1,2,3,4,5,6,7,8);
-  result = dispatch(&f,v0,v1,v2,v3,v4,v5);
-  assert(result == v0+v1+v2+v3+v4+v5+v0+v1+v2 );
-  return 0;
+int main(int argc, char *argv[]) {
+    int result;
+    call_f0();
+    call_f4();
+    call_f8();
+    n0();
+    n8(1, 2, 3, 4, 5, 6, 7, 8);
+    result = dispatch(&f, v0, v1, v2, v3, v4, v5);
+    assert(result == v0 + v1 + v2 + v3 + v4 + v5 + v0 + v1 + v2);
+    return 0;
 }
-

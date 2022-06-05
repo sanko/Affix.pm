@@ -3,10 +3,10 @@
  Package: dyncall
  Library: dyncall
  File: dyncall/dyncall_callvm_mips.h
- Description: 
+ Description:
  License:
 
-   Copyright (c) 2007-2018 Daniel Adler <dadler@uni-goettingen.de>, 
+   Copyright (c) 2007-2018 Daniel Adler <dadler@uni-goettingen.de>,
                            Tassilo Philipp <tphilipp@potion-studios.com>
 
    Permission to use, copy, modify, and distribute this software for any
@@ -23,8 +23,6 @@
 
 */
 
-
-
 #ifndef DYNCALL_CALLVM_MIPS_H
 #define DYNCALL_CALLVM_MIPS_H
 
@@ -35,4 +33,3 @@
 #include "dyncall_callvm_mips_n64.h"
 
 #endif /* DYNCALL_CALLVM_MIPS_H */
-

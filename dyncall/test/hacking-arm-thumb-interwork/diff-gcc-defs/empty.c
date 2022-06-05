@@ -3,7 +3,7 @@
  Package: dyncall
  Library: test
  File: test/hacking-arm-thumb-interwork/diff-gcc-defs/empty.c
- Description: 
+ Description:
  License:
 
    Copyright (c) 2011-2018 Daniel Adler <dadler@uni-goettingen.de>,
@@ -22,4 +22,3 @@
    OR IN CONNECTION WITH THE USE OR PERFORMANCE OF THIS SOFTWARE.
 
 */
-

@@ -3,10 +3,10 @@
  Package: dyncall
  Library: test
  File: test/suite2/funcinfo.h
- Description: 
+ Description:
  License:
 
-   Copyright (c) 2007-2018 Daniel Adler <dadler@uni-goettingen.de>, 
+   Copyright (c) 2007-2018 Daniel Adler <dadler@uni-goettingen.de>,
                            Tassilo Philipp <tphilipp@potion-studios.com>
 
    Permission to use, copy, modify, and distribute this software for any
@@ -23,8 +23,6 @@
 
 */
 
-
-
 #ifndef DC_TEST_FUNCINFO_H
 #define DC_TEST_FUNCINFO_H
 
@@ -32,10 +30,10 @@
 
 struct funcinfo
 {
-  DCpointer        funcptr;
-  const DCsigchar* sig;
+    DCpointer funcptr;
+    const DCsigchar *sig;
 };
 
 extern funcinfo gFuncInfos[];
 
-#endif /* DC_TEST_FUNCINFO_H */ 
+#endif /* DC_TEST_FUNCINFO_H */

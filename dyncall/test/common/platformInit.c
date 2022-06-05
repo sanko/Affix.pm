@@ -3,10 +3,10 @@
  Package: dyncall
  Library: test
  File: test/common/platformInit.c
- Description: 
+ Description:
  License:
 
-   Copyright (c) 2015-2018 Daniel Adler <dadler@uni-goettingen.de>, 
+   Copyright (c) 2015-2018 Daniel Adler <dadler@uni-goettingen.de>,
                            Tassilo Philipp <tphilipp@potion-studios.com>
 
    Permission to use, copy, modify, and distribute this software for any
@@ -23,93 +23,77 @@
 
 */
 
-
 #include "platformInit.h"
-
 
 #if defined(DC__OS_NDS)
 
-void dcTest_initPlatform()
-{
-  powerOn(POWER_ALL);
+void dcTest_initPlatform() {
+    powerOn(POWER_ALL);
 
-  /* Interrupt handlers. */
-  /*irqInit();*/
-  /*irqSet(IRQ_VBLANK, OnIrq);*/
+    /* Interrupt handlers. */
+    /*irqInit();*/
+    /*irqSet(IRQ_VBLANK, OnIrq);*/
 
-  /* Use the touch screen for output. */
-  videoSetMode(MODE_FB0);
-  vramSetBankA(VRAM_A_LCD);
-  videoSetModeSub(MODE_0_2D | DISPLAY_BG0_ACTIVE);
-  vramSetBankC(VRAM_C_SUB_BG);
-  REG_BG0CNT_SUB = BG_MAP_BASE(31);
+    /* Use the touch screen for output. */
+    videoSetMode(MODE_FB0);
+    vramSetBankA(VRAM_A_LCD);
+    videoSetModeSub(MODE_0_2D | DISPLAY_BG0_ACTIVE);
+    vramSetBankC(VRAM_C_SUB_BG);
+    REG_BG0CNT_SUB = BG_MAP_BASE(31);
 
-  /* Set the colour of the font. */
-  /* BG_PALETTE_SUB[255] = RGB15(25, 11, 9); */
+    /* Set the colour of the font. */
+    /* BG_PALETTE_SUB[255] = RGB15(25, 11, 9); */
 
-  /* consoleInitDefault((u16*)SCREEN_BASE_BLOCK_SUB(31), (u16*)CHAR_BASE_BLOCK_SUB(0), 16); */
-  consoleDemoInit();
+    /* consoleInitDefault((u16*)SCREEN_BASE_BLOCK_SUB(31), (u16*)CHAR_BASE_BLOCK_SUB(0), 16); */
+    consoleDemoInit();
 }
 
-
-void dcTest_deInitPlatform()
-{
-  /* Main loop - console style. */
-  while(1) {
-    swiWaitForVBlank();
-  }
+void dcTest_deInitPlatform() {
+    /* Main loop - console style. */
+    while (1) {
+        swiWaitForVBlank();
+    }
 }
-
 
 #elif defined(DC__OS_PSP)
 
-PSP_MODULE_INFO("dyncall_test",0,1,1);
+PSP_MODULE_INFO("dyncall_test", 0, 1, 1);
 
-int exit_callback(int arg1, int arg2, void *common)
-{
-  sceKernelExitGame();
-  return 0;
+int exit_callback(int arg1, int arg2, void *common) {
+    sceKernelExitGame();
+    return 0;
 }
 
-int CallbackThread(SceSize args, void *argp)
-{
-  int cbid;
-  cbid = sceKernelCreateCallback("Exit Callback", &exit_callback, NULL);
-  sceKernelRegisterExitCallback(cbid);
-  sceKernelSleepThreadCB();
-  return 0;
+int CallbackThread(SceSize args, void *argp) {
+    int cbid;
+    cbid = sceKernelCreateCallback("Exit Callback", &exit_callback, NULL);
+    sceKernelRegisterExitCallback(cbid);
+    sceKernelSleepThreadCB();
+    return 0;
 }
 
-void dcTest_initPlatform()
-{
-  pspDebugScreenInit();
-  pspDebugScreenClear();
+void dcTest_initPlatform() {
+    pspDebugScreenInit();
+    pspDebugScreenClear();
 
-  int thid = 0;
-  thid = sceKernelCreateThread("update_thread", &CallbackThread, 0x11, 0xFA0, THREAD_ATTR_USER, 0);
-  if (thid >= 0)
-      sceKernelStartThread(thid, 0, 0);
+    int thid = 0;
+    thid =
+        sceKernelCreateThread("update_thread", &CallbackThread, 0x11, 0xFA0, THREAD_ATTR_USER, 0);
+    if (thid >= 0) sceKernelStartThread(thid, 0, 0);
 
-  sceDisplayWaitVblankStart();
-  pspDebugScreenSetXY(0, 0);
+    sceDisplayWaitVblankStart();
+    pspDebugScreenSetXY(0, 0);
 }
 
-void dcTest_deInitPlatform()
-{
-  sceKernelSleepThread();
-  sceKernelExitGame();
+void dcTest_deInitPlatform() {
+    sceKernelSleepThread();
+    sceKernelExitGame();
 }
-
 
 #else /* All other platforms, usually just pulling in standard headers and empty init function. */
 
-void dcTest_initPlatform()
-{
-}
+void dcTest_initPlatform() {}
 
-void dcTest_deInitPlatform()
-{
-}
+void dcTest_deInitPlatform() {}
 
 #endif
-

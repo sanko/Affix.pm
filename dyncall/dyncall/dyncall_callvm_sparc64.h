@@ -22,21 +22,18 @@
 
 */
 
-
-
 #ifndef DYNCALL_CALLVM_SPARC_V9_H
 #define DYNCALL_CALLVM_SPARC_V9_H
 
 #include "dyncall_callvm.h"
 #include "dyncall_vector.h"
 
-typedef struct 
+typedef struct
 {
-  DCCallVM     mInterface;      /*   0: +12:8 = 16*/
-  DCVecHead    mVecHead;        /* 16   152: mTotalSize +8 */
-                                /* 24   160: mSize      +8 */
-                                /* 32  168: mData  */ 
+    DCCallVM mInterface; /*   0: +12:8 = 16*/
+    DCVecHead mVecHead;  /* 16   152: mTotalSize +8 */
+                         /* 24   160: mSize      +8 */
+                         /* 32  168: mData  */
 } DCCallVM_v9;
 
 #endif /* DYNCALL_CALLVM_SPARC_V9_H */
-

@@ -3,7 +3,7 @@
  Package: dyncall
  Library: test
  File: test/thunk/test_thunk.c
- Description: 
+ Description:
  License:
 
    Copyright (c) 2011-2021 Daniel Adler <dadler@uni-goettingen.de>,
@@ -29,7 +29,6 @@
 #include "../common/platformInit.h"
 #include "../common/platformInit.c" /* Impl. for functions only used in this translation unit */
 
-
 /**
  ** test: thunks with several allocation modes
  **       such as on stack, on heap and explicit wx
@@ -45,111 +44,105 @@ jmp_buf jbuf;
 
 static int last_sig;
 
-void segv_handler(int sig)
-{
-  last_sig = sig;
-  longjmp(jbuf, 1);
+void segv_handler(int sig) {
+    last_sig = sig;
+    longjmp(jbuf, 1);
 }
 
-void my_entry(const char* text)
-{
-  printf("%s: %d\n", text, strcmp(text, "wx") == 0 || strcmp(text, "stack") == 0 || strcmp(text, "heap") == 0); /* @@@ */
+void my_entry(const char *text) {
+    printf("%s: %d\n", text,
+           strcmp(text, "wx") == 0 || strcmp(text, "stack") == 0 ||
+               strcmp(text, "heap") == 0); /* @@@ */
 }
 
-typedef void (printfun)(const char*);
+typedef void(printfun)(const char *);
 
-void test_stack()
-{
-  DCThunk t;
-  printfun* fp;
-  dcbInitThunk(&t, &my_entry);
-  fp = (printfun*)&t;
-  if(setjmp(jbuf) != 0)
-    printf(last_sig == SIGSEGV ? "sigsegv\n" : "sigbus\n");
-  else
-    fp("stack");
+void test_stack() {
+    DCThunk t;
+    printfun *fp;
+    dcbInitThunk(&t, &my_entry);
+    fp = (printfun *)&t;
+    if (setjmp(jbuf) != 0)
+        printf(last_sig == SIGSEGV ? "sigsegv\n" : "sigbus\n");
+    else
+        fp("stack");
 }
 
 #include <stdlib.h>
 
-void test_heap()
-{
-  printfun* fp;
-  DCThunk* p = (DCThunk*)malloc(sizeof(DCThunk));
-  if(!p) {
-    printf("0\n");
-    return;
-  }
-  dcbInitThunk(p, &my_entry);
-  fp = (printfun*)p;
-  if(setjmp(jbuf) != 0)
-    printf(last_sig == SIGSEGV ? "sigsegv\n" : "sigbus\n");
-  else
-    fp("heap");
-  free(p);
+void test_heap() {
+    printfun *fp;
+    DCThunk *p = (DCThunk *)malloc(sizeof(DCThunk));
+    if (!p) {
+        printf("0\n");
+        return;
+    }
+    dcbInitThunk(p, &my_entry);
+    fp = (printfun *)p;
+    if (setjmp(jbuf) != 0)
+        printf(last_sig == SIGSEGV ? "sigsegv\n" : "sigbus\n");
+    else
+        fp("heap");
+    free(p);
 }
 
-void test_wx()
-{
-  DCThunk* p;
-  printfun* fp;
-  int err = dcAllocWX(sizeof(DCThunk), (void**)&p);
-  if(err || !p) {
-    printf("0\n");
-    return;
-  }
-  dcbInitThunk(p, &my_entry);
-  err = dcInitExecWX((void*)p, sizeof(DCThunk));
-  if(err) {
-    dcFreeWX((void*)p, sizeof(DCThunk));
-    printf("0\n");
-    return;
-  }
-  fp = (printfun*)p;
-  if(setjmp(jbuf) != 0)
-    printf(last_sig == SIGSEGV ? "sigsegv\n" : "sigbus\n");
-  else
-    fp("wx");
-  dcFreeWX((void*)p, sizeof(DCThunk));
+void test_wx() {
+    DCThunk *p;
+    printfun *fp;
+    int err = dcAllocWX(sizeof(DCThunk), (void **)&p);
+    if (err || !p) {
+        printf("0\n");
+        return;
+    }
+    dcbInitThunk(p, &my_entry);
+    err = dcInitExecWX((void *)p, sizeof(DCThunk));
+    if (err) {
+        dcFreeWX((void *)p, sizeof(DCThunk));
+        printf("0\n");
+        return;
+    }
+    fp = (printfun *)p;
+    if (setjmp(jbuf) != 0)
+        printf(last_sig == SIGSEGV ? "sigsegv\n" : "sigbus\n");
+    else
+        fp("wx");
+    dcFreeWX((void *)p, sizeof(DCThunk));
 }
 
-int main()
-{
-  dcTest_initPlatform();
+int main() {
+    dcTest_initPlatform();
 
-  /* handle sigsegv and sigbus (latter used on some platforms for some mem */
-  /* access errors); use more complex setup if SA_ONSTACK is available */
+    /* handle sigsegv and sigbus (latter used on some platforms for some mem */
+    /* access errors); use more complex setup if SA_ONSTACK is available */
 
 #if defined(SA_ONSTACK)
-  /* notes:
-     - use sigaction(2) to pass SA_ONSTACK, to handle segfaults on stack (as
-       handler would use same stack, this needs to be requested explicitly)
-     - not using sigaltstack(2), as no need in our case
-  */
-  struct sigaction sigAct;
-  sigfillset(&(sigAct.sa_mask));
-  sigAct.sa_sigaction = segv_handler;
-  sigAct.sa_flags = SA_ONSTACK;
-  sigaction(SIGSEGV, &sigAct, NULL);
-  sigaction(SIGBUS,  &sigAct, NULL);
+    /* notes:
+       - use sigaction(2) to pass SA_ONSTACK, to handle segfaults on stack (as
+         handler would use same stack, this needs to be requested explicitly)
+       - not using sigaltstack(2), as no need in our case
+    */
+    struct sigaction sigAct;
+    sigfillset(&(sigAct.sa_mask));
+    sigAct.sa_sigaction = segv_handler;
+    sigAct.sa_flags = SA_ONSTACK;
+    sigaction(SIGSEGV, &sigAct, NULL);
+    sigaction(SIGBUS, &sigAct, NULL);
 #else
-  signal(SIGSEGV, segv_handler);
+    signal(SIGSEGV, segv_handler);
 #if !defined(DC_WINDOWS)
-  signal(SIGBUS,  segv_handler);
+    signal(SIGBUS, segv_handler);
 #endif
 #endif
 
+    printf("Allocating ...\n");
+    printf("... W^X memory: ");
+    test_wx();
+    printf("... heap memory: ");
+    test_heap();
+    printf("... stack memory: ");
+    test_stack();
 
-  printf("Allocating ...\n");
-  printf("... W^X memory: ");
-  test_wx();
-  printf("... heap memory: ");
-  test_heap();
-  printf("... stack memory: ");
-  test_stack();
+    dcTest_deInitPlatform();
 
-  dcTest_deInitPlatform();
-
-  return 0;
+    return 0;
 }
-

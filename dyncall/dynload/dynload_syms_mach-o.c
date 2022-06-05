@@ -24,8 +24,6 @@
 
 */
 
-
-
 /*
 
  dynamic symbol resolver for Mach-O
@@ -56,163 +54,155 @@
 #define NLIST_TYPE nlist
 #endif
 
-
 struct DLSyms_
 {
-	DLLib*                   pLib;
-	const char*              pStringTable;
-	const struct NLIST_TYPE* pSymbolTable;
-	uint32_t                 symbolCount;
-	uintptr_t                symOffset;
+    DLLib *pLib;
+    const char *pStringTable;
+    const struct NLIST_TYPE *pSymbolTable;
+    uint32_t symbolCount;
+    uintptr_t symOffset;
 };
 
+DLSyms *dlSymsInit(const char *libPath) {
+    DLLib *pLib;
+    DLSyms *pSyms = NULL;
+    uint32_t i, n;
+    const struct MACH_HEADER_TYPE *pHeader = NULL;
+    const struct dysymtab_command *dysymtab_cmd = NULL;
 
-DLSyms* dlSymsInit(const char* libPath)
-{
-	DLLib* pLib;
-	DLSyms* pSyms = NULL;
-	uint32_t i, n;
-	const struct MACH_HEADER_TYPE* pHeader = NULL;
-	const struct dysymtab_command* dysymtab_cmd = NULL;
+    pLib = dlLoadLibrary(libPath);
+    if (!pLib) return NULL;
 
-	pLib = dlLoadLibrary(libPath);
-	if(!pLib)
-		return NULL;
+    /* Loop over all dynamically linked images to find ours. */
+    for (i = 0, n = _dyld_image_count(); i < n; ++i) {
+        const char *name = _dyld_get_image_name(i);
 
-	/* Loop over all dynamically linked images to find ours. */
-	for(i = 0, n = _dyld_image_count(); i < n; ++i)
+        if (name) {
+            /* Don't rely on name comparison alone, as libPath might be relative, symlink,
+             * differently */
+            /* cased, use weird osx path placeholders, etc., but compare inode number with the one
+             * of the mapped dyld image. */
+
+            /* reload already loaded lib to get handle to compare with, should be lightweight and
+             * only increase ref count */
+            DLLib *pLib_ = dlLoadLibrary(name);
+            if (pLib_) {
+                /* free / refcount-- */
+                dlFreeLibrary(pLib_);
+
+                if (pLib == pLib_) {
+                    pHeader = (const struct MACH_HEADER_TYPE *)_dyld_get_image_header(i);
+                    //@@@ slide = _dyld_get_image_vmaddr_slide(i);
+                    break; /* found header */
+                }
+            }
+        }
+    }
+
+    if(pHeader && (pHeader->magic == MACH_HEADER_MAGIC_NR) && (pHeader->filetype == MH_DYLIB)/*@@@ ignore for now, seems to work without it on El Capitan && !(pHeader->flags & MH_SPLIT_SEGS)*/)
 	{
-		const char* name = _dyld_get_image_name(i);
+        const char *pBase = (const char *)pHeader;
+        uintptr_t slide = 0, symOffset = 0;
+        const struct load_command *cmd =
+            (const struct load_command *)(pBase + sizeof(struct MACH_HEADER_TYPE));
 
-		if(name)
-		{
-			/* Don't rely on name comparison alone, as libPath might be relative, symlink, differently */
-			/* cased, use weird osx path placeholders, etc., but compare inode number with the one of the mapped dyld image. */
+        for (i = 0, n = pHeader->ncmds; i < n;
+             ++i, cmd = (const struct load_command *)((const char *)cmd + cmd->cmdsize)) {
+            if (cmd->cmd == SEGMEND_COMMAND_ID) {
+                const struct SEGMENT_COMMAND *seg = (struct SEGMENT_COMMAND *)cmd;
+                /*@@@ unsure why I used this instead of checking __TEXT: if((seg->fileoff == 0) &&
+                 * (seg->filesize != 0))*/
+                if (strcmp(seg->segname, "__TEXT") == 0)
+                    slide = (uintptr_t)pHeader -
+                            seg->vmaddr; /* effective offset of segment from header */
 
-			/* reload already loaded lib to get handle to compare with, should be lightweight and only increase ref count */
-			DLLib* pLib_ = dlLoadLibrary(name);
-			if(pLib_)
-			{
-				/* free / refcount-- */
-				dlFreeLibrary(pLib_);
+                /* If we have __LINKEDIT segment (= raw data for dynamic linkers), use that one to
+                 * find symbal table address. */
+                if (strcmp(seg->segname, "__LINKEDIT") == 0) {
+                    /* Recompute pBase relative to where __LINKEDIT segment is in memory. */
+                    pBase = (const char *)(seg->vmaddr - seg->fileoff) + slide;
 
-				if(pLib == pLib_)
-				{
-					pHeader = (const struct MACH_HEADER_TYPE*) _dyld_get_image_header(i);
-//@@@ slide = _dyld_get_image_vmaddr_slide(i);
-					break; /* found header */
-				}
-			}
-		}
-	}
+                    /*@@@ we might want to also check maxprot and initprot here:
+                            VM_PROT_READ    ((vm_prot_t) 0x01)
+                            VM_PROT_WRITE   ((vm_prot_t) 0x02)
+                            VM_PROT_EXECUTE ((vm_prot_t) 0x04)*/
 
-	if(pHeader && (pHeader->magic == MACH_HEADER_MAGIC_NR) && (pHeader->filetype == MH_DYLIB)/*@@@ ignore for now, seems to work without it on El Capitan && !(pHeader->flags & MH_SPLIT_SEGS)*/)
-	{
-		const char* pBase = (const char*)pHeader;
-		uintptr_t slide = 0, symOffset = 0;
-		const struct load_command* cmd = (const struct load_command*)(pBase + sizeof(struct MACH_HEADER_TYPE));
+                    symOffset = slide; /* this is also offset of symbols */
+                }
+            }
+            else if (cmd->cmd == LC_SYMTAB && !pSyms /* only init once - just safety check */) {
+                const struct symtab_command *scmd = (const struct symtab_command *)cmd;
 
-		for(i = 0, n = pHeader->ncmds; i < n; ++i, cmd = (const struct load_command*)((const char*)cmd + cmd->cmdsize))
-		{
-			if(cmd->cmd == SEGMEND_COMMAND_ID)
-			{
-				const struct SEGMENT_COMMAND* seg = (struct SEGMENT_COMMAND*)cmd;
-				/*@@@ unsure why I used this instead of checking __TEXT: if((seg->fileoff == 0) && (seg->filesize != 0))*/
-				if(strcmp(seg->segname, "__TEXT") == 0)
-					slide = (uintptr_t)pHeader - seg->vmaddr; /* effective offset of segment from header */
+                /* cmd->cmdsize must be size of struct, otherwise something is off; abort */
+                if (cmd->cmdsize != sizeof(struct symtab_command)) break;
 
-				/* If we have __LINKEDIT segment (= raw data for dynamic linkers), use that one to find symbal table address. */
-				if(strcmp(seg->segname, "__LINKEDIT") == 0) {
-					/* Recompute pBase relative to where __LINKEDIT segment is in memory. */
-					pBase = (const char*)(seg->vmaddr - seg->fileoff) + slide;
+                pSyms = (DLSyms *)dlAllocMem(sizeof(DLSyms));
+                pSyms->symbolCount = scmd->nsyms;
+                pSyms->pStringTable = pBase + scmd->stroff;
+                pSyms->pSymbolTable = (struct NLIST_TYPE *)(pBase + scmd->symoff);
+                pSyms->symOffset = symOffset;
+                pSyms->pLib = pLib;
+            }
+            else if (cmd->cmd == LC_DYSYMTAB &&
+                     !dysymtab_cmd /* only init once - just safety check */) {
+                /* @@@ unused, we'll always run over all symbols, and not check locals, globals,
+                etc. if(cmd->cmdsize != sizeof(struct symtab_command)) { dlSymsCleanup(pSyms);
+                        break;
+                }
 
-					/*@@@ we might want to also check maxprot and initprot here:
-						VM_PROT_READ    ((vm_prot_t) 0x01)
-						VM_PROT_WRITE   ((vm_prot_t) 0x02)
-						VM_PROT_EXECUTE ((vm_prot_t) 0x04)*/
+                dysymtab_cmd = (const struct dysymtab_command*)cmd;*/
+            }
+        }
+    }
 
-					symOffset = slide; /* this is also offset of symbols */
-				}
-			}
-			else if(cmd->cmd == LC_SYMTAB && !pSyms/* only init once - just safety check */)
-			{
-				const struct symtab_command* scmd = (const struct symtab_command*)cmd;
+    /* Got symbol table? */
+    if (pSyms) {
+        /* Alter symtable info if we got symbols organized in local/defined/undefined groups. */
+        /* Only use local ones in that case. */
+        /*@@@ don't restrict to only local symbols if(dysymtab_cmd) {
+                pSyms->pSymbolTable += dysymtab_cmd->ilocalsym;
+                pSyms->symbolCount = dysymtab_cmd->nlocalsym;
+        }*/
+        return pSyms;
+    }
 
-				/* cmd->cmdsize must be size of struct, otherwise something is off; abort */
-				if(cmd->cmdsize != sizeof(struct symtab_command))
-					break;
-
-				pSyms = (DLSyms*)dlAllocMem(sizeof(DLSyms));
-				pSyms->symbolCount  = scmd->nsyms;
-				pSyms->pStringTable = pBase + scmd->stroff;
-				pSyms->pSymbolTable = (struct NLIST_TYPE*)(pBase + scmd->symoff);
-				pSyms->symOffset    = symOffset;
-				pSyms->pLib         = pLib;
-			}
-			else if(cmd->cmd == LC_DYSYMTAB && !dysymtab_cmd/* only init once - just safety check */)
-			{
-				/* @@@ unused, we'll always run over all symbols, and not check locals, globals, etc.
-				if(cmd->cmdsize != sizeof(struct symtab_command)) {
-					dlSymsCleanup(pSyms);
-					break;
-				}
-
-				dysymtab_cmd = (const struct dysymtab_command*)cmd;*/
-			}
-		}
-	}
-
-	/* Got symbol table? */
-	if(pSyms) {
-		/* Alter symtable info if we got symbols organized in local/defined/undefined groups. */
-		/* Only use local ones in that case. */
-		/*@@@ don't restrict to only local symbols if(dysymtab_cmd) {
-			pSyms->pSymbolTable += dysymtab_cmd->ilocalsym;
-			pSyms->symbolCount = dysymtab_cmd->nlocalsym;
-		}*/
-		return pSyms;
-	}
-
-	/* Couldn't init syms, so free lib and return error. */
-	dlFreeLibrary(pLib);
-	return NULL;
+    /* Couldn't init syms, so free lib and return error. */
+    dlFreeLibrary(pLib);
+    return NULL;
 }
 
-
-void dlSymsCleanup(DLSyms* pSyms)
-{
-	if(pSyms) {
-		dlFreeLibrary(pSyms->pLib);
-		dlFreeMem(pSyms);
-	}
+void dlSymsCleanup(DLSyms *pSyms) {
+    if (pSyms) {
+        dlFreeLibrary(pSyms->pLib);
+        dlFreeMem(pSyms);
+    }
 }
 
-int dlSymsCount(DLSyms* pSyms)
-{
-	return pSyms ? pSyms->symbolCount : 0;
+int dlSymsCount(DLSyms *pSyms) {
+    return pSyms ? pSyms->symbolCount : 0;
 }
 
+const char *dlSymsName(DLSyms *pSyms, int index) {
+    const struct NLIST_TYPE *nl;
+    unsigned char t;
 
-const char* dlSymsName(DLSyms* pSyms, int index)
-{
-	const struct NLIST_TYPE* nl;
-	unsigned char t;
+    if (!pSyms) return NULL;
 
-	if(!pSyms)
-		return NULL;
+    nl = pSyms->pSymbolTable + index;
+    t = nl->n_type & N_TYPE;
 
-	nl = pSyms->pSymbolTable + index;
-	t = nl->n_type & N_TYPE;
+    /* Return name by lookup through it's address. This guarantees to be consistent with dlsym and
+     * dladdr */
+    /* calls as used in dlFindAddress and dlSymsNameFromValue - the "#if 0"-ed code below returns
+     * the */
+    /* name directly, but assumes wrongly that everything is prefixed with an underscore on Darwin.
+     */
 
-	/* Return name by lookup through it's address. This guarantees to be consistent with dlsym and dladdr */
-	/* calls as used in dlFindAddress and dlSymsNameFromValue - the "#if 0"-ed code below returns the */
-	/* name directly, but assumes wrongly that everything is prefixed with an underscore on Darwin. */
+    /* only handle symbols that are in a section and aren't symbolic debug entries */
+    if ((t == N_SECT) && (nl->n_type & N_STAB) == 0)
+        return dlSymsNameFromValue(pSyms, (void *)(nl->n_value + pSyms->symOffset));
 
-	/* only handle symbols that are in a section and aren't symbolic debug entries */
-	if((t == N_SECT) && (nl->n_type & N_STAB) == 0)
-		return dlSymsNameFromValue(pSyms, (void*)(nl->n_value + pSyms->symOffset));
-
-	return NULL; /* @@@ handle N_INDR, etc.? */
+    return NULL; /* @@@ handle N_INDR, etc.? */
 
 #if 0
 	/* Mach-O manual: Symbols with an index into the string table of zero */
@@ -235,13 +225,9 @@ const char* dlSymsName(DLSyms* pSyms, int index)
 #endif
 }
 
+const char *dlSymsNameFromValue(DLSyms *pSyms, void *value) {
+    Dl_info info;
+    if (!dladdr(value, &info) || (value != info.dli_saddr)) return NULL;
 
-const char* dlSymsNameFromValue(DLSyms* pSyms, void* value)
-{
-	Dl_info info;
-	if (!dladdr(value, &info) || (value != info.dli_saddr))
-		return NULL;
-
-	return info.dli_sname;
+    return info.dli_sname;
 }
-

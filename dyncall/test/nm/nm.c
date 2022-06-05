@@ -3,10 +3,10 @@
  Package: dyncall
  Library: test
  File: test/nm/nm.c
- Description: 
+ Description:
  License:
 
-   Copyright (c) 2007-2018 Daniel Adler <dadler@uni-goettingen.de>, 
+   Copyright (c) 2007-2018 Daniel Adler <dadler@uni-goettingen.de>,
                            Tassilo Philipp <tphilipp@potion-studios.com>
 
    Permission to use, copy, modify, and distribute this software for any
@@ -23,56 +23,50 @@
 
 */
 
-
-
 #include "../../dynload/dynload.h"
 #include "../common/platformInit.h"
 
-void list_syms(const char* filePath)
-{
-  DLSyms* pSyms;
-  int i,n;
-  
-  pSyms = dlSymsInit(filePath);
-  if (!pSyms) {
-    fprintf(stderr, "dlSymsInit fail.");
-    return; 
-  }
-  i = 0, n = dlSymsCount(pSyms);
+void list_syms(const char *filePath) {
+    DLSyms *pSyms;
+    int i, n;
 
-  for (; i < n; ++i) {
-    const char* name = dlSymsName(pSyms,i);
-    printf("%s\n", name);
-  }
-  dlSymsCleanup(pSyms);
+    pSyms = dlSymsInit(filePath);
+    if (!pSyms) {
+        fprintf(stderr, "dlSymsInit fail.");
+        return;
+    }
+    i = 0, n = dlSymsCount(pSyms);
+
+    for (; i < n; ++i) {
+        const char *name = dlSymsName(pSyms, i);
+        printf("%s\n", name);
+    }
+    dlSymsCleanup(pSyms);
 }
 
+int main(int argc, char *argv[]) {
+    int i, n;
+    DLLib *pLib;
+    const char *libPath;
 
-int main(int argc, char* argv[])
-{
-  int i, n;
-  DLLib* pLib;
-  const char* libPath;
+    if (argc == 1) {
+        fprintf(stderr, "usage : %s <dllpath>\n", argv[0]);
+        return 1;
+    }
 
-  if (argc == 1) {
-    fprintf(stderr, "usage : %s <dllpath>\n", argv[0]);
-    return 1;
-  }
+    libPath = argv[1];
 
-  libPath = argv[1];
+    /* load lib */
 
-  /* load lib */
+    pLib = dlLoadLibrary(libPath);
 
-  pLib = dlLoadLibrary(libPath);
+    if (!pLib) {
+        fprintf(stderr, "unable to open library %s\n", libPath);
+        return 2;
+    }
 
-  if (!pLib) {
-    fprintf(stderr, "unable to open library %s\n", libPath);
-    return 2;
-  }
+    list_syms(libPath);
 
-  list_syms(libPath);
-
-  dlFreeLibrary(pLib);
-  return 0;
+    dlFreeLibrary(pLib);
+    return 0;
 }
-

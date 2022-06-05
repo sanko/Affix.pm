@@ -3,10 +3,10 @@
  Package: dyncall
  Library: dyncall
  File: dyncall/dyncall_callvm_arm32_arm_armhf.h
- Description: 
+ Description:
  License:
 
-   Copyright (c) 2007-2020 Daniel Adler <dadler@uni-goettingen.de>, 
+   Copyright (c) 2007-2020 Daniel Adler <dadler@uni-goettingen.de>,
                            Tassilo Philipp <tphilipp@potion-studios.com>
 
    Permission to use, copy, modify, and distribute this software for any
@@ -23,8 +23,6 @@
 
 */
 
-
-
 /*
 
   dyncall callvm for 32bit ARM32 family of processors
@@ -37,7 +35,6 @@
 
 */
 
-
 #ifndef DYNCALL_CALLVM_ARM32_ARM_ARMHF_H
 #define DYNCALL_CALLVM_ARM32_ARM_ARMHF_H
 
@@ -46,14 +43,13 @@
 
 typedef struct
 {
-  DCCallVM     mInterface;
-  unsigned int i;
-  unsigned int s;
-  unsigned int d;
-  DCfloat      S[16];
-  DCpointer    mpCallFunc;
-  DCVecHead    mVecHead;
+    DCCallVM mInterface;
+    unsigned int i;
+    unsigned int s;
+    unsigned int d;
+    DCfloat S[16];
+    DCpointer mpCallFunc;
+    DCVecHead mVecHead;
 } DCCallVM_arm32_armhf;
 
 #endif /* DYNCALL_CALLVM_ARM32_ARM_H */
-
