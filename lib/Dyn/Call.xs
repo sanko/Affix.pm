@@ -16,20 +16,15 @@
 #include <dyncall/dyncall/dyncall_aggregate.h>
 
 #include "lib/types.h"
-typedef
-struct aggr_ptr {
-    union {
-      int intNum;
-      float floatNum;
-      double doubleNum;
-      unsigned char a;
-    };
-}aggr_ptr;
+
+
 
 typedef struct
 {unsigned char a;} U_8;
 
 
+
+/*
 #include "object_pad.h"
 
 #include "/home/sanko/Downloads/libui-ng-master/ui.h"
@@ -59,7 +54,7 @@ void saySomething(uiButton *b, void *data)
 	uiMultilineEntryAppend(e, "Saying something\n");
 }
 
-
+*/
 
 typedef struct xStruct {
     size_t size;
@@ -215,18 +210,12 @@ CODE:
 
     warn("ag->n_fields == %d", ag->n_fields);
     for (int i=0;i<ag->n_fields;++i) {
-      warn("i==%d", i);
-      switch(ag->fields[i].type){
-        case DC_SIGCHAR_BOOL: break;
-        case DC_SIGCHAR_UCHAR: warn ("uchar!!!!!");break;
-
-
-
+        warn("i==%d", i);
+        switch(ag->fields[i].type){
+            case DC_SIGCHAR_BOOL:                         break;
+            case DC_SIGCHAR_UCHAR:  warn ("uchar!!!!!");  break;
         }
-
-
     }
-
 OUTPUT:
     RETVAL
 
@@ -307,13 +296,15 @@ CODE:
 OUTPUT:
     RETVAL
 
-void AggTest(int in)
+void
+AggTest(int in)
 CODE:
     DCaggr * ag;
     ag = dcNewAggr(1, sizeof(size_t));
     dcAggrField(ag, 'i', 0, 0);
     dcCloseAggr(ag);
 
+=cut
 
 void letsgo(DCpointer * in)
 CODE:
@@ -349,12 +340,44 @@ CODE:
 	uiControlShow(uiControl(w));
 	uiMain();
 
+=cut
+
+MODULE = Dyn::Call   PACKAGE = Dyn::Type::Struct
+
+
+void
+add_fields(const char * package, AV * fields)
+CODE:
+    if(av_count(fields) % 2)
+        Perl_croak_nocontext("%s: %s must be an even sized list",
+				"Dyn::Type::Struct::add_fields",
+				"fields");
+    warn("package: $%s", package);
+    while(av_count(fields)) {
+        SV * sv_field = av_shift(fields);
+        if (!sv_field)
+            warn("NOT OKAY!");
+        else
+            warn("OKAY! field: %s", SvPV_nolen(sv_field));
+    	//const char *  package = (const char *)SvPV_nolen(ST(0))
+
+        SV * sv_type = av_shift(fields);
+        if (!sv_type)
+            warn("NOT OKAY!");
+        else
+            warn("OKAY! type:  %s", SvPV_nolen(sv_type));
+    }
+
+
+void
+AUTOLOAD(...);
+CODE:
+  warn("build...");
 
 
 BOOT:
 {
     HV *stash = gv_stashpv("Dyn::Call", 0);
-
     // Supported Calling Convention Modes
     newCONSTSUB(stash, "DC_CALL_C_DEFAULT", newSViv(DC_CALL_C_DEFAULT));
     newCONSTSUB(stash, "DC_CALL_C_ELLIPSIS", newSViv(DC_CALL_C_ELLIPSIS));

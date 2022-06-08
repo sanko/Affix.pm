@@ -189,6 +189,7 @@ SKIP: {
 
         #is dcCallChar( $cvm, $ptr ), 'Z', 'struct.a++ == Z';
         dcFreeAggr($s);
+        Dyn::Type::Struct::add_fields 'Some::Class' => [ blah => 'int8' ];
     };
     diag 'Here';
     subtest 'Dyn synopsis' => sub {

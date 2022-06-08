@@ -32,8 +32,15 @@ struct Struct
     union
     {
         char alpha;
+        unsigned char ualpha;
+
         int num;
+        unsigned int unum;
+
         char *string;
         void *pointer;
+
+        float floatNum;
+        double doubleNum;
     };
 };
