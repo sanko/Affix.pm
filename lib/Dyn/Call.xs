@@ -18,10 +18,35 @@
 #include "lib/types.h"
 
 
+/* Global Data */
+
+#define MY_CXT_KEY "Dyn::Type::Struct::_guts" XS_VERSION
+
+struct class_container {
+char * name;
+char ** type;
+char ** field;
+
+};
+
+
+typedef struct {
+    int count;
+    char name[3][100];
+  struct  class_container classes[1024];
+
+} my_cxt_t;
+
+START_MY_CXT
 
 typedef struct
 {unsigned char a;} U_8;
 
+#if PERL_VERSION_LE(5, 8, 999) /* PERL_VERSION_LT is 5.33+ */
+    char* file = __FILE__;
+#else
+    const char* file = __FILE__;
+#endif
 
 
 /*
@@ -344,22 +369,60 @@ CODE:
 
 MODULE = Dyn::Call   PACKAGE = Dyn::Type::Struct
 
+void
+new(const char * pkg, HV * data)
+PREINIT:
+    dMY_CXT;
+        HV * stash;SV*base;
+PPCODE:
+	base=sv_2mortal(newRV_noinc((SV *) newAV()));
+
+	for (int i = 0; i<1;i++) {
+		if (hv_exists(data, key, strlen(key))) {
+			SV ** val = hv_fetch(data, key, strlen(key), NULL);
+			av_push(base, &val);
+		}
+	}
+        stash = gv_stashpv(pkg, 0);
+        ST(0) = sv_bless(base, stash);
+	warn("hi, new %s", pkg);
+
+        XSRETURN(1);
+
+
 
 void
-add_fields(const char * package, AV * fields)
+add_fields(const char * pkg, AV * fields)
+PREINIT:
+	dMY_CXT;
 CODE:
     if(av_count(fields) % 2)
         Perl_croak_nocontext("%s: %s must be an even sized list",
 				"Dyn::Type::Struct::add_fields",
 				"fields");
-    warn("package: $%s", package);
+    warn("package: $%s", pkg);
+    ++MY_CXT.count;
+
+    	char * blah = pkg;
+		strcat(blah,		"::new");
+
+            warn("OKAY! constructor: %s", blah);
+    	   (void)newXSproto_portable(blah, XS_Dyn__Type__Struct_new, file, "$%");
+
+
+
     while(av_count(fields)) {
         SV * sv_field = av_shift(fields);
         if (!sv_field)
             warn("NOT OKAY!");
-        else
-            warn("OKAY! field: %s", SvPV_nolen(sv_field));
-    	//const char *  package = (const char *)SvPV_nolen(ST(0))
+        else {
+		char * blah = pkg;
+		strcat(blah,		"::");
+		strcat(blah,		SvPV_nolen(sv_field));
+            warn("OKAY! field: %s", blah);
+    	   (void)newXSproto_portable(blah, XS_Dyn__Type__Struct_new, file, "$");
+
+	}///const char *  package = (const char *)SvPV_nolen(ST(0))
 
         SV * sv_type = av_shift(fields);
         if (!sv_type)
@@ -375,8 +438,23 @@ CODE:
   warn("build...");
 
 
+void
+CLONE(...)
+CODE:
+      MY_CXT_CLONE;
+
+
 BOOT:
 {
+
+	MY_CXT_INIT;
+    MY_CXT.count = 0;
+    strcpy(MY_CXT.name[0], "None");
+    strcpy(MY_CXT.name[1], "None");
+    strcpy(MY_CXT.name[2], "None");
+
+
+
     HV *stash = gv_stashpv("Dyn::Call", 0);
     // Supported Calling Convention Modes
     newCONSTSUB(stash, "DC_CALL_C_DEFAULT", newSViv(DC_CALL_C_DEFAULT));

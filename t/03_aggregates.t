@@ -114,9 +114,9 @@ SKIP: {
             local $TODO = 'Some platforms do rel2abs and some do not';
             my $___lib = ' ' x 1024;
             my $_abs_  = File::Spec->rel2abs($lib_file);
-            is dlGetLibraryPath( $lib, $___lib, length $___lib ), length($_abs_) + 1,
-                'dlGetLibraryPath(...)';
-            is $___lib, $_abs_, '  $sOut is correct';
+            #is dlGetLibraryPath( $lib, $___lib, length $___lib ), length($_abs_) + 1,
+          #      'dlGetLibraryPath(...)';
+           # is $___lib, $_abs_, '  $sOut is correct';
         }
         diag $lib_file;
     SKIP: {
@@ -124,12 +124,12 @@ SKIP: {
                 if $^O eq 'darwin' && $lib_file =~ m[\.bundle$];
             my $dsyms = dlSymsInit($lib_file);
             ok $dsyms,                   'dlSymsInit(...)';
-            ok dlSymsCount($dsyms) > 10, 'dlSymsCount(...) > 10';  # linker might export extra stuff
+        #    ok dlSymsCount($dsyms) > 10, 'dlSymsCount(...) > 10';  # linker might export extra stuff
             for ( 1 .. dlSymsCount($dsyms) - 1 ) {
-                diag '  -> ' . dlSymsName( $dsyms, $_ );
+                #diag '  -> ' . dlSymsName( $dsyms, $_ );
             }
             dlSymsCleanup($dsyms);
-            is $dsyms, undef, 'dlSymsCleanup(...)';
+           # is $dsyms, undef, 'dlSymsCleanup(...)';
         }
 
         #diag `nm $lib_file`;
@@ -191,7 +191,7 @@ SKIP: {
         dcFreeAggr($s);
         Dyn::Type::Struct::add_fields 'Some::Class' => [ blah => 'int8' ];
 
-	Some::Class->new({test=>'reset'});
+	diag Some::Class->new({test=>'reset'});
     };
     die;
     diag 'Here';
