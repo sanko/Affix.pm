@@ -114,22 +114,26 @@ SKIP: {
             local $TODO = 'Some platforms do rel2abs and some do not';
             my $___lib = ' ' x 1024;
             my $_abs_  = File::Spec->rel2abs($lib_file);
+
             #is dlGetLibraryPath( $lib, $___lib, length $___lib ), length($_abs_) + 1,
-          #      'dlGetLibraryPath(...)';
-           # is $___lib, $_abs_, '  $sOut is correct';
+            #      'dlGetLibraryPath(...)';
+            # is $___lib, $_abs_, '  $sOut is correct';
         }
         diag $lib_file;
     SKIP: {
             plan skip_all => 'ExtUtils::CBuilder will only build bundles but I need a dynlib on OSX'
                 if $^O eq 'darwin' && $lib_file =~ m[\.bundle$];
             my $dsyms = dlSymsInit($lib_file);
-            ok $dsyms,                   'dlSymsInit(...)';
-        #    ok dlSymsCount($dsyms) > 10, 'dlSymsCount(...) > 10';  # linker might export extra stuff
+            ok $dsyms, 'dlSymsInit(...)';
+
+       #    ok dlSymsCount($dsyms) > 10, 'dlSymsCount(...) > 10';  # linker might export extra stuff
             for ( 1 .. dlSymsCount($dsyms) - 1 ) {
+
                 #diag '  -> ' . dlSymsName( $dsyms, $_ );
             }
             dlSymsCleanup($dsyms);
-           # is $dsyms, undef, 'dlSymsCleanup(...)';
+
+            # is $dsyms, undef, 'dlSymsCleanup(...)';
         }
 
         #diag `nm $lib_file`;
@@ -168,6 +172,7 @@ SKIP: {
         dcArgChar( $cvm, 'Y' );
         warn ord 'Y';
         warn ord 'Z';
+
         #isa_ok dcCallAggr( $cvm, $ptr, $s ), 'Dyn::aggr';
         dcFreeAggr($s);
     };
@@ -185,317 +190,17 @@ SKIP: {
         dcReset($cvm);
         dcBeginCallAggr( $cvm, $s );
         dcArgChar( $cvm, 'Y' );
-       #b isa_ok dcCallAggr( $cvm, $ptr, $s ), 'Dyn::aggr';
 
+        #b isa_ok dcCallAggr( $cvm, $ptr, $s ), 'Dyn::aggr';
         #is dcCallChar( $cvm, $ptr ), 'Z', 'struct.a++ == Z';
         dcFreeAggr($s);
         Dyn::Type::Struct::add_fields 'Some::Class' => [ blah => 'int8' ];
-
-	diag Some::Class->new({test=>'reset'});
+        my $obj= Some::Class->new( { test => 'reset' } );
+        use Data::Dump;
+        ddx $obj;
+        warn $obj->blah;
     };
-    die;
-    diag 'Here';
-    subtest 'Dyn synopsis' => sub {
-        use Dyn qw[:all];                                  # Exports nothing by default
-        my $lib = dlLoadLibrary($lib_file);
-        my $ptr = dlFindSymbol( $lib, 'add_i' );
-        my $cvm = dcNewCallVM(1024);
-        dcMode( $cvm, DC_CALL_C_DEFAULT );
-        dcReset($cvm);
-        dcArgInt( $cvm, 5 );
-        dcArgInt( $cvm, 6 );
-        is dcCallInt( $cvm, $ptr ), 11, 'Dyn synopsis';    #  '5 + 6 == 11';
-    };
-    subtest 'const char * b2Z(bool)' => sub {
-        my $ptr = dlFindSymbol( $lib, 'b2Z' );
-        my $cvm = dcNewCallVM(1024);
-        dcMode( $cvm, DC_CALL_C_DEFAULT );
-        dcReset($cvm);
-        diag 'pushing a true value to arg stack';
-        dcArgBool( $cvm, 1 );
-        is dcCallString( $cvm, $ptr ), 'true', 'b2Z( 1 ) == "true"';
-        diag 'reset for next call...';
-        dcReset($cvm);
-        diag 'pushing a false value to arg stack';
-        dcArgBool( $cvm, 0 );
-        is dcCallString( $cvm, $ptr ), 'false', 'b2Z( 0 ) == "false"';
-
-        # Cleanup
-        dcFree($cvm);
-    };
-    subtest 'const char * c2Z(char)' => sub {
-        my $ptr = dlFindSymbol( $lib, 'c2Z' );
-        my $cvm = dcNewCallVM(1024);
-        dcMode( $cvm, DC_CALL_C_DEFAULT );
-        dcReset($cvm);
-        diag 'pushing a "a" to arg stack';
-        dcArgChar( $cvm, 'a' );
-        is dcCallString( $cvm, $ptr ), '!!!', 'c2Z( "a" ) == "!!!"';
-        diag 'reset for next call...';
-        dcReset($cvm);
-        diag 'pushing a "b" to arg stack';
-        dcArgChar( $cvm, 'b' );
-        is dcCallString( $cvm, $ptr ), '???', 'c2Z( "b" ) == "???"';
-
-        # Cleanup
-        dcFree($cvm);
-    };
-    subtest 'const char * s2Z(short)' => sub {
-        my $ptr = dlFindSymbol( $lib, 's2Z' );
-        my $cvm = dcNewCallVM(1024);
-        dcMode( $cvm, DC_CALL_C_DEFAULT );
-        dcReset($cvm);
-        diag 'pushing 91 to arg stack';
-        dcArgShort( $cvm, 91 );
-        is dcCallString( $cvm, $ptr ), '!!!', 's2Z( 91 ) == "!!!"';
-        diag 'reset for next call...';
-        dcReset($cvm);
-        diag 'pushing 90 to arg stack';
-        dcArgShort( $cvm, 90 );
-        is dcCallString( $cvm, $ptr ), '???', 's2Z( 90 ) == "???"';
-        diag 'reset for next call...';
-        dcReset($cvm);
-        diag 'pushing -32767 to arg stack';
-        dcArgShort( $cvm, -32767 );
-        is dcCallString( $cvm, $ptr ), 'floor', 's2Z( -32767 ) == "floor"';
-
-        # Cleanup
-        dcFree($cvm);
-    };
-    subtest 'int ii2i(int, int)' => sub {
-        my $ptr = dlFindSymbol( $lib, 'ii2i' );
-        isa_ok $ptr, 'Dyn::pointer';
-        diag 'TODO: FindSymbol should return something other than Dyn::pointer';
-        my $cvm = dcNewCallVM(1024);
-        isa_ok $cvm, 'Dyn::Call';
-        dcMode( $cvm, DC_CALL_C_DEFAULT );
-        dcReset($cvm);
-        #
-        diag 'pushing 5 to arg stack';
-        dcArgInt( $cvm, 5 );
-        diag 'pushing 6 to arg stack';
-        dcArgInt( $cvm, 6 );
-        is dcCallInt( $cvm, $ptr ), 11, '5 + 6 == 11';
-        #
-        diag 'reset call VM...';
-        dcReset($cvm);
-        diag 'pushing 9 to arg stack';
-        dcArgInt( $cvm, 9 );
-        diag 'pushing 100 to arg stack';
-        dcArgInt( $cvm, 100 );
-        is dcCallInt( $cvm, $ptr ), 109, '9 + 100 == 109';
-        #
-        diag 'reset call VM...';
-        dcReset($cvm);
-        diag 'pushing -9 to arg stack';
-        dcArgInt( $cvm, -9 );
-        diag 'pushing 5 to arg stack';
-        dcArgInt( $cvm, 5 );
-        is dcCallInt( $cvm, $ptr ), -4, '-9 + 5 == -4';
-
-        # Cleanup
-        dcFree($cvm);
-    };
-    subtest 'const char * j2Z(long)' => sub {
-        my $ptr = dlFindSymbol( $lib, 'j2Z' );
-        my $cvm = dcNewCallVM(1024);
-        dcMode( $cvm, DC_CALL_C_DEFAULT );
-        dcReset($cvm);
-        diag 'pushing 0 to arg stack';
-        dcArgLong( $cvm, 0 );
-        is dcCallString( $cvm, $ptr ), 'Zero', 'j2Z( 0 ) == "Zero"';
-        diag 'reset for next call';
-        dcReset($cvm);
-        diag 'pushing -2147483647 to arg stack';
-        dcArgLong( $cvm, -2147483647 );
-        is dcCallString( $cvm, $ptr ), 'floor', 'j2Z( -2147483647 ) == "floor"';
-        diag 'reset for next call';
-        dcReset($cvm);
-        diag 'pushing 2147483647 to arg stack';
-        dcArgLong( $cvm, 2147483647 );
-        is dcCallString( $cvm, $ptr ), '???', 'j2Z( 2147483647 ) == "???"';
-
-        # Cleanup
-        dcFree($cvm);
-    };
-    subtest 'const char * l2Z(long long)' => sub {
-        my $ptr = dlFindSymbol( $lib, 'l2Z' );
-        my $cvm = dcNewCallVM(1024);
-        dcMode( $cvm, DC_CALL_C_DEFAULT );
-        dcReset($cvm);
-        diag 'pushing 0 to arg stack';
-        dcArgLongLong( $cvm, 0 );
-        is dcCallString( $cvm, $ptr ), 'Zero', 'l2Z( 0 ) == "Zero"';
-        diag 'reset for next call';
-        dcReset($cvm);
-        diag 'pushing -9223372036854775807 to arg stack';
-        dcArgLongLong( $cvm, -9223372036854775807 );
-        is dcCallString( $cvm, $ptr ), 'floor', 'l2Z( -9223372036854775807 ) == "floor"';
-        diag 'reset for next call';
-        dcReset($cvm);
-        diag 'pushing 2147483647 to arg stack';
-        dcArgLongLong( $cvm, 2147483647 );
-        is dcCallString( $cvm, $ptr ), '???', 'l2Z( 2147483647 ) == "???"';
-
-        # Cleanup
-        dcFree($cvm);
-    };
-    subtest 'const char * f2Z(float)' => sub {
-        my $ptr = dlFindSymbol( $lib, 'f2Z' );
-        my $cvm = dcNewCallVM(1024);
-        dcMode( $cvm, DC_CALL_C_DEFAULT );
-        dcReset($cvm);
-        diag 'pushing 5.3 to arg stack';
-        dcArgFloat( $cvm, 5.3 );
-        is dcCallString( $cvm, $ptr ), 'Nice', 'f2Z( 5.3 ) == "Nice"';
-        diag 'reset for next call';
-        dcReset($cvm);
-        diag 'pushing -1.2 to arg stack';
-        dcArgFloat( $cvm, -1.2 );
-        is dcCallString( $cvm, $ptr ), '???', 'f2Z( -1.2 ) == "???"';
-        diag 'reset for next call';
-        dcReset($cvm);
-        diag 'pushing 5.2 to arg stack';
-        dcArgFloat( $cvm, 5.2 );
-        is dcCallString( $cvm, $ptr ), '???', 'f2Z( 5.2 ) == "???"';
-
-        # Cleanup
-        dcFree($cvm);
-    };
-    subtest 'const char * d2Z(double)' => sub {
-        my $ptr = dlFindSymbol( $lib, 'd2Z' );
-        my $cvm = dcNewCallVM(1024);
-        dcMode( $cvm, DC_CALL_C_DEFAULT );
-        dcReset($cvm);
-        diag 'pushing 5.3 to arg stack';
-        dcArgDouble( $cvm, 5.3 );
-        is dcCallString( $cvm, $ptr ), 'Nice', 'd2Z( 5.3 ) == "Nice"';
-        diag 'reset for next call';
-        dcReset($cvm);
-        diag 'pushing -1.2 to arg stack';
-        dcArgDouble( $cvm, -1.2 );
-        is dcCallString( $cvm, $ptr ), '???', 'd2Z( -1.2 ) == "???"';
-        diag 'reset for next call';
-        dcReset($cvm);
-        diag 'pushing 5.2 to arg stack';
-        dcArgDouble( $cvm, 5.2 );
-        is dcCallString( $cvm, $ptr ), '???', 'd2Z( 5.2 ) == "???"';
-
-        # Cleanup
-        dcFree($cvm);
-    };
-    {
-        my $person;
-        subtest 'void * v2p()' => sub {
-            my $ptr = dlFindSymbol( $lib, 'v2p' );
-            my $cvm = dcNewCallVM(1024);
-            dcMode( $cvm, DC_CALL_C_DEFAULT );
-            dcReset($cvm);
-            $person = dcCallPointer( $cvm, $ptr );
-            isa_ok $person, 'Dyn::pointer';
-            diag 'TODO: I need to handle classes';
-            dcFree($cvm);
-        };
-        subtest 'const char * p2Z()' => sub {
-            my $ptr = dlFindSymbol( $lib, 'p2Z' );
-            my $cvm = dcNewCallVM(1024);
-            dcMode( $cvm, DC_CALL_C_DEFAULT );
-            dcReset($cvm);
-            dcArgPointer( $cvm, $person );
-            is dcCallString( $cvm, $ptr ), 'John Smith', 'person->name == "John Smith"';
-            dcFree($cvm);
-        };
-        subtest 'int p2i()' => sub {
-            my $ptr = dlFindSymbol( $lib, 'p2i' );
-            my $cvm = dcNewCallVM(1024);
-            dcMode( $cvm, DC_CALL_C_DEFAULT );
-            dcReset($cvm);
-            dcArgPointer( $cvm, $person );
-            is dcCallInt( $cvm, $ptr ), 954214635, 'person->dob == 954214635';
-            dcFree($cvm);
-        };
-    }
-    subtest 'const char * Z2Z(char *)' => sub {
-        my $ptr = dlFindSymbol( $lib, 'Z2Z' );
-        my $cvm = dcNewCallVM(1024);
-        dcMode( $cvm, DC_CALL_C_DEFAULT );
-        dcReset($cvm);
-        diag 'pushing "Hello!" to arg stack';
-        dcArgString( $cvm, 'Hi!' );
-        is dcCallString( $cvm, $ptr ), 'Okay!', 'Z2Z("Hi!") == "Okay!"';
-
-        # Cleanup
-        dcFree($cvm);
-    };
-    subtest 'void v2v()' => sub {
-        my $ptr = dlFindSymbol( $lib, 'v2v' );
-        my $cvm = dcNewCallVM(1024);
-        dcMode( $cvm, DC_CALL_C_DEFAULT );
-        dcReset($cvm);
-        is dcCallVoid( $cvm, $ptr ), undef, 'v2v() == undef';
-
-        # Cleanup
-        dcFree($cvm);
-    };
-    subtest 'Exported vars' => sub {
-        is DC_ERROR_NONE,             0,  'DC_ERROR_NONE == 0';
-        is DC_ERROR_UNSUPPORTED_MODE, -1, 'DC_ERROR_UNSUPPORTED_MODE == -1';
-        can_ok __PACKAGE__, @{ $Dyn::Call::EXPORT_TAGS{vars} };
-
-        # Testing known values
-        is DC_CALL_C_DEFAULT,            0,   'DC_CALL_C_DEFAULT == 0';
-        is DC_CALL_C_ELLIPSIS,           100, 'DC_CALL_C_ELLIPSIS == 100';
-        is DC_CALL_C_ELLIPSIS_VARARGS,   101, 'DC_CALL_C_ELLIPSIS_VARARGS == 101';
-        is DC_CALL_C_X86_CDECL,          1,   'DC_CALL_C_X86_CDECL == 1';
-        is DC_CALL_C_X86_WIN32_STD,      2,   'DC_CALL_C_X86_WIN32_STD == 2';
-        is DC_CALL_C_X86_WIN32_FAST_MS,  3,   'DC_CALL_C_X86_WIN32_FAST_MS == 3';
-        is DC_CALL_C_X86_WIN32_FAST_GNU, 4,   'DC_CALL_C_X86_WIN32_FAST_GNU == 4';
-        is DC_CALL_C_X86_WIN32_THIS_MS,  5,   'DC_CALL_C_X86_WIN32_THIS_MS == 5';
-        is DC_CALL_C_X86_WIN32_THIS_GNU, 1,   'DC_CALL_C_X86_WIN32_THIS_GNU == 1';
-        is DC_CALL_C_X64_WIN64,          7,   'DC_CALL_C_X64_WIN64 == 7';
-        is DC_CALL_C_X64_SYSV,           8,   'DC_CALL_C_X64_SYSV == 8';
-        is DC_CALL_C_PPC32_DARWIN,       9,   'DC_CALL_C_PPC32_DARWIN == 9';
-
-        # Testing known aliases
-        is DC_CALL_C_X86_WIN32_THIS_GNU, DC_CALL_C_X86_CDECL,  'DC_CALL_C_X86_WIN32_THIS_GNU alias';
-        is DC_CALL_C_PPC64_LINUX,        DC_CALL_C_PPC64,      'DC_CALL_C_PPC64 alias';
-        is DC_CALL_C_PPC32_LINUX,        DC_CALL_C_PPC32_SYSV, 'DC_CALL_C_PPC32_LINUX alias';
-        is DC_CALL_C_MIPS32_PSPSDK, DC_CALL_C_MIPS32_EABI,
-            'DC_CALL_C_MIPS32_PSPSDK deprecated alias';
-        is DC_CALL_C_PPC32_OSX, DC_CALL_C_PPC32_DARWIN, 'DC_CALL_C_PPC32_OSX alias';
-    };
-    subtest 'Dyn::Callback' => sub {
-        my $cb = dcbNewCallback(
-            'i)i',
-            sub {
-                my ($in) = @_;
-                if ( $in == 100 ) {
-                    pass 'Args to callback: 100';
-                    return 101;
-                }
-                elsif ( $in == 55 ) {
-                    pass 'Args to callback: 55';
-                    return 10;
-                }
-                fail 'Bad args to callback: ' . $in;
-                return -1;
-            },
-            5
-        );
-        diag $cb;
-        subtest 'const char * cb ( ... )' => sub {
-            my $ptr = dlFindSymbol( $lib, 'cb' );
-            my $cvm = dcNewCallVM(1024);
-            dcMode( $cvm, DC_CALL_C_DEFAULT );
-            dcReset($cvm);
-            diag 'pushing callback to arg stack';
-            dcArgPointer( $cvm, $cb );
-            is dcCallString( $cvm, $ptr ), 'Yes!', 'cb( $callback ) == "Yes!"';
-
-            # Cleanup
-            dcFree($cvm);
-        };
-        #
+    #
 
 =fdsa
         #$cb->init();
@@ -533,7 +238,6 @@ SKIP: {
         }
 =cut
 
-    };
     subtest 'Dyn::Load Part II' => sub {
         dlFreeLibrary($lib);
         is $lib, undef;

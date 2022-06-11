@@ -18,29 +18,14 @@
 #include "lib/types.h"
 
 
-/* Global Data */
-
+/* Global struct registry */
 #define MY_CXT_KEY "Dyn::Type::Struct::_guts" XS_VERSION
-
-struct class_container {
-char * name;
-char ** type;
-char ** field;
-
-};
-
-
 typedef struct {
-    int count;
-    char name[3][100];
-  struct  class_container classes[1024];
-
+    HV * structs;
 } my_cxt_t;
-
 START_MY_CXT
 
-typedef struct
-{unsigned char a;} U_8;
+typedef struct {unsigned char a;} U_8;
 
 #if PERL_VERSION_LE(5, 8, 999) /* PERL_VERSION_LT is 5.33+ */
     char* file = __FILE__;
@@ -373,64 +358,68 @@ void
 new(const char * pkg, HV * data)
 PREINIT:
     dMY_CXT;
-        HV * stash;SV*base;
+    HV * stash;SV*base;
 PPCODE:
-	base=sv_2mortal(newRV_noinc((SV *) newAV()));
-
+    base = sv_2mortal(newRV_noinc((SV *) newAV()));
+    /*
 	for (int i = 0; i<1;i++) {
 		if (hv_exists(data, key, strlen(key))) {
 			SV ** val = hv_fetch(data, key, strlen(key), NULL);
 			av_push(base, &val);
 		}
-	}
-        stash = gv_stashpv(pkg, 0);
-        ST(0) = sv_bless(base, stash);
-	warn("hi, new %s", pkg);
+	}*/
+    stash = gv_stashpv(pkg, 0);
+    ST(0) = sv_bless(base, stash);
+    XSRETURN(1);
 
-        XSRETURN(1);
-
-
+void
+get(void * ptr)
+CODE:
+    warn("Getter");
 
 void
 add_fields(const char * pkg, AV * fields)
 PREINIT:
-	dMY_CXT;
+    dMY_CXT;
 CODE:
     if(av_count(fields) % 2)
         Perl_croak_nocontext("%s: %s must be an even sized list",
 				"Dyn::Type::Struct::add_fields",
 				"fields");
+    AV * avfields = newAV();
+    AV * avtypes  = newAV();
+    //AV * modes  = newAV(); // Currently unused
     warn("package: $%s", pkg);
-    ++MY_CXT.count;
+    //++MY_CXT.count;
 
-    	char * blah = pkg;
-		strcat(blah,		"::new");
+    char * new_ = malloc(strlen(pkg));
+    strcpy(new_, pkg);
+		strcat(new_, "::new");
 
-            warn("OKAY! constructor: %s", blah);
-    	   (void)newXSproto_portable(blah, XS_Dyn__Type__Struct_new, file, "$%");
-
-
+    warn("OKAY! constructor: %s", new_);
+    (void)newXSproto_portable(new_, XS_Dyn__Type__Struct_new, file, "$%");
 
     while(av_count(fields)) {
         SV * sv_field = av_shift(fields);
         if (!sv_field)
             warn("NOT OKAY!");
         else {
-		char * blah = pkg;
-		strcat(blah,		"::");
-		strcat(blah,		SvPV_nolen(sv_field));
+            char * blah = malloc(strlen(pkg));;
+            strcpy(blah, pkg);
+            strcat(blah,		"::");
+            strcat(blah,		SvPV_nolen(sv_field));
             warn("OKAY! field: %s", blah);
-    	   (void)newXSproto_portable(blah, XS_Dyn__Type__Struct_new, file, "$");
-
-	}///const char *  package = (const char *)SvPV_nolen(ST(0))
-
+            (void)newXSproto_portable(blah, XS_Dyn__Type__Struct_get, file, "$");
+            av_push(avfields, sv_field);
+        }
         SV * sv_type = av_shift(fields);
         if (!sv_type)
             warn("NOT OKAY!");
         else
-            warn("OKAY! type:  %s", SvPV_nolen(sv_type));
+            av_push(avfields, sv_type);
     }
-
+    hv_store(MY_CXT.structs, "fields", 6, avfields, 0);
+    hv_store(MY_CXT.structs, "types",  5, avtypes,  0);
 
 void
 AUTOLOAD(...);
@@ -443,17 +432,10 @@ CLONE(...)
 CODE:
       MY_CXT_CLONE;
 
-
 BOOT:
 {
-
-	MY_CXT_INIT;
-    MY_CXT.count = 0;
-    strcpy(MY_CXT.name[0], "None");
-    strcpy(MY_CXT.name[1], "None");
-    strcpy(MY_CXT.name[2], "None");
-
-
+    MY_CXT_INIT;
+    MY_CXT.structs = newHV();
 
     HV *stash = gv_stashpv("Dyn::Call", 0);
     // Supported Calling Convention Modes
