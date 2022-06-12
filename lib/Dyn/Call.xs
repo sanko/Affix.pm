@@ -358,9 +358,13 @@ void
 new(const char * pkg, HV * data)
 PREINIT:
     dMY_CXT;
-    HV * stash;SV*base;
+    HV * stash;
+    SV * base;
 PPCODE:
-    base = sv_2mortal(newRV_noinc((SV *) newAV()));
+    AV * avobj =  newAV();
+    av_push(avobj,   (newSVpv("Some String",0)));
+    base = sv_2mortal(newRV_noinc((SV *)avobj));
+
     /*
 	for (int i = 0; i<1;i++) {
 		if (hv_exists(data, key, strlen(key))) {
@@ -368,14 +372,41 @@ PPCODE:
 			av_push(base, &val);
 		}
 	}*/
-    stash = gv_stashpv(pkg, 0);
+    stash = gv_stashpv(pkg, GV_ADD);
+
+    //SV * objref = PTR2IV(pointer);
+
     ST(0) = sv_bless(base, stash);
+
+    /*dcCallAggr(DCCallVM * vm, DCpointer funcptr, DCaggr * ag);
+
+    //aggr_ptr struct_rep;
+    void * struct_rep;
+    struct_rep = malloc(sizeof(&ag));
+    warn ("sizeof(&ag) == %d", sizeof(&ag));
+    */
     XSRETURN(1);
 
 void
 get(void * ptr)
+PREINIT:
+    dVAR; dXSARGS;
+    dXSI32;
 CODE:
-    warn("Getter");
+    dXSTARG;
+    warn("Getter ix = %d\n", ix );
+    // get base address
+    int base = (char *)ptr;
+
+    // and the offset to member_b
+    int offset = offsetof(U_8, a);
+
+    // Compute address of member_b
+    int b = (int *)(base+offset);
+
+    warn(".a == %c", (unsigned char) b);
+
+    //DCsize i = ag->n_fields;
 
 void
 add_fields(const char * pkg, AV * fields)
@@ -389,48 +420,69 @@ CODE:
     AV * avfields = newAV();
     AV * avtypes  = newAV();
     //AV * modes  = newAV(); // Currently unused
-    warn("package: $%s", pkg);
-    //++MY_CXT.count;
 
-    char * new_ = malloc(strlen(pkg));
+    char * new_ = malloc(strlen(pkg) + 1);
     strcpy(new_, pkg);
 		strcat(new_, "::new");
-
-    warn("OKAY! constructor: %s", new_);
     (void)newXSproto_portable(new_, XS_Dyn__Type__Struct_new, file, "$%");
-
-    while(av_count(fields)) {
-        SV * sv_field = av_shift(fields);
-        if (!sv_field)
-            warn("NOT OKAY!");
-        else {
-            char * blah = malloc(strlen(pkg));;
-            strcpy(blah, pkg);
-            strcat(blah,		"::");
-            strcat(blah,		SvPV_nolen(sv_field));
-            warn("OKAY! field: %s", blah);
-            (void)newXSproto_portable(blah, XS_Dyn__Type__Struct_get, file, "$");
-            av_push(avfields, sv_field);
+    {
+        CV * cv;
+        int i = 0;
+        while(av_count(fields)) {
+            if (av_count(fields) % 2) {
+                SV * sv_type = av_shift(fields);
+                if (!sv_type)
+                    warn("NOT OKAY!");
+                else
+                    av_push(avtypes, sv_type);
+            }
+            else {
+                SV * sv_field = av_shift(fields);
+                if (!sv_field)
+                    warn("NOT OKAY!");
+                else {
+                    char * blah = malloc(strlen(pkg)+1);
+                    strcpy(blah, pkg);
+                    strcat(blah,		"::");
+                    strcat(blah,		SvPV_nolen(sv_field));
+                    cv = newXSproto_portable(blah, XS_Dyn__Type__Struct_get, file, "$");
+                    XSANY.any_i32 = i++; // Use perl's ALIAS api to pseudo-index aggr's data
+                    av_push(avfields, sv_field);
+                }
+            }
         }
-        SV * sv_type = av_shift(fields);
-        if (!sv_type)
-            warn("NOT OKAY!");
-        else
-            av_push(avfields, sv_type);
     }
-    hv_store(MY_CXT.structs, "fields", 6, avfields, 0);
-    hv_store(MY_CXT.structs, "types",  5, avtypes,  0);
+
+    HV * classinfo = newHV();
+    hv_stores(classinfo, "fields", (SV *) avfields);
+    hv_stores(classinfo, "types",  (SV *) avtypes);
+
+    const char * pkgc = (const char *)SvPV_nolen(ST(0));
+    hv_store(MY_CXT.structs, pkg, strlen(pkg)-1, (SV *) classinfo, 0);
+    sv_dump((SV *)MY_CXT.structs);
 
 void
-AUTOLOAD(...);
+DESTROY(void * ptr)
 CODE:
-  warn("build...");
-
+    free(ptr);
 
 void
 CLONE(...)
 CODE:
       MY_CXT_CLONE;
+
+bool
+rpcb_gettime(host,timep)
+      char *host
+      time_t &timep
+    ALIAS:
+        FOO::gettime = 1
+        BAR::getit = 2
+    INIT:
+      printf("# ix = %d\n", ix );
+    OUTPUT:
+      timep
+
 
 BOOT:
 {

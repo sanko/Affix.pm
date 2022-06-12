@@ -175,6 +175,7 @@ SKIP: {
 
         #isa_ok dcCallAggr( $cvm, $ptr, $s ), 'Dyn::aggr';
         dcFreeAggr($s);
+        ok 'remove';
     };
     subtest 'aggregate builder [struct arg and return]' => sub {
         use Dyn qw[:all];          # Exports nothing by default
@@ -194,11 +195,12 @@ SKIP: {
         #b isa_ok dcCallAggr( $cvm, $ptr, $s ), 'Dyn::aggr';
         #is dcCallChar( $cvm, $ptr ), 'Z', 'struct.a++ == Z';
         dcFreeAggr($s);
-        Dyn::Type::Struct::add_fields 'Some::Class' => [ blah => 'int8' ];
-        my $obj= Some::Class->new( { test => 'reset' } );
-        use Data::Dump;
+                use Data::Dump;
+        ddx Dyn::Type::Struct::add_fields 'Some::Class' => [ blah => 'int8', two => 'int8' ];
+        my $obj = Some::Class->new( { blah => 'reset' } );
         ddx $obj;
         warn $obj->blah;
+        warn $obj->two;
     };
     #
 
