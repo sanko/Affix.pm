@@ -196,11 +196,18 @@ SKIP: {
         #is dcCallChar( $cvm, $ptr ), 'Z', 'struct.a++ == Z';
         dcFreeAggr($s);
                 use Data::Dump;
-        ddx Dyn::Type::Struct::add_fields 'Some::Class' => [ blah => 'int8', two => 'int8' ];
+        my $idk = Dyn::Type::Struct::add_fields 'Some::Class' => [ blah => 'int8', two => 'int8' ];
+        diag ref $idk;
+        #diag join ', ', keys %$idk;
+        for my $key(keys %$idk) {
+            diag '['. $key . '] => '. ref $idk->{$key};
+        }
+        ddx $idk;
         my $obj = Some::Class->new( { blah => 'reset' } );
         ddx $obj;
-        warn $obj->blah;
-        warn $obj->two;
+        diag $obj->blah;
+        diag $obj->two;
+        diag $obj->getX;
     };
     #
 

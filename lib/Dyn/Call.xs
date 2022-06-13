@@ -17,12 +17,15 @@
 
 #include "lib/types.h"
 
+#define STR_WITH_LEN(s)  ("" s ""), (sizeof(s)-1)
+
 
 /* Global struct registry */
 #define MY_CXT_KEY "Dyn::Type::Struct::_guts" XS_VERSION
 typedef struct {
     HV * structs;
 } my_cxt_t;
+
 START_MY_CXT
 
 typedef struct {unsigned char a;} U_8;
@@ -354,38 +357,47 @@ CODE:
 
 MODULE = Dyn::Call   PACKAGE = Dyn::Type::Struct
 
+
+
+
 void
 new(const char * pkg, HV * data)
 PREINIT:
     dMY_CXT;
-    HV * stash;
-    SV * base;
 PPCODE:
-    AV * avobj =  newAV();
-    av_push(avobj,   (newSVpv("Some String",0)));
-    base = sv_2mortal(newRV_noinc((SV *)avobj));
+    void * struct_rep = malloc(sizeof(int)*2);// 2 ints; TODO: Get actual size from MY_CXT.structs
+    memset(struct_rep,               0, sizeof(int));
+    memset(struct_rep + sizeof(int), 1, sizeof(int));
 
-    /*
-	for (int i = 0; i<1;i++) {
-		if (hv_exists(data, key, strlen(key))) {
-			SV ** val = hv_fetch(data, key, strlen(key), NULL);
-			av_push(base, &val);
-		}
-	}*/
-    stash = gv_stashpv(pkg, GV_ADD);
-
-    //SV * objref = PTR2IV(pointer);
-
-    ST(0) = sv_bless(base, stash);
-
-    /*dcCallAggr(DCCallVM * vm, DCpointer funcptr, DCaggr * ag);
-
-    //aggr_ptr struct_rep;
-    void * struct_rep;
-    struct_rep = malloc(sizeof(&ag));
-    warn ("sizeof(&ag) == %d", sizeof(&ag));
-    */
+    SV * RETVALSV;
+    RETVALSV = sv_newmortal();
+    sv_setref_pv(RETVALSV, pkg, (void*) struct_rep);
+    ST(0) = RETVALSV;
     XSRETURN(1);
+
+int
+getX(SV * sv_this)
+CODE:
+    void *	in;
+
+  warn("A");
+  if (sv_derived_from(ST(0), "Dyn::Type::Struct")){
+      warn("B");
+
+    IV tmp = SvIV((SV*)SvRV(ST(0)));
+      warn("C");
+
+    in = INT2PTR(void *, tmp);
+  }
+  else
+    croak("in is not of type Dyn::Type::Struct");
+    warn("D");
+
+
+    memset(&RETVAL,  in, sizeof(RETVAL));
+    warn("E: %d?%d", RETVAL,sizeof(RETVAL));
+OUTPUT:
+  RETVAL
 
 void
 get(void * ptr)
@@ -408,7 +420,7 @@ CODE:
 
     //DCsize i = ag->n_fields;
 
-void
+HV *
 add_fields(const char * pkg, AV * fields)
 PREINIT:
     dMY_CXT;
@@ -425,6 +437,14 @@ CODE:
     strcpy(new_, pkg);
 		strcat(new_, "::new");
     (void)newXSproto_portable(new_, XS_Dyn__Type__Struct_new, file, "$%");
+
+    {
+      char * blah = malloc(strlen(pkg)+1);
+                    strcpy(blah, pkg);
+                    strcat(blah, "::ISA");
+    AV *isa = perl_get_av(blah,1);
+    av_push(isa, newSVpv("Dyn::Type::Struct", strlen("Dyn::Type::Struct")) );
+    }
     {
         CV * cv;
         int i = 0;
@@ -441,53 +461,45 @@ CODE:
                 if (!sv_field)
                     warn("NOT OKAY!");
                 else {
+                    av_push(avfields, sv_field);
+
                     char * blah = malloc(strlen(pkg)+1);
                     strcpy(blah, pkg);
-                    strcat(blah,		"::");
-                    strcat(blah,		SvPV_nolen(sv_field));
+                    strcat(blah, "::");
+                    strcat(blah, SvPV_nolen(sv_field));
                     cv = newXSproto_portable(blah, XS_Dyn__Type__Struct_get, file, "$");
                     XSANY.any_i32 = i++; // Use perl's ALIAS api to pseudo-index aggr's data
-                    av_push(avfields, sv_field);
                 }
             }
         }
     }
 
     HV * classinfo = newHV();
-    hv_stores(classinfo, "fields", (SV *) avfields);
-    hv_stores(classinfo, "types",  (SV *) avtypes);
-
-    const char * pkgc = (const char *)SvPV_nolen(ST(0));
-    hv_store(MY_CXT.structs, pkg, strlen(pkg)-1, (SV *) classinfo, 0);
-    sv_dump((SV *)MY_CXT.structs);
+    hv_store(classinfo,      "fields", 6,           newRV_inc(avfields),  0);
+    hv_store(classinfo,      "types",  5,           newRV_inc(avtypes),   0);
+    hv_store(MY_CXT.structs, pkg,      strlen(pkg), newRV_inc(classinfo), 0);
+    RETVAL=MY_CXT.structs;
+OUTPUT:
+    RETVAL
 
 void
 DESTROY(void * ptr)
 CODE:
-    free(ptr);
+    //free(ptr);
 
 void
 CLONE(...)
 CODE:
       MY_CXT_CLONE;
 
-bool
-rpcb_gettime(host,timep)
-      char *host
-      time_t &timep
-    ALIAS:
-        FOO::gettime = 1
-        BAR::getit = 2
-    INIT:
-      printf("# ix = %d\n", ix );
-    OUTPUT:
-      timep
-
 
 BOOT:
 {
     MY_CXT_INIT;
-    MY_CXT.structs = newHV();
+    {
+        dMY_CXT;
+        MY_CXT.structs = newHV();
+    }
 
     HV *stash = gv_stashpv("Dyn::Call", 0);
     // Supported Calling Convention Modes
