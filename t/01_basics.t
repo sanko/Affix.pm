@@ -168,6 +168,7 @@ SKIP: {
         dcArgChar( $cvm, 'Y' );
         warn ord 'Y';
         warn ord 'Z';
+
         #isa_ok dcCallAggr( $cvm, $ptr, $s ), 'Dyn::aggr';
         dcFreeAggr($s);
     };
@@ -185,13 +186,12 @@ SKIP: {
         dcReset($cvm);
         dcBeginCallAggr( $cvm, $s );
         dcArgChar( $cvm, 'Y' );
-       #b isa_ok dcCallAggr( $cvm, $ptr, $s ), 'Dyn::aggr';
 
+        #b isa_ok dcCallAggr( $cvm, $ptr, $s ), 'Dyn::aggr';
         #is dcCallChar( $cvm, $ptr ), 'Z', 'struct.a++ == Z';
         dcFreeAggr($s);
         Dyn::Type::Struct::add_fields 'Some::Class' => [ blah => 'int8' ];
-
-	Some::Class->new({test=>'reset'});
+        Some::Class->new( { test => 'reset' } );
     };
     die;
     diag 'Here';

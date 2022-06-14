@@ -76,6 +76,35 @@ typedef struct xStruct {
     }
     xStruct;
 
+void unroll_aggregate(void * ptr, DCaggr * ag, SV * obj) {
+    //warn(".a == %c", struct_rep.a);
+    //*(int*)ptr = 42;
+    char *base;
+    size_t offset;
+    int *b;
+    // get base address
+    base = (char *)ptr;
+    DCsize i = ag->n_fields;
+    warn("ag->n_fields == %d", ag->n_fields);
+    for (int i=0;i<ag->n_fields;++i) {
+        warn("i==%d", i);
+        switch(ag->fields[i].type) {
+            case DC_SIGCHAR_BOOL:
+                break;
+            case DC_SIGCHAR_UCHAR:
+                warn ("uchar!!!!!");
+                // and the offset to member_b
+                offset = ag->fields[i].offset;
+
+                // Compute address of member_b
+                b = (int *)(base+offset);
+
+                warn(".a == %c", (unsigned char) b);
+                break;
+        }
+    }
+}
+
 
 MODULE = Dyn::Call   PACKAGE = Dyn::Call
 
@@ -195,40 +224,14 @@ DCpointer
 dcCallPointer(DCCallVM * vm, DCpointer funcptr);
 
 DCpointer
-dcCallAggr(DCCallVM * vm, DCpointer funcptr, DCaggr * ag);
+dcCallAggr(DCCallVM * vm, DCpointer funcptr, DCaggr * ag, SV * obj = NULL);
 CODE:
-    //aggr_ptr struct_rep;
     void * struct_rep;
     struct_rep = malloc(sizeof(&ag));
-    warn ("sizeof(&ag) == %d", sizeof(&ag));
+    //warn ("sizeof(&ag) == %d", sizeof(&ag));
     RETVAL = dcCallAggr(vm, funcptr, ag, &struct_rep);
-    //warn(".a == %c", struct_rep.a);
-    unsigned char *ptr = (unsigned char*)&struct_rep + offsetof(U_8, a);
-    //*(int*)ptr = 42;
-    char *base;
-    size_t offset;
-    int *b;
-    // get base address
-    base = (char *)struct_rep;
-
-    // and the offset to member_b
-    offset = offsetof(U_8, a);
-
-    // Compute address of member_b
-    b = (int *)(base+offset);
-
-    warn(".a == %c", (unsigned char) b);
-
-    DCsize i = ag->n_fields;
-
-    warn("ag->n_fields == %d", ag->n_fields);
-    for (int i=0;i<ag->n_fields;++i) {
-        warn("i==%d", i);
-        switch(ag->fields[i].type){
-            case DC_SIGCHAR_BOOL:                         break;
-            case DC_SIGCHAR_UCHAR:  warn ("uchar!!!!!");  break;
-        }
-    }
+    if ((obj != NULL) && sv_isobject(obj) && sv_derived_from(obj, "Dyn::Type::Struct"))
+      unroll_aggregate(struct_rep, ag, obj);
 OUTPUT:
     RETVAL
 
@@ -366,8 +369,9 @@ PREINIT:
     dMY_CXT;
 PPCODE:
     void * struct_rep = malloc(sizeof(int)*2);// 2 ints; TODO: Get actual size from MY_CXT.structs
-    memset(struct_rep,               0, sizeof(int));
-    memset(struct_rep + sizeof(int), 1, sizeof(int));
+    memset(struct_rep,               1, 1);
+    memset(struct_rep + sizeof(int), 'b', 1);
+    warn("Hi: %s", (const char *)struct_rep);
 
     SV * RETVALSV;
     RETVALSV = sv_newmortal();
@@ -381,7 +385,7 @@ CODE:
     void *	in;
 
   warn("A");
-  if (sv_derived_from(ST(0), "Dyn::Type::Struct")){
+  if (sv_derived_from(ST(0), "Dyn::Type::Struct")) {
       warn("B");
 
     IV tmp = SvIV((SV*)SvRV(ST(0)));
@@ -391,11 +395,18 @@ CODE:
   }
   else
     croak("in is not of type Dyn::Type::Struct");
-    warn("D");
+  warn("D");
 
+  warn("Ho: %s", (const char *)in);
 
-    memset(&RETVAL,  in, sizeof(RETVAL));
-    warn("E: %d?%d", RETVAL,sizeof(RETVAL));
+  int * ptr
+  =
+  in;
+
+  //memset(&RETVAL,  (int *)in,    sizeof(int));
+    int b = (int *)(in);
+
+  warn("E: %d?%d?%d", RETVAL,sizeof(RETVAL), b);
 OUTPUT:
   RETVAL
 

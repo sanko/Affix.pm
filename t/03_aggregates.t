@@ -64,7 +64,7 @@ typedef struct {
 } U8;
 LIB_EXPORT U8 A2A (U8 in) {in.a++; return in;}
 LIB_EXPORT unsigned char A2C (U8 in) {in.a++; return in.a;}
-LIB_EXPORT U8 C2A (unsigned char in) {U8 out; out.a = in; return out;}
+LIB_EXPORT U8 C2A (unsigned char in) {U8 out; out.a = in; out.a++;return out;}
 
 END
     }
@@ -156,7 +156,7 @@ SKIP: {
         is dcCallChar( $cvm, $ptr ), 'Z', 'struct.a++ == Z';
         dcFreeAggr($s);
     };
-    subtest 'aggregate builder [struct return]' => sub {
+    subtest 'aggregate builder [struct return [raw]]' => sub {
         use Dyn qw[:all];          # Exports nothing by default
         my $lib = dlLoadLibrary($lib_file);
         my $ptr = dlFindSymbol( $lib, 'C2A' );
@@ -169,11 +169,30 @@ SKIP: {
         dcAggrField( $s, chr DC_SIGCHAR_UCHAR, 0, 1 );
         dcCloseAggr($s);
         dcReset($cvm);
-        dcArgChar( $cvm, 'Y' );
+        dcArgChar( $cvm, 'm' );
         warn ord 'Y';
         warn ord 'Z';
+        isa_ok dcCallAggr( $cvm, $ptr, $s ), 'Dyn::aggr';
+        dcFreeAggr($s);
+        ok 'remove';
+    };
+    subtest 'aggregate builder [struct return [obj]]' => sub {
+        use Dyn qw[:all];    # Exports nothing by default
+        my $lib = dlLoadLibrary($lib_file);
+        my $ptr = dlFindSymbol( $lib, 'C2A' );
+        my $cvm = dcNewCallVM(1024);
+        dcMode( $cvm, DC_CALL_C_DEFAULT );
+        dcReset($cvm);
+        my $s = dcNewAggr( 1, 1 );
 
-        #isa_ok dcCallAggr( $cvm, $ptr, $s ), 'Dyn::aggr';
+        #isa_ok $s, 'Dyn::aggr';    # TODO: Fix case
+        dcAggrField( $s, chr DC_SIGCHAR_UCHAR, 0, 1 );
+        dcCloseAggr($s);
+        dcReset($cvm);
+        dcArgChar( $cvm, 'm' );
+        warn ord 'Y';
+        warn ord 'Z';
+        isa_ok dcCallAggr( $cvm, $ptr, $s ), 'Dyn::aggr';
         dcFreeAggr($s);
         ok 'remove';
     };
@@ -195,12 +214,14 @@ SKIP: {
         #b isa_ok dcCallAggr( $cvm, $ptr, $s ), 'Dyn::aggr';
         #is dcCallChar( $cvm, $ptr ), 'Z', 'struct.a++ == Z';
         dcFreeAggr($s);
-                use Data::Dump;
-        my $idk = Dyn::Type::Struct::add_fields 'Some::Class' => [ blah => 'int8', two => 'int8' ];
+        use Data::Dump;
+        my $idk = Dyn::Type::Struct::add_fields 'Some::Class' =>
+            [ blah => bless( \[], 'Int' ), two => 'int8' ];
         diag ref $idk;
+
         #diag join ', ', keys %$idk;
-        for my $key(keys %$idk) {
-            diag '['. $key . '] => '. ref $idk->{$key};
+        for my $key ( keys %$idk ) {
+            diag '[' . $key . '] => ' . ref $idk->{$key};
         }
         ddx $idk;
         my $obj = Some::Class->new( { blah => 'reset' } );
