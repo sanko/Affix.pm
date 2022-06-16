@@ -192,7 +192,14 @@ SKIP: {
         dcArgChar( $cvm, 'm' );
         warn ord 'Y';
         warn ord 'Z';
-        isa_ok dcCallAggr( $cvm, $ptr, $s ), 'Dyn::aggr';
+	my $idk = Dyn::Type::Struct::add_fields 'Some::Class' =>
+            [ blah => bless( \[], 'Int' ), two => 'int8' ];
+
+	my $obj=Some::Class->new;
+	use Data::Dump;
+	ddx $obj;
+	isa_ok dcCallAggr( $cvm, $ptr, $s, $obj), 'Dyn::aggr';
+	ddx $obj;
         dcFreeAggr($s);
         ok 'remove';
     };

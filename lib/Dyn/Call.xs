@@ -100,7 +100,11 @@ void unroll_aggregate(void * ptr, DCaggr * ag, SV * obj) {
                 b = (int *)(base+offset);
 
                 warn(".a == %c", (unsigned char) b);
+		av_store(obj, i,newSVuv((unsigned char) b));
                 break;
+	    default:
+		warn ("fallthrough");
+		break;
         }
     }
 }
@@ -229,7 +233,7 @@ CODE:
     void * struct_rep;
     struct_rep = malloc(sizeof(&ag));
     //warn ("sizeof(&ag) == %d", sizeof(&ag));
-    RETVAL = dcCallAggr(vm, funcptr, ag, &struct_rep);
+    //RETVAL = dcCallAggr(vm, funcptr, ag, &struct_rep);
     if ((obj != NULL) && sv_isobject(obj) && sv_derived_from(obj, "Dyn::Type::Struct"))
       unroll_aggregate(struct_rep, ag, obj);
 OUTPUT:
@@ -364,7 +368,7 @@ MODULE = Dyn::Call   PACKAGE = Dyn::Type::Struct
 
 
 void
-new(const char * pkg, HV * data)
+new(const char * pkg, HV * data = newHV())
 PREINIT:
     dMY_CXT;
 PPCODE:

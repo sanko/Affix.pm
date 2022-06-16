@@ -10,66 +10,23 @@ $|++;
 package Dynamo {
     use strictures 2;
     use Data::Dump;
-    use Keyword::Simple;
-    use lib '../lib';
-    use Dyn::Call;
-    use Dyn::Load qw[dlLoadLibrary dlSymsInit dlSymsCount dlSymsName dlFindSymbol];
-    use File::Find;
-    #
-    my @files;
-    find(
-        {   preprocess => sub {
-                my $depth = $File::Find::dir =~ tr[/][];
-                $depth > 2 ? () : @_;
-            },
-            wanted => sub {
-                push @files, $File::Find::name
-                    if ( -f $File::Find::name and /libm(-[\d\.]+)?\.so(?:\.\d)?/ );
-            }
-        },
-        '/usr/lib'
-    );
-    warn join ', ', @files;
-    my ( undef, $path ) = @files;    # pick one
-    my $lib  = dlLoadLibrary($path);
-    my $init = dlSymsInit($path);
-    #
-    CORE::say "Symbols in libm ($path): " . dlSymsCount($init);
-    CORE::say 'All symbol names in libm:';
-
-    #CORE::say sprintf '  %4d %s', $_, dlSymsName( $init, $_ ) for 0 .. dlSymsCount($init) - 1;
-    CORE::say 'libm has sqrtf()? ' .       ( dlFindSymbol( $lib, 'sqrtf' )       ? 'yes' : 'no' );
-    CORE::say 'libm has pow()? ' .         ( dlFindSymbol( $lib, 'pow' )         ? 'yes' : 'no' );
-    CORE::say 'libm has not_in_libm()? ' . ( dlFindSymbol( $lib, 'not_in_libm' ) ? 'yes' : 'no' );
-    #
-    #CORE::say 'sqrtf(36.f) = ' . Dyn::load( $path, 'sqrtf', '(f)f' )->call(36.0);
-    #CORE::say 'pow(2.0, 10.0) = ' . Dyn::load( $path, 'pow', 'dd)d' )->call( 2.0, 10.0 );
-    my $ptr = dlFindSymbol( $lib, 'pow' );
-    my $cvm = Dyn::Call::dcNewCallVM(1024);
-    Dyn::Call::dcMode( $cvm, 0 );
-    Dyn::Call::dcReset($cvm);
-    Dyn::Call::dcArgInt( $cvm, 5 );
-    Dyn::Call::dcArgInt( $cvm, 6 );
-    Dyn::Call::dcCallInt( $cvm, $ptr );    #  '5 + 6 == 11';
-    use Dyn qw[:sugar];
-    no warnings('reserved');
-    sub pow : native( $path ) : Signature(Double, Double => Double);
-    warn pow( 3, 4 );
 
     #dlFreeSymbol( $lib );
     #
-    sub bool () {'Dynamo::Type::bool'}
-    sub i8()    {'Dynamo::Type::i8'}
-    sub u8()    {'Dynamo::Type::u8'}
-    sub i16 ()  {'Dynamo::Type::i16'}
-    sub u16 ()  {'Dynamo::Type::u16'}
-    sub i32 ()  {'Dynamo::Type::i32'}
-    sub u32 ()  {'Dynamo::Type::u32'}
-    sub i64 ()  {'Dynamo::Type::i64'}
-    sub u64 ()  {'Dynamo::Type::u64'}
-    sub f32 ()  {'Dynamo::Type::f32'}
-    sub f64 ()  {'Dynamo::Type::f64'}
-    sub str()   {'Dynamo::Type::str'}
+    sub bool ()    {'Dynamo::Type::bool'}
+    sub i8()       {'Dynamo::Type::i8'}
+    sub u8()       {'Dynamo::Type::u8'}
+    sub i16 ()     {'Dynamo::Type::i16'}
+    sub u16 ()     {'Dynamo::Type::u16'}
+    sub i32 ()     {'Dynamo::Type::i32'}
+    sub u32 ()     {'Dynamo::Type::u32'}
+    sub i64 ()     {'Dynamo::Type::i64'}
+    sub u64 ()     {'Dynamo::Type::u64'}
+    sub float ()   {'Dynamo::Type::float'}
+    sub f64 ()     {'Dynamo::Type::f64'}
+    sub str()      {'Dynamo::Type::str'}
+    sub Struct(%)  { ddx \@_ }
+    sub Pointer($) { ddx \@_ }
 
     sub union(%) {
         my %opts    = @_;
@@ -123,7 +80,12 @@ package Dynamo {
     }
 
     package Dynamo::Type::bool {
-        use overload '""' => sub {
+        use overload '|' => sub {
+            warn 'bitwise or';
+            use Data::Dump;
+            ddx \@_;
+            },
+            '""' => sub {
             my $s = shift;
             !!$$s[0];
             },
@@ -153,6 +115,11 @@ package Dynamo {
 
     package Dynamo::Type::i8 {      # char
         use overload
+            '|' => sub {
+            warn 'bitwise or';
+            use Data::Dump;
+            ddx \@_;
+            },
             '0+' => sub {
             my $s = shift;
             $$s[0];
@@ -195,6 +162,11 @@ package Dynamo {
 
     package Dynamo::Type::i16 {    # short
         use overload
+            '|' => sub {
+            warn 'bitwise or';
+            use Data::Dump;
+            ddx \@_;
+            },
             '""' => sub {
             my $s = shift;
             $$s[0];
@@ -312,11 +284,11 @@ package Dynamo {
         }
     }
 
-    package Dynamo::Type::f32 {    # float
+    package Dynamo::Type::float {    # float
         use parent -norequire, 'Dynamo::Type::i32';
 
         sub _check {
-            my $value = shift;     # honestly, this should use Math::BitFloat
+            my $value = shift;       # honestly, this should use Math::BitFloat
             return if $value !~ m[^[+-]?([0-9]+([.][0-9]*)?|[.][0-9]+)$];
             1;
         }
@@ -331,7 +303,7 @@ package Dynamo {
     }
 
     package Dynamo::Type::f64 {    # double
-        use parent -norequire, 'Dynamo::Type::f32';
+        use parent -norequire, 'Dynamo::Type::float';
 
         sub _check {
             my $value = shift;     # honestly, this should use Math::BitFloat
@@ -349,7 +321,13 @@ package Dynamo {
     }
 
     package Dynamo::Type::str {
-        use overload '""' => sub {
+        use overload
+            '|' => sub {
+            warn 'bitwise or';
+            use Data::Dump;
+            ddx \@_;
+            },
+            '""' => sub {
             my $s = shift;
             $$s[0];
             },
@@ -371,6 +349,11 @@ package Dynamo {
 
     package Dynamo::Union {
         use overload
+            '|' => sub {
+            warn 'bitwise or';
+            use Data::Dump;
+            ddx \@_;
+            },
             '""'     => 'value',
             bool     => 'value',
             fallback => 1;
@@ -460,7 +443,9 @@ package Dynamo {
 
     sub import {
         warn 'import';
+        return;
 
+=bjkgj
         # create keyword 'provided', expand it to 'if' at parse time
         Keyword::Simple::define 'provided', sub {
             my ($ref) = @_;
@@ -472,7 +457,7 @@ package Dynamo {
 
             #warn $$ref;
             $$ref
-                =~ s[\s*(?<name>\S+?)\s+{\s*(?<types>.*?)\s*}\s*;][Dynamo::union(name   => $+{name}, fields => { i => Dynamo::i32(), f => Dynamo::f32(), c => Dynamo::u16() } );]s;
+                =~ s[\s*(?<name>\S+?)\s+{\s*(?<types>.*?)\s*}\s*;][Dynamo::union(name   => $+{name}, fields => { i => Dynamo::i32(), f => Dynamo::float(), c => Dynamo::u16() } );]s;
 
             #warn $1;
             #warn $2;
@@ -482,7 +467,7 @@ package Dynamo {
             ddx \@types;
             Dynamo::union(
                 name   => $+{name},
-                fields => { i => Dynamo::i32(), f => Dynamo::f32(), c => Dynamo::u16() }
+                fields => { i => Dynamo::i32(), f => Dynamo::float(), c => Dynamo::u16() }
             );
             die $$ref;
         };
@@ -516,6 +501,9 @@ package Dynamo {
         # lexically disable keyword again
         Keyword::Simple::undefine 'provided';
         Keyword::Simple::undefine 'class';
+
+=cut
+
     }
 }
 #
@@ -578,14 +566,17 @@ subtest 'Dynamo::Type::* subtests' => sub {
     #::u32
     #::i64
     #::u64
-    subtest 'Dynamo::Type::f32' => sub {
-        isa_ok +Dynamo::Type::f32->new(1), ['Dynamo::Type::f32'], '...(1) isa Dynamo::Type::f32';
-        isa_ok +Dynamo::Type::f32->new(1.5), ['Dynamo::Type::f32'],
-            '...(1.5) isa Dynamo::Type::f32';
-        isa_ok +Dynamo::Type::f32->new(-1), ['Dynamo::Type::f32'], '...(-1) isa Dynamo::Type::f32';
-        isa_ok +Dynamo::Type::f32->new(+1), ['Dynamo::Type::f32'], '...(+1) isa Dynamo::Type::f32';
-        is +Dynamo::Type::f32->new('a'),       U(), '...("a") is undefined';
-        is +Dynamo::Type::f32->new(8)->sizeof, 4,   'sizeof() is 4';
+    subtest 'Dynamo::Type::float' => sub {
+        isa_ok +Dynamo::Type::float->new(1), ['Dynamo::Type::float'],
+            '...(1) isa Dynamo::Type::float';
+        isa_ok +Dynamo::Type::float->new(1.5), ['Dynamo::Type::float'],
+            '...(1.5) isa Dynamo::Type::float';
+        isa_ok +Dynamo::Type::float->new(-1), ['Dynamo::Type::float'],
+            '...(-1) isa Dynamo::Type::float';
+        isa_ok +Dynamo::Type::float->new(+1), ['Dynamo::Type::float'],
+            '...(+1) isa Dynamo::Type::float';
+        is +Dynamo::Type::float->new('a'),       U(), '...("a") is undefined';
+        is +Dynamo::Type::float->new(8)->sizeof, 4,   'sizeof() is 4';
     };
     subtest 'Dynamo::Type::str' => sub {
         isa_ok +Dynamo::Type::str->new('Hello, world!'), ['Dynamo::Type::str'],
@@ -599,7 +590,7 @@ subtest 'Dynamo::Type::* subtests' => sub {
 subtest 'Dynamo::Enum' => sub {
     my $enum = Dynamo::Enum->new(
         name   => 'My::Test::Enum',
-        type   => 'Dynamo::Type::f32',
+        type   => 'Dynamo::Type::float',
         values => { red => 0, green => 20, blue => 21, orange => 20.5 }
     );
     isa_ok $enum, [qw[Dynamo::Enum]], '$enum isa Dynamo::Enum';
@@ -620,12 +611,12 @@ subtest 'Dynamo::Enum' => sub {
 #
 subtest 'Dynamo::Union' => sub {
     isa_ok Dynamo::union(    # anon union returns object
-        fields => { i => Dynamo::i32(), f => Dynamo::f32(), c => Dynamo::u16() }
+        fields => { i => Dynamo::i32(), f => Dynamo::float(), c => Dynamo::u16() }
         ),
         'Dynamo::Union::Anon_1';
     is Dynamo::union(        # package name is given so bool is returned
         name   => 'My::Union',
-        fields => { i => Dynamo::i32(), f => Dynamo::f32(), c => Dynamo::u16() }
+        fields => { i => Dynamo::i32(), f => Dynamo::float(), c => Dynamo::u16() }
         ),
         1, 'define My::Union';
     my $union = My::Union->new();
@@ -659,6 +650,20 @@ subtest 'Dynamo::Union' => sub {
     #
     is $union->i, U(), '$union->i is now undefined';
     is $union->f, U(), '$union->f is now undefined';
+};
+subtest 'Dynamo::Type::i16|Dynamo::Type::str' => sub {
+    {
+
+        package Dynamo;
+        use Data::Dump;
+        ddx Pointer [ u8->new | i16 ];
+    };
+    pass 'remove';
+
+    #  isa_ok +Dynamo::Type::str->new('Hello, world!'), ['Dynamo::Type::str'],
+    #      '...("Hello, world") isa Dynamo::Type::str';
+    #  is +Dynamo::Type::str->new('two')->sizeof,  3, 'sizeof() is 3';
+    #  is +Dynamo::Type::str->new('four')->sizeof, 4, 'sizeof() is 4';
 };
 done_testing;
 __END__
@@ -705,7 +710,7 @@ union MyUnion {
 
 __END__
 
-enum Person::Level :isa(f32) { # default :isa(i16)
+enum Person::Level :isa(float) { # default :isa(i16)
 	red,
 	green = 20,
 	blue,
@@ -717,8 +722,8 @@ $guy->shirt(Person::Level::green()); # or import green directly
 __END__
 struct Person : version(v3.14.0) {
     field $name   : isa(string)         :param; # required
-    field $cash   : isa(f32);
-    field $credit : isa(f32);
+    field $cash   : isa(float);
+    field $credit : isa(float);
     field $level  : isa(Persion::Level);
 };
 my $john = Person->new(
@@ -731,7 +736,7 @@ my $john = Person->new(
 __END__
 class Customer :isa(Person 3.14) :version(v2.1.0) {
     field $size :isa(i16) :reader;
-    field @numbers : isa(f32);
+    field @numbers : isa(float);
     field $next : isa(Customer);
     method serve( i16 $first, Person::Level $level);
     method reject( String $reason);
@@ -750,5 +755,5 @@ sub sum (u32 $lhs, u32: $rhs) :Returns(u32);
 # load pow from somelib.so with a version of 1.0 (libsomelib.1.0.so, etc.) as power
 # function expects an unsigned 32 integer and a signed 32 bit integer
 # function returns a 32 bit float
-sub power (u32 $num, i32 $exp) :Returns(f32) :Library('somelib.so', 1.0) :Symbol('pow');
+sub power (u32 $num, i32 $exp) :Returns(float) :Library('somelib.so', 1.0) :Symbol('pow');
 
