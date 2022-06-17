@@ -23,6 +23,8 @@
 
 */
 
+
+
 /*
 
   dyncall callvm for mips o32 abi
@@ -45,74 +47,87 @@
 
 */
 
+
 #include "dyncall_callvm_mips_o32.h"
 #include "dyncall_alloc.h"
 #include "dyncall_utils.h"
 
-void dcCall_mips_o32(DCpointer target, DCRegData_mips_o32 *regdata, DCsize stksize,
-                     DCpointer stkdata);
 
-static void dc_callvm_reset_mips_o32(DCCallVM *in_self) {
-    DCCallVM_mips_o32 *self = (DCCallVM_mips_o32 *)in_self;
-    dcVecReset(&self->mVecHead);
-    self->mArgCount = 0;
+void dcCall_mips_o32(DCpointer target, DCRegData_mips_o32* regdata, DCsize stksize, DCpointer stkdata);
+
+
+static void dc_callvm_reset_mips_o32(DCCallVM* in_self)
+{
+  DCCallVM_mips_o32* self = (DCCallVM_mips_o32*)in_self;
+  dcVecReset(&self->mVecHead);
+  self->mArgCount = 0;
 }
 
-static void dc_callvm_free_mips_o32(DCCallVM *in_self) {
-    dcFreeMem(in_self);
+
+static void dc_callvm_free_mips_o32(DCCallVM* in_self)
+{
+  dcFreeMem(in_self);
 }
 
 /* arg int -- fillup integer register file OR push on stack */
 
-static void dc_callvm_argInt_mips_o32(DCCallVM *in_self, DCint i) {
-    DCCallVM_mips_o32 *self = (DCCallVM_mips_o32 *)in_self;
-    dcVecAppend(&self->mVecHead, &i, sizeof(DCint));
-    self->mArgCount++;
+static void dc_callvm_argInt_mips_o32(DCCallVM* in_self, DCint i)
+{
+  DCCallVM_mips_o32* self = (DCCallVM_mips_o32*)in_self;
+  dcVecAppend(&self->mVecHead, &i, sizeof(DCint));
+  self->mArgCount++;
 }
 
-static void dc_callvm_argPointer_mips_o32(DCCallVM *in_self, DCpointer x) {
-    dc_callvm_argInt_mips_o32(in_self, *(DCint *)&x);
+static void dc_callvm_argPointer_mips_o32(DCCallVM* in_self, DCpointer x)
+{
+  dc_callvm_argInt_mips_o32(in_self, *(DCint*)&x);
 }
 
-static void dc_callvm_argBool_mips_o32(DCCallVM *in_self, DCbool x) {
-    dc_callvm_argInt_mips_o32(in_self, (DCint)x);
+static void dc_callvm_argBool_mips_o32(DCCallVM* in_self, DCbool x)
+{
+  dc_callvm_argInt_mips_o32(in_self, (DCint)x);
 }
 
-static void dc_callvm_argChar_mips_o32(DCCallVM *in_self, DCchar x) {
-    dc_callvm_argInt_mips_o32(in_self, (DCint)x);
+static void dc_callvm_argChar_mips_o32(DCCallVM* in_self, DCchar x)
+{
+  dc_callvm_argInt_mips_o32(in_self, (DCint)x);
 }
 
-static void dc_callvm_argShort_mips_o32(DCCallVM *in_self, DCshort x) {
-    dc_callvm_argInt_mips_o32(in_self, (DCint)x);
+static void dc_callvm_argShort_mips_o32(DCCallVM* in_self, DCshort x)
+{
+  dc_callvm_argInt_mips_o32(in_self, (DCint)x);
 }
 
-static void dc_callvm_argLong_mips_o32(DCCallVM *in_self, DClong x) {
-    dc_callvm_argInt_mips_o32(in_self, (DCint)x);
+static void dc_callvm_argLong_mips_o32(DCCallVM* in_self, DClong x)
+{
+  dc_callvm_argInt_mips_o32(in_self, (DCint)x);
 }
 
-static void dc_callvm_argLongLong_mips_o32(DCCallVM *in_self, DClonglong x) {
-    DCCallVM_mips_o32 *self = (DCCallVM_mips_o32 *)in_self;
+static void dc_callvm_argLongLong_mips_o32(DCCallVM* in_self, DClonglong x)
+{
+  DCCallVM_mips_o32* self = (DCCallVM_mips_o32*)in_self;
 
-    /* 64-bit values need to be aligned on 8 byte boundaries */
-    dcVecSkip(&self->mVecHead, dcVecSize(&self->mVecHead) & 4);
-    dcVecAppend(&self->mVecHead, &x, sizeof(DClonglong));
-    self->mArgCount++;
+  /* 64-bit values need to be aligned on 8 byte boundaries */
+  dcVecSkip(&self->mVecHead, dcVecSize(&self->mVecHead) & 4);
+  dcVecAppend(&self->mVecHead, &x, sizeof(DClonglong));
+  self->mArgCount++;
 }
 
-static void dc_callvm_argFloat_mips_o32(DCCallVM *in_self, DCfloat x) {
-    DCCallVM_mips_o32 *self = (DCCallVM_mips_o32 *)in_self;
+static void dc_callvm_argFloat_mips_o32(DCCallVM* in_self, DCfloat x)
+{
+  DCCallVM_mips_o32* self = (DCCallVM_mips_o32*)in_self;
 
-    dcVecAppend(&self->mVecHead, &x, sizeof(DCfloat));
+  dcVecAppend(&self->mVecHead, &x, sizeof(DCfloat));
 
 #if defined(DC__ABI_HARDFLOAT)
-    if (self->mArgCount < 2) {
-        /* @@@ unsure if we should zero init, here; seems to work as-is */
-#if defined(DC__Endian_LITTLE)
-        self->mRegData.u[self->mArgCount].f[0] = x;
-#else
-        self->mRegData.u[self->mArgCount].f[1] = x; /* floats in regs always right justified */
-#endif
-#if 0
+  if (self->mArgCount < 2) {
+    /* @@@ unsure if we should zero init, here; seems to work as-is */
+# if defined(DC__Endian_LITTLE)
+    self->mRegData.u[self->mArgCount].f[0] = x;
+# else
+    self->mRegData.u[self->mArgCount].f[1] = x; /* floats in regs always right justified */
+# endif
+# if 0
     self->mRegData.u[self->mArgCount].f[1] = x;
    call kernel
 
@@ -127,104 +142,109 @@ static void dc_callvm_argFloat_mips_o32(DCCallVM *in_self, DCfloat x) {
 	lwc1  $f14,  8($5)    <--- byte offset 12
 	lwc1  $f15, 12($5)
 
-#if defined(DC__Endian_LITTLE)
+#  if defined(DC__Endian_LITTLE)
     /* index 0 and 2 */
     self->mRegData.floats[self->mArgCount*2] = x;
-#else
+#  else
     /* index 1 and 3 */
     self->mRegData.floats[self->mArgCount*2+1] = x;
-#endif
-#endif
-    }
+#  endif
+# endif
+  }
 #endif /* DC__ABI_HARDFLOAT */
 
-    self->mArgCount++;
+  self->mArgCount++;
 }
 
-static void dc_callvm_argDouble_mips_o32(DCCallVM *in_self, DCdouble x) {
-    DCCallVM_mips_o32 *self = (DCCallVM_mips_o32 *)in_self;
-    /* 64-bit values need to be aligned on 8 byte boundaries */
-    dcVecSkip(&self->mVecHead, dcVecSize(&self->mVecHead) & 4);
-    dcVecAppend(&self->mVecHead, &x, sizeof(DCdouble));
+static void dc_callvm_argDouble_mips_o32(DCCallVM* in_self, DCdouble x)
+{
+  DCCallVM_mips_o32* self = (DCCallVM_mips_o32*)in_self;
+  /* 64-bit values need to be aligned on 8 byte boundaries */
+  dcVecSkip(&self->mVecHead, dcVecSize(&self->mVecHead) & 4);
+  dcVecAppend(&self->mVecHead, &x, sizeof(DCdouble));
 
 #if defined(DC__ABI_HARDFLOAT)
-    if (self->mArgCount < 2) self->mRegData.u[self->mArgCount].d = x;
+  if (self->mArgCount < 2)
+    self->mRegData.u[self->mArgCount].d = x;
 #endif /* DC__ABI_HARDFLOAT */
 
-    self->mArgCount++;
+  self->mArgCount++;
 }
 
 /* Call. */
-void dc_callvm_call_mips_o32(DCCallVM *in_self, DCpointer target) {
-    DCCallVM_mips_o32 *self = (DCCallVM_mips_o32 *)in_self;
+void dc_callvm_call_mips_o32(DCCallVM* in_self, DCpointer target)
+{
+  DCCallVM_mips_o32* self = (DCCallVM_mips_o32*)in_self;
 
-    /* provide multiple of 8 (reflecting stack area alignment requirement), and
-       minimum of 16-bytes (to hold first 4 int regis as spill area ($4-$7)) */
-    size_t size = DC_MAX(16, (((unsigned)dcVecSize(&self->mVecHead)) + 7UL) & (-8UL));
+  /* provide multiple of 8 (reflecting stack area alignment requirement), and
+     minimum of 16-bytes (to hold first 4 int regis as spill area ($4-$7)) */
+  size_t size = DC_MAX(16, ( ( (unsigned) dcVecSize(&self->mVecHead) ) +7UL ) & (-8UL) );
 
-    dcCall_mips_o32(target, &self->mRegData, size, dcVecData(&self->mVecHead));
+  dcCall_mips_o32(target, &self->mRegData, size, dcVecData(&self->mVecHead));
 }
 
-static void dc_callvm_mode_mips_o32(DCCallVM *in_self, DCint mode);
+static void dc_callvm_mode_mips_o32(DCCallVM* in_self, DCint mode);
 
-DCCallVM_vt gVT_mips_o32 = {
-    &dc_callvm_free_mips_o32,
-    &dc_callvm_reset_mips_o32,
-    &dc_callvm_mode_mips_o32,
-    &dc_callvm_argBool_mips_o32,
-    &dc_callvm_argChar_mips_o32,
-    &dc_callvm_argShort_mips_o32,
-    &dc_callvm_argInt_mips_o32,
-    &dc_callvm_argLong_mips_o32,
-    &dc_callvm_argLongLong_mips_o32,
-    &dc_callvm_argFloat_mips_o32,
-    &dc_callvm_argDouble_mips_o32,
-    &dc_callvm_argPointer_mips_o32,
-    NULL /* argAggr */
-    ,
-    (DCvoidvmfunc *)&dc_callvm_call_mips_o32,
-    (DCboolvmfunc *)&dc_callvm_call_mips_o32,
-    (DCcharvmfunc *)&dc_callvm_call_mips_o32,
-    (DCshortvmfunc *)&dc_callvm_call_mips_o32,
-    (DCintvmfunc *)&dc_callvm_call_mips_o32,
-    (DClongvmfunc *)&dc_callvm_call_mips_o32,
-    (DClonglongvmfunc *)&dc_callvm_call_mips_o32,
-    (DCfloatvmfunc *)&dc_callvm_call_mips_o32,
-    (DCdoublevmfunc *)&dc_callvm_call_mips_o32,
-    (DCpointervmfunc *)&dc_callvm_call_mips_o32,
-    NULL /* callAggr */
-    ,
-    NULL /* beginAggr */
+DCCallVM_vt gVT_mips_o32 =
+{
+  &dc_callvm_free_mips_o32
+, &dc_callvm_reset_mips_o32
+, &dc_callvm_mode_mips_o32
+, &dc_callvm_argBool_mips_o32
+, &dc_callvm_argChar_mips_o32
+, &dc_callvm_argShort_mips_o32
+, &dc_callvm_argInt_mips_o32
+, &dc_callvm_argLong_mips_o32
+, &dc_callvm_argLongLong_mips_o32
+, &dc_callvm_argFloat_mips_o32
+, &dc_callvm_argDouble_mips_o32
+, &dc_callvm_argPointer_mips_o32
+, NULL /* argAggr */
+, (DCvoidvmfunc*)       &dc_callvm_call_mips_o32
+, (DCboolvmfunc*)       &dc_callvm_call_mips_o32
+, (DCcharvmfunc*)       &dc_callvm_call_mips_o32
+, (DCshortvmfunc*)      &dc_callvm_call_mips_o32
+, (DCintvmfunc*)        &dc_callvm_call_mips_o32
+, (DClongvmfunc*)       &dc_callvm_call_mips_o32
+, (DClonglongvmfunc*)   &dc_callvm_call_mips_o32
+, (DCfloatvmfunc*)      &dc_callvm_call_mips_o32
+, (DCdoublevmfunc*)     &dc_callvm_call_mips_o32
+, (DCpointervmfunc*)    &dc_callvm_call_mips_o32
+, NULL /* callAggr */
+, NULL /* beginAggr */
 };
 
 /* mode: only a single mode available currently. */
-static void dc_callvm_mode_mips_o32(DCCallVM *in_self, DCint mode) {
-    DCCallVM_mips_o32 *self = (DCCallVM_mips_o32 *)in_self;
-    DCCallVM_vt *vt;
+static void dc_callvm_mode_mips_o32(DCCallVM* in_self, DCint mode)
+{
+  DCCallVM_mips_o32* self = (DCCallVM_mips_o32*)in_self;
+  DCCallVM_vt* vt;
 
-    switch (mode) {
+  switch(mode) {
     case DC_CALL_C_DEFAULT:
     case DC_CALL_C_DEFAULT_THIS:
     case DC_CALL_C_MIPS32_O32:
     case DC_CALL_C_ELLIPSIS:
     case DC_CALL_C_ELLIPSIS_VARARGS:
-        vt = &gVT_mips_o32;
-        break;
+      vt = &gVT_mips_o32;
+      break;
     default:
-        self->mInterface.mError = DC_ERROR_UNSUPPORTED_MODE;
-        return;
-    }
-    dc_callvm_base_init(&self->mInterface, vt);
+      self->mInterface.mError = DC_ERROR_UNSUPPORTED_MODE;
+      return;
+  }
+  dc_callvm_base_init(&self->mInterface, vt);
 }
 
 /* Public API. */
-DCCallVM *dcNewCallVM(DCsize size) {
-    DCCallVM_mips_o32 *p = (DCCallVM_mips_o32 *)dcAllocMem(sizeof(DCCallVM_mips_o32) + size);
+DCCallVM* dcNewCallVM(DCsize size)
+{
+  DCCallVM_mips_o32* p = (DCCallVM_mips_o32*)dcAllocMem(sizeof(DCCallVM_mips_o32)+size);
 
-    dc_callvm_mode_mips_o32((DCCallVM *)p, DC_CALL_C_DEFAULT);
+  dc_callvm_mode_mips_o32((DCCallVM*)p, DC_CALL_C_DEFAULT);
 
-    dcVecInit(&p->mVecHead, size);
-    dc_callvm_reset_mips_o32((DCCallVM *)p);
+  dcVecInit(&p->mVecHead, size);
+  dc_callvm_reset_mips_o32((DCCallVM*)p);
 
-    return (DCCallVM *)p;
+  return (DCCallVM*)p;
 }
+

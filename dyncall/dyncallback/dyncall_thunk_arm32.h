@@ -23,15 +23,19 @@
 
 */
 
+
 #ifndef DYNCALL_THUNK_ARM32_H
 #define DYNCALL_THUNK_ARM32_H
 
+
 struct DCThunk_
 {
-    unsigned int code[2];
-    void (*entry)();
+  unsigned int code[2];
+  void       (*entry)();
 };
 
 #define DCTHUNK_ARM32_SIZE 12
 
+
 #endif /* DYNCALL_THUNK_ARM32_H */
+

@@ -3,7 +3,7 @@
  Package: dyncall
  Library: test
  File: test/hacking-mips/f.c
- Description:
+ Description: 
  License:
 
    Copyright (c) 2011-2018 Daniel Adler <dadler@uni-goettingen.de>,
@@ -24,6 +24,8 @@
 */
 
 #include "common.h"
-int f(int a0, int a1, int a2, int a3, int a4, int a5) {
-    return a0 + a1 + a2 + a3 + a4 + a5;
+int f(int a0, int a1, int a2, int a3, int a4, int a5)
+{
+  return a0+a1+a2+a3+a4+a5;
 }
+

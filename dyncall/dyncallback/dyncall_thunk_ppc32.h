@@ -28,12 +28,13 @@
 
 struct DCThunk_
 {
-    unsigned short code_load_hi, addr_self_hi; /* offset:  0  size: 4  */
-    unsigned short code_load_lo, addr_self_lo; /* offset:  4  size: 4  */
-    unsigned int code_jump[3];                 /* offset:  8  size: 12 */
-    void (*addr_entry)();                      /* offset: 20  size:  4 */
-};                                             /*       total size: 24 */
+  unsigned short code_load_hi, addr_self_hi;  /* offset:  0  size: 4  */
+  unsigned short code_load_lo, addr_self_lo;  /* offset:  4  size: 4  */
+  unsigned int   code_jump[3];                /* offset:  8  size: 12 */
+  void          (*addr_entry)();              /* offset: 20  size:  4 */
+};                                            /*       total size: 24 */
 
 #define DCTHUNK_SIZE_PPC32 24
 
 #endif /* DYNCALL_THUNK_PPC32_H */
+

@@ -3,10 +3,10 @@
  Package: dyncall
  Library: dyncall
  File: dyncall/dyncall_callvm_x64.h
- Description:
+ Description: 
  License:
 
-   Copyright (c) 2007-2018 Daniel Adler <dadler@uni-goettingen.de>,
+   Copyright (c) 2007-2018 Daniel Adler <dadler@uni-goettingen.de>, 
                            Tassilo Philipp <tphilipp@potion-studios.com>
 
    Permission to use, copy, modify, and distribute this software for any
@@ -23,17 +23,20 @@
 
 */
 
+
+
 /*
 
   dyncall callvm for x64 architecture
 
   SUPPORTED CALLING CONVENTIONS
-  MS Windows x64 calling convention, AMD64 SystemV ABI
+  MS Windows x64 calling convention, AMD64 SystemV ABI 
 
   REVISION
   2007/12/11 initial
 
 */
+
 
 #ifndef DYNCALL_CALLVM_X64_H
 #define DYNCALL_CALLVM_X64_H
@@ -42,23 +45,24 @@
 #include "dyncall_callvm.h"
 #include "dyncall_vector.h"
 
+
 #if defined(DC_WINDOWS)
 
-typedef long long int64; /* llp64 */
+typedef long long int64;	/* llp64 */
 
-#define numIntRegs 4
+#define numIntRegs   4
 #define numFloatRegs 4
 #define DCRegCount_x64 DCRegCount_x64_u
-#define DCRegData_x64 DCRegData_x64_u
+#define DCRegData_x64  DCRegData_x64_u
 
 #elif defined(DC_UNIX)
 
-typedef long int64; /* lp64 */
+typedef long int64;		/* lp64 */
 
-#define numIntRegs 6
+#define numIntRegs   6
 #define numFloatRegs 8
 #define DCRegCount_x64 DCRegCount_x64_s
-#define DCRegData_x64 DCRegData_x64_s
+#define DCRegData_x64  DCRegData_x64_s
 
 #else
 
@@ -68,39 +72,41 @@ typedef long int64; /* lp64 */
 
 typedef union
 {
-    int i;
-    int f;
+  int i;
+  int f;
 } DCRegCount_x64_u;
 
 typedef struct
 {
-    int i;
-    int f;
+  int i;
+  int f;
 } DCRegCount_x64_s;
 
 typedef union
 {
-    int64 i[numIntRegs];
-    double f[numFloatRegs];
+  int64  i[numIntRegs  ];
+  double f[numFloatRegs];
 } DCRegData_x64_u;
 
 typedef struct
 {
-    int64 i[numIntRegs];
-    double f[numFloatRegs];
+  int64  i[numIntRegs  ];
+  double f[numFloatRegs];
 } DCRegData_x64_s;
+
 
 typedef struct
 {
-    DCCallVM mInterface;  /* this CallVM interface                                        */
-    DCpointer mpCallFunc; /* function to call                                             */
-    DCint mAggrReturnReg; /* reg index for aggregate ret value (if hidden argument)       */
+  DCCallVM       mInterface;       /* this CallVM interface                                        */
+  DCpointer      mpCallFunc;       /* function to call                                             */
+  DCint          mAggrReturnReg;   /* reg index for aggregate ret value (if hidden argument)       */
 #if defined(DC_WINDOWS)
-    DCpointer mpAggrVecCopies; /* ptr to copies of aggrs passed via hidden ptr (end of vector) */
+  DCpointer      mpAggrVecCopies;  /* ptr to copies of aggrs passed via hidden ptr (end of vector) */
 #endif
-    DCRegCount_x64 mRegCount; /* number of int/sse registers used for parameter passing       */
-    DCRegData_x64 mRegData;   /* parameters to be passed via registers                        */
-    DCVecHead mVecHead;       /* parameters to be pushed onto stack                           */
+  DCRegCount_x64 mRegCount;        /* number of int/sse registers used for parameter passing       */
+  DCRegData_x64  mRegData;         /* parameters to be passed via registers                        */
+  DCVecHead      mVecHead;         /* parameters to be pushed onto stack                           */
 } DCCallVM_x64;
 
 #endif /* DYNCALL_CALLVM_X64_H */
+

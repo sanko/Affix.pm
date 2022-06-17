@@ -3,7 +3,7 @@
  Package: dyncall
  Library: test
  File: test/malloc_wx/test_wx.c
- Description:
+ Description: 
  License:
 
    Copyright (c) 2007-2018 Daniel Adler <dadler@uni-goettingen.de>,
@@ -23,23 +23,28 @@
 
 */
 
+
+
 #include "../../dyncallback/dyncall_alloc_wx.h"
 #include "../common/platformInit.h"
 #include "../common/platformInit.c" /* Impl. for functions only used in this translation unit */
 
-int main() {
-    int err;
-    void *ptr;
-    dcTest_initPlatform();
 
-    err = dcAllocWX(23, &ptr);
-    if (!err) {
-        err = dcInitExecWX(ptr, 23);
-        dcFreeWX(ptr, 23);
-    }
-    printf("result: test_alloc_wx: %d\n", (!err) ? 1 : 0);
+int main()
+{
+  int err;
+  void* ptr;
+  dcTest_initPlatform();
 
-    dcTest_deInitPlatform();
+  err = dcAllocWX(23, &ptr);
+  if(!err) {
+    err = dcInitExecWX(ptr, 23);
+    dcFreeWX(ptr, 23);
+  }
+  printf("result: test_alloc_wx: %d\n", (!err) ? 1 : 0 );
 
-    return err;
+  dcTest_deInitPlatform();
+
+  return err;
 }
+

@@ -62,9 +62,14 @@ sub alien {
         my $cwd   = Path::Tiny->cwd->absolute;
         my $pre   = Path::Tiny->cwd->child( qw[blib arch auto], $opt{meta}->name )->absolute;
         chdir $kid->absolute->stringify;
+        warn Path::Tiny->cwd->absolute;
+        my $configure
+            = ( $^O eq 'MSWin32' ? '.\configure.bat /prefix ' : './configure --prefix=' );
         warn($_) && system($_ )
-            for './configure --prefix=' . $pre->absolute,   # . ' CFLAGS="-Ofast" LDFLAGS="-Ofast"',
-            'make', 'make install';
+            for grep {defined} $configure . $pre->absolute, # . ' CFLAGS="-Ofast" LDFLAGS="-Ofast"',
+            ( $^O eq 'MSWin32' ? 'cd ..' : () ), 'make V=1',
+            'make V=1 install';
+        warn Path::Tiny->cwd->absolute;
         chdir $cwd->stringify;
     }
     else {

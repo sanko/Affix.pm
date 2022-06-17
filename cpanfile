@@ -6,7 +6,7 @@ requires 'Sub::Util';
 requires 'Text::ParseWords';
 #
 on 'test' => sub {
-    requires 'Test::More' => '0.98';
+    requires 'Test2::V0' => '0.000145';
 };
 on 'configure' => sub {
     requires 'Archive::Tar';
@@ -28,7 +28,4 @@ on 'configure' => sub {
     requires 'Module::Load::Conditional';
     requires 'Net::SSLeay' => 1.49;
     requires 'Path::Tiny';
-};
-feature 'object_pad', 'Object::Pad support' => sub {
-    requires 'Object::Pad', 0.57;
 };

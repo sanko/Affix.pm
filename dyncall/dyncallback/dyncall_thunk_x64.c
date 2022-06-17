@@ -23,24 +23,27 @@
 
 */
 
+
 #include "dyncall_thunk.h"
 
-void dcbInitThunk(DCThunk *p, void (*entry)()) {
-    /*
-      # x64 thunk code:
-      .intel_syntax
+void dcbInitThunk(DCThunk* p, void (*entry)())
+{
+  /*
+    # x64 thunk code:
+    .intel_syntax
 
-      thunk:
-          lea   rax, (rip)  # copy RIP (= ptr to thunk) to RAX and use address
-          jmp   [rax+16]    # in 'entry' (stored at RIP+16) for jump
-          nop
-          nop
-          nop
-      entry:
-          .resq 1
-     */
+    thunk:
+        lea   rax, (rip)  # copy RIP (= ptr to thunk) to RAX and use address
+        jmp   [rax+16]    # in 'entry' (stored at RIP+16) for jump
+        nop
+        nop
+        nop
+    entry:
+        .resq 1
+   */
 
-    p->code[0] = 0xfffffffff9058d48ULL;
-    p->code[1] = 0x9090900000000325ULL;
-    p->entry = entry;
+  p->code[0] = 0xfffffffff9058d48ULL;
+  p->code[1] = 0x9090900000000325ULL;
+  p->entry   = entry;
 }
+

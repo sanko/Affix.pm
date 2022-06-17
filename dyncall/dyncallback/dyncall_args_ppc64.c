@@ -25,98 +25,73 @@
 
 #include "dyncall_args_ppc64.h"
 
-DCint dcbArgInt(DCArgs *p) {
-    return (DCint)dcbArgLongLong(p);
-}
-DCuint dcbArgUInt(DCArgs *p) {
-    return (DCuint)dcbArgLongLong(p);
-}
-DCulonglong dcbArgULongLong(DCArgs *p) {
-    return (DCulonglong)dcbArgLongLong(p);
+DCint       dcbArgInt      (DCArgs* p) { return (DCint)       dcbArgLongLong(p); }
+DCuint      dcbArgUInt     (DCArgs* p) { return (DCuint)      dcbArgLongLong(p); }
+DCulonglong dcbArgULongLong(DCArgs* p) { return (DCulonglong) dcbArgLongLong(p); }
+
+DClonglong  dcbArgLongLong(DCArgs* p)
+{
+  DClonglong value;
+  if (p->ireg_count < 8) {
+    value = p->ireg_data[p->ireg_count++];
+  } else {
+    value = *( (long long*) p->stackptr );
+  }
+  p->stackptr += sizeof(long long);
+  return value;
 }
 
-DClonglong dcbArgLongLong(DCArgs *p) {
-    DClonglong value;
-    if (p->ireg_count < 8) { value = p->ireg_data[p->ireg_count++]; }
-    else {
-        value = *((long long *)p->stackptr);
+DClong      dcbArgLong     (DCArgs* p) { return (DClong)  dcbArgLongLong(p); }
+DCulong     dcbArgULong    (DCArgs* p) { return (DCulong) dcbArgLongLong(p); }
+DCchar      dcbArgChar     (DCArgs* p) { return (DCchar)  dcbArgLongLong(p); }
+DCuchar     dcbArgUChar    (DCArgs* p) { return (DCuchar) dcbArgLongLong(p); }
+DCshort     dcbArgShort    (DCArgs* p) { return (DCshort) dcbArgLongLong(p); }
+DCushort    dcbArgUShort   (DCArgs* p) { return (DCushort)dcbArgLongLong(p); }
+DCbool      dcbArgBool     (DCArgs* p) { return (DCbool)  dcbArgLongLong(p); }
+
+DCpointer   dcbArgPointer  (DCArgs* p) { return (DCpointer)dcbArgLongLong(p); }
+
+DCdouble    dcbArgDouble   (DCArgs* p)
+{
+  DCdouble result;
+
+  if (p->freg_count < 13) {
+    result = p->freg_data[p->freg_count++];
+    if (p->ireg_count < 8) {
+      p->ireg_count++;
     }
-    p->stackptr += sizeof(long long);
-    return value;
+  } else {
+    result = * ( (double*) p->stackptr );
+  }
+
+  p->stackptr += sizeof(double);
+  return result;
 }
 
-DClong dcbArgLong(DCArgs *p) {
-    return (DClong)dcbArgLongLong(p);
-}
-DCulong dcbArgULong(DCArgs *p) {
-    return (DCulong)dcbArgLongLong(p);
-}
-DCchar dcbArgChar(DCArgs *p) {
-    return (DCchar)dcbArgLongLong(p);
-}
-DCuchar dcbArgUChar(DCArgs *p) {
-    return (DCuchar)dcbArgLongLong(p);
-}
-DCshort dcbArgShort(DCArgs *p) {
-    return (DCshort)dcbArgLongLong(p);
-}
-DCushort dcbArgUShort(DCArgs *p) {
-    return (DCushort)dcbArgLongLong(p);
-}
-DCbool dcbArgBool(DCArgs *p) {
-    return (DCbool)dcbArgLongLong(p);
-}
-
-DCpointer dcbArgPointer(DCArgs *p) {
-    return (DCpointer)dcbArgLongLong(p);
-}
-
-DCdouble dcbArgDouble(DCArgs *p) {
-    DCdouble result;
-
-    if (p->freg_count < 13) {
-        result = p->freg_data[p->freg_count++];
-        if (p->ireg_count < 8) { p->ireg_count++; }
-    }
-    else {
-        result = *((double *)p->stackptr);
-    }
-
-    p->stackptr += sizeof(double);
-    return result;
-}
-
-DCfloat dcbArgFloat(DCArgs *p) {
-    DCfloat result;
+DCfloat    dcbArgFloat   (DCArgs* p)
+{
+  DCfloat result;
 
 #if defined(DC__Endian_BIG)
-    struct sf
-    {
-        DCfloat f_pad;
-        DCfloat f;
-    } sf;
+  struct sf { DCfloat f_pad; DCfloat f; } sf;
 #else /* Endian_LITTLE */
-    struct sf
-    {
-        DCfloat f;
-        DCfloat f_pad;
-    } sf;
+  struct sf { DCfloat f; DCfloat f_pad; } sf;
 #endif
 
-    if (p->freg_count < 13) {
-        result = (float)p->freg_data[p->freg_count++];
-        if (p->ireg_count < 8) { p->ireg_count++; }
+  if (p->freg_count < 13) {
+    result = (float)p->freg_data[p->freg_count++];
+    if (p->ireg_count < 8) {
+      p->ireg_count++;
     }
-    else {
-        sf = *((struct sf *)p->stackptr);
-        result = sf.f;
-    }
+  } else {
+    sf = * ( (struct sf*) p->stackptr );
+    result = sf.f;
+  }
 
-    p->stackptr += sizeof(double);
-    return result;
+  p->stackptr += sizeof(double);
+  return result;
 }
 
-DCpointer dcbArgAggr(DCArgs *p, DCpointer target) { /* @@@AGGR not impl */
-}
-void dcbReturnAggr(DCArgs *args, DCValue *result, DCpointer ret) { /* @@@AGGR not impl */
-}
+DCpointer   dcbArgAggr     (DCArgs* p, DCpointer target)                   { /* @@@AGGR not impl */ }
+void        dcbReturnAggr  (DCArgs *args, DCValue *result, DCpointer ret)  { /* @@@AGGR not impl */ }
+

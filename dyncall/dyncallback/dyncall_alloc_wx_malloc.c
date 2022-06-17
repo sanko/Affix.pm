@@ -23,19 +23,25 @@
 
 */
 
+
 #include "dyncall_alloc_wx.h"
 
 #include <stdlib.h>
 
-DCerror dcAllocWX(size_t size, void **pp) {
-    *pp = malloc(size);
-    return 0;
+
+DCerror dcAllocWX(size_t size, void** pp)
+{
+  *pp = malloc(size);
+  return 0;
 }
 
-DCerror dcInitExecWX(void *p, size_t size) {
-    return 0;
+DCerror dcInitExecWX(void* p, size_t size)
+{
+  return 0;
 }
 
-void dcFreeWX(void *p, size_t size) {
-    free(p);
+void dcFreeWX(void* p, size_t size)
+{
+  free(p);
 }
+

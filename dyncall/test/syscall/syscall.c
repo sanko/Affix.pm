@@ -3,7 +3,7 @@
  Package: dyncall
  Library: test
  File: test/syscall/syscall.c
- Description:
+ Description: 
  License:
 
    Copyright (c) 2011-2021 Daniel Adler <dadler@uni-goettingen.de>,
@@ -24,25 +24,30 @@
 */
 
 #include "dyncall.h"
-#include <sys/syscall.h>
-DCCallVM *callvm;
+#include <sys/syscall.h> 
+DCCallVM* callvm;
 
-int syscall_write(int fd, char *buf, size_t len) {
-    dcReset(callvm);
-    dcArgInt(callvm, fd);
-    dcArgPointer(callvm, buf);
-    dcArgInt(callvm, len);
-    return dcCallInt(callvm, (DCpointer)(ptrdiff_t)SYS_write);
+
+int syscall_write(int fd, char* buf, size_t len)
+{
+  dcReset(callvm);
+  dcArgInt(callvm, fd);
+  dcArgPointer(callvm, buf);
+  dcArgInt(callvm, len);
+  return dcCallInt(callvm, (DCpointer)(ptrdiff_t)SYS_write);
 }
 
-int main(int argc, char *argv[]) {
-    int r = -1;
-    callvm = dcNewCallVM(4096);
-    dcMode(callvm, DC_CALL_SYS_DEFAULT);
+int main(int argc, char* argv[])
+{
+  int r = -1;
+  callvm = dcNewCallVM(4096);
+  dcMode(callvm, DC_CALL_SYS_DEFAULT);
 
-    if (dcGetError(callvm) == DC_ERROR_NONE) {
-        r = syscall_write(1 /*stdout*/, "result: syscall: ", 17);
-        r += syscall_write(1 /*stdout*/, r == 17 ? "1" : "0", 2);
-    }
-    return !(r == 19);
+  if(dcGetError(callvm) == DC_ERROR_NONE)
+  {
+  	r = syscall_write(1/*stdout*/, "result: syscall: ", 17);
+  	r += syscall_write(1/*stdout*/, r==17?"1":"0", 2);
+  }
+  return !(r == 19);
 }
+

@@ -25,7 +25,7 @@
 
 #include "globals.h"
 
-#define write_V_v(X, v) (v);
+#define write_V_v(X, v) (         v);
 #define write_V_B(X, v) (V_B[X] = v);
 #define write_V_c(X, v) (V_c[X] = v);
 #define write_V_s(X, v) (V_s[X] = v);
@@ -42,10 +42,11 @@
 #define write_V_d(X, v) (V_d[X] = v);
 
 #define v void
-#define X(CH, T) typedef T CH;
+#define X(CH,T) typedef T CH;
 DEF_TYPES
 #undef X
 
 #include "cases.h"
 
-int G_ncases = sizeof(G_sigtab) / sizeof(G_sigtab[0]);
+int G_ncases = sizeof(G_sigtab)/sizeof(G_sigtab[0]);
+

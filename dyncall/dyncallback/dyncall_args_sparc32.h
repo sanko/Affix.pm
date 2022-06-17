@@ -23,6 +23,7 @@
 
 */
 
+
 #ifndef DYNCALLBACK_ARGS_SPARC32_H
 #define DYNCALLBACK_ARGS_SPARC32_H
 
@@ -30,7 +31,8 @@
 
 struct DCArgs
 {
-    int *arg_ptr;
+  int *arg_ptr;
 };
 
 #endif /* DYNCALLBACK_ARGS_SPARC32_H */
+

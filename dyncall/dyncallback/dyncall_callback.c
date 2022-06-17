@@ -23,8 +23,10 @@
 
 */
 
+
 #include "../dyncall/dyncall_macros.h"
 #include "../dyncall/dyncall_aggregate.h"
+
 
 #if defined(DC__Arch_Intel_x86)
 #include "dyncall_callback_x86.c"
@@ -48,19 +50,27 @@
 #error unsupported platform
 #endif
 
-void dcbInitCallback(DCCallback *pcb, const DCsigchar *signature, DCCallbackHandler *handler,
-                     void *userdata) {
-    dcbInitCallback2(pcb, signature, handler, userdata, NULL);
+
+void dcbInitCallback(DCCallback* pcb, const DCsigchar* signature, DCCallbackHandler* handler, void* userdata)
+{
+  dcbInitCallback2(pcb, signature, handler, userdata, NULL);
 }
 
-DCCallback *dcbNewCallback(const DCsigchar *signature, DCCallbackHandler *handler, void *userdata) {
-    return dcbNewCallback2(signature, handler, userdata, NULL);
+
+DCCallback* dcbNewCallback(const DCsigchar* signature, DCCallbackHandler* handler, void* userdata)
+{
+  return dcbNewCallback2(signature, handler, userdata, NULL);
 }
 
-void dcbFreeCallback(DCCallback *pcb) {
-    dcFreeWX(pcb, sizeof(DCCallback));
+
+void dcbFreeCallback(DCCallback* pcb)
+{
+  dcFreeWX(pcb, sizeof(DCCallback));
 }
 
-void *dcbGetUserData(DCCallback *pcb) {
-    return pcb->userdata;
+
+void* dcbGetUserData(DCCallback* pcb)
+{
+  return pcb->userdata;
 }
+

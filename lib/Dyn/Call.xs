@@ -68,6 +68,8 @@ void saySomething(uiButton *b, void *data)
 */
 
 void unroll_aggregate(void * struct_rep, DCaggr * ag, SV * obj) {
+    dTHX;
+
     if (!(SvROK(obj) && SvTYPE(SvRV(obj)) == SVt_PVAV))
         croak("invalid instance method invocant: no array ref supplied");
     int *b;
@@ -317,6 +319,80 @@ CODE:
 	uiMain();
 
 =cut
+
+
+MODULE = Dyn::Call   PACKAGE = Dyn::Call::Field
+
+DCsize
+_field(DCfield * thing)
+ALIAS:
+    offset    = 1
+    size      = 2
+    alignment = 3
+    array_len = 4
+CODE:
+    switch(ix) {
+        case 1: RETVAL = thing->offset;    break;
+        case 2: RETVAL = thing->size;      break;
+        case 3: RETVAL = thing->alignment; break;
+        case 4: RETVAL = thing->array_len; break;
+        default:
+            croak("Unknown field attribute: %d", ix); break;
+    }
+OUTPUT:
+    RETVAL
+
+DCsigchar
+type(DCfield * thing)
+CODE:
+    RETVAL = thing->type;
+OUTPUT:
+    RETVAL
+
+const DCaggr *
+sub_aggr(DCfield * thing)
+CODE:
+    RETVAL = thing->sub_aggr;
+OUTPUT:
+    RETVAL
+
+MODULE = Dyn::Call   PACKAGE = Dyn::Call::Aggr
+
+DCsize
+_aggr(DCaggr * thing)
+ALIAS:
+    size      = 1
+    n_fields  = 2
+    alignment = 3
+CODE:
+    switch(ix) {
+        case 1: RETVAL = thing->size;      break;
+        case 2: RETVAL = thing->n_fields;  break;
+        case 3: RETVAL = thing->alignment; break;
+        default:
+            croak("Unknown aggr attribute: %d", ix); break;
+    }
+OUTPUT:
+    RETVAL
+
+void
+fields(DCaggr * thing)
+PREINIT:
+    size_t i;
+    U8 gimme = GIMME_V;
+PPCODE:
+    if (gimme == G_ARRAY) {
+        EXTEND(SP, thing->n_fields);
+        struct DCfield_ * addr;
+        for (i = 0; i < thing->n_fields; ++i) {
+            SV * field  = sv_newmortal();
+            addr = &thing->fields[i];
+            sv_setref_pv(field, "Dyn::Call::Field", (void*) addr);
+            mPUSHs(newSVsv(field));
+        }
+    }
+    else if (gimme == G_SCALAR)
+        mXPUSHi(thing->n_fields);
 
 MODULE = Dyn::Call   PACKAGE = Dyn::Type::Struct
 

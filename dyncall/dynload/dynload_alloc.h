@@ -6,7 +6,7 @@
  Description: heap memory management interface (header only)
  License:
 
-   Copyright (c) 2007-2018 Daniel Adler <dadler@uni-goettingen.de>,
+   Copyright (c) 2007-2018 Daniel Adler <dadler@uni-goettingen.de>, 
                            Tassilo Philipp <tphilipp@potion-studios.com>
 
    Permission to use, copy, modify, and distribute this software for any
@@ -23,6 +23,8 @@
 
 */
 
+
+
 #ifndef DL_ALLOC_H
 #define DL_ALLOC_H
 
@@ -32,7 +34,8 @@
 #endif
 
 #ifndef dlFreeMem
-#define dlFreeMem free
+#define dlFreeMem  free
 #endif
 
 #endif /* DL_ALLOC_H */
+

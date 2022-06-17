@@ -6,7 +6,7 @@
  Description: Type and calling-convention signature character defines
  License:
 
-   Copyright (c) 2007-2018 Daniel Adler <dadler@uni-goettingen.de>,
+   Copyright (c) 2007-2018 Daniel Adler <dadler@uni-goettingen.de>, 
                            Tassilo Philipp <tphilipp@potion-studios.com>
 
    Permission to use, copy, modify, and distribute this software for any
@@ -23,13 +23,17 @@
 
 */
 
+
+
+
 #ifndef DYNCALL_UTILS_H
 #define DYNCALL_UTILS_H
 
 /* C portable macros. */
 
 #ifndef DC_MAX
-#define DC_MAX(a, b) ((a) >= (b)) ? (a) : (b)
+#define DC_MAX(a,b) ((a)>=(b))?(a):(b)
 #endif
 
 #endif /* DYNCALL_UTILS_H */
+

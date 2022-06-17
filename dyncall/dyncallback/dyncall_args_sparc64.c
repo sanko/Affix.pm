@@ -23,57 +23,36 @@
 
 */
 
+
 #include "dyncall_args_sparc64.h"
 
-DCulonglong dcbArgULongLong(DCArgs *p) {
-    return p->arg_ptr[p->i++];
-}
-DClonglong dcbArgLongLong(DCArgs *p) {
-    return (DClonglong)dcbArgULongLong(p);
-}
-DCulong dcbArgULong(DCArgs *p) {
-    return (DCulong)dcbArgULongLong(p);
-}
-DClong dcbArgLong(DCArgs *p) {
-    return (DClong)dcbArgULongLong(p);
-}
-DCuint dcbArgUInt(DCArgs *p) {
-    return (DCuint)dcbArgULongLong(p);
-}
-DCint dcbArgInt(DCArgs *p) {
-    return (DCint)dcbArgULongLong(p);
-}
-DCuchar dcbArgUChar(DCArgs *p) {
-    return (DCuchar)dcbArgULongLong(p);
-}
-DCchar dcbArgChar(DCArgs *p) {
-    return (DCchar)dcbArgULongLong(p);
-}
-DCushort dcbArgUShort(DCArgs *p) {
-    return (DCushort)dcbArgULongLong(p);
-}
-DCshort dcbArgShort(DCArgs *p) {
-    return (DCshort)dcbArgULongLong(p);
-}
-DCbool dcbArgBool(DCArgs *p) {
-    return (DCbool)dcbArgULongLong(p);
-}
-DCpointer dcbArgPointer(DCArgs *p) {
-    return (DCpointer)dcbArgULongLong(p);
+DCulonglong dcbArgULongLong(DCArgs* p) { return p->arg_ptr[p->i++]; }
+DClonglong  dcbArgLongLong (DCArgs* p) { return (DClonglong)dcbArgULongLong(p); }
+DCulong     dcbArgULong    (DCArgs* p) { return (DCulong)   dcbArgULongLong(p); }
+DClong      dcbArgLong     (DCArgs* p) { return (DClong)    dcbArgULongLong(p); }
+DCuint      dcbArgUInt     (DCArgs* p) { return (DCuint)    dcbArgULongLong(p); }
+DCint       dcbArgInt      (DCArgs* p) { return (DCint)     dcbArgULongLong(p); }
+DCuchar     dcbArgUChar    (DCArgs* p) { return (DCuchar)   dcbArgULongLong(p); }
+DCchar      dcbArgChar     (DCArgs* p) { return (DCchar)    dcbArgULongLong(p); }
+DCushort    dcbArgUShort   (DCArgs* p) { return (DCushort)  dcbArgULongLong(p); }
+DCshort     dcbArgShort    (DCArgs* p) { return (DCshort)   dcbArgULongLong(p); }
+DCbool      dcbArgBool     (DCArgs* p) { return (DCbool)    dcbArgULongLong(p); }
+DCpointer   dcbArgPointer  (DCArgs* p) { return (DCpointer) dcbArgULongLong(p); }
+
+DCdouble dcbArgDouble(DCArgs* p)
+{
+	return (p->i < DCARGS_SPARC64_NUM_DOUBLE_REGS)
+		? p->dreg_data[p->i++]
+		: *(DCdouble*)(p->arg_ptr + p->i++);
 }
 
-DCdouble dcbArgDouble(DCArgs *p) {
-    return (p->i < DCARGS_SPARC64_NUM_DOUBLE_REGS) ? p->dreg_data[p->i++]
-                                                   : *(DCdouble *)(p->arg_ptr + p->i++);
+DCfloat dcbArgFloat(DCArgs* p)
+{
+	return (p->i < DCARGS_SPARC64_NUM_DOUBLE_REGS)
+		? *((DCfloat*)(p->dreg_data + p->i++)+1)  /* +1 bc single-prec fp args are */
+		: *((DCfloat*)(p->arg_ptr   + p->i++)+1); /* right aligned in 64bit slot   */
 }
 
-DCfloat dcbArgFloat(DCArgs *p) {
-    return (p->i < DCARGS_SPARC64_NUM_DOUBLE_REGS)
-               ? *((DCfloat *)(p->dreg_data + p->i++) + 1) /* +1 bc single-prec fp args are */
-               : *((DCfloat *)(p->arg_ptr + p->i++) + 1);  /* right aligned in 64bit slot   */
-}
+DCpointer   dcbArgAggr     (DCArgs* p, DCpointer target)                   { /* @@@AGGR not impl */ }
+void        dcbReturnAggr  (DCArgs *args, DCValue *result, DCpointer ret)  { /* @@@AGGR not impl */ }
 
-DCpointer dcbArgAggr(DCArgs *p, DCpointer target) { /* @@@AGGR not impl */
-}
-void dcbReturnAggr(DCArgs *args, DCValue *result, DCpointer ret) { /* @@@AGGR not impl */
-}

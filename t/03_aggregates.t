@@ -1,5 +1,6 @@
 use strict;
-use Test::More 0.98;
+use Test2::V0;
+use Test2::Tools::Compare qw[string];
 use lib '../lib', '../blib/arch', '../blib/lib', 'blib/arch', 'blib/lib';
 use Dyn qw[:all];
 use File::Spec;
@@ -108,8 +109,8 @@ SKIP: {
     subtest 'Dyn::Load' => sub {
         $lib = dlLoadLibrary($lib_file);
         ok $lib, 'dlLoadLibrary(...)';
-    TODO: {
-            local $TODO = 'Some platforms do rel2abs and some do not';
+        {
+            my $todo   = 'Some platforms do rel2abs and some do not';
             my $___lib = ' ' x 1024;
             my $_abs_  = File::Spec->rel2abs($lib_file);
 
@@ -137,15 +138,39 @@ SKIP: {
         #diag `nm $lib_file`;
         #diag dlSymsNameFromValue($dsyms, 0000000000001110);
     };
+    subtest 'aggregate builder [api]' => sub {
+        use Dyn qw[:all];    # Exports nothing by default
+        my $lib = dlLoadLibrary($lib_file);
+        my $ptr = dlFindSymbol( $lib, 'C2A' );
+        my $cvm = dcNewCallVM(1024);
+        dcMode( $cvm, DC_CALL_C_DEFAULT );
+        dcReset($cvm);
+        my $s = dcNewAggr( 1, 1 );
+        isa_ok $s, 'Dyn::Call::Aggr';
+        dcAggrField( $s, chr DC_SIGCHAR_UCHAR, 0, 1 );
+        dcCloseAggr($s);
+        my @fields = $s->fields;
+        subtest 'Dyn::Call::Field [0]' => sub {
+            isa_ok $fields[0], 'Dyn::Call::Field';
+            is $fields[0]->offset,    0,                    'field->offset == 0';
+            is $fields[0]->size,      1,                    'field->size == sizeof(DCchar)';
+            is $fields[0]->alignment, 1,                    'field->alignment == 1';
+            is $fields[0]->array_len, 1,                    'field->array_len == 1';
+            is $fields[0]->type,      chr DC_SIGCHAR_UCHAR, 'field->type == DC_SIGCHAR_UCHAR';
+            is $fields[0]->sub_aggr,  U(),                  'field->sub_aggr == undef';
+        };
+        dcFreeAggr($s);
+        ok 'remove';
+    };
     subtest 'aggregate builder [struct arg]' => sub {
-        use Dyn qw[:all];          # Exports nothing by default
+        use Dyn qw[:all];    # Exports nothing by default
         my $lib = dlLoadLibrary($lib_file);
         my $ptr = dlFindSymbol( $lib, 'A2C' );
         my $cvm = dcNewCallVM(1024);
         dcMode( $cvm, DC_CALL_C_DEFAULT );
         dcReset($cvm);
         my $s = dcNewAggr( 1, 1 );
-        isa_ok $s, 'Dyn::aggr';    # TODO: Fix case
+        isa_ok $s, 'Dyn::Call::Aggr';
         dcAggrField( $s, chr DC_SIGCHAR_UCHAR, 0, 1 );
         dcCloseAggr($s);
         dcReset($cvm);
@@ -155,14 +180,14 @@ SKIP: {
         dcFreeAggr($s);
     };
     subtest 'aggregate builder [struct return [raw]]' => sub {
-        use Dyn qw[:all];          # Exports nothing by default
+        use Dyn qw[:all];    # Exports nothing by default
         my $lib = dlLoadLibrary($lib_file);
         my $ptr = dlFindSymbol( $lib, 'C2A' );
         my $cvm = dcNewCallVM(1024);
         dcMode( $cvm, DC_CALL_C_DEFAULT );
         dcReset($cvm);
         my $s = dcNewAggr( 1, 1 );
-        isa_ok $s, 'Dyn::aggr';    # TODO: Fix case
+        isa_ok $s, 'Dyn::Call::Aggr';
         dcAggrField( $s, chr DC_SIGCHAR_UCHAR, 0, 1 );
         dcCloseAggr($s);
         dcReset($cvm);
@@ -171,14 +196,14 @@ SKIP: {
         dcFreeAggr($s);
     };
     subtest 'aggregate builder [struct return [obj]]' => sub {
-        use Dyn qw[:all];          # Exports nothing by default
+        use Dyn qw[:all];    # Exports nothing by default
         my $lib = dlLoadLibrary($lib_file);
         my $ptr = dlFindSymbol( $lib, 'C2A' );
         my $cvm = dcNewCallVM(1024);
         dcMode( $cvm, DC_CALL_C_DEFAULT );
         dcReset($cvm);
         my $s = dcNewAggr( 1, 1 );
-        isa_ok $s, 'Dyn::aggr';    # TODO: Fix case
+        isa_ok $s, 'Dyn::Call::Aggr';
         dcAggrField( $s, chr DC_SIGCHAR_UCHAR, 0, 1 );
         dcCloseAggr($s);
         dcReset($cvm);
@@ -188,42 +213,44 @@ SKIP: {
         isa_ok dcCallAggr( $cvm, $ptr, $s, $obj ), 'Dyn::pointer';
         is $obj->a, 110, 'struct->a is now "n"';
         dcFreeAggr($s);
-        ok 'remove';
     };
-    subtest 'aggregate builder [struct arg and return]' => sub {
-        use Dyn qw[:all];          # Exports nothing by default
-        my $lib = dlLoadLibrary($lib_file);
-        my $ptr = dlFindSymbol( $lib, 'A2A' );
-        my $cvm = dcNewCallVM(1024);
-        dcMode( $cvm, DC_CALL_C_DEFAULT );
-        dcReset($cvm);
-        my $s = dcNewAggr( 1, 1 );
-        isa_ok $s, 'Dyn::aggr';    # TODO: Fix case
-        dcAggrField( $s, chr DC_SIGCHAR_UCHAR, 0, 1 );
-        dcCloseAggr($s);
-        dcReset($cvm);
-        dcBeginCallAggr( $cvm, $s );
-        dcArgChar( $cvm, 'Y' );
 
-        #b isa_ok dcCallAggr( $cvm, $ptr, $s ), 'Dyn::aggr';
-        #is dcCallChar( $cvm, $ptr ), 'Z', 'struct.a++ == Z';
-        dcFreeAggr($s);
-        #use Data::Dump;
-        my $idk = Dyn::Type::Struct::add_fields 'Some::Class' =>
-            [ blah => bless( \[], 'Int' ), two => 'int8' ];
-        diag ref $idk;
+        subtest 'aggregate builder [struct arg and return]' => sub {
+            use Dyn qw[:all];    # Exports nothing by default
+            my $lib = dlLoadLibrary($lib_file);
+            my $ptr = dlFindSymbol( $lib, 'A2A' );
+            my $cvm = dcNewCallVM(1024);
+            dcMode( $cvm, DC_CALL_C_DEFAULT );
+            dcReset($cvm);
+            my $s = dcNewAggr( 1, 1 );
+            isa_ok $s, 'Dyn::Call::Aggr';
+            dcAggrField( $s, chr DC_SIGCHAR_UCHAR, 0, 1 );
+            dcCloseAggr($s);
+            dcReset($cvm);
+            dcBeginCallAggr( $cvm, $s );
+            dcArgChar( $cvm, 'Y' );
+  if (0) {
+            #b isa_ok dcCallAggr( $cvm, $ptr, $s ), 'Dyn::Call::Aggr';
+            #is dcCallChar( $cvm, $ptr ), 'Z', 'struct.a++ == Z';
+            #use Data::Dump;
+            my $idk = Dyn::Type::Struct::add_fields 'Some::Other::Class' =>
+                [ blah => bless( \[], 'Int' ), two => 'int8' ];
+            diag ref $idk;
 
-        #diag join ', ', keys %$idk;
-        for my $key ( keys %$idk ) {
-            diag '[' . $key . '] => ' . ref $idk->{$key};
-        }
-        #ddx $idk;
-        my $obj = Some::Class->new( { blah => 'reset' } );
-        #ddx $obj;
-        #diag $obj->blah;
-        #diag $obj->two;
-    };
-    #
+            #diag join ', ', keys %$idk;
+            for my $key ( keys %$idk ) {
+                diag '[' . $key . '] => ' . ref $idk->{$key};
+            }
+
+            #ddx $idk;
+            my $obj = Some::Class->new( { blah => 'reset' } );
+            dcFreeAggr($s);
+  }
+            #ddx $obj;
+            #diag $obj->blah;
+            #diag $obj->two;
+        };
+        #
 
 =fdsa
         #$cb->init();
@@ -260,6 +287,7 @@ SKIP: {
             warn $result;
         }
 =cut
+
 
     subtest 'Dyn::Load Part II' => sub {
         dlFreeLibrary($lib);

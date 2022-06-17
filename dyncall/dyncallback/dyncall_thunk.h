@@ -23,6 +23,7 @@
 
 */
 
+
 #ifndef DYNCALL_THUNK_H
 #define DYNCALL_THUNK_H
 
@@ -58,27 +59,27 @@ typedef struct DCThunk_ DCThunk;
 extern "C" {
 #endif
 
-void dcbInitThunk(DCThunk *p, void (*entry)());
+void   dcbInitThunk(DCThunk* p, void (*entry)());
 
 #if defined(DC__Arch_Intel_x86)
 #include "dyncall_thunk_x86.h"
-#elif defined(DC__Arch_AMD64)
+#elif defined (DC__Arch_AMD64)
 #include "dyncall_thunk_x64.h"
-#elif defined(DC__Arch_PPC32)
+#elif defined (DC__Arch_PPC32)
 #include "dyncall_thunk_ppc32.h"
-#elif defined(DC__Arch_PPC64)
+#elif defined (DC__Arch_PPC64)
 #include "dyncall_thunk_ppc64.h"
-#elif defined(DC__Arch_ARM)
+#elif defined (DC__Arch_ARM)
 #include "dyncall_thunk_arm32.h"
-#elif defined(DC__Arch_MIPS)
+#elif defined (DC__Arch_MIPS)
 #include "dyncall_thunk_mips.h"
-#elif defined(DC__Arch_MIPS64)
+#elif defined (DC__Arch_MIPS64)
 #include "dyncall_thunk_mips64.h"
-#elif defined(DC__Arch_Sparc)
+#elif defined (DC__Arch_Sparc)
 #include "dyncall_thunk_sparc32.h"
-#elif defined(DC__Arch_Sparc64)
+#elif defined (DC__Arch_Sparc64)
 #include "dyncall_thunk_sparc64.h"
-#elif defined(DC__Arch_ARM64)
+#elif defined (DC__Arch_ARM64)
 #include "dyncall_thunk_arm64.h"
 #endif
 
@@ -86,4 +87,6 @@ void dcbInitThunk(DCThunk *p, void (*entry)());
 }
 #endif
 
+
 #endif /* DYNCALL_THUNK_H */
+

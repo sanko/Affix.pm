@@ -3,7 +3,7 @@
  Package: dyncall
  Library: test
  File: test/sharedlib/sharedlib.c
- Description:
+ Description: 
  License:
 
    Copyright (c) 2011-2018 Daniel Adler <dadler@uni-goettingen.de>,
@@ -25,6 +25,7 @@
 
 #include "dynload.h"
 
-DLLib *mylib_load(char const *name) {
-    return dlLoadLibrary(name);
+DLLib* mylib_load(char const *name)
+{
+  return dlLoadLibrary(name);
 }

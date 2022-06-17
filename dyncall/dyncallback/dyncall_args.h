@@ -23,6 +23,7 @@
 
 */
 
+
 #ifndef DYNCALL_ARGS_H
 #define DYNCALL_ARGS_H
 
@@ -38,6 +39,7 @@
 
 #include "dyncall_value.h"
 
+
 #ifdef __cplusplus
 extern "C" {
 #endif
@@ -45,23 +47,23 @@ extern "C" {
 typedef struct DCArgs DCArgs;
 
 /* functions to retrieve callback's params in callback handler */
-DC_API DCbool dcbArgBool(DCArgs *p);
-DC_API DCchar dcbArgChar(DCArgs *p);
-DC_API DCshort dcbArgShort(DCArgs *p);
-DC_API DCint dcbArgInt(DCArgs *p);
-DC_API DClong dcbArgLong(DCArgs *p);
-DC_API DClonglong dcbArgLongLong(DCArgs *p);
-DC_API DCuchar dcbArgUChar(DCArgs *p);
-DC_API DCushort dcbArgUShort(DCArgs *p);
-DC_API DCuint dcbArgUInt(DCArgs *p);
-DC_API DCulong dcbArgULong(DCArgs *p);
-DC_API DCulonglong dcbArgULongLong(DCArgs *p);
-DC_API DCfloat dcbArgFloat(DCArgs *p);
-DC_API DCdouble dcbArgDouble(DCArgs *p);
-DC_API DCpointer dcbArgPointer(DCArgs *p);
+DC_API DCbool      dcbArgBool     (DCArgs* p);
+DC_API DCchar      dcbArgChar     (DCArgs* p);
+DC_API DCshort     dcbArgShort    (DCArgs* p);
+DC_API DCint       dcbArgInt      (DCArgs* p);
+DC_API DClong      dcbArgLong     (DCArgs* p);
+DC_API DClonglong  dcbArgLongLong (DCArgs* p);
+DC_API DCuchar     dcbArgUChar    (DCArgs* p);
+DC_API DCushort    dcbArgUShort   (DCArgs* p);
+DC_API DCuint      dcbArgUInt     (DCArgs* p);
+DC_API DCulong     dcbArgULong    (DCArgs* p);
+DC_API DCulonglong dcbArgULongLong(DCArgs* p);
+DC_API DCfloat     dcbArgFloat    (DCArgs* p);
+DC_API DCdouble    dcbArgDouble   (DCArgs* p);
+DC_API DCpointer   dcbArgPointer  (DCArgs* p);
 /* for trivial aggrs: 'target' points to space to copy aggr to, returns 'target'
    for C++ non-trivial aggrs: target is ignored, returns ptr to aggr arg */
-DC_API DCpointer dcbArgAggr(DCArgs *p, DCpointer target);
+DC_API DCpointer   dcbArgAggr     (DCArgs* p, DCpointer target);
 
 /* helper func to put a to be returned struct-by-value into the 'result'
    param of the callback handler; for C++ non-trivial aggrs, pass NULL in
@@ -73,3 +75,4 @@ DC_API void dcbReturnAggr(DCArgs *args, DCValue *result, DCpointer ret);
 #endif
 
 #endif /* DYNCALL_ARGS_H */
+

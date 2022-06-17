@@ -6,7 +6,7 @@
  Description: Simple dynamic vector container type header
  License:
 
-   Copyright (c) 2007-2018 Daniel Adler <dadler@uni-goettingen.de>,
+   Copyright (c) 2007-2018 Daniel Adler <dadler@uni-goettingen.de>, 
                            Tassilo Philipp <tphilipp@potion-studios.com>
 
    Permission to use, copy, modify, and distribute this software for any
@@ -23,6 +23,8 @@
 
 */
 
+
+
 #ifndef DC_VECTOR_H
 #define DC_VECTOR_H
 
@@ -30,23 +32,23 @@
 
 typedef struct
 {
-    DCsize mTotal;
-    DCsize mSize;
+  DCsize mTotal;
+  DCsize mSize;
 } DCVecHead;
 
-#define DC_SIZEOF_DCVector(size) (sizeof(DCVecHead) + size)
+#define DC_SIZEOF_DCVector(size) (sizeof(DCVecHead)+size)
 
-#define dcVecInit(p, size)                                                                         \
-    (p)->mTotal = size;                                                                            \
-    (p)->mSize = 0
-#define dcVecReset(p) (p)->mSize = 0
-#define dcVecResize(p, size) (p)->mSize = (size)
-#define dcVecSkip(p, size) (p)->mSize += (size)
-#define dcVecData(p) ((unsigned char *)(((DCVecHead *)(p)) + 1))
-#define dcVecAt(p, index) (dcVecData(p) + index)
-#define dcVecSize(p) ((p)->mSize)
-#define dcVecAlign(p, align) (p)->mSize = ((p)->mSize + align - 1) & -align
+#define dcVecInit(p,size)   (p)->mTotal=size;(p)->mSize=0
+#define dcVecReset(p)       (p)->mSize=0
+#define dcVecResize(p,size) (p)->mSize=(size)
+#define dcVecSkip(p,size)   (p)->mSize+=(size)
+#define dcVecData(p)        ( (unsigned char*) (((DCVecHead*)(p))+1) )
+#define dcVecAt(p,index)    ( dcVecData(p)+index )
+#define dcVecSize(p)        ( (p)->mSize )
+#define dcVecAlign(p,align) (p)->mSize=( (p)->mSize + align-1 ) & -align
 
-void dcVecAppend(DCVecHead *pHead, const void *source, size_t length);
+
+void dcVecAppend(DCVecHead* pHead, const void* source, size_t length);
 
 #endif /* DC_VECTOR_H */
+

@@ -6,7 +6,7 @@
  Description: mips "o32" ABI callvm C interface.
  License:
 
-   Copyright (c) 2007-2020 Daniel Adler <dadler@uni-goettingen.de>,
+   Copyright (c) 2007-2020 Daniel Adler <dadler@uni-goettingen.de>, 
                            Tassilo Philipp <tphilipp@potion-studios.com>
 
    Permission to use, copy, modify, and distribute this software for any
@@ -23,11 +23,14 @@
 
 */
 
+
+
 #ifndef DYNCALL_CALLVM_MIPS_O32_H
 #define DYNCALL_CALLVM_MIPS_O32_H
 
 #include "dyncall_callvm.h"
 #include "dyncall_vector.h"
+
 
 /* Call-kernel register data:
 
@@ -40,30 +43,32 @@
   platforms.
 
   Float arguments map as following:
-
+  
     float argument 0 is at u[0][0] for little, u[0][1] for big endian and
     float argument 1 is at u[1][0] for little, u[1][1] for big endian of
-        DCRegData_mips_o32 union.
+	DCRegData_mips_o32 union.
 
 */
 
 typedef struct
 {
 #if defined(DC__ABI_HARDFLOAT)
-    union
-    {
-        double d;
-        float f[2];
-    } u[2];
+  union {
+    double d;
+    float  f[2];
+  } u[2];
 #endif /* DC__ABI_HARDFLOAT */
 } DCRegData_mips_o32;
 
+
 typedef struct
 {
-    DCCallVM mInterface;
-    int mArgCount;
-    DCRegData_mips_o32 mRegData;
-    DCVecHead mVecHead;
+  DCCallVM           mInterface;
+  int                mArgCount;
+  DCRegData_mips_o32 mRegData;
+  DCVecHead          mVecHead;
 } DCCallVM_mips_o32;
 
+
 #endif /* DYNCALL_CALLVM_MIPS_O32_H */
+

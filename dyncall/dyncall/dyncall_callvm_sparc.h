@@ -22,6 +22,8 @@
 
 */
 
+
+
 #ifndef DYNCALL_CALLVM_SPARC_H
 #define DYNCALL_CALLVM_SPARC_H
 
@@ -33,8 +35,9 @@
 typedef struct DCCallVM_sparc_ DCCallVM_sparc;
 struct DCCallVM_sparc_
 {
-    DCCallVM mInterface; /* 8 bytes (vtable,errorid) */
-    DCVecHead mVecHead;  /* 8 bytes (max,size)       */
+  DCCallVM  mInterface;	/* 8 bytes (vtable,errorid) */
+  DCVecHead mVecHead;	/* 8 bytes (max,size)       */
 };
 
 #endif /* DYNCALL_CALLVM_SPARC_H */
+

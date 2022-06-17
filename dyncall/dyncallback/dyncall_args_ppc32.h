@@ -32,11 +32,12 @@
 
 struct DCArgs
 {
-    int ireg_data[8];        /* offset: 0   size: 4*8 = 32  */
-    double freg_data[13];    /* offset: 32  size: 8*13= 104 */
-    unsigned char *stackptr; /* offset: 136 size:       4   */
-    int ireg_count;          /* offset: 140 size:       4   */
-    int freg_count;          /* offset: 144 size:       4   */
-};                           /*       total size:       148 */
+  int            ireg_data[8];		/* offset: 0   size: 4*8 = 32  */
+  double         freg_data[13];		/* offset: 32  size: 8*13= 104 */	
+  unsigned char* stackptr;		/* offset: 136 size:       4   */
+  int            ireg_count;            /* offset: 140 size:       4   */
+  int            freg_count;            /* offset: 144 size:       4   */
+};                                      /*       total size:       148 */
 
 #endif /* DYNCALLBACK_ARGS_PPC32_H */
+

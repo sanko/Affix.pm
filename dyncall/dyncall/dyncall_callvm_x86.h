@@ -6,7 +6,7 @@
  Description: Call virtual machine for x86 architecture header
  License:
 
-   Copyright (c) 2007-2018 Daniel Adler <dadler@uni-goettingen.de>,
+   Copyright (c) 2007-2018 Daniel Adler <dadler@uni-goettingen.de>, 
                            Tassilo Philipp <tphilipp@potion-studios.com>
 
    Permission to use, copy, modify, and distribute this software for any
@@ -22,6 +22,8 @@
    OR IN CONNECTION WITH THE USE OR PERFORMANCE OF THIS SOFTWARE.
 
 */
+
+
 
 #ifndef DYNCALL_CALLVM_X86_H
 #define DYNCALL_CALLVM_X86_H
@@ -39,6 +41,7 @@
 
 */
 
+
 #include "dyncall_callvm.h"
 #include "dyncall_vector.h"
 
@@ -46,10 +49,11 @@ typedef struct DCCallVM_x86_ DCCallVM_x86;
 
 struct DCCallVM_x86_
 {
-    DCCallVM mInterface;
-    DCpointer mpCallFunc;
-    int mIntRegs; /* used by fastcall implementation */
-    DCVecHead mVecHead;
+  DCCallVM  mInterface;
+  DCpointer mpCallFunc;
+  int       mIntRegs;     /* used by fastcall implementation */
+  DCVecHead mVecHead;
 };
 
 #endif /* DYNCALL_CALLVM_X86_H */
+

@@ -3,7 +3,7 @@
  Package: dyncall
  Library: test
  File: test/sign/sign.c
- Description:
+ Description: 
  License:
 
    Copyright (c) 2011-2021 Daniel Adler <dadler@uni-goettingen.de>,
@@ -23,6 +23,7 @@
 
 */
 
+
 #include "dyncall.h"
 
 /* This program demonstrates the need for 'unsigned' integers and the */
@@ -32,45 +33,45 @@
 /*                                                                    */
 /* A fix to be incorporated in the API is also given.                 */
 
-int add1s(unsigned short x) {
-    return x + 1;
-}
+int add1s(unsigned short x) { return x + 1; }
 
 /* API BUGFIX: */
-#define dcArgUShort(vm, x) dcArgInt(vm, (int)(unsigned int)(x))
+#define dcArgUShort(vm,x) dcArgInt(vm,(int)(unsigned int)(x))
 
 /* OLD TEST: int add1(unsigned char x) { return x + 1; } */
 
-int main(int argc, char *argv[]) {
-    DCCallVM *vm;
-    int result;
-    int total;
-    vm = dcNewCallVM(4096);
+int main(int argc, char* argv[])
+{
+  DCCallVM* vm;
+  int result;
+  int total;
+  vm = dcNewCallVM(4096);
+  dcReset(vm);
+
+  dcArgShort(vm, 0xFFFF );
+  result = dcCallInt( vm, &add1s );
+  total = (result == 0x10000);
+  printf("result: sign: %d\n", total); 
+ 
+  if (!total) {
+
+    /* TEST BUGFIX: use instead.. */
     dcReset(vm);
-
-    dcArgShort(vm, 0xFFFF);
-    result = dcCallInt(vm, &add1s);
+    dcArgUShort( vm, 0xFFFF );
+    result = dcCallInt( vm, &add1s );
     total = (result == 0x10000);
-    printf("result: sign: %d\n", total);
-
-    if (!total) {
-
-        /* TEST BUGFIX: use instead.. */
-        dcReset(vm);
-        dcArgUShort(vm, 0xFFFF);
-        result = dcCallInt(vm, &add1s);
-        total = (result == 0x10000);
-        printf("result: sign (bugfix): %d\n", total);
-    }
-
-    /*result = dcCallInt( vm, &add1s );
-    total = (result == 0x10000);*/
-
-    /*OLD TEST: updated to using 'short'
-    dcArgChar( vm, (char) 255 );
-    result = dcCallInt( vm, &add1 );
-    total = (result == 256);*/
-
-    /*printf("result: sign: %d\n", total); */
-    return 0;
+    printf("result: sign (bugfix): %d\n", total); 
+  }
+  
+  /*result = dcCallInt( vm, &add1s );
+  total = (result == 0x10000);*/
+  
+  /*OLD TEST: updated to using 'short'
+  dcArgChar( vm, (char) 255 );
+  result = dcCallInt( vm, &add1 );
+  total = (result == 256);*/
+  
+  /*printf("result: sign: %d\n", total); */
+  return 0;
 }
+

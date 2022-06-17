@@ -25,18 +25,6 @@
          "builder"
       ]
    },
-   "optional_features" : {
-      "object_pad" : {
-         "description" : "Object::Pad support",
-         "prereqs" : {
-            "runtime" : {
-               "requires" : {
-                  "Object::Pad" : "0.57"
-               }
-            }
-         }
-      }
-   },
    "prereqs" : {
       "configure" : {
          "requires" : {
@@ -83,7 +71,7 @@
       },
       "test" : {
          "requires" : {
-            "Test::More" : "0.98"
+            "Test2::V0" : "0.000145"
          }
       }
    },

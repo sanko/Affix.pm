@@ -23,6 +23,8 @@
 
 */
 
+
+
 /*
 
   dyncall macros
@@ -38,8 +40,11 @@
 
 */
 
+
 #ifndef DYNCALL_MACROS_H
 #define DYNCALL_MACROS_H
+
+
 
 /* -- Platform specific #defines ------------------------------------ */
 
@@ -48,32 +53,27 @@
 #define DC__OS_Win64
 
 /* MS Windows NT/95/98/ME/2000/XP/Vista32. */
-#elif defined(WIN32) || defined(_WIN32) || defined(__WIN32__) || defined(__NT__) ||                \
-    defined(__WINDOWS__) || defined(_WINDOWS)
+#elif defined(WIN32) || defined(_WIN32) || defined(__WIN32__) || defined(__NT__) || defined(__WINDOWS__) || defined(_WINDOWS)
 #define DC__OS_Win32
 
-/* All the OS' based on Darwin OS (MacOS X, OpenDarwin). Note that '__APPLE__' may be defined for
- * classic MacOS, too. */
+/* All the OS' based on Darwin OS (MacOS X, OpenDarwin). Note that '__APPLE__' may be defined for classic MacOS, too. */
 /* __MACOSX__ is not defined in gcc assembler mode (switch: -S) */
 /* @@@ TODO: Check for Classic OS */
 
 #elif defined(__APPLE__) || defined(__Darwin__)
-#define DC__OS_Darwin
-#if defined(__ENVIRONMENT_IPHONE_OS_VERSION_MIN_REQUIRED__)
-#define DC__OS_IPhone
-#else /* defined(__ENVIRONMENT_MAC_OS_X_VERSION_MIN_REQUIRED__) */
-#define DC__OS_MacOSX
-#endif
+#  define DC__OS_Darwin
+#  if defined(__ENVIRONMENT_IPHONE_OS_VERSION_MIN_REQUIRED__)
+#    define DC__OS_IPhone
+#  else /* defined(__ENVIRONMENT_MAC_OS_X_VERSION_MIN_REQUIRED__) */
+#    define DC__OS_MacOSX
+#  endif
 
 /* The most popular open source Unix-like OS - Linux. */
 #elif defined(__linux__) || defined(__linux) || defined(__gnu_linux__)
 #define DC__OS_Linux
 
 /* The most powerful open source Unix-like OS - FreeBSD. */
-#elif defined(__FreeBSD__) ||                                                                      \
-    defined(__FreeBSD_kernel__) /* latter is (also) used by systems using FreeBSD kernel, e.g.     \
-                                   Debian/kFreeBSD, which could be detected specifically by also   \
-                                   checking for __GLIBC__ */
+#elif defined(__FreeBSD__) || defined(__FreeBSD_kernel__) /* latter is (also) used by systems using FreeBSD kernel, e.g. Debian/kFreeBSD, which could be detected specifically by also checking for __GLIBC__ */
 #define DC__OS_FreeBSD
 
 /* The most secure open source Unix-like OS - OpenBSD. */
@@ -97,7 +97,7 @@
 #define DC__OS_Cygwin
 
 /* The "Minimalist GNU for Windows" - MinGW. */
-#elif defined(__MINGW__) /*@@@*/
+#elif defined(__MINGW__)/*@@@*/
 #define DC__OS_MinGW
 
 /* The Nintendo DS (homebrew) using devkitpro. */
@@ -128,6 +128,8 @@
 /* Unable to determine OS, which is probably ok (e.g. baremetal stuff, etc.). */
 #define DC__OS_UNKNOWN
 #endif
+
+
 
 /* -- Compiler specific #defines ------------------------------------ */
 
@@ -166,141 +168,142 @@
 #define DC__C_UNKNOWN
 #endif
 
+
+
 /* -- Architecture -------------------------------------------------- */
 
 /* Check architecture. */
-#if defined(_M_X64_) || defined(_M_AMD64) || defined(__amd64__) || defined(__amd64) ||             \
-    defined(__x86_64__) || defined(__x86_64)
-#define DC__Arch_AMD64
-#elif defined(_M_IX86) || defined(__i386__) || defined(__i486__) || defined(__i586__) ||           \
-    defined(__i686__) || defined(__386__) || defined(__i386)
-#define DC__Arch_Intel_x86
+#if defined(_M_X64_) || defined(_M_AMD64) || defined(__amd64__) || defined(__amd64) || defined(__x86_64__) || defined(__x86_64) 
+# define DC__Arch_AMD64
+#elif defined(_M_IX86) || defined(__i386__) || defined(__i486__) || defined(__i586__) || defined(__i686__) || defined(__386__) || defined(__i386)
+# define DC__Arch_Intel_x86
 #elif defined(_M_IA64) || defined(__ia64__)
-#define DC__Arch_Itanium
-#elif defined(_M_PPC) || defined(__powerpc__) || defined(__powerpc) || defined(__POWERPC__) ||     \
-    defined(__ppc__) || defined(__power__)
-#if defined(__ppc64__) || defined(_ARCH_PPC64) || defined(__power64__) || defined(__powerpc64__)
-#define DC__Arch_PPC64
-#else
-#define DC__Arch_PPC32
-#endif
+# define DC__Arch_Itanium
+#elif defined(_M_PPC) || defined(__powerpc__) || defined(__powerpc) || defined(__POWERPC__) || defined(__ppc__) || defined(__power__)
+# if defined(__ppc64__) || defined(_ARCH_PPC64) || defined(__power64__) || defined(__powerpc64__)
+#   define DC__Arch_PPC64
+# else
+#   define DC__Arch_PPC32
+# endif
 #elif defined(__mips64__) || defined(__mips64)
-#define DC__Arch_MIPS64
+# define DC__Arch_MIPS64
 #elif defined(_M_MRX000) || defined(__mips__) || defined(__mips) || defined(_mips)
-#define DC__Arch_MIPS
+# define DC__Arch_MIPS
 #elif defined(__arm__)
-#define DC__Arch_ARM
+# define DC__Arch_ARM
 #elif defined(_M_ARM64) || defined(__aarch64__) || defined(__arm64) || defined(__arm64__)
-#define DC__Arch_ARM64
+# define DC__Arch_ARM64
 #elif defined(__sh__)
-#define DC__Arch_SuperH
+# define DC__Arch_SuperH
 #elif defined(__sparc) || defined(__sparc__)
-#if defined(__sparcv9) || defined(__sparc_v9__) || defined(__sparc64__) || defined(__arch64__)
-#define DC__Arch_Sparc64
-#else
-#define DC__Arch_Sparc
+# if defined(__sparcv9) || defined(__sparc_v9__) || defined(__sparc64__) || defined(__arch64__)
+#  define DC__Arch_Sparc64
+# else
+#  define DC__Arch_Sparc
+# endif
 #endif
-#endif
+
+
 
 /* -- Rough OS classification --------------------------------------- */
 
 #if defined(DC__OS_Win32) || defined(DC__OS_Win64)
-#define DC_WINDOWS
+# define DC_WINDOWS
 #elif defined(DC__OS_Plan9)
-#define DC_PLAN9
+# define DC_PLAN9
 #elif defined(DC__OS_NDS) || defined(DC__OS_PSP)
-#define DC_OTHER
+# define DC_OTHER
 #else
-#define DC_UNIX
+# define DC_UNIX
 #endif
+
+
 
 /* -- Misc machine-dependent modes, ABIs, etc. ---------------------- */
 
 #if defined(__arm__) && !defined(__thumb__)
-#define DC__Arch_ARM_ARM
+# define DC__Arch_ARM_ARM
 #elif defined(__arm__) && defined(__thumb__)
-#define DC__Arch_ARM_THUMB
+# define DC__Arch_ARM_THUMB
 #endif
 
 #if defined(DC__Arch_ARM_ARM) || defined(DC__Arch_ARM_THUMB)
-#if defined(__ARM_EABI__) || defined(DC__OS_NDS)
-#if defined(__ARM_PCS_VFP) && (__ARM_PCS_VFP == 1)
-#define DC__ABI_ARM_HF
-#else
-#define DC__ABI_ARM_EABI
-#endif
-#elif defined(__APCS_32__)
-#define DC__ABI_ARM_OABI
-#endif
+# if defined(__ARM_EABI__) || defined(DC__OS_NDS)
+#  if defined (__ARM_PCS_VFP) && (__ARM_PCS_VFP == 1)
+#    define DC__ABI_ARM_HF
+#  else
+#    define DC__ABI_ARM_EABI
+#  endif
+# elif defined(__APCS_32__)
+#  define DC__ABI_ARM_OABI
+# endif
 #endif /* ARM */
 
 #if defined(DC__Arch_MIPS) || defined(DC__Arch_MIPS64)
-#if defined(_ABIO32) || defined(__mips_o32) || defined(_MIPS_ARCH_MIPS1) ||                        \
-    defined(_MIPS_ARCH_MIPS2)
-#define DC__ABI_MIPS_O32
-#elif defined(_ABI64) || defined(__mips_n64)
-#define DC__ABI_MIPS_N64
-#elif defined(_ABIN32)
-#define DC__ABI_MIPS_N32
-#else
-#define DC__ABI_MIPS_EABI
-#endif
+# if defined(_ABIO32) || defined(__mips_o32) || defined(_MIPS_ARCH_MIPS1) || defined(_MIPS_ARCH_MIPS2)
+#  define DC__ABI_MIPS_O32
+# elif defined(_ABI64) || defined(__mips_n64)
+#  define DC__ABI_MIPS_N64
+# elif defined(_ABIN32)
+#  define DC__ABI_MIPS_N32
+# else
+#  define DC__ABI_MIPS_EABI
+# endif
 /* Set extra flag to know if FP hardware ABI, default to yes, if unsure */
-#if (defined(__mips_hard_float) && (__mips_hard_float == 1)) || !defined(__mips_soft_float) ||     \
-    (__mips_soft_float != 1)
-#define DC__ABI_HARDFLOAT /* @@@ make this general for all archs? */
-#else
-#define DC__ABI_SOFTFLOAT
-#endif
+# if (defined(__mips_hard_float) && (__mips_hard_float == 1)) || !defined(__mips_soft_float) || (__mips_soft_float != 1)
+#  define DC__ABI_HARDFLOAT /* @@@ make this general for all archs? */
+# else
+#  define DC__ABI_SOFTFLOAT
+# endif
 #endif /* MIPS */
 
 #if defined(DC__Arch_PPC64)
-#if defined(_CALL_ELF)
-#define DC__ABI_PPC64_ELF_V _CALL_ELF
-#else
-#define DC__ABI_PPC64_ELF_V                                                                        \
-    0 /* 0 means not explicitly set, otherwise this is 1 (big endian) and 2 (little endian) */
-#endif
+# if defined(_CALL_ELF)
+#  define DC__ABI_PPC64_ELF_V _CALL_ELF
+# else
+#  define DC__ABI_PPC64_ELF_V 0 /* 0 means not explicitly set, otherwise this is 1 (big endian) and 2 (little endian) */
+# endif
 #endif /* PPC64 */
+
+
 
 /* -- Endianness detection ------------------------------------------ */
 
 #if defined(DC__Arch_Intel_x86) || defined(DC__Arch_AMD64) /* always little */
-#define DC__Endian_LITTLE
-#elif defined(DC__Arch_Sparc) /* always purely big until v9 */
-#define DC__Endian_BIG
-#else /* all others are bi-endian */
+# define DC__Endian_LITTLE
+#elif defined(DC__Arch_Sparc)                              /* always purely big until v9 */
+# define DC__Endian_BIG
+#else                                                      /* all others are bi-endian */
 /* @@@check flags used on following bi-endianness archs:
 DC__Arch_Itanium
 DC__Arch_PPC32
 DC__Arch_PPC64
 DC__Arch_SuperH
 */
-#if (defined(DC__Arch_PPC64) && (DC__ABI_PPC64_ELF_V == 1)) || defined(_BIG_ENDIAN) ||             \
-    defined(__BIG_ENDIAN__) || defined(MIPSEB) || defined(_MIPSEB) || defined(__MIPSEB) ||         \
-    defined(__MIPSEB__) || defined(__ARMEB__) || defined(__AARCH64EB__)
-#define DC__Endian_BIG
-#elif (defined(DC__Arch_PPC64) && (DC__ABI_PPC64_ELF_V == 2)) || defined(_LITTLE_ENDIAN) ||        \
-    defined(__LITTLE_ENDIAN__) || defined(MIPSEL) || defined(_MIPSEL) || defined(__MIPSEL) ||      \
-    defined(__MIPSEL__) || defined(__ARMEL__) || defined(__AARCH64EL__)
-#define DC__Endian_LITTLE
-#elif defined(DC__Arch_Sparc64) &&                                                                 \
-    !defined(__BYTE_ORDER__) /* Sparc64 default is big-endian, except if explicitly defined */
-#define DC__Endian_BIG
-#elif defined(__BYTE_ORDER__) /* explicitly set */
-#if defined(__ORDER_BIG_ENDIAN__) && (__BYTE_ORDER__ == __ORDER_BIG_ENDIAN__)
-#define DC__Endian_BIG
-#elif defined(__ORDER_LITTLE_ENDIAN__) && (__BYTE_ORDER__ == __ORDER_LITTLE_ENDIAN__)
-#define DC__Endian_LITTLE
+# if (defined(DC__Arch_PPC64) && (DC__ABI_PPC64_ELF_V == 1)) || defined(_BIG_ENDIAN) || defined(__BIG_ENDIAN__) || defined(MIPSEB) || defined(_MIPSEB) || defined(__MIPSEB) || defined(__MIPSEB__) || defined(__ARMEB__) || defined(__AARCH64EB__)
+#  define DC__Endian_BIG
+# elif (defined(DC__Arch_PPC64) && (DC__ABI_PPC64_ELF_V == 2)) || defined(_LITTLE_ENDIAN) || defined(__LITTLE_ENDIAN__) || defined(MIPSEL) || defined(_MIPSEL) || defined(__MIPSEL) || defined(__MIPSEL__) || defined(__ARMEL__) || defined(__AARCH64EL__)
+#  define DC__Endian_LITTLE
+# elif defined(DC__Arch_Sparc64) && !defined(__BYTE_ORDER__) /* Sparc64 default is big-endian, except if explicitly defined */
+#    define DC__Endian_BIG
+# elif defined(__BYTE_ORDER__) /* explicitly set */
+#  if defined(__ORDER_BIG_ENDIAN__) && (__BYTE_ORDER__ == __ORDER_BIG_ENDIAN__)
+#    define DC__Endian_BIG
+#  elif defined(__ORDER_LITTLE_ENDIAN__) && (__BYTE_ORDER__ == __ORDER_LITTLE_ENDIAN__)
+#    define DC__Endian_LITTLE
+#  endif
+# endif /* no else, leave unset if not sure */
 #endif
-#endif /* no else, leave unset if not sure */
-#endif
+
+
 
 /* -- Internal macro/tag -------------------------------------------- */
 
 #if !defined(DC_API)
-#define DC_API
+# define DC_API
 #endif
+
+
 
 /* -- Library feature support macors -------------------------------- */
 
@@ -308,17 +311,16 @@ DC__Arch_SuperH
    call and callback support are required for a platform implementation */
 
 /* syscalls */
-#if (defined(DC__Arch_Intel_x86) || (defined(DC__Arch_AMD64) && defined(DC_UNIX)) ||               \
-     defined(DC__Arch_PPC32) || defined(DC__Arch_PPC64)) &&                                        \
-    !defined(DC__OS_MacOSX) && !defined(DC__OS_Plan9) && !defined(DC__OS_NDS) &&                   \
-    !defined(DC__OS_PSP) && !defined(DC__OS_Minix) && !defined(DC__OS_SunOS) &&                    \
-    !defined(DC__OS_BeOS)
-#define DC__Feature_Syscall
+#if (defined(DC__Arch_Intel_x86) || (defined(DC__Arch_AMD64) && defined(DC_UNIX)) || defined(DC__Arch_PPC32) || defined(DC__Arch_PPC64)) && \
+    !defined(DC__OS_MacOSX) && !defined(DC__OS_Plan9) && !defined(DC__OS_NDS) && !defined(DC__OS_PSP) && !defined(DC__OS_Minix) && !defined(DC__OS_SunOS) && !defined(DC__OS_BeOS)
+#  define DC__Feature_Syscall
 #endif
 
 /* aggregate (struct, union) by value */
 #if defined(DC__Arch_AMD64)
-#define DC__Feature_AggrByVal
+#  define DC__Feature_AggrByVal
 #endif
 
+
 #endif /* DYNCALL_MACROS_H */
+

@@ -3,7 +3,7 @@
  Package: dyncall
  Library: test
  File: test/callback_suite_aggrs/globals.h
- Description:
+ Description: 
  License:
 
    Copyright (c) 2022 Tassilo Philipp <tphilipp@potion-studios.com>
@@ -22,32 +22,34 @@
 
 */
 
+
 #include "dyncall_types.h"
 
-#define DEF_TYPES                                                                                  \
-    X(B, DCbool)                                                                                   \
-    X(c, DCchar)                                                                                   \
-    X(C, DCuchar) X(s, DCshort) X(S, DCushort) X(i, DCint) X(I, DCuint) X(j, DClong) X(J, DCulong) \
-        X(l, DClonglong) X(L, DCulonglong) X(f, DCfloat) X(d, DCdouble) X(p, DCpointer)            \
-            X(Z, DCpointer) X(a, void *)
 
-#define X(CH, T)                                                                                   \
-    extern T *K_##CH;                                                                              \
-    extern T *V_##CH;
+#define DEF_TYPES \
+  X(B,DCbool) \
+  X(c,DCchar) X(C,DCuchar) X(s,DCshort) X(S,DCushort) \
+  X(i,DCint) X(I,DCuint) X(j,DClong) X(J,DCulong) \
+  X(l,DClonglong) X(L,DCulonglong) \
+  X(f,DCfloat) X(d,DCdouble) \
+  X(p,DCpointer) X(Z,DCpointer) \
+  X(a,void*)
+
+#define X(CH,T) extern T *K_##CH; extern T *V_##CH;
 DEF_TYPES
 #undef X
 
-typedef void (*funptr)(void *);
+typedef void (*funptr)(void*);
 
-extern funptr G_funtab[];
-extern const char *G_sigtab[];
-extern int G_ncases;
-extern int G_maxargs;
-extern const char *G_agg_sigs[];
-extern int G_agg_sizes[];
-extern funptr G_agg_touchAfuncs[];
-extern funptr G_agg_cmpfuncs[];
-extern int G_naggs;
+extern funptr       G_funtab[];
+extern const char * G_sigtab[];
+extern int          G_ncases;
+extern int          G_maxargs;
+extern const char * G_agg_sigs[];
+extern int          G_agg_sizes[];
+extern funptr       G_agg_touchAfuncs[];
+extern funptr       G_agg_cmpfuncs[];
+extern int          G_naggs;
 
 void init_test_data();
 void deinit_test_data();

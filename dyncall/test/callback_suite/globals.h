@@ -3,7 +3,7 @@
  Package: dyncall
  Library: test
  File: test/callback_suite/globals.h
- Description:
+ Description: 
  License:
 
    Copyright (c) 2011-2022 Daniel Adler <dadler@uni-goettingen.de>,
@@ -23,28 +23,30 @@
 
 */
 
+
 #include "dyncall_types.h"
 
-#define DEF_TYPES                                                                                  \
-    X(B, DCbool)                                                                                   \
-    X(c, DCchar)                                                                                   \
-    X(C, DCuchar) X(s, DCshort) X(S, DCushort) X(i, DCint) X(I, DCuint) X(j, DClong) X(J, DCulong) \
-        X(l, DClonglong) X(L, DCulonglong) X(f, DCfloat) X(d, DCdouble) X(p, DCpointer)            \
-            X(Z, DCpointer)
 
-#define X(CH, T)                                                                                   \
-    extern T *K_##CH;                                                                              \
-    extern T *V_##CH;
+#define DEF_TYPES \
+  X(B,DCbool) \
+  X(c,DCchar) X(C,DCuchar) X(s,DCshort) X(S,DCushort) \
+  X(i,DCint) X(I,DCuint) X(j,DClong) X(J,DCulong) \
+  X(l,DClonglong) X(L,DCulonglong) \
+  X(f,DCfloat) X(d,DCdouble) \
+  X(p,DCpointer) X(Z,DCpointer)
+
+#define X(CH,T) extern T *K_##CH; extern T *V_##CH;
 DEF_TYPES
 #undef X
 
-typedef void (*funptr)(void *);
+typedef void (*funptr)(void*);
 
-extern funptr G_funtab[];
-extern const char *G_sigtab[];
-extern int G_ncases;
-extern int G_maxargs;
+extern funptr       G_funtab[];
+extern const char * G_sigtab[];
+extern int          G_ncases;
+extern int          G_maxargs;
 
 void init_test_data();
 void deinit_test_data();
 void clear_V();
+

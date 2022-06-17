@@ -3,7 +3,7 @@
  Package: dyncall
  Library: test
  File: test/hacking-mips/call.c
- Description:
+ Description: 
  License:
 
    Copyright (c) 2011-2018 Daniel Adler <dadler@uni-goettingen.de>,
@@ -23,14 +23,18 @@
 
 */
 
-void call_f0() {
-    n0();
+void call_f0()
+{
+  n0();
 }
 
-void call_f4() {
-    n4(1, 2, 3, 4);
+void call_f4()
+{
+  n4(1,2,3,4);
 }
 
-void call_f8() {
-    n8(1, 2, 3, 4, 5, 6, 7, 8);
+void call_f8()
+{
+  n8(1,2,3,4,5,6,7,8);
 }
+

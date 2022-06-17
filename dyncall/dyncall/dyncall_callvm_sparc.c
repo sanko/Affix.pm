@@ -22,64 +22,70 @@
 
 */
 
+
+
 #include "dyncall_callvm_sparc.h"
 #include "dyncall_utils.h"
 #include "dyncall_alloc.h"
-#define DEFAULT_STACK_ALIGN 16
+#define DEFAULT_STACK_ALIGN	16
+
 
 void dcCall_sparc(DCpointer target, DCsize size, DCpointer data);
 
+
 /* Destructor. */
-static void dc_callvm_free_sparc(DCCallVM *in_self) {
-    dcFreeMem(in_self);
+static void dc_callvm_free_sparc(DCCallVM* in_self)
+{
+  dcFreeMem(in_self);
 }
 
 /* Reset argument buffer. */
-static void dc_callvm_reset_sparc(DCCallVM *in_self) {
-    DCCallVM_sparc *self = (DCCallVM_sparc *)in_self;
-    dcVecReset(&self->mVecHead);
+static void dc_callvm_reset_sparc(DCCallVM* in_self)
+{
+  DCCallVM_sparc* self = (DCCallVM_sparc*)in_self;
+  dcVecReset(&self->mVecHead);
 }
 
 /* Load integer 32-bit. */
-static void dc_callvm_argInt_sparc(DCCallVM *in_self, DCint x) {
-    DCCallVM_sparc *self = (DCCallVM_sparc *)in_self;
-    dcVecAppend(&self->mVecHead, &x, sizeof(DCint));
+static void dc_callvm_argInt_sparc(DCCallVM* in_self, DCint x)
+{
+  DCCallVM_sparc* self = (DCCallVM_sparc*)in_self;
+  dcVecAppend(&self->mVecHead, &x, sizeof(DCint));
 }
 
 /* we propagate Bool,Char,Short to Int. */
 
-static void dc_callvm_argBool_sparc(DCCallVM *in_self, DCbool x) {
-    dc_callvm_argInt_sparc(in_self, (DCint)x);
-}
-static void dc_callvm_argChar_sparc(DCCallVM *in_self, DCchar x) {
-    dc_callvm_argInt_sparc(in_self, (DCint)x);
-}
-static void dc_callvm_argShort_sparc(DCCallVM *in_self, DCshort x) {
-    dc_callvm_argInt_sparc(in_self, (DCint)x);
-}
+static void dc_callvm_argBool_sparc(DCCallVM* in_self, DCbool x) { dc_callvm_argInt_sparc(in_self, (DCint)x); }
+static void dc_callvm_argChar_sparc(DCCallVM* in_self, DCchar x) { dc_callvm_argInt_sparc(in_self, (DCint)x); }
+static void dc_callvm_argShort_sparc(DCCallVM* in_self, DCshort x) { dc_callvm_argInt_sparc(in_self, (DCint)x); }
 
 /* handle others Pointer, Long, LongLong, Float and Double as-is. */
 
-static void dc_callvm_argPointer_sparc(DCCallVM *in_self, DCpointer x) {
-    DCCallVM_sparc *self = (DCCallVM_sparc *)in_self;
-    dcVecAppend(&self->mVecHead, &x, sizeof(DCpointer));
+static void dc_callvm_argPointer_sparc(DCCallVM* in_self, DCpointer x)
+{
+  DCCallVM_sparc* self = (DCCallVM_sparc*)in_self;
+  dcVecAppend(&self->mVecHead, &x, sizeof(DCpointer));
 }
 
-static void dc_callvm_argLong_sparc(DCCallVM *in_self, DClong x) {
-    DCCallVM_sparc *self = (DCCallVM_sparc *)in_self;
-    dcVecAppend(&self->mVecHead, &x, sizeof(DClong));
+static void dc_callvm_argLong_sparc(DCCallVM* in_self, DClong x)
+{
+  DCCallVM_sparc* self = (DCCallVM_sparc*)in_self;
+  dcVecAppend(&self->mVecHead, &x, sizeof(DClong));
 }
-static void dc_callvm_argLongLong_sparc(DCCallVM *in_self, DClonglong x) {
-    DCCallVM_sparc *self = (DCCallVM_sparc *)in_self;
-    dcVecAppend(&self->mVecHead, &x, sizeof(DClonglong));
+static void dc_callvm_argLongLong_sparc(DCCallVM* in_self, DClonglong x)
+{
+  DCCallVM_sparc* self = (DCCallVM_sparc*)in_self;
+  dcVecAppend(&self->mVecHead, &x, sizeof(DClonglong));
 }
-static void dc_callvm_argFloat_sparc(DCCallVM *in_self, DCfloat x) {
-    DCCallVM_sparc *self = (DCCallVM_sparc *)in_self;
-    dcVecAppend(&self->mVecHead, &x, sizeof(DCfloat));
+static void dc_callvm_argFloat_sparc(DCCallVM* in_self, DCfloat x)
+{
+  DCCallVM_sparc* self = (DCCallVM_sparc*)in_self;
+  dcVecAppend(&self->mVecHead, &x, sizeof(DCfloat));
 }
-static void dc_callvm_argDouble_sparc(DCCallVM *in_self, DCdouble x) {
-    DCCallVM_sparc *self = (DCCallVM_sparc *)in_self;
-    dcVecAppend(&self->mVecHead, &x, sizeof(DCdouble));
+static void dc_callvm_argDouble_sparc(DCCallVM* in_self, DCdouble x)
+{
+  DCCallVM_sparc* self = (DCCallVM_sparc*)in_self;
+  dcVecAppend(&self->mVecHead, &x, sizeof(DCdouble));
 }
 
 /* we call directly with 'RTYPE dcCall(DCCallVM* in_self, DCpointer target)' */
@@ -92,69 +98,72 @@ static void dc_callvm_call_sparc(DCCallVM* in_self, DCpointer target)
 }
 #endif
 
-static void dc_callvm_mode_sparc(DCCallVM *in_self, DCint mode);
+static void dc_callvm_mode_sparc(DCCallVM* in_self, DCint mode);
 
 /* CallVM virtual table. */
-DCCallVM_vt gVT_sparc = {
-    &dc_callvm_free_sparc,
-    &dc_callvm_reset_sparc,
-    &dc_callvm_mode_sparc,
-    &dc_callvm_argBool_sparc,
-    &dc_callvm_argChar_sparc,
-    &dc_callvm_argShort_sparc,
-    &dc_callvm_argInt_sparc,
-    &dc_callvm_argLong_sparc,
-    &dc_callvm_argLongLong_sparc,
-    &dc_callvm_argFloat_sparc,
-    &dc_callvm_argDouble_sparc,
-    &dc_callvm_argPointer_sparc,
-    NULL /* argAggr */,
-    (DCvoidvmfunc *)&dcCall_sparc,
-    (DCboolvmfunc *)&dcCall_sparc,
-    (DCcharvmfunc *)&dcCall_sparc,
-    (DCshortvmfunc *)&dcCall_sparc,
-    (DCintvmfunc *)&dcCall_sparc,
-    (DClongvmfunc *)&dcCall_sparc,
-    (DClonglongvmfunc *)&dcCall_sparc,
-    (DCfloatvmfunc *)&dcCall_sparc,
-    (DCdoublevmfunc *)&dcCall_sparc,
-    (DCpointervmfunc *)&dcCall_sparc,
-    NULL /* callAggr */,
-    NULL /* beginAggr */
+DCCallVM_vt gVT_sparc =
+{
+  &dc_callvm_free_sparc,
+  &dc_callvm_reset_sparc,
+  &dc_callvm_mode_sparc,
+  &dc_callvm_argBool_sparc,
+  &dc_callvm_argChar_sparc,
+  &dc_callvm_argShort_sparc,
+  &dc_callvm_argInt_sparc,
+  &dc_callvm_argLong_sparc,
+  &dc_callvm_argLongLong_sparc,
+  &dc_callvm_argFloat_sparc,
+  &dc_callvm_argDouble_sparc,
+  &dc_callvm_argPointer_sparc,
+  NULL /* argAggr */,
+  (DCvoidvmfunc*)       &dcCall_sparc,
+  (DCboolvmfunc*)       &dcCall_sparc,
+  (DCcharvmfunc*)       &dcCall_sparc,
+  (DCshortvmfunc*)      &dcCall_sparc,
+  (DCintvmfunc*)        &dcCall_sparc,
+  (DClongvmfunc*)       &dcCall_sparc,
+  (DClonglongvmfunc*)   &dcCall_sparc,
+  (DCfloatvmfunc*)      &dcCall_sparc,
+  (DCdoublevmfunc*)     &dcCall_sparc,
+  (DCpointervmfunc*)    &dcCall_sparc,
+  NULL /* callAggr */,
+  NULL /* beginAggr */
 };
 
 /* mode: only a single mode available currently. */
-static void dc_callvm_mode_sparc(DCCallVM *in_self, DCint mode) {
-    DCCallVM_sparc *self = (DCCallVM_sparc *)in_self;
-    DCCallVM_vt *vt;
+static void dc_callvm_mode_sparc(DCCallVM* in_self, DCint mode)
+{
+  DCCallVM_sparc* self = (DCCallVM_sparc*)in_self;
+  DCCallVM_vt* vt;
 
-    switch (mode) {
+  switch(mode) {
     case DC_CALL_C_DEFAULT:
     case DC_CALL_C_DEFAULT_THIS:
     case DC_CALL_C_SPARC32:
     case DC_CALL_C_ELLIPSIS:
     case DC_CALL_C_ELLIPSIS_VARARGS:
-        vt = &gVT_sparc;
-        break;
+      vt = &gVT_sparc;
+      break;
     default:
-        self->mInterface.mError = DC_ERROR_UNSUPPORTED_MODE;
-        return;
-    }
-    dc_callvm_base_init(&self->mInterface, vt);
+      self->mInterface.mError = DC_ERROR_UNSUPPORTED_MODE;
+      return;
+  }
+  dc_callvm_base_init(&self->mInterface, vt);
 }
 
 /* Public API. */
-DCCallVM *dcNewCallVM(DCsize size) {
-    DCCallVM_sparc *p;
+DCCallVM* dcNewCallVM(DCsize size)
+{
+  DCCallVM_sparc* p;
 
-    /* the six output registers %o0-%o5 are always loaded, thus we need to ensure the argument
-     * buffer has space for at least 24 bytes. */
-    size = DC_MAX(size, sizeof(void *) * (6 + 1));
-    p = (DCCallVM_sparc *)dcAllocMem(sizeof(DCCallVM_sparc) + size);
+  /* the six output registers %o0-%o5 are always loaded, thus we need to ensure the argument buffer has space for at least 24 bytes. */
+  size = DC_MAX(size, sizeof(void*)*(6+1));
+  p = (DCCallVM_sparc*)dcAllocMem(sizeof(DCCallVM_sparc)+size);
 
-    dc_callvm_mode_sparc((DCCallVM *)p, DC_CALL_C_DEFAULT);
+  dc_callvm_mode_sparc((DCCallVM*)p, DC_CALL_C_DEFAULT);
 
-    dcVecInit(&p->mVecHead, size);
+  dcVecInit(&p->mVecHead, size);
 
-    return (DCCallVM *)p;
+  return (DCCallVM*)p;
 }
+

@@ -3,7 +3,7 @@
  Package: dyncall
  Library: autovar
  File: autovar/autovar_CC.h
- Description:
+ Description: 
  License:
 
    Copyright (c) 2011-2018 Daniel Adler <dadler@uni-goettingen.de>,
@@ -46,3 +46,4 @@
 #endif
 
 #endif /* AUTOVAR_CC_H */
+

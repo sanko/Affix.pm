@@ -3,10 +3,10 @@
  Package: dyncall
  Library: dyncall
  File: dyncall/dyncall_callvm_ppc32.h
- Description:
+ Description: 
  License:
 
-   Copyright (c) 2007-2020 Daniel Adler <dadler@uni-goettingen.de>,
+   Copyright (c) 2007-2020 Daniel Adler <dadler@uni-goettingen.de>, 
                            Tassilo Philipp <tphilipp@potion-studios.com>
 
    Permission to use, copy, modify, and distribute this software for any
@@ -23,6 +23,8 @@
 
 */
 
+
+
 #ifndef DYNCALL_CALLVM_PPC32_H
 #define DYNCALL_CALLVM_PPC32_H
 
@@ -38,22 +40,25 @@
 
 */
 
+
 #include "dyncall_callvm.h"
 #include "dyncall_vector.h"
 
 typedef struct
 {
-    DCint mIntData[8];
-    DCdouble mFloatData[13]; /* 13 for darwin, 8 for sysv */
+  DCint     mIntData[8];
+  DCdouble  mFloatData[13];	/* 13 for darwin, 8 for sysv */
 } DCRegData_ppc32;
+
 
 typedef struct
 {
-    DCCallVM mInterface;
-    int mIntRegs;
-    int mFloatRegs;
-    DCRegData_ppc32 mRegData;
-    DCVecHead mVecHead;
+  DCCallVM        mInterface;
+  int             mIntRegs;
+  int             mFloatRegs;
+  DCRegData_ppc32 mRegData;
+  DCVecHead mVecHead;
 } DCCallVM_ppc32;
 
 #endif /* DYNCALL_CALLVM_PPC32_H */
+

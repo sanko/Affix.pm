@@ -6,7 +6,7 @@
  Description: Simple dynamic vector container type implementation
  License:
 
-   Copyright (c) 2007-2018 Daniel Adler <dadler@uni-goettingen.de>,
+   Copyright (c) 2007-2018 Daniel Adler <dadler@uni-goettingen.de>, 
                            Tassilo Philipp <tphilipp@potion-studios.com>
 
    Permission to use, copy, modify, and distribute this software for any
@@ -23,35 +23,32 @@
 
 */
 
+
+
 #include "dyncall_vector.h"
 #include <string.h>
 
-void dcVecAppend(DCVecHead *pHead, const void *pData, size_t size) {
-    size_t newSize = pHead->mSize + size;
-    if (newSize <= pHead->mTotal) {
-        void *dst = (DCchar *)dcVecData(pHead) + pHead->mSize;
-        switch (size) {
-        case 1:
-            *(DCchar *)dst = *(const DCchar *)pData;
-            break;
-        case 2:
-            *(DCshort *)dst = *(const DCshort *)pData;
-            break;
-        case 4:
-            *(DCint *)dst = *(const DCint *)pData;
-            break;
-        case 8:
-            *(DCint *)(((char *)dst) + 4) = *(const DCint *)(((char *)pData) + 4);
-            *(DCint *)dst = *(const DCint *)pData;
-            break;
-            /* On sparc 32-bit, this one crashes if ptrs are not aligned, so use above.
-            case 8: *(DClonglong*)dst = *(const DClonglong*)pData; break;
-            */
 
-        default:
-            memcpy(dst, pData, size); /* for all the rest. */
-        }
-        pHead->mSize = newSize;
+void dcVecAppend(DCVecHead* pHead, const void* pData, size_t size)
+{
+  size_t newSize = pHead->mSize + size;
+  if(newSize <= pHead->mTotal) 
+  {
+    void* dst = (DCchar*)dcVecData(pHead) + pHead->mSize;
+    switch (size) {
+      case 1: *(DCchar    *)dst = *(const DCchar    *)pData; break;
+      case 2: *(DCshort   *)dst = *(const DCshort   *)pData; break;
+      case 4: *(DCint     *)dst = *(const DCint     *)pData; break;
+      case 8: *(DCint     *)( ( (char*)dst )+4) = *(const DCint     *)( ( (char*)pData )+4); 
+              *(DCint     *)dst = *(const DCint     *)pData; break;
+      /* On sparc 32-bit, this one crashes if ptrs are not aligned, so use above.
+      case 8: *(DClonglong*)dst = *(const DClonglong*)pData; break;
+      */
+
+      default: memcpy(dst, pData, size); /* for all the rest. */
     }
-    /*else @@@ warning? error?*/
+    pHead->mSize = newSize;
+  }
+  /*else @@@ warning? error?*/
 }
+

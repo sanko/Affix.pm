@@ -3,7 +3,7 @@
  Package: dyncall
  Library: test
  File: test/call_suite_aggrs/globals.h
- Description:
+ Description: 
  License:
 
    Copyright (c) 2022 Tassilo Philipp <tphilipp@potion-studios.com>
@@ -22,33 +22,28 @@
 
 */
 
+
 #include "dyncall_types.h"
 
-/* the 'a'ggregate type points to memory with random data that is big enough to hold all different
- * struct types */
-#define DEF_TYPES                                                                                  \
-    X(B, DCbool)                                                                                   \
-    X(c, char) X(s, short) X(i, int) X(j, long) X(l, long long) X(C, unsigned char)                \
-        X(S, unsigned short) X(I, unsigned int) X(J, unsigned long) X(L, unsigned long long)       \
-            X(p, void *) X(f, float) X(d, double) X(a, void *)
 
-#define X(CH, T)                                                                                   \
-    extern T *K_##CH;                                                                              \
-    extern T *V_##CH;
+/* the 'a'ggregate type points to memory with random data that is big enough to hold all different struct types */
+#define DEF_TYPES X(B,DCbool) X(c,char) X(s,short) X(i,int) X(j,long) X(l,long long) X(C,unsigned char) X(S,unsigned short) X(I,unsigned int) X(J,unsigned long) X(L,unsigned long long) X(p,void*) X(f,float) X(d,double) X(a,void*)
+
+#define X(CH,T) extern T *K_##CH; extern T *V_##CH;
 DEF_TYPES
 #undef X
 
 typedef void (*funptr)();
 
-extern funptr G_funtab[];
-extern const char *G_sigtab[];
-extern int G_ncases;
-extern int G_maxargs;
-extern const char *G_agg_sigs[];
-extern int G_agg_sizes[];
-extern funptr G_agg_touchAfuncs[];
-extern funptr G_agg_cmpfuncs[];
-extern int G_naggs;
+extern funptr       G_funtab[];
+extern const char * G_sigtab[];
+extern int          G_ncases;
+extern int          G_maxargs;
+extern const char * G_agg_sigs[];
+extern int          G_agg_sizes[];
+extern funptr       G_agg_touchAfuncs[];
+extern funptr       G_agg_cmpfuncs[];
+extern int          G_naggs;
 
 void init_test_data();
 void deinit_test_data();
