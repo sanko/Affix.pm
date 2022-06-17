@@ -28,8 +28,6 @@ typedef struct {
 
 START_MY_CXT
 
-typedef struct {unsigned char a;} U_8;
-
 #if PERL_VERSION_LE(5, 8, 999) /* PERL_VERSION_LT is 5.33+ */
     char* file = __FILE__;
 #else
@@ -69,46 +67,30 @@ void saySomething(uiButton *b, void *data)
 
 */
 
-typedef struct xStruct {
-    size_t size;
-
-
-    }
-    xStruct;
-
-void unroll_aggregate(void * ptr, DCaggr * ag, SV * obj) {
-    //warn(".a == %c", struct_rep.a);
-    //*(int*)ptr = 42;
-    char *base;
-    size_t offset;
+void unroll_aggregate(void * struct_rep, DCaggr * ag, SV * obj) {
+    if (!(SvROK(obj) && SvTYPE(SvRV(obj)) == SVt_PVAV))
+        croak("invalid instance method invocant: no array ref supplied");
     int *b;
-    // get base address
-    base = (char *)ptr;
-    DCsize i = ag->n_fields;
-    warn("ag->n_fields == %d", ag->n_fields);
-    for (int i=0;i<ag->n_fields;++i) {
-        warn("i==%d", i);
-        switch(ag->fields[i].type) {
+    char * base = (char *)struct_rep;// get base address
+    DCsize n_fields = ag->n_fields;
+    for (int index=0; index<n_fields; ++index) {
+        SV * newvalue;
+        b = (int *)(base + ag->fields[index].offset); // Compute address of member
+        switch(ag->fields[index].type) {
             case DC_SIGCHAR_BOOL:
+                newvalue = boolSV((bool)(intptr_t) b);
                 break;
             case DC_SIGCHAR_UCHAR:
-                warn ("uchar!!!!!");
-                // and the offset to member_b
-                offset = ag->fields[i].offset;
-
-                // Compute address of member_b
-                b = (int *)(base+offset);
-
-                warn(".a == %c", (unsigned char) b);
-		av_store(obj, i,newSVuv((unsigned char) b));
+                newvalue = newSVuv((unsigned char)(intptr_t) b);
                 break;
-	    default:
-		warn ("fallthrough");
-		break;
+            default:
+                warn ("fallthrough");
+                break;
         }
+        if (NULL == av_store((AV*)SvRV(obj), index, newSVsv(newvalue)))
+            croak("Failed to write new value to array.");
     }
 }
-
 
 MODULE = Dyn::Call   PACKAGE = Dyn::Call
 
@@ -230,10 +212,11 @@ dcCallPointer(DCCallVM * vm, DCpointer funcptr);
 DCpointer
 dcCallAggr(DCCallVM * vm, DCpointer funcptr, DCaggr * ag, SV * obj = NULL);
 CODE:
+     //aggr_ptr struct_rep;
     void * struct_rep;
     struct_rep = malloc(sizeof(&ag));
-    //warn ("sizeof(&ag) == %d", sizeof(&ag));
-    //RETVAL = dcCallAggr(vm, funcptr, ag, &struct_rep);
+    warn ("sizeof(&ag) == %d", sizeof(&ag));
+    RETVAL = dcCallAggr(vm, funcptr, ag, &struct_rep);
     if ((obj != NULL) && sv_isobject(obj) && sv_derived_from(obj, "Dyn::Type::Struct"))
       unroll_aggregate(struct_rep, ag, obj);
 OUTPUT:
@@ -275,18 +258,7 @@ dcGetError(DCCallVM* vm);
 
 
 
-void
-struct_test( )
-CODE:
-    {
-        typedef struct {
-            double a, b, c, d;
-        } S;
 
-        size_t size;
-
-
-    }
 
 DCaggr *
 dcNewAggr( DCsize maxFieldCount, DCsize size )
@@ -307,22 +279,6 @@ dcCloseAggr( DCaggr * ag )
 
 
 
-DCpointer *
-newStruct(int value)
-CODE:
-    warn("newStruct(...)");
-    xStruct * c;//c->size=value;
-    RETVAL= (void **)&c;
-OUTPUT:
-    RETVAL
-
-void
-AggTest(int in)
-CODE:
-    DCaggr * ag;
-    ag = dcNewAggr(1, sizeof(size_t));
-    dcAggrField(ag, 'i', 0, 0);
-    dcCloseAggr(ag);
 
 =cut
 
@@ -364,76 +320,31 @@ CODE:
 
 MODULE = Dyn::Call   PACKAGE = Dyn::Type::Struct
 
-
-
-
 void
 new(const char * pkg, HV * data = newHV())
 PREINIT:
     dMY_CXT;
 PPCODE:
-    void * struct_rep = malloc(sizeof(int)*2);// 2 ints; TODO: Get actual size from MY_CXT.structs
-    memset(struct_rep,               1, 1);
-    memset(struct_rep + sizeof(int), 'b', 1);
-    warn("Hi: %s", (const char *)struct_rep);
-
-    SV * RETVALSV;
-    RETVALSV = sv_newmortal();
-    sv_setref_pv(RETVALSV, pkg, (void*) struct_rep);
-    ST(0) = RETVALSV;
+    HV * classinfo = newHV();
+    AV * ref = newAV();
+    ST(0)    = sv_bless(newRV_noinc(ref), gv_stashpv(pkg, TRUE));
     XSRETURN(1);
 
-int
-getX(SV * sv_this)
-CODE:
-    void *	in;
-
-  warn("A");
-  if (sv_derived_from(ST(0), "Dyn::Type::Struct")) {
-      warn("B");
-
-    IV tmp = SvIV((SV*)SvRV(ST(0)));
-      warn("C");
-
-    in = INT2PTR(void *, tmp);
-  }
-  else
-    croak("in is not of type Dyn::Type::Struct");
-  warn("D");
-
-  warn("Ho: %s", (const char *)in);
-
-  int * ptr
-  =
-  in;
-
-  //memset(&RETVAL,  (int *)in,    sizeof(int));
-    int b = (int *)(in);
-
-  warn("E: %d?%d?%d", RETVAL,sizeof(RETVAL), b);
-OUTPUT:
-  RETVAL
-
-void
-get(void * ptr)
+SV *
+get(SV * obj)
 PREINIT:
-    dVAR; dXSARGS;
     dXSI32;
 CODE:
-    dXSTARG;
-    warn("Getter ix = %d\n", ix );
-    // get base address
-    int base = (char *)ptr;
-
-    // and the offset to member_b
-    int offset = offsetof(U_8, a);
-
-    // Compute address of member_b
-    int b = (int *)(base+offset);
-
-    warn(".a == %c", (unsigned char) b);
-
-    //DCsize i = ag->n_fields;
+    if(!sv_derived_from(ST(0), "Dyn::Type::Struct"))
+        croak("obj is not of type Dyn::Type::Struct");
+    if (!(SvROK(obj) && SvTYPE(SvRV(obj)) == SVt_PVAV))
+        croak("invalid instance method invocant: no array ref supplied");
+    SV ** ptr = av_fetch((AV*)SvRV(obj), ix, 1);
+    if(ptr == NULL)
+        XSRETURN_UNDEF;
+    RETVAL = newSVsv(*ptr);
+OUTPUT:
+    RETVAL
 
 HV *
 add_fields(const char * pkg, AV * fields)

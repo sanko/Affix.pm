@@ -47,15 +47,13 @@ package Dyn 0.03 {
     }
     #
     sub MODIFY_CODE_ATTRIBUTES ( $package, $code, @attributes ) {
-
-        #use Data::Dump; ddx \@_;
         my ( $library, $library_version, $signature, $symbol, $full_name );
         for my $attribute (@attributes) {
-            if ( $attribute =~ m[^native\s*\(\s*(.+)\s*\)\s*$] ) {
+            if ( $attribute =~ m[^Native\s*\(\s*(.+)\s*\)\s*$] ) {
                 ( $library, $library_version ) = Text::ParseWords::parse_line( '\s*,\s*', 1, $1 );
                 $library_version //= 0;
             }
-            elsif ( $attribute =~ m[^symbol\s*\(\s*(['"])?\s*(.+)\s*\1\s*\)$] ) {
+            elsif ( $attribute =~ m[^Symbol\s*\(\s*(['"])?\s*(.+)\s*\1\s*\)$] ) {
                 $symbol = $2;
             }
             elsif ( $attribute =~ m[^Signature\s*?\(\s*(['"])?\s*(.+)\s*\1\s*\)$] ) {    # direct

@@ -59,12 +59,10 @@ LIB_EXPORT int    p2i ( Human * person ) { return person->dob;  }
 LIB_EXPORT const char * cb  ( int (*f)(int) )  { return f(100) == 101 ? "Yes!" : "No..."; }
 LIB_EXPORT unsigned long sizeof_double() { return sizeof(double); }
 
-typedef struct {
-	unsigned char a;
-} U8;
-LIB_EXPORT U8 A2A (U8 in) {in.a++; return in;}
-LIB_EXPORT unsigned char A2C (U8 in) {in.a++; return in.a;}
-LIB_EXPORT U8 C2A (unsigned char in) {U8 out; out.a = in; out.a++;return out;}
+typedef struct { unsigned char a; } U8;
+LIB_EXPORT U8            A2A (U8 in)            { in.a++;                      return in;   }
+LIB_EXPORT unsigned char A2C (U8 in)            { in.a++;                      return in.a; }
+LIB_EXPORT U8            C2A (unsigned char in) { U8 out; out.a = in; out.a++; return out;  }
 
 END
     }
@@ -164,42 +162,31 @@ SKIP: {
         dcMode( $cvm, DC_CALL_C_DEFAULT );
         dcReset($cvm);
         my $s = dcNewAggr( 1, 1 );
-
-        #isa_ok $s, 'Dyn::aggr';    # TODO: Fix case
+        isa_ok $s, 'Dyn::aggr';    # TODO: Fix case
         dcAggrField( $s, chr DC_SIGCHAR_UCHAR, 0, 1 );
         dcCloseAggr($s);
         dcReset($cvm);
         dcArgChar( $cvm, 'm' );
-        warn ord 'Y';
-        warn ord 'Z';
-        isa_ok dcCallAggr( $cvm, $ptr, $s ), 'Dyn::aggr';
+        isa_ok dcCallAggr( $cvm, $ptr, $s ), 'Dyn::pointer';
         dcFreeAggr($s);
-        ok 'remove';
     };
     subtest 'aggregate builder [struct return [obj]]' => sub {
-        use Dyn qw[:all];    # Exports nothing by default
+        use Dyn qw[:all];          # Exports nothing by default
         my $lib = dlLoadLibrary($lib_file);
         my $ptr = dlFindSymbol( $lib, 'C2A' );
         my $cvm = dcNewCallVM(1024);
         dcMode( $cvm, DC_CALL_C_DEFAULT );
         dcReset($cvm);
         my $s = dcNewAggr( 1, 1 );
-
-        #isa_ok $s, 'Dyn::aggr';    # TODO: Fix case
+        isa_ok $s, 'Dyn::aggr';    # TODO: Fix case
         dcAggrField( $s, chr DC_SIGCHAR_UCHAR, 0, 1 );
         dcCloseAggr($s);
         dcReset($cvm);
         dcArgChar( $cvm, 'm' );
-        warn ord 'Y';
-        warn ord 'Z';
-	my $idk = Dyn::Type::Struct::add_fields 'Some::Class' =>
-            [ blah => bless( \[], 'Int' ), two => 'int8' ];
-
-	my $obj=Some::Class->new;
-	use Data::Dump;
-	ddx $obj;
-	isa_ok dcCallAggr( $cvm, $ptr, $s, $obj), 'Dyn::aggr';
-	ddx $obj;
+        my $idk = Dyn::Type::Struct::add_fields 'Some::Class' => [ a => bless( \[], 'Uchar' ) ];
+        my $obj = Some::Class->new( { a => 3 } );
+        isa_ok dcCallAggr( $cvm, $ptr, $s, $obj ), 'Dyn::pointer';
+        is $obj->a, 110, 'struct->a is now "n"';
         dcFreeAggr($s);
         ok 'remove';
     };
@@ -221,7 +208,7 @@ SKIP: {
         #b isa_ok dcCallAggr( $cvm, $ptr, $s ), 'Dyn::aggr';
         #is dcCallChar( $cvm, $ptr ), 'Z', 'struct.a++ == Z';
         dcFreeAggr($s);
-        use Data::Dump;
+        #use Data::Dump;
         my $idk = Dyn::Type::Struct::add_fields 'Some::Class' =>
             [ blah => bless( \[], 'Int' ), two => 'int8' ];
         diag ref $idk;
@@ -230,12 +217,11 @@ SKIP: {
         for my $key ( keys %$idk ) {
             diag '[' . $key . '] => ' . ref $idk->{$key};
         }
-        ddx $idk;
+        #ddx $idk;
         my $obj = Some::Class->new( { blah => 'reset' } );
-        ddx $obj;
-        diag $obj->blah;
-        diag $obj->two;
-        diag $obj->getX;
+        #ddx $obj;
+        #diag $obj->blah;
+        #diag $obj->two;
     };
     #
 

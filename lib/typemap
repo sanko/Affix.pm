@@ -60,7 +60,7 @@ T_PTROBJ_AGGREGATE
     $var = INT2PTR($type, tmp);
   }
   else
-    croak(\"$var is not of type Dyn::aggr}\");
+    croak(\"$var is not of type Dyn::aggr\");
 
 T_DYN
   if (sv_derived_from($arg, \"Dyn\")) {
