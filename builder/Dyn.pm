@@ -71,11 +71,11 @@ sub alien {
          rename 'dyncallback/Makefile.generic', 'dyncallback/Makefile';
         }
         my $configure
-            = ( $^O eq 'MSWin32' ? '.\configure.bat /prefix ' : './configure --prefix=' );
+            = ( $^O eq 'MSWin32' ? '.\configure.bat /tool-gcc /prefix ' : './configure --prefix=' );
         warn($_) && system($_ )
             for grep {defined} $configure . $pre->absolute, # . ' CFLAGS="-Ofast" LDFLAGS="-Ofast"',
-            'make V=1',
-            'make V=1 install';
+            'make V=1 -d',
+            'make V=1 -d install';
         warn Path::Tiny->cwd->absolute;
         chdir $cwd->stringify;
     }
