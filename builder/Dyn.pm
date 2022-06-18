@@ -65,7 +65,10 @@ sub alien {
         warn Path::Tiny->cwd->absolute;
         
         if ($^O eq 'MSWin32'){
+         rename 'Makefile.generic', 'Makefile';
          rename 'dyncall/Makefile.generic', 'dyncall/Makefile';
+         rename 'dynload/Makefile.generic', 'dynload/Makefile';
+         rename 'dyncallback/Makefile.generic', 'dyncallback/Makefile';
         }
         my $configure
             = ( $^O eq 'MSWin32' ? '.\configure.bat /prefix ' : './configure --prefix=' );
