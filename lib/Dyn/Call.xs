@@ -403,7 +403,7 @@ PREINIT:
 PPCODE:
     HV * classinfo = newHV();
     AV * ref = newAV();
-    ST(0)    = sv_bless(newRV_noinc(ref), gv_stashpv(pkg, TRUE));
+    ST(0)    = sv_bless(newRV_noinc((SV*)ref), gv_stashpv(pkg, TRUE));
     XSRETURN(1);
 
 SV *
@@ -477,9 +477,9 @@ CODE:
     }
 
     HV * classinfo = newHV();
-    hv_store(classinfo,      "fields", 6,           newRV_inc(avfields),  0);
-    hv_store(classinfo,      "types",  5,           newRV_inc(avtypes),   0);
-    hv_store(MY_CXT.structs, pkg,      strlen(pkg), newRV_inc(classinfo), 0);
+    hv_store(classinfo,      "fields", 6,           newRV_inc((SV*)avfields),  0);
+    hv_store(classinfo,      "types",  5,           newRV_inc((SV*)avtypes),   0);
+    hv_store(MY_CXT.structs, pkg,      strlen(pkg), newRV_inc((SV*)classinfo), 0);
     RETVAL=MY_CXT.structs;
 OUTPUT:
     RETVAL

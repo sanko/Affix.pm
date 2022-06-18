@@ -88,6 +88,7 @@ SKIP: {
                         b2Z c2Z ii2i s2Z j2Z l2Z f2Z d2Z
                         Z2Z v2v v2p p2Z p2i
                         cb
+                        A2A A2C C2A
                         sizeof_double]
                 ]
             );
@@ -163,6 +164,7 @@ SKIP: {
         ok 'remove';
     };
     subtest 'aggregate builder [struct arg]' => sub {
+        my $todo = todo 'aggregates are still unstable upstream';
         use Dyn qw[:all];    # Exports nothing by default
         my $lib = dlLoadLibrary($lib_file);
         my $ptr = dlFindSymbol( $lib, 'A2C' );
@@ -180,6 +182,7 @@ SKIP: {
         dcFreeAggr($s);
     };
     subtest 'aggregate builder [struct return [raw]]' => sub {
+        my $todo = todo 'aggregates are still unstable upstream';
         use Dyn qw[:all];    # Exports nothing by default
         my $lib = dlLoadLibrary($lib_file);
         my $ptr = dlFindSymbol( $lib, 'C2A' );
@@ -196,6 +199,7 @@ SKIP: {
         dcFreeAggr($s);
     };
     subtest 'aggregate builder [struct return [obj]]' => sub {
+        my $todo = todo 'aggregates are still unstable upstream';
         use Dyn qw[:all];    # Exports nothing by default
         my $lib = dlLoadLibrary($lib_file);
         my $ptr = dlFindSymbol( $lib, 'C2A' );
@@ -214,22 +218,24 @@ SKIP: {
         is $obj->a, 110, 'struct->a is now "n"';
         dcFreeAggr($s);
     };
+    subtest 'aggregate builder [struct arg and return]' => sub {
+        my $todo = todo 'aggregates are still unstable upstream';
+        use Dyn qw[:all];    # Exports nothing by default
+        my $lib = dlLoadLibrary($lib_file);
+        my $ptr = dlFindSymbol( $lib, 'A2A' );
+        my $cvm = dcNewCallVM(1024);
+        dcMode( $cvm, DC_CALL_C_DEFAULT );
+        dcReset($cvm);
+        my $s = dcNewAggr( 1, 1 );
+        isa_ok $s, 'Dyn::Call::Aggr';
+        dcAggrField( $s, chr DC_SIGCHAR_UCHAR, 0, 1 );
+        dcCloseAggr($s);
+        dcReset($cvm);
+        dcBeginCallAggr( $cvm, $s );
+        dcArgChar( $cvm, 'Y' );
 
-        subtest 'aggregate builder [struct arg and return]' => sub {
-            use Dyn qw[:all];    # Exports nothing by default
-            my $lib = dlLoadLibrary($lib_file);
-            my $ptr = dlFindSymbol( $lib, 'A2A' );
-            my $cvm = dcNewCallVM(1024);
-            dcMode( $cvm, DC_CALL_C_DEFAULT );
-            dcReset($cvm);
-            my $s = dcNewAggr( 1, 1 );
-            isa_ok $s, 'Dyn::Call::Aggr';
-            dcAggrField( $s, chr DC_SIGCHAR_UCHAR, 0, 1 );
-            dcCloseAggr($s);
-            dcReset($cvm);
-            dcBeginCallAggr( $cvm, $s );
-            dcArgChar( $cvm, 'Y' );
-  if (0) {
+        if (0) {
+
             #b isa_ok dcCallAggr( $cvm, $ptr, $s ), 'Dyn::Call::Aggr';
             #is dcCallChar( $cvm, $ptr ), 'Z', 'struct.a++ == Z';
             #use Data::Dump;
@@ -245,12 +251,13 @@ SKIP: {
             #ddx $idk;
             my $obj = Some::Class->new( { blah => 'reset' } );
             dcFreeAggr($s);
-  }
-            #ddx $obj;
-            #diag $obj->blah;
-            #diag $obj->two;
-        };
-        #
+        }
+
+        #ddx $obj;
+        #diag $obj->blah;
+        #diag $obj->two;
+    };
+    #
 
 =fdsa
         #$cb->init();
@@ -287,7 +294,6 @@ SKIP: {
             warn $result;
         }
 =cut
-
 
     subtest 'Dyn::Load Part II' => sub {
         dlFreeLibrary($lib);

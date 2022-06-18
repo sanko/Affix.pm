@@ -63,19 +63,21 @@ sub alien {
         my $pre   = Path::Tiny->cwd->child( qw[blib arch auto], $opt{meta}->name )->absolute;
         chdir $kid->absolute->stringify;
         warn Path::Tiny->cwd->absolute;
-        
-        if ($^O eq 'MSWin32'){
-         rename 'Makefile.generic', 'Makefile';
-         rename 'dyncall/Makefile.generic', 'dyncall/Makefile';
-         rename 'dynload/Makefile.generic', 'dynload/Makefile';
-         rename 'dyncallback/Makefile.generic', 'dyncallback/Makefile';
+        if ( $^O eq 'MSWin32' ) {
+            rename 'Makefile.generic',             'Makefile';
+            rename 'dyncall/Makefile.generic',     'dyncall/Makefile';
+            rename 'dynload/Makefile.generic',     'dynload/Makefile';
+            rename 'dyncallback/Makefile.generic', 'dyncallback/Makefile';
         }
         my $configure
             = ( $^O eq 'MSWin32' ? '.\configure.bat /tool-gcc /prefix ' : './configure --prefix=' );
         warn($_) && system($_ )
             for grep {defined} $configure . $pre->absolute, # . ' CFLAGS="-Ofast" LDFLAGS="-Ofast"',
-            'make V=1 CC=gcc',
-            'make V=1 CC=gcc install';
+            'make V=1' .
+            ( $^O eq 'MSWin32' ? ' CC=gcc VPATH=. PREFIX="' . $pre->absolute . '"' : '' ),
+            'make V=1' .
+            ( $^O eq 'MSWin32' ? ' CC=gcc VPATH=. PREFIX="' . $pre->absolute . '"' : '' ) .
+            ' install';
         warn Path::Tiny->cwd->absolute;
         chdir $cwd->stringify;
     }

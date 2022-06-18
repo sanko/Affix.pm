@@ -254,7 +254,7 @@ static void dc_callvm_begin_aggr_x64(DCCallVM* in_self, const DCaggr *ag)
 #if defined(DC_UNIX)
   if (!ag || (ag->sysv_classes[0] == SYSVC_MEMORY)) {
 #else
-  if (!ag || ag->size > 8 || /*not a power of 2?*/(ag->size & (ag->size - 1)))
+  if (!ag || ag->size > 8 || /*not a power of 2?*/(ag->size & (ag->size - 1))) {
 #endif 
     /* pass pointer to aggregate as hidden first argument */
     self->mAggrReturnReg = 0;
