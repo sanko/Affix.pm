@@ -63,11 +63,15 @@ sub alien {
         my $pre   = Path::Tiny->cwd->child( qw[blib arch auto], $opt{meta}->name )->absolute;
         chdir $kid->absolute->stringify;
         warn Path::Tiny->cwd->absolute;
+        
+        if ($^O eq 'MSWin32'){
+         rename 'dyncall/Makefile.generic', 'dyncall/Makefile';
+        }
         my $configure
-            = ( $^O eq 'MSWin32' ? 'rename dyncall\Makefile.generic dyncall\Makefile; .\configure.bat /prefix ' : './configure --prefix=' );
+            = ( $^O eq 'MSWin32' ? '.\configure.bat /prefix ' : './configure --prefix=' );
         warn($_) && system($_ )
             for grep {defined} $configure . $pre->absolute, # . ' CFLAGS="-Ofast" LDFLAGS="-Ofast"',
-            ( $^O eq 'MSWin32' ? 'cd dyncall' : () ), 'make V=1',
+            'make V=1',
             'make V=1 install';
         warn Path::Tiny->cwd->absolute;
         chdir $cwd->stringify;
