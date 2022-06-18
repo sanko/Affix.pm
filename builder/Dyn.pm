@@ -74,8 +74,8 @@ sub alien {
             = ( $^O eq 'MSWin32' ? '.\configure.bat /tool-gcc /prefix ' : './configure --prefix=' );
         warn($_) && system($_ )
             for grep {defined} $configure . $pre->absolute, # . ' CFLAGS="-Ofast" LDFLAGS="-Ofast"',
-            'make V=1 -d',
-            'make V=1 -d install';
+            'make V=1 CC=gcc',
+            'make V=1 CC=gcc install';
         warn Path::Tiny->cwd->absolute;
         chdir $cwd->stringify;
     }
