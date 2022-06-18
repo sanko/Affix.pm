@@ -67,7 +67,7 @@ sub alien {
             = ( $^O eq 'MSWin32' ? '.\configure.bat /prefix ' : './configure --prefix=' );
         warn($_) && system($_ )
             for grep {defined} $configure . $pre->absolute, # . ' CFLAGS="-Ofast" LDFLAGS="-Ofast"',
-            ( $^O eq 'MSWin32' ? 'cd ..' : () ), 'make V=1 -f Makefile.generic',
+            ( $^O eq 'MSWin32' ? 'cd dyncall' : () ), 'make V=1 -f Makefile.generic',
             'make V=1 -f Makefile.generic install';
         warn Path::Tiny->cwd->absolute;
         chdir $cwd->stringify;
