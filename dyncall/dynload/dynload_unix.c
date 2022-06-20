@@ -53,7 +53,7 @@
 
 DLLib* dlLoadLibrary(const char* libPath)
 {
-  return (DLLib*)dlopen(libPath, RTLD_NOW|RTLD_GLOBAL); //@@@ should use RTLD_LAZY, maybe?
+  return (DLLib*)dlopen(libPath, RTLD_NOW|RTLD_GLOBAL); /*@@@ should use RTLD_LAZY, maybe?*/
 }
 
 
@@ -129,7 +129,7 @@ int dlGetLibraryPath(DLLib* pLib, char* sOut, int bufSize)
 
   /* request info about own process? lookup first loaded image */
   if(pLib == NULL) {
-    const char* libPath = _dyld_get_image_name(0); //@@@ consider using _NSGetExecutablePath()
+    const char* libPath = _dyld_get_image_name(0); /*@@@ consider using _NSGetExecutablePath()*/
     if(libPath)
       l = dl_strlen_strcpy(sOut, libPath, bufSize);
   }

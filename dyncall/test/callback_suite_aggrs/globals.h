@@ -56,3 +56,7 @@ void deinit_test_data();
 void clear_V();
 
 int get_max_aggr_size();
+
+/* guaranteed post-aggr space to use for bounds checking */
+#define AGGR_BND_CHECK_PAD 4
+

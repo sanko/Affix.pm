@@ -68,10 +68,11 @@ static int cmp(const char* signature)
   const char* sig = signature;
   int pos = 0;
   int s = 0;
+  int do_bndck = 1;
   while ( (atype = *sig) != '\0') {
     switch(atype) {
-      case '_':  sig += 2; /* skip cconv prefix */    continue;
-      case ')':  ++sig; /* skip ret type separator */ continue;
+      case '_':  sig += 2; /* skip cconv prefix */                                                                           continue;
+      case ')':  ++sig; /* skip ret type separator */ do_bndck = 0; /* no bounds check on retval, as we don't do its copy */ continue;
       case 'v':  s = (sig > signature) && sig[-1] == ')'; /* assure this was the return type */                            break; /*TODO:check that no return-arg was touched.*/
       case 'B':  s = ( V_B[pos] == K_B[pos] ); if (!s) printf("'%c':%d: %d != %d ; ",     atype, pos, V_B[pos], K_B[pos]); break;
       case 'c':  s = ( V_c[pos] == K_c[pos] ); if (!s) printf("'%c':%d: %d != %d ; ",     atype, pos, V_c[pos], K_c[pos]); break;
@@ -91,11 +92,20 @@ static int cmp(const char* signature)
       case '{': /* struct */
       {
         /* no check: guaranteed to exist, or invoke func would've exited when passing args, above */
-        int len;
+        int len, bndck_i;
         int i = find_agg_idx(&len, sig);
         s = ((int(*)(const void*,const void*))G_agg_cmpfuncs[i])(V_a[pos], K_a[pos]);
         if (!s) printf("'%c':%d:  *%p != *%p ; ", atype, pos, V_a[pos], K_a[pos]);
         sig += len-1; /* advance to next arg char; -1 to compensate for ++sig, below */
+
+        /* bounds check */
+        for(bndck_i = 0; do_bndck && bndck_i < AGGR_BND_CHECK_PAD; ++bndck_i) {
+          if(((unsigned char*)V_a[pos] + G_agg_sizes[i])[bndck_i] != 0xab) {
+            printf("'%c':%d:  buffer overflow retrieving aggr arg, target buffer of size %d too small; ", atype, pos, G_agg_sizes[i]);
+            s = 0;
+          }
+        }
+
         break;
       }
       default: printf("unknown atype '%c' ; ", atype); return 0;
@@ -137,7 +147,12 @@ static char handler(DCCallback* that, DCArgs* input, DCValue* output, void* user
       case DC_SIGCHAR_DOUBLE:    V_d[pos] = dcbArgDouble   (input);           break;
       case DC_SIGCHAR_STRING:
       case DC_SIGCHAR_POINTER:   V_p[pos] = dcbArgPointer  (input);           break;
-      case DC_SIGCHAR_AGGREGATE:            dcbArgAggr     (input, V_a[pos]); break;
+      case DC_SIGCHAR_AGGREGATE:
+        /*  bounds check init */
+        memset(V_a[pos], 0xab, get_max_aggr_size() + AGGR_BND_CHECK_PAD);
+        dcbArgAggr(input, V_a[pos]);
+        break;
+
       case DC_SIGCHAR_CC_PREFIX: ++signature; /* skip cconv prefix */ continue;
       default: assert(0);
     }
@@ -213,7 +228,7 @@ static int run_test(int id)
           printf("unknown aggr sig at '%s' ;", signature);
           return 0;
         }
-        dc_sig[len_sig++] = 'A';
+        dc_sig[len_sig++] = DC_SIGCHAR_AGGREGATE;
         dc_aggrs[n_aggrs++] = ((DCaggr*(*)())G_agg_touchAfuncs[i])();
         signature += len; /* advance to next arg char */
         break;

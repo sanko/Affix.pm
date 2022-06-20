@@ -99,7 +99,7 @@ DLSyms* dlSymsInit(const char* libPath)
 				if(pLib == pLib_)
 				{
 					pHeader = (const struct MACH_HEADER_TYPE*) _dyld_get_image_header(i);
-//@@@ slide = _dyld_get_image_vmaddr_slide(i);
+/*@@@ slide = _dyld_get_image_vmaddr_slide(i);*/
 					break; /* found header */
 				}
 			}

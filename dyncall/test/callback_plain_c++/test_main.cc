@@ -40,9 +40,13 @@ struct Triv {
 
 struct NonTriv {
   int i, j;
-  NonTriv(int a, int b) : i(a),j(b) { }
-  NonTriv(const NonTriv& rhs) { static int a=13, b=37; i = a++; j = b++; }
+  static int a, b;
+  NonTriv(int a, int b) : i(a),j(b) { printf("%s\n", "NonTriv::NonTriv(int,int) called"); }
+  NonTriv(const NonTriv& rhs) { printf("%s\n", "NonTriv::NonTriv(const NonTriv&) called"); i = a++; j = b++; }
 };
+int NonTriv::a = 13;
+int NonTriv::b = 37;
+
 
 
 char cbNonTrivAggrArgHandler(DCCallback* cb, DCArgs* args, DCValue* result, void* userdata)
@@ -67,7 +71,7 @@ char cbNonTrivAggrArgHandler(DCCallback* cb, DCArgs* args, DCValue* result, void
 
   // the non-triv aggregate members are 14, 38 and 15, 39, respectively, b/c of
   // copy-ctor call on *passing* them to this handler (not b/c of assignment
-  // operator, above); see below on where 13 and 37 are initialized
+  // operator, above); see above where 13 and 37 are initialized
   result->d = *ud + arg1 + arg2.i + arg2.j + arg3.i + arg3.j + arg4.t + arg5;
   return 'd';
 }
@@ -78,7 +82,7 @@ int testNonTrivAggrArgsCallback()
   DCCallback* cb;
   Triv t = { 1.75f };
   NonTriv a(1, 2);
-  NonTriv b(a); // this sets NonTriv's statics a = 13 and b = 37
+  NonTriv b(a);
 
   int ret = 1;
   double result = 0;
@@ -96,7 +100,7 @@ int testNonTrivAggrArgsCallback()
   dcbFreeCallback(cb);
 
   printf("successfully returned from callback\n");
-  printf("return value (should be 1572.25): %f\n", result);
+  printf("retval (should be 1572.25): %f\n", result);
 
   ret = result == 1572.25 && ret;
 
@@ -124,14 +128,27 @@ int testNonTrivAggrReturnCallback()
     DCaggr *aggrs[1] = { NULL }; // one non-triv aggr
     cb = dcbNewCallback2(")A", &cbNonTrivAggrReturnHandler, NULL, aggrs);
 
-    NonTriv result = ((NonTriv(*)())cb)();
+    NonTriv result = ((NonTriv(*)())cb)(); // potential copy elision on construction
+
+    int a = NonTriv::a-1;
+    int b = NonTriv::b-1;
+    printf("successfully returned from callback 1/2\n");
+    printf("retval w/ potential retval optimization and copy-init (should be %d %d for init or %d %d for copy, both allowed by C++): %d %d\n", 1, 3, a, b, result.i, result.j);
+
+    ret = ((result.i == 1 && result.j == 3) || (result.i == a && result.j == b)) && ret;
+
+	// avoid copy elision on construction
+	result.i = result.j = -77;
+	result = ((NonTriv(*)())cb)(); // potential copy elision
+
+    a = NonTriv::a-1;
+    b = NonTriv::b-1;
+    printf("successfully returned from callback 2/2\n");
+    printf("retval w/ potential retval optimization and copy-init (should be %d %d for init or %d %d for copy, both allowed by C++): %d %d\n", 1, 3, a, b, result.i, result.j);
 
     dcbFreeCallback(cb);
 
-    printf("successfully returned from callback\n");
-    printf("return value (should be %d %d): %d %d\n", 1, 3, result.i, result.j);
-
-    ret = result.i == 1 && result.j == 3 && ret;
+    ret = ((result.i == 1 && result.j == 3) || (result.i == a && result.j == b)) && ret;
   }
 
   return ret;

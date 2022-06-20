@@ -85,8 +85,8 @@ DEF_TYPES
     K_p[i] = (void*)(long)       (((rand_d()-0.5)*2) * (1LL<<(sizeof(void*)*8-1)));
     K_f[i] = (float)             (rand_d() * FLT_MAX);
     K_d[i] = (double)            (((rand_d()-0.5)*2) * DBL_MAX);
-    K_a[i] = malloc(maxaggrsize+AGGR_MISALIGN);
-    rand_mem__fp_friendly(K_a[i], maxaggrsize+AGGR_MISALIGN);
+    K_a[i] = malloc(maxaggrsize+AGGR_MISALIGN+AGGR_BND_CHECK_PAD);
+    rand_mem__fp_friendly(K_a[i], maxaggrsize+AGGR_MISALIGN+AGGR_BND_CHECK_PAD);
     K_a[i] = (char*)K_a[i]+AGGR_MISALIGN;
   }
 }
@@ -103,8 +103,8 @@ void clear_V()
 #define X(CH,T) V_##CH[i] = (T) 0;
 DEF_TYPES
 #undef X
-    V_a[i] = malloc(maxaggrsize+AGGR_MISALIGN);
-    memset(V_a[i], 0, maxaggrsize+AGGR_MISALIGN);
+    V_a[i] = malloc(maxaggrsize+AGGR_MISALIGN+AGGR_BND_CHECK_PAD);
+    memset(V_a[i], 0, maxaggrsize+AGGR_MISALIGN+AGGR_BND_CHECK_PAD);
     V_a[i] = (char*)V_a[i]+AGGR_MISALIGN;
   }
   aggr_init = 1;

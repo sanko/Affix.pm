@@ -70,7 +70,8 @@ static DCuchar dc_get_sysv_class_for_8byte(const DCaggr *ag, int index, int base
       continue;
 
     /* if field is unaligned, class is MEMORY */
-    if(f->alignment && (offset % f->alignment) != 0)
+    assert((f->alignment & (f->alignment - 1)) == 0);      /* f->alignment required to be a power of 2*/
+    if(f->alignment && (offset & (f->alignment - 1)) != 0) /* offset not a multiple of (power of 2) f->alignment? */
       return SYSVC_MEMORY;
 
     DCuchar new_class = SYSVC_NONE;
@@ -96,8 +97,8 @@ static DCuchar dc_get_sysv_class_for_8byte(const DCaggr *ag, int index, int base
         new_class = SYSVC_SSE;
         break;
       case DC_SIGCHAR_AGGREGATE:
-	    /* skip empty structs */
-	    if(f->size)
+        /* skip empty structs */
+        if(f->size)
         {
           /* aggregate arrays need to be checked per element, as an aggregate can be composed of
            * multiple types, potentially split across an 8byte; loop only over parts within 8byte */
@@ -106,11 +107,8 @@ static DCuchar dc_get_sysv_class_for_8byte(const DCaggr *ag, int index, int base
           if(k > f->array_len)
             k = f->array_len;
 
-          for(; j<k; ++j) {
-            //@@@STRUCT new_class = dc_get_sysv_class_for_8byte(f->sub_aggr, index, offset + f->size*j);
-            //@@@STRUCT clz = dc_merge_sysv_classes(clz, new_class);
+          for(; j<k; ++j)
             new_class = dc_merge_sysv_classes(new_class, dc_get_sysv_class_for_8byte(f->sub_aggr, index, offset + f->size*j));
-          }
         }
         break;
       /*case DClongdouble, DCcomplexfloat DCcomplexdouble DCcomplexlongdouble etc... -> x87/x87up/complexx87 classes @@@AGGR implement */

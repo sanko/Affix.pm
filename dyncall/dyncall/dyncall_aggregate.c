@@ -84,7 +84,7 @@ void dcAggrField(DCaggr* ag, DCsigchar type, DCint offset, DCsize array_len, ...
 			va_end(ap);
 
 			f->size = f->sub_aggr->size;
-			f->alignment = f->sub_aggr->alignment;
+			f->alignment = f->sub_aggr->alignment; /* field inherit's sub aggrs alignment*/
 			break;
 		}
 		default:
@@ -94,7 +94,7 @@ void dcAggrField(DCaggr* ag, DCsigchar type, DCint offset, DCsize array_len, ...
 	if(type != DC_SIGCHAR_AGGREGATE)
 		f->alignment = f->size;
 
-	/* aggr's field alignment is relative largest field size */
+	/* aggr's field alignment is relative to largest field size */
 	if(ag->alignment < f->alignment)
 		ag->alignment = f->alignment;
 }

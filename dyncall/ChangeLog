@@ -4,8 +4,9 @@ This file lists bigger/noteworthy changes, only...
 Version 1.4 (upcoming)
 
 dyncall:
+  o new, portable aggregate-by-value argument interface
   o aggregate-by-value (struct, union) support for x64 (win and sysv; thanks Raphael Luba!)
-  o new aggregate arg interface DCaggr replacing stale DCstruct (latter had shortcomings, was
+  o new aggregate description interface DCaggr replacing stale DCstruct (latter had shortcomings, was
     mostly unused as it lacked stable implementations, didn't handle unions, ...)
   o new calling convention modes for thiscalls (platform agnostic DC_CALL_C_DEFAULT_THIS, as well as
     DC_CALL_C_X64_{WIN64,SYSV}_THIS (needed to handle C++ ABI rules for returning aggregates by value)
@@ -16,11 +17,9 @@ dyncall:
   o windows/x64/masm directives added to specify how stack unwinds (help for
     debuggers, exception handling, etc.; thanks Raphael Luba)
 dyncallback:
-  o stack unwinding debug help on windows (thanks Raphael Luba!)
+  o new, portable aggregate-by-value callback argument interface
   o aggregate-by-value (struct, union) support for x64 (win and sysv; thanks Raphael Luba!)
-  o new aggregate arg interface DCaggr
-  o windows/x64/masm directives added to specify how stack unwinds (help for
-    debuggers, exception handling, etc.; thanks Raphael Luba)
+  o x64/windows masm directives for frame unwinding information (as dbg help; thanks Raphael Luba!)
 dynload:
   o build fix for ReactOS with RosBE/cmake/mingw-make environment
 tests:
