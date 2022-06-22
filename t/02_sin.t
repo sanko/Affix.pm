@@ -37,14 +37,15 @@ SKIP: {
     );
     my $correct = -0.988031624092862;    # The real value of sin(30);
     is sin(30), $correct, 'sin(30) [perl]';
-    for my $fptr ( keys %loaders ) {
-        if ( !$loaders{$fptr} ) {
+    for my $fptr ( sort keys %loaders ) {
+        if ( !defined $loaders{$fptr} ) {
             diag 'Failed to attach ' . $fptr;
         }
         else {
             diag 'Attached ' . $fptr;
-            eval { is $loaders{$fptr}->(30), $correct, sprintf '$loaders{%s}->( 30 );', $fptr };
-            skip sprintf( '$loaders{%s}->( 30 ) failed: %s', $fptr, $@ ), 1 if $@;
+            is $loaders{$fptr}->(30), $correct, sprintf '$loaders{%s}->( 30 );', $fptr;
+
+            #skip sprintf( '$loaders{%s}->( 30 ) failed: %s', $fptr, $@ ), 1 if $@;
         }
     }
 }

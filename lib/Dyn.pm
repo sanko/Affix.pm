@@ -4,7 +4,7 @@ package Dyn 0.03 {
     no warnings 'redefine';
     use File::Spec;
     use File::Basename qw[dirname];
-    use File::Find qw[find];
+    use File::Find     qw[find];
     use Config;
     use Sub::Util qw[subname];
     use Text::ParseWords;
@@ -12,9 +12,9 @@ package Dyn 0.03 {
     use XSLoader;
     XSLoader::load( __PACKAGE__, our $VERSION );
     #
-    use Dyn::Call qw[:all];
+    use Dyn::Call     qw[:all];
     use Dyn::Callback qw[:all];
-    use Dyn::Load qw[:all];
+    use Dyn::Load     qw[:all];
     use experimental 'signatures';
     #
     use parent 'Exporter';
@@ -44,9 +44,12 @@ package Dyn 0.03 {
         sub InstanceOf ($type) { warn $type; ...; 'T' }    # Struct
         sub Void()   {'v'}
         sub String() {'Z'}
+        sub Struct() {'{'}
     }
     #
     sub MODIFY_CODE_ATTRIBUTES ( $package, $code, @attributes ) {
+
+        #use Data::Dump; ddx \@_;
         my ( $library, $library_version, $signature, $symbol, $full_name );
         for my $attribute (@attributes) {
             if ( $attribute =~ m[^Native\s*\(\s*(.+)\s*\)\s*$] ) {
@@ -84,8 +87,7 @@ package Dyn 0.03 {
             }
             if ( defined &{$full_name} ) {
                 no strict 'refs';
-                no warnings 'prototype';
-                no warnings 'redefine';
+                no warnings 'prototype', 'redefine';
                 *{$full_name} = sub {
                     my $_code = wrap( guess_library_name( eval($library), $library_version ),
                         $symbol, $signature // '(v)v' );
@@ -243,8 +245,6 @@ package Dyn 0.03 {
                     {   wanted => sub {
                             $File::Find::prune = 1
                                 if !grep { $_ eq $File::Find::name } @dirs;    # no depth
-
-                            #warn $_;
                             push @retval, $_ if /\b(?:lib)?${name}(?:-[\d\.]+)?\.${ext}${version}$/;
                             push @retval, $_ if /\b(?:lib)?${name}(?:-[\d\.]+)?\.${ext}$/;
                         },
@@ -253,7 +253,7 @@ package Dyn 0.03 {
                     @dirs
                 );
             }
-            $_lib_cache{ $name . chr(0) . ( $version // '' ) } = shift @retval;
+            $_lib_cache{ $name . chr(0) . ( $version // '' ) } = pop @retval;
         }
         $_lib_cache{ $name . chr(0) . ( $version // '' ) };
     }
@@ -271,7 +271,7 @@ Dyn - dyncall Backed FFI
 
     use Dyn qw[:sugar];
     sub pow
-        : native( $^O eq 'MSWin32' ? 'ntdll.dll' : ('libm', v6) )
+        : Native( $^O eq 'MSWin32' ? 'ntdll.dll' : ('libm', v6) )
         : Signature(Double, Double => Double);
 
     print pow( 2, 10 );    # 1024
@@ -310,27 +310,27 @@ Honestly, you should be using one of the above packages rather than this one as
 they provide clean wrappers of dyncall's C functions. This package contains the
 sugary API.
 
-=head1 C<:native> CODE attribute
+=head1 C<:Native> CODE attribute
 
 While most of the upstream API is covered in the L<Dyn::Call>,
 L<Dyn::Callback>, and L<Dyn::Load> packages, all the sugar is right here in
 C<Dyn>. The most simple use of C<Dyn> would look something like this:
 
     use Dyn ':sugar';
-    sub some_argless_function() : native('somelib.so') : Signature('()v');
+    sub some_argless_function() : Native('somelib.so') : Signature('()v');
     some_argless_function();
 
 Be aware that this will look a lot more like L<NativeCall from
 Raku|https://docs.raku.org/language/nativecall> before v1.0!
 
 The second line above looks like a normal Perl sub declaration but includes the
-C<:native> attribute to specify that the sub is actually defined in a native
+C<:Native> attribute to specify that the sub is actually defined in a native
 library.
 
 To avoid banging your head on a built-in function, you may name your sub
 anything else and let Dyn know what symbol to attach:
 
-    sub my_abs : native('my_lib.dll') : Signature('(d)d') : symbol('abs');
+    sub my_abs : Native('my_lib.dll') : Signature('(d)d') : Symbol('abs');
     CORE::say my_abs( -75 ); # Should print 75 if your abs is something that makes sense
 
 This is by far the fastest way to work with this distribution but it's not by
@@ -438,7 +438,7 @@ begins. The following signature characters exist:
     ------------------------------------------------------
     :                     platform's default calling convention
     e                     vararg function
-    .                     vararg function's variadic/ellipsis part (...), to be speciﬁed before ﬁrst vararg
+    .                     vararg function's variadic/ellipsis part (...), to be specified before first vararg
     c                     only on x86: cdecl
     s                     only on x86: stdcall
     F                     only on x86: fastcall (MS)

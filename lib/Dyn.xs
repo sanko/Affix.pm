@@ -1,7 +1,5 @@
 #include "lib/xshelper.h"
 
-// Based on https://github.com/svn2github/dyncall/blob/master/bindings/ruby/rbdc/rbdc.c
-
 #include <dynload.h>
 #include <dyncall.h>
 #include <dyncall_value.h>
@@ -48,10 +46,107 @@ char * clean(char *str) {
 
 typedef struct xStruct {
     size_t size;
+} xStruct;
+
+void push(pTHX_ Call * call, SV * val, char type) {
+    switch(type){
+        case DC_SIGCHAR_VOID:
+            // TODO: Should I pass a NULL here?
+            break;
+		case DC_SIGCHAR_BOOL:
+			dcArgBool(call->cvm, SvTRUE(val));
+			break;
+		case DC_SIGCHAR_CHAR:
+			dcArgChar(call->cvm, (char) SvIV(val));
+			break;
+		case DC_SIGCHAR_UCHAR:
+			dcArgChar(call->cvm, (unsigned char) SvIV(val));
+			break;
+		case DC_SIGCHAR_SHORT:
+			dcArgShort(call->cvm, (short) SvIV(val));
+			break;
+		case DC_SIGCHAR_USHORT:
+			dcArgShort(call->cvm, (unsigned short) SvUV(val));
+			break;
+		case DC_SIGCHAR_INT:
+			dcArgInt(call->cvm, (int) SvIV(val));
+			break;
+		case DC_SIGCHAR_UINT:
+			dcArgInt(call->cvm, (unsigned int) SvUV(val));
+			break;
+		case DC_SIGCHAR_LONG:
+			dcArgLong(call->cvm, (long) SvNV(val));
+			break;
+		case DC_SIGCHAR_ULONG:
+			dcArgLong(call->cvm, (unsigned long) SvNV(val));
+			break;
+		case DC_SIGCHAR_LONGLONG:
+			dcArgLongLong(call->cvm, (long long) SvNV(val));
+			break;
+		case DC_SIGCHAR_ULONGLONG:
+			dcArgLongLong(call->cvm, (unsigned long long) SvNV(val));
+			break;
+		case DC_SIGCHAR_FLOAT:
+			dcArgFloat(call->cvm, (float) SvNV(val));
+			break;
+		case DC_SIGCHAR_DOUBLE:
+			dcArgDouble(call->cvm, (double) SvNV(val));
+			break;
+		case DC_SIGCHAR_POINTER:
+			warn("passing pointer at %s line %d", __FILE__, __LINE__);
+			{
+				IV tmp = SvIV( (SV*) SvRV( val ) );
+				int * arg = INT2PTR(int *, tmp);
+				dcArgPointer(call->cvm, arg);
+			}
+			break;
+		case DC_SIGCHAR_STRING:
+			dcArgPointer(call->cvm, SvPVutf8_nolen(val));
+			break;
+		case DC_SIGCHAR_AGGREGATE: /* XXX: dyncall structs/union/array aren't ready yet*/
+			warn("passing aggregate");
+			DCaggr * ag;
+			xStruct  structure;
+			memset(&structure, 0, sizeof (xStruct));
+			structure.size=0;
+			warn("passing aggregate 1");
+			ag = dcNewAggr(1, sizeof(xStruct));
+			warn("passing aggregate 2");
+			dcAggrField(ag, 'i', 0, 0);
+			warn("passing aggregate 3");
+			dcCloseAggr(ag);
+			warn("passing aggregate 4");
+			dcArgAggr(call->cvm, ag, &structure /*val*/);
+			warn("passing aggregate 5");
+			break;
+        default:
+            warn("Unknown signature character: %c at %s line %d", type, __FILE__, __LINE__);
+			break;
+        }
+}
+
+SV * retval(pTHX_ Call *call) {
+	dXSTARG;
+	SV * retval;
+	switch (call->ret) {
+		case DC_SIGCHAR_VOID:
+			dcCallVoid(call->cvm, call->fptr);
+		case DC_SIGCHAR_FLOAT:
+			retval = newSVnv(dcCallFloat(call->cvm, call->fptr));
+			break;
+		case DC_SIGCHAR_DOUBLE:
+			retval = sv_2mortal(newSVnv(dcCallDouble(call->cvm, call->fptr)));
+			break;
+		case DC_SIGCHAR_BOOL:
+			retval = boolSV(dcCallBool(call->cvm, call->fptr));
+			break;
+		default:
+			warn("Unknown return character: %c at %s line %d", call->ret, __FILE__, __LINE__);
+	};
+	return retval;
+}
 
 
-    }
-    xStruct;
 
 #define _call_ \
     dXSTARG;\
@@ -63,66 +158,12 @@ typedef struct xStruct {
         int sig_len = call->sig_len;\
         char ch;\
         for (ch = *sig_ptr; pos < /*sig_len;*/ items; ch = *++sig_ptr) {\
-            /*//warn("pos == %d", pos);*/\
-            switch(ch) {\
-                case DC_SIGCHAR_VOID:\
-                    break;\
-                case DC_SIGCHAR_BOOL:\
-                    dcArgBool(call->cvm, SvTRUE(ST(pos))); break;\
-                case DC_SIGCHAR_UCHAR:\
-                    dcArgChar(call->cvm, (unsigned char) SvIV(ST(pos))); break;\
-                case DC_SIGCHAR_CHAR:\
-                    dcArgChar(call->cvm, (char) SvIV(ST(pos))); break;\
-                case DC_SIGCHAR_FLOAT:\
-                    dcArgFloat(call->cvm, (float) SvNV(ST(pos))); break;\
-                case DC_SIGCHAR_USHORT:\
-                    dcArgShort(call->cvm, (unsigned short) SvUV(ST(pos))); break;\
-                case DC_SIGCHAR_SHORT:\
-                    dcArgShort(call->cvm, (short) SvIV(ST(pos))); break;\
-                case DC_SIGCHAR_UINT:\
-                    dcArgInt(call->cvm, (unsigned int) SvUV(ST(pos))); break;\
-                case DC_SIGCHAR_INT:\
-                    dcArgInt(call->cvm, (int) SvIV(ST(pos))); break;\
-                case DC_SIGCHAR_ULONG:\
-                    dcArgLong(call->cvm, (unsigned long) SvNV(ST(pos))); break;\
-                case DC_SIGCHAR_LONG:\
-                    dcArgLong(call->cvm, (long) SvNV(ST(pos))); break;\
-                case DC_SIGCHAR_POINTER:\
-                    warn("passing pointer..."); \
-                    {IV tmp = SvIV( (SV*) SvRV( ST(pos) ) ); \
-                    int * arg = INT2PTR(int *, tmp); \
-                    dcArgPointer(call->cvm, arg);\
-                    }\
-                    break;\
-                case DC_SIGCHAR_ULONGLONG:\
-                    dcArgLongLong(call->cvm, (unsigned long long) SvNV(ST(pos))); break;\
-                case DC_SIGCHAR_LONGLONG:\
-                    dcArgLongLong(call->cvm, (long long) SvNV(ST(pos))); break;\
-                case DC_SIGCHAR_DOUBLE:\
-                    dcArgDouble(call->cvm, (double) SvNV(ST(pos))); break;\
-                case DC_SIGCHAR_STRING:\
-                    dcArgPointer(call->cvm, SvPVutf8_nolen(ST(pos))); break;\
-                case DC_SIGCHAR_AGGREGATE: /* XXX: dyncall structs/union/array aren't ready yet*/\
-                    warn("passing aggregate");\
-                        DCaggr * ag;\
-                        xStruct  structure;	memset(&structure, 0, sizeof (xStruct));structure.size=0;\
-                                            warn("passing aggregate 1");\
-    ag = dcNewAggr(1, sizeof(xStruct));\
-                        warn("passing aggregate 2");\
-    dcAggrField(ag, 'i', 0, 0);\
-                        warn("passing aggregate 3");\
-    dcCloseAggr(ag);\
-                        warn("passing aggregate 4");\
-                    dcArgAggr(call->cvm, ag, &structure /*ST(pos)*/); \
-                                        warn("passing aggregate 5");\
-                    break;\
-                default:\
-                    break;\
-            }\
+			push(aTHX_ (Call *)call, ST(pos), ch);\
             ++pos;\
         }\
         /*//warn("ret == %c", call->ret);*/\
-        switch (call->ret) {\
+		if(0){/*SV * ret = retval(call);ST(0)=ret; XSRETURN(1);*/}\
+        else{switch (call->ret) {\
             case DC_SIGCHAR_FLOAT:\
                 ST(0) = newSVnv(dcCallFloat(call->cvm, call->fptr)); XSRETURN(1); \
                 break;\
@@ -181,7 +222,7 @@ typedef struct xStruct {
             default:\
                 /*croak("Help: %c", call->ret);*/\
                 break;\
-        }\
+        }}\
         /*//warn("here at %s line %d", __FILE__, __LINE__);*/\
     }\
     else\
@@ -218,30 +259,46 @@ _load(pTHX_ DLLib * lib, const char * symbol, const char * sig) {
                 ++i;
                 switch(sig[i]) {
                     case DC_SIGCHAR_CC_DEFAULT:
-                        dcMode(RETVAL->cvm, DC_CALL_C_DEFAULT);  break;
+                        dcMode(RETVAL->cvm, DC_CALL_C_DEFAULT);
+						break;
+					case DC_SIGCHAR_CC_THISCALL:
+						dcMode(RETVAL->cvm, DC_CALL_C_DEFAULT_THIS);
+						break;
                     case DC_SIGCHAR_CC_ELLIPSIS:
-                        dcMode(RETVAL->cvm, DC_CALL_C_ELLIPSIS);  break;
+                        dcMode(RETVAL->cvm, DC_CALL_C_ELLIPSIS);
+						break;
                     case DC_SIGCHAR_CC_ELLIPSIS_VARARGS:
-                        dcMode(RETVAL->cvm, DC_CALL_C_ELLIPSIS_VARARGS);  break;
+                        dcMode(RETVAL->cvm, DC_CALL_C_ELLIPSIS_VARARGS);
+						break;
                     case DC_SIGCHAR_CC_CDECL:
-                        dcMode(RETVAL->cvm, DC_CALL_C_X86_CDECL);  break;
+                        dcMode(RETVAL->cvm, DC_CALL_C_X86_CDECL);
+						break;
                     case DC_SIGCHAR_CC_STDCALL:
-                        dcMode(RETVAL->cvm, DC_CALL_C_X86_WIN32_STD);  break;
+                        dcMode(RETVAL->cvm, DC_CALL_C_X86_WIN32_STD);
+						break;
                     case DC_SIGCHAR_CC_FASTCALL_MS:
-                        dcMode(RETVAL->cvm, DC_CALL_C_X86_WIN32_FAST_MS);  break;
+                        dcMode(RETVAL->cvm, DC_CALL_C_X86_WIN32_FAST_MS);
+						break;
                     case DC_SIGCHAR_CC_FASTCALL_GNU:
-                        dcMode(RETVAL->cvm, DC_CALL_C_X86_WIN32_FAST_GNU);  break;
+                        dcMode(RETVAL->cvm, DC_CALL_C_X86_WIN32_FAST_GNU);
+						break;
                     case DC_SIGCHAR_CC_THISCALL_MS:
-                        dcMode(RETVAL->cvm, DC_CALL_C_X86_WIN32_THIS_MS);  break;
+                        dcMode(RETVAL->cvm, DC_CALL_C_X86_WIN32_THIS_MS);
+						break;
                     case DC_SIGCHAR_CC_THISCALL_GNU:
-                        dcMode(RETVAL->cvm, DC_CALL_C_X86_WIN32_FAST_GNU);  break;
+                        dcMode(RETVAL->cvm, DC_CALL_C_X86_WIN32_FAST_GNU);
+						break;
                     case DC_SIGCHAR_CC_ARM_ARM:
-                        dcMode(RETVAL->cvm, DC_CALL_C_ARM_ARM);  break;
+                        dcMode(RETVAL->cvm, DC_CALL_C_ARM_ARM);
+						break;
                     case DC_SIGCHAR_CC_ARM_THUMB:
-                        dcMode(RETVAL->cvm, DC_CALL_C_ARM_THUMB);  break;
+                        dcMode(RETVAL->cvm, DC_CALL_C_ARM_THUMB);
+						break;
                     case DC_SIGCHAR_CC_SYSCALL:
-                        dcMode(RETVAL->cvm, DC_CALL_SYS_DEFAULT);  break;
+                        dcMode(RETVAL->cvm, DC_CALL_SYS_DEFAULT);
+						break;
                     default:
+						warn("Unknown signature character: %c at %s line %d", sig[i], __FILE__, __LINE__);
                         break;
                 };
                 break;
@@ -269,7 +326,10 @@ _load(pTHX_ DLLib * lib, const char * symbol, const char * sig) {
             case DC_SIGCHAR_ENDARG:
                 RETVAL->ret = sig[i + 1];
                 break;
+			case '(': // Start of signature
+				break;
             default:
+				warn("Unknown signature character: %c at %s line %d", sig[i], __FILE__, __LINE__);
                 break;
         };
     }

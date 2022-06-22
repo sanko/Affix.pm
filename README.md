@@ -1,4 +1,4 @@
-[![Actions Status](https://github.com/sanko/Dyn.pm/actions/workflows/linux.yaml/badge.svg)](https://github.com/sanko/Dyn.pm/actions/workflows/linux.yaml) [![Actions Status](https://github.com/sanko/Dyn.pm/actions/workflows/windows.yaml/badge.svg)](https://github.com/sanko/Dyn.pm/actions/workflows/windows.yaml) [![Actions Status](https://github.com/sanko/Dyn.pm/actions/workflows/osx.yaml/badge.svg)](https://github.com/sanko/Dyn.pm/actions/workflows/osx.yaml) [![Actions Status](https://github.com/sanko/Dyn.pm/actions/workflows/freebsd.yaml/badge.svg)](https://github.com/sanko/Dyn.pm/actions/workflows/freebsd.yaml) [![MetaCPAN Release](https://badge.fury.io/pl/Dyn.svg)](https://metacpan.org/release/Dyn)
+[![Actions Status](https://github.com/sanko/Dyn.pm/actions/workflows/linux.yaml/badge.svg)](https://github.com/sanko/Dyn.pm/actions) [![Actions Status](https://github.com/sanko/Dyn.pm/actions/workflows/windows.yaml/badge.svg)](https://github.com/sanko/Dyn.pm/actions) [![Actions Status](https://github.com/sanko/Dyn.pm/actions/workflows/osx.yaml/badge.svg)](https://github.com/sanko/Dyn.pm/actions) [![Actions Status](https://github.com/sanko/Dyn.pm/actions/workflows/freebsd.yaml/badge.svg)](https://github.com/sanko/Dyn.pm/actions) [![MetaCPAN Release](https://badge.fury.io/pl/Dyn.svg)](https://metacpan.org/release/Dyn)
 # NAME
 
 Dyn - dyncall Backed FFI
@@ -7,7 +7,7 @@ Dyn - dyncall Backed FFI
 
     use Dyn qw[:sugar];
     sub pow
-        : native( $^O eq 'MSWin32' ? 'ntdll.dll' : ('libm', v6) )
+        : Native( $^O eq 'MSWin32' ? 'ntdll.dll' : ('libm', v6) )
         : Signature(Double, Double => Double);
 
     print pow( 2, 10 );    # 1024
@@ -42,27 +42,27 @@ Honestly, you should be using one of the above packages rather than this one as
 they provide clean wrappers of dyncall's C functions. This package contains the
 sugary API.
 
-# `:native` CODE attribute
+# `:Native` CODE attribute
 
 While most of the upstream API is covered in the [Dyn::Call](https://metacpan.org/pod/Dyn%3A%3ACall),
 [Dyn::Callback](https://metacpan.org/pod/Dyn%3A%3ACallback), and [Dyn::Load](https://metacpan.org/pod/Dyn%3A%3ALoad) packages, all the sugar is right here in
 `Dyn`. The most simple use of `Dyn` would look something like this:
 
     use Dyn ':sugar';
-    sub some_argless_function() : native('somelib.so') : Signature('()v');
+    sub some_argless_function() : Native('somelib.so') : Signature('()v');
     some_argless_function();
 
 Be aware that this will look a lot more like [NativeCall from
 Raku](https://docs.raku.org/language/nativecall) before v1.0!
 
 The second line above looks like a normal Perl sub declaration but includes the
-`:native` attribute to specify that the sub is actually defined in a native
+`:Native` attribute to specify that the sub is actually defined in a native
 library.
 
 To avoid banging your head on a built-in function, you may name your sub
 anything else and let Dyn know what symbol to attach:
 
-    sub my_abs : native('my_lib.dll') : Signature('(d)d') : symbol('abs');
+    sub my_abs : Native('my_lib.dll') : Signature('(d)d') : Symbol('abs');
     CORE::say my_abs( -75 ); # Should print 75 if your abs is something that makes sense
 
 This is by far the fastest way to work with this distribution but it's not by
@@ -157,7 +157,7 @@ begins. The following signature characters exist:
     ------------------------------------------------------
     :                     platform's default calling convention
     e                     vararg function
-    .                     vararg function's variadic/ellipsis part (...), to be speciﬁed before ﬁrst vararg
+    .                     vararg function's variadic/ellipsis part (...), to be specified before first vararg
     c                     only on x86: cdecl
     s                     only on x86: stdcall
     F                     only on x86: fastcall (MS)
