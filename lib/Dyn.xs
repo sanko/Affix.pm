@@ -126,108 +126,81 @@ void push(pTHX_ Call * call, SV * val, char type) {
 }
 
 SV * retval(pTHX_ Call *call) {
-	dXSTARG;
-	SV * retval;
+    //warn("Here I am! at %s line %d", __FILE__, __LINE__);
 	switch (call->ret) {
 		case DC_SIGCHAR_VOID:
 			dcCallVoid(call->cvm, call->fptr);
-		case DC_SIGCHAR_FLOAT:
-			retval = newSVnv(dcCallFloat(call->cvm, call->fptr));
-			break;
+            return NULL;
+        case DC_SIGCHAR_BOOL:
+            return boolSV(dcCallBool(call->cvm, call->fptr));
+         case DC_SIGCHAR_CHAR:
+            return newSVnv((char) dcCallChar(call->cvm, call->fptr));
+        case DC_SIGCHAR_UCHAR:
+            return newSVuv((u_char) dcCallChar(call->cvm, call->fptr));
+        case DC_SIGCHAR_SHORT:
+            return newSViv((short) dcCallShort(call->cvm, call->fptr));
+        case DC_SIGCHAR_USHORT:
+            return newSVuv((u_short) dcCallShort(call->cvm, call->fptr));
+        case DC_SIGCHAR_INT:
+            return newSViv(dcCallInt(call->cvm, call->fptr));
+        case DC_SIGCHAR_UINT:
+            return newSVuv((u_int) dcCallInt(call->cvm, call->fptr));
+        case DC_SIGCHAR_LONG:
+            return newSViv(dcCallLong(call->cvm, call->fptr));
+        case DC_SIGCHAR_ULONG:
+            return newSVuv((u_long) dcCallLong(call->cvm, call->fptr));
+        case DC_SIGCHAR_LONGLONG:
+            return newSViv(dcCallLongLong(call->cvm, call->fptr));
+        case DC_SIGCHAR_ULONGLONG:
+            return newSVuv( dcCallLongLong(call->cvm, call->fptr));
+        case DC_SIGCHAR_FLOAT:
+			return newSVnv(dcCallFloat(call->cvm, call->fptr));
 		case DC_SIGCHAR_DOUBLE:
-			retval = sv_2mortal(newSVnv(dcCallDouble(call->cvm, call->fptr)));
-			break;
-		case DC_SIGCHAR_BOOL:
-			retval = boolSV(dcCallBool(call->cvm, call->fptr));
-			break;
+            return newSVnv(dcCallDouble(call->cvm, call->fptr));
+        case DC_SIGCHAR_POINTER: ; // empty statement before decl. [C89 vs. C99]
+            SV * retval;
+            retval = sv_newmortal();
+            if (0)
+                sv_setref_pv(retval, "Dyn::pointer", (void*) dcCallPointer(call->cvm, call->fptr));
+            else
+                sv_setpv(retval, (const char *) dcCallPointer(call->cvm, call->fptr));
+            return retval;
+        case DC_SIGCHAR_STRING:
+            return newSVpv(dcCallPointer(call->cvm, call->fptr), 0);
+        case DC_SIGCHAR_AGGREGATE: /* TODO: dyncall structs/union/array aren't ready upstream yet*/
+            warn("dyncall aggregate types (structs/union/array) aren't ready upstream yet at %s line %d", __FILE__, __LINE__);
+            break;
 		default:
 			warn("Unknown return character: %c at %s line %d", call->ret, __FILE__, __LINE__);
 	};
-	return retval;
+	return NULL;
 }
 
-
-
+// TODO: This might need to return values in arg pointers
 #define _call_ \
-    dXSTARG;\
-    /*//warn("items == %d", items);*/\
-    /*//warn("[%d] %s", ix, name );*/ \
-    if (call != NULL) { \
+    if (call != NULL) {\
         dcReset(call->cvm);\
         const char * sig_ptr = call->sig;\
         int sig_len = call->sig_len;\
+        int pos = 0;\
         char ch;\
         for (ch = *sig_ptr; pos < /*sig_len;*/ items; ch = *++sig_ptr) {\
 			push(aTHX_ (Call *)call, ST(pos), ch);\
             ++pos;\
         }\
-        /*//warn("ret == %c", call->ret);*/\
-		if(0){/*SV * ret = retval(call);ST(0)=ret; XSRETURN(1);*/}\
-        else{switch (call->ret) {\
-            case DC_SIGCHAR_FLOAT:\
-                ST(0) = newSVnv(dcCallFloat(call->cvm, call->fptr)); XSRETURN(1); \
-                break;\
-            case DC_SIGCHAR_DOUBLE:\
-                ST(0) = sv_2mortal(newSVnv(dcCallDouble(call->cvm, call->fptr))); XSRETURN(1); \
-                break;\
-            case DC_SIGCHAR_BOOL:\
-                ST(0) = boolSV(dcCallBool(call->cvm, call->fptr)); XSRETURN(1); \
-                break;\
-            case DC_SIGCHAR_CHAR:\
-                ST(0) = newSVnv((char) dcCallChar(call->cvm, call->fptr)); XSRETURN(1); \
-                break;\
-            case DC_SIGCHAR_SHORT:\
-                ST(0) = newSViv((short) dcCallShort(call->cvm, call->fptr)); XSRETURN(1); \
-                break;\
-            case DC_SIGCHAR_INT:\
-                ST(0) = newSViv(dcCallInt(call->cvm, call->fptr)); XSRETURN(1); \
-                break;\
-            case DC_SIGCHAR_LONG:\
-                ST(0) = newSViv(dcCallLong(call->cvm, call->fptr)); XSRETURN(1); \
-                break;\
-            case DC_SIGCHAR_LONGLONG:\
-                ST(0) = newSViv(dcCallLongLong(call->cvm, call->fptr)); XSRETURN(1); \
-                break;\
-            case DC_SIGCHAR_POINTER:\
-                /*{\
-                    void * RETVAL = dcCallPointer(call->cvm, call->fptr); \
-                    SV * RETVALSV;\
-                    RETVALSV = sv_newmortal();\
-                    sv_setref_pv(RETVALSV, "Dyn::pointer",\
-                    (void*) RETVAL);\
-                    ST(0) = RETVALSV;\
-                }*/\
-                /*ST(0) = newSVnv(PTR2NV(dcCallPointer(call->cvm, call->fptr)));*/ \
-                sv_setpv(TARG, (const char *) dcCallPointer(call->cvm, call->fptr)); XSprePUSH; PUSHTARG; \
-                XSRETURN(1); break; \
-            case DC_SIGCHAR_UCHAR:\
-                ST(0) = newSVuv((u_char) dcCallChar(call->cvm, call->fptr)); XSRETURN(1); break; \
-            case DC_SIGCHAR_USHORT:\
-                ST(0) = newSVuv((u_short) dcCallShort(call->cvm, call->fptr)); XSRETURN(1); break; \
-            case DC_SIGCHAR_UINT:\
-                ST(0) = newSVuv((u_int) dcCallInt(call->cvm, call->fptr)); XSRETURN(1); break; \
-            case DC_SIGCHAR_ULONG:\
-                ST(0) = newSVuv((u_long) dcCallLong(call->cvm, call->fptr)); XSRETURN(1); break; \
-            case DC_SIGCHAR_ULONGLONG:\
-                ST(0) = newSVuv( dcCallLongLong(call->cvm, call->fptr)); XSRETURN(1); \
-                break;\
-            case DC_SIGCHAR_STRING:\
-                sv_setpv(TARG, (const char *) dcCallPointer(call->cvm, call->fptr)); XSprePUSH; PUSHTARG; XSRETURN(1);\
-                break;\
-            case DC_SIGCHAR_VOID:\
-                dcCallVoid(call->cvm, call->fptr); XSRETURN_EMPTY; \
-                break;\
-            case DC_SIGCHAR_AGGREGATE: /* TODO: dyncall structs/union/array aren't ready upstream yet*/\
-                break;\
-            default:\
-                /*croak("Help: %c", call->ret);*/\
-                break;\
-        }}\
-        /*//warn("here at %s line %d", __FILE__, __LINE__);*/\
+        /*warn("ret == %c", call->ret);*/\
+		SV * ret = retval(aTHX_ call);\
+        if (ret !=NULL ) {\
+            ST(0) = ret;\
+            XSRETURN(1);\
+        }\
+        else\
+            XSRETURN_EMPTY;\
+    /*//warn("here at %s line %d", __FILE__, __LINE__);*/\
     }\
     else\
         croak("Function is not attached! This is a serious bug!");\
-    /*//warn("here at %s line %d", __FILE__, __LINE__);*/\
+    /*//warn("here at %s line %d", __FILE__, __LINE__);*/
 
 static Call *
 _load(pTHX_ DLLib * lib, const char * symbol, const char * sig) {
@@ -354,12 +327,9 @@ CODE:
 
 void
 call_Dyn(...)
-PREINIT:
-    int pos;
-PPCODE:
+CODE:
     Call * call;
     call = (Call *) XSANY.any_ptr;
-    pos = 0;
     _call_
 
 SV *
@@ -387,10 +357,7 @@ OUTPUT:
 
 void
 call_attach(Call * call, ...)
-PREINIT:
-    int pos;
 PPCODE:
-    pos = 0;
     ////warn("call_attach( ... )");
     _call_
 
@@ -526,7 +493,6 @@ PPCODE:
                         ////warn("O");
                     } STMT_END;
                     ////warn("P");
-                    int pos = 0;
                     ////warn("AUTOLOAD( ... )");
                     _call_
                     _prev->next = _now->next;

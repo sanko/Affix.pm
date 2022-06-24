@@ -34,6 +34,7 @@ struct Human {
 };
 LIB_EXPORT int          add_i(int a,     int b) { return a + b; } // same as ii2i, honestly
 LIB_EXPORT float        add_f(float a, float b) { return a + b; }
+
 LIB_EXPORT const char * b2Z  (bool tf)      { return tf       ? "true" : "false"; }
 LIB_EXPORT const char * c2Z  (char a)       { return a == 'a' ? "!!!"  : "???"; }
 LIB_EXPORT const char * s2Z  (short a)      { return a ==  91 ? "!!!"  : a == -32767 ? "floor": "???"; }
@@ -43,8 +44,24 @@ LIB_EXPORT const char * f2Z  (float a)      { return fabs(a - (float) 5.3) < FLT
 LIB_EXPORT const char * d2Z  (double a)     { return fabs(a - (double) 5.3) < DBL_EPSILON ? "Nice" : "???"; }
 LIB_EXPORT int          ii2i (int a, int b) { return a + b;   } // same as add, honestly
 LIB_EXPORT const char * Z2Z  (char * input) { return "Okay!"; }
-LIB_EXPORT void         v2v  () { ; }
-LIB_EXPORT Human *      v2p  () {
+
+LIB_EXPORT char * p2Z ( Human * person ) { return person->name; }
+LIB_EXPORT int    p2i ( Human * person ) { return person->dob;  }
+LIB_EXPORT const char * cb  ( int (*f)(int) )  { return f(100) == 101 ? "Yes!" : "No..."; }
+LIB_EXPORT unsigned long sizeof_double() { return sizeof(double); }
+
+typedef struct {
+	unsigned char a;
+} U8;
+LIB_EXPORT U8            A2A (U8 in) {in.a++; return in;}
+LIB_EXPORT unsigned char A2C (U8 in) {in.a++; return in.a;}
+LIB_EXPORT U8            C2A (unsigned char in) {U8 out; out.a = in; return out;}
+
+LIB_EXPORT void     v2v () { ; }
+LIB_EXPORT bool     v2B () { return 1; }
+LIB_EXPORT bool     v2c () { return 1; }
+LIB_EXPORT bool     v2C () { return 1; }
+LIB_EXPORT Human *  v2p () {
     struct Human * person = (Human*) malloc(sizeof(Human));
     if (person != NULL) {
         const char * name = "John Smith";
@@ -54,18 +71,6 @@ LIB_EXPORT Human *      v2p  () {
     }
     return person;
 }
-LIB_EXPORT char * p2Z ( Human * person ) { return person->name; }
-LIB_EXPORT int    p2i ( Human * person ) { return person->dob;  }
-LIB_EXPORT const char * cb  ( int (*f)(int) )  { return f(100) == 101 ? "Yes!" : "No..."; }
-LIB_EXPORT unsigned long sizeof_double() { return sizeof(double); }
-
-typedef struct {
-	unsigned char a;
-} U8;
-LIB_EXPORT U8 A2A (U8 in) {in.a++; return in;}
-LIB_EXPORT unsigned char A2C (U8 in) {in.a++; return in.a;}
-LIB_EXPORT U8 C2A (unsigned char in) {U8 out; out.a = in; return out;}
-
 END
     }
     ok -e $source_file, "generated '$source_file'";
@@ -87,7 +92,8 @@ SKIP: {
                 dl_func_list => [
                     qw[add_i add_f
                         b2Z c2Z ii2i s2Z j2Z l2Z f2Z d2Z
-                        Z2Z v2v v2p p2Z p2i
+                        Z2Z  p2Z p2i
+                        v2v v2B v2c v2C v2p
                         cb
                         sizeof_double]
                 ]

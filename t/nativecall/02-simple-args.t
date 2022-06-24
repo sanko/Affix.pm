@@ -11,7 +11,7 @@ $|++;
 compile_test_lib('02-simple-args');
 
 # Int related
-sub TakeInt : Native('t/02-simple-args') : Signature('(j)j')           {...}
+sub TakeInt : Native('t/02-simple-args') : Signature('(i)i')           {...}
 sub TakeTwoShorts : Native('t/02-simple-args') : Signature('(ss)j')    {...}
 sub AssortedIntArgs : Native('t/02-simple-args') : Signature('(jsc)j') {...}
 #

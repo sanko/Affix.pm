@@ -34,6 +34,39 @@ START_MY_CXT
     const char* file = __FILE__;
 #endif
 
+void unroll_aggregate(void *ptr, DCaggr *ag, SV *obj) {
+    // warn(".a == %c", struct_rep.a);
+    //*(int*)ptr = 42;
+    char *base;
+    size_t offset;
+    int *b;
+    // get base address
+    base = (char *)ptr;
+    DCsize i = ag->n_fields;
+    warn("ag->n_fields == %d", ag->n_fields);
+    for (int i = 0; i < ag->n_fields; ++i) {
+        warn("i==%d", i);
+        switch (ag->fields[i].type) {
+        case DC_SIGCHAR_BOOL:
+            warn("bool!!!!!");
+            break;
+        case DC_SIGCHAR_UCHAR:
+            warn("uchar!!!!!");
+            // and the offset to member_b
+            offset = ag->fields[i].offset;
+
+            // Compute address of member_b
+            b = (int *)(base + offset);
+
+            warn(".a == %c", (unsigned char)b);
+            // av_store(obj, i,newSVuv((unsigned char) b));
+            break;
+        default:
+            warn("fallthrough");
+            break;
+        }
+    }
+}
 
 /*
 #include "object_pad.h"
@@ -66,33 +99,6 @@ void saySomething(uiButton *b, void *data)
 }
 
 */
-
-void unroll_aggregate(void * struct_rep, DCaggr * ag, SV * obj) {
-    dTHX;
-
-    if (!(SvROK(obj) && SvTYPE(SvRV(obj)) == SVt_PVAV))
-        croak("invalid instance method invocant: no array ref supplied");
-    int *b;
-    char * base = (char *)struct_rep;// get base address
-    DCsize n_fields = ag->n_fields;
-    for (int index=0; index<n_fields; ++index) {
-        SV * newvalue;
-        b = (int *)(base + ag->fields[index].offset); // Compute address of member
-        switch(ag->fields[index].type) {
-            case DC_SIGCHAR_BOOL:
-                newvalue = boolSV((bool)(intptr_t) b);
-                break;
-            case DC_SIGCHAR_UCHAR:
-                newvalue = newSVuv((unsigned char)(intptr_t) b);
-                break;
-            default:
-                warn ("fallthrough");
-                break;
-        }
-        if (NULL == av_store((AV*)SvRV(obj), index, newSVsv(newvalue)))
-            croak("Failed to write new value to array.");
-    }
-}
 
 MODULE = Dyn::Call   PACKAGE = Dyn::Call
 
