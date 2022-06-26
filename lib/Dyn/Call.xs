@@ -3,8 +3,6 @@
 #define dcAllocMem Newxz
 #define dcFreeMem  Safefree
 
-// Based on https://github.com/svn2github/dyncall/blob/master/bindings/ruby/rbdc/rbdc.c
-
 #include <dynload.h>
 #include <dyncall.h>
 #include <dyncall_value.h>
@@ -18,7 +16,6 @@
 #include "lib/types.h"
 
 #define STR_WITH_LEN(s)  ("" s ""), (sizeof(s)-1)
-
 
 /* Global struct registry */
 #define MY_CXT_KEY "Dyn::Type::Struct::_guts" XS_VERSION
@@ -119,19 +116,14 @@ CODE:
 OUTPUT:
     RETVAL
 
-
-
 void
 dcReset(DCCallVM * vm);
-
 
 void
 dcMode(DCCallVM * vm, DCint mode);
 
-
 void
 dcBeginCallAggr(DCCallVM * vm, DCaggr * ag);
-
 
 void
 dcArgBool(DCCallVM * vm, DCbool arg);
@@ -175,12 +167,6 @@ CODE:
 
 void
 dcArgAggr(DCCallVM * vm, DCaggr * s, void * value);
-
-=pod
-
-=for This is not part of dyncall's API
-
-=cut
 
 void
 dcArgString(DCCallVM * vm, char * arg);
