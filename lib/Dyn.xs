@@ -1,11 +1,4 @@
-#include "lib/xshelper.h"
-
-#include <dynload.h>
-#include <dyncall.h>
-#include <dyncall_value.h>
-#include <dyncall_callf.h>
-
-#include "lib/types.h"
+#include "lib/clutter.h"
 
 #define META_ATTR "ATTR_SUB"
 
@@ -47,10 +40,24 @@ static char *clean(char *str) {
     return str;
 }
 
-typedef struct xStruct
-{
-    int i;
-} xStruct;
+void push_aggr(pTHX_ I32 ax, int pos, DCaggr * ag, void * struct_rep) {
+    struct DCfield_ * addr;
+int size=0;
+            for (int x = 0; x < ag->n_fields; x++) {
+                addr = &ag->fields[x];
+                warn("[%d] %d", x, addr->size);
+                size+=addr->size;
+            }
+
+            struct_rep = realloc(struct_rep, size);
+            warn ("sizeof(&ag) == %d", sizeof(&ag));
+            warn ("&ag->size == %d", &ag->size);
+
+        int d = 42;
+        memcpy(struct_rep, &d, size); // OK
+
+
+}
 
 void push(pTHX_ Call *call, I32 ax) {
     const char *sig_ptr = call->sig;
@@ -112,8 +119,23 @@ void push(pTHX_ Call *call, I32 ax) {
         case DC_SIGCHAR_STRING:
             dcArgPointer(call->cvm, SvPVutf8_nolen(ST(pos)));
             break;
-        case DC_SIGCHAR_AGGREGATE: /* XXX: dyncall structs/union/array aren't ready yet*/
-            warn("passing aggregate");
+        case DC_SIGCHAR_AGGREGATE: ; // empty statement before decl. [C89 vs. C99]
+        /* XXX: dyncall structs/union/array aren't ready yet*/
+           void * struct_rep;
+           struct_rep = malloc(0); // ha!
+           DCaggr * ag;
+            if (sv_derived_from(ST(pos), "Dyn::Call::Aggr")) {
+                IV tmp = SvIV((SV*)SvRV(ST(pos)));
+                ag = INT2PTR(DCaggr *, tmp);
+            }
+            else
+                croak("expected an aggregate but this is not of type Dyn::Call::Aggr");
+
+            push_aggr(aTHX_ ax, pos, ag, struct_rep);
+            dcArgAggr(call->cvm, ag, struct_rep);
+
+            free(struct_rep);
+            break;
         default:
             warn("unhandled signature character: %c at %s line %d", ch, __FILE__, __LINE__);
             break;

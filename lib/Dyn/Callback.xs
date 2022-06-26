@@ -1,17 +1,4 @@
-#include "lib/xshelper.h"
-
-#include <dynload.h>
-#include <dyncall.h>
-#include <dyncall_value.h>
-#include <dyncall_callf.h>
-#include <dyncall_signature.h>
-#include <dyncall_callback.h>
-
-#include "lib/types.h"
-
-#ifdef USE_ITHREADS
-static PerlInterpreter *my_perl; /***    The Perl interpreter    ***/
-#endif
+#include "lib/clutter.h"
 
 static char callback_handler(DCCallback * cb, DCArgs * args, DCValue * result, void * userdata) {
     dTHX;

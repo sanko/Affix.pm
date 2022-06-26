@@ -1,21 +1,4 @@
-#include "lib/xshelper.h"
-
-#define dcAllocMem Newxz
-#define dcFreeMem  Safefree
-
-#include <dynload.h>
-#include <dyncall.h>
-#include <dyncall_value.h>
-#include <dyncall_callf.h>
-#include <dyncall_signature.h>
-#include <dyncall_callback.h>
-//#include <dyncall/dyncall_signature.h>
-
-#include <dyncall/dyncall/dyncall_aggregate.h>
-
-#include "lib/types.h"
-
-#define STR_WITH_LEN(s)  ("" s ""), (sizeof(s)-1)
+#include "lib/clutter.h"
 
 /* Global struct registry */
 #define MY_CXT_KEY "Dyn::Type::Struct::_guts" XS_VERSION

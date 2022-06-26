@@ -1,13 +1,4 @@
-#include "lib/xshelper.h"
-
-#include <dynload.h>
-#include <dyncall.h>
-#include <dyncall_value.h>
-#include <dyncall_callf.h>
-#include <dyncall_signature.h>
-#include <dyncall_callback.h>
-
-#include "lib/types.h"
+#include "lib/clutter.h"
 
 MODULE = Dyn::Load PACKAGE = Dyn::Load
 
