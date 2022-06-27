@@ -17,7 +17,7 @@ static PerlInterpreter *my_perl; /***    The Perl interpreter    ***/
 #endif
 
 #define dcAllocMem Newxz
-#define dcFreeMem  Safefree
+#define dcFreeMem Safefree
 
 #include "ppport.h"
 
@@ -62,8 +62,6 @@ static PerlInterpreter *my_perl; /***    The Perl interpreter    ***/
 #endif
 
 /* general utility */
-
-#define STR_WITH_LEN(s)  ("" s ""), (sizeof(s)-1)
 
 #if PERL_BCDVERSION >= 0x5008005
 #define LooksLikeNumber(x) looks_like_number(x)

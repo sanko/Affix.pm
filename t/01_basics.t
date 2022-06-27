@@ -142,7 +142,7 @@ SKIP: {
         #diag dlSymsNameFromValue($dsyms, 0000000000001110);
     };
     subtest 'Dyn synopsis' => sub {
-        use Dyn qw[:all];                                  # Exports nothing by default
+        use Dyn qw[:all];    # Exports nothing by default
         my $lib = dlLoadLibrary($lib_file);
         my $ptr = dlFindSymbol( $lib, 'add_i' );
         my $cvm = dcNewCallVM(1024);
