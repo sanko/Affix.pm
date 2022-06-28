@@ -2,6 +2,8 @@
 #include <string.h>
 #include <math.h>
 
+#include <stddef.h> // offsetof
+
 #ifdef _WIN32
 #define DLLEXPORT __declspec(dllexport)
 #include <BaseTsd.h>
@@ -19,17 +21,30 @@ struct intstruct
 };
 typedef struct intstruct IntStruct;
 
-DLLEXPORT int TakeInt(IntStruct x) {
+struct twoshortstruct
+{
+    short x, y;
+};
+typedef struct twoshortstruct TwoShortStruct;
+
+
+DLLEXPORT int TakeIntStruct(IntStruct x) {
     if (x.i == 42) return 1;
     return 0;
 }
 
-DLLEXPORT int TakeTwoShorts(short x, short y) {
-    if (x == 10 && y == 20) return 2;
-    return 0;
+DLLEXPORT int TakeTwoShortsStruct(TwoShortStruct x) {
+    //return offsetof(struct twoshortstruct, y);
+    //return sizeof(TwoShortStruct);
+    int retval = 0;
+    if (x.x == 10)
+        retval +=1;
+    if (x.y == 20)
+        retval +=2;
+    return retval;
 }
 
-DLLEXPORT int AssortedIntArgs(int x, short y, char z) {
+DLLEXPORT int AssortedIntArgsStruct(int x, short y, char z) {
     if (x == 101 && y == 102 && z == 103) return 3;
     return 0;
 }

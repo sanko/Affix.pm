@@ -29,7 +29,7 @@ typedef struct Delayed
 
 Delayed *delayed; // Not thread safe
 
-static char *clean(char *str) {
+static char * clean(char *str) {
     char *end;
     while (isspace(*str) || *str == '"' || *str == '\'')
         str = str + 1;
@@ -49,7 +49,7 @@ void push_aggr(pTHX_ I32 ax, int pos, DCaggr *ag, void *struct_rep) {
         size += addr->size;
     }
 
-    struct_rep = realloc(struct_rep, size);
+    struct_rep = saferealloc(struct_rep, size);
     warn("sizeof(&ag) == %d", sizeof(&ag));
     warn("&ag->size == %d", &ag->size);
 
@@ -121,7 +121,7 @@ void push(pTHX_ Call *call, I32 ax) {
             ; // empty statement before decl. [C89 vs. C99]
               /* XXX: dyncall structs/union/array aren't ready yet*/
             void *struct_rep;
-            struct_rep = malloc(0); // ha!
+            Newxz(struct_rep, 0, int); // ha!
             DCaggr *ag;
             if (sv_derived_from(ST(pos), "Dyn::Call::Aggr")) {
                 IV tmp = SvIV((SV *)SvRV(ST(pos)));
@@ -133,15 +133,17 @@ void push(pTHX_ Call *call, I32 ax) {
             push_aggr(aTHX_ ax, pos, ag, struct_rep);
             dcArgAggr(call->cvm, ag, struct_rep);
 
-            free(struct_rep);
+            Safefree(struct_rep);
             break;
         }
         case '{': {
             warn("hash character: %c at %s line %d", ch, __FILE__, __LINE__);
             void *hash_rep;
-            hash_rep = malloc(0); // ha!
-            DCaggr *ag;
-            ag = dcNewAggr(1, 1); // XXX - wrong size
+            Newxz(hash_rep, 0, void*); // ha!
+            DCaggr *ag = dcNewAggr(2, sizeof(short)*2); // XXX - wrong size; maybe expect an AV * and use count from that?
+
+            size_t offset=0;
+            size_t size=0;
 
             for (ch = *++sig_ptr; pos < sig_len - 2; ch = *++sig_ptr, pos++) {
                 warn("    hash content character: %c at %s line %d", ch, __FILE__, __LINE__);
@@ -149,55 +151,68 @@ void push(pTHX_ Call *call, I32 ax) {
                 switch (ch) {
                 case DC_SIGCHAR_VOID:
                     // TODO: Should I pass a NULL here?
-                    break;
+                    continue;
                 case DC_SIGCHAR_BOOL:
                     dcArgBool(call->cvm, SvTRUE(ST(pos)));
-                    break;
+                    continue;
                 case DC_SIGCHAR_CHAR:
                     dcArgChar(call->cvm, (char)SvIV(ST(pos)));
-                    break;
+                    continue;
                 case DC_SIGCHAR_UCHAR:
                     dcArgChar(call->cvm, (unsigned char)SvIV(ST(pos)));
-                    break;
-                case DC_SIGCHAR_SHORT:
-                    dcArgShort(call->cvm, (short)SvIV(ST(pos)));
-                    break;
+                    continue;
+                case DC_SIGCHAR_SHORT:{
+                    dcAggrField(ag, ch, offset, 1);
+                    DCfield * field = &ag->fields[ag->n_fields - 1];
+                    //warn("before: %d", sizeof(hash_rep));
+                    warn("want:   %d", size + field->size);
+                    warn("size:   %d", size);
+                    warn("offset: %d", offset);
+                    hash_rep = saferealloc(hash_rep, size + field->size);
+                    warn("eh: %p", hash_rep);
+                    warn("eh? %p", hash_rep + offset);
+                    warn("target: %d", (void *)hash_rep + offset);
+                    short d = SvIV(ST(pos));
+                    warn("raw: [%s] | %d", hash_rep, d);
+                    memcpy(hash_rep + offset, &d, field->size);
+                    warn("raw: [%s]", hash_rep);
+                    offset+=field->size;
+                    size  +=field->size;
+                }
+                    continue;
                 case DC_SIGCHAR_USHORT:
                     dcArgShort(call->cvm, (unsigned short)SvUV(ST(pos)));
-                    break;
-                case DC_SIGCHAR_INT:
-                    // dcArgInt(call->cvm, (int)SvIV(ST(pos)));
-
-                    hash_rep = realloc(hash_rep, sizeof(hash_rep) + sizeof(int));
-                    // warn ("&ag->size == %d", &ag->size);
-                    warn("!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!");
-                    int d = (int)SvIV(ST(pos));
-                    memcpy(hash_rep, &d, sizeof(int)); // OK
-
-                    dcAggrField(ag, ch, 0, 1);
-
-                    break;
+                    continue;
+                case DC_SIGCHAR_INT:{
+                    dcAggrField(ag, ch, offset, 1);
+                    DCfield *field = &ag->fields[ag->n_fields - 1];
+                    hash_rep = saferealloc(hash_rep, size + field->size);
+                    int d = (int) SvIV(ST(pos));
+                    memcpy(hash_rep + offset, &d, field->size);
+                    offset+=field->size;
+                    size  +=field->size;                }
+                    continue;
                 case DC_SIGCHAR_UINT:
                     dcArgInt(call->cvm, (unsigned int)SvUV(ST(pos)));
-                    break;
+                    continue;
                 case DC_SIGCHAR_LONG:
                     dcArgLong(call->cvm, (long)SvNV(ST(pos)));
-                    break;
+                    continue;
                 case DC_SIGCHAR_ULONG:
                     dcArgLong(call->cvm, (unsigned long)SvNV(ST(pos)));
-                    break;
+                    continue;
                 case DC_SIGCHAR_LONGLONG:
                     dcArgLongLong(call->cvm, (long long)SvNV(ST(pos)));
-                    break;
+                    continue;
                 case DC_SIGCHAR_ULONGLONG:
                     dcArgLongLong(call->cvm, (unsigned long long)SvNV(ST(pos)));
-                    break;
+                    continue;
                 case DC_SIGCHAR_FLOAT:
                     dcArgFloat(call->cvm, (float)SvNV(ST(pos)));
-                    break;
+                    continue;
                 case DC_SIGCHAR_DOUBLE:
                     dcArgDouble(call->cvm, (double)SvNV(ST(pos)));
-                    break;
+                    continue;
                 case DC_SIGCHAR_POINTER:
                     warn("passing pointer at %s line %d", __FILE__, __LINE__);
                     {
@@ -205,24 +220,26 @@ void push(pTHX_ Call *call, I32 ax) {
                         int *arg = INT2PTR(int *, tmp);
                         dcArgPointer(call->cvm, arg);
                     }
-                    break;
+                    continue;
                 case DC_SIGCHAR_STRING:
                     dcArgPointer(call->cvm, SvPVutf8_nolen(ST(pos)));
-                    break;
+                    continue;
                 case DC_SIGCHAR_AGGREGATE:
                     warn("gotta go deeper at %s line %d", __FILE__, __LINE__);
 
-                    break;
+                    continue;
                 default:
-                    warn("no idea what to do here at %s line %d", __FILE__, __LINE__);
+                    //warn("no idea what to do here at %s line %d", __FILE__, __LINE__);
 
-                    break;
+                    continue;
                 }
+                break;
             }
             dcCloseAggr(ag);
             dcArgAggr(call->cvm, ag, hash_rep);
+                    warn("gotta go at %s line %d", __FILE__, __LINE__);
 
-            free(hash_rep);
+            Safefree(hash_rep);
             break;
         }
         case '<':

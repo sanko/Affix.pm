@@ -11,9 +11,9 @@ $|++;
 compile_test_lib('04-aggr-args');
 
 # Int related
-sub TakeInt : Native('t/04-aggr-args') : Signature('({i})i')         {...}
-sub TakeTwoShorts : Native('t/04-aggr-args') : Signature('(ss)i')    {...}
-sub AssortedIntArgs : Native('t/04-aggr-args') : Signature('(jsc)j') {...}
+sub TakeIntStruct : Native('t/04-aggr-args') : Signature('({i})i')         {...}
+sub TakeTwoShortsStruct : Native('t/04-aggr-args') : Signature('({ss})i')    {...}
+#sub AssortedIntArgs : Native('t/04-aggr-args') : Signature('(jsc)j') {...}
 #
 
 =fdsa
@@ -34,17 +34,23 @@ void
 dcCloseAggr( DCaggr * ag )
 =cut
 
-my $ag = dcNewAggr( 1, 1 );
-warn $ag;
-dcAggrField( $ag, 'i', 0, 1 );
-dcCloseAggr($ag);
-is TakeInt(42),                      1, 'passed int 42';
-is TakeTwoShorts( 10, 20 ),          2, 'passed two shorts';
-is AssortedIntArgs( 101, 102, 103 ), 3, 'passed an int32, int16 and int8';
+#my $ag = dcNewAggr( 1, 1 );
+#warn $ag;
+#dcAggrField( $ag, 'i', 0, 1 );
+#dcCloseAggr($ag);
+#
+is TakeIntStruct(42),                      1, 'passed struct with a single int';
+is TakeTwoShortsStruct( 10, 20 ),          3, 'passed struct with two shorts';
+#is AssortedIntArgs( 101, 102, 103 ), 3, 'passed an int32, int16 and int8';
+done_testing;
 
+exit;
 # Float related
 sub TakeADouble : Native('t/04-aggr-args') : Signature('(d)i')    {...}
 sub TakeADoubleNaN : Native('t/04-aggr-args') : Signature('(d)i') {...}
+
+
+
 sub TakeAFloat : Native('t/04-aggr-args') : Signature('(f)i')     {...}
 sub TakeAFloatNaN : Native('t/04-aggr-args') : Signature('(f)i')  {...}
 is TakeADouble(-6.9e0),   4, 'passed a double';
