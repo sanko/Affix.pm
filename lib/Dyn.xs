@@ -8,7 +8,7 @@ typedef struct Call
     const char *lib_name;
     const char *name;
     const char *sym_name;
-    char *sig;
+    char * sig;
     size_t sig_len;
     char ret;
     DCCallVM *cvm;
@@ -28,6 +28,15 @@ typedef struct Delayed
 } Delayed;
 
 Delayed *delayed; // Not thread safe
+
+
+
+
+
+
+
+
+
 
 static char * clean(char *str) {
     char *end;
@@ -59,10 +68,9 @@ void push_aggr(pTHX_ I32 ax, int pos, DCaggr *ag, void *struct_rep) {
 
 void push(pTHX_ Call *call, I32 ax) {
     const char *sig_ptr = call->sig;
-    int sig_len = call->sig_len;
-    int pos = 0;
-    for (char ch = *sig_ptr; pos < sig_len - 1; ch = *++sig_ptr, pos++) {
-        // warn("[%d] %c", pos, ch);
+    int sig_len = call->sig_len, pos = 0;
+    char ch;
+    for (ch = *sig_ptr; pos < sig_len - 1; ch = *++sig_ptr,++pos ) {
         switch (ch) {
         case DC_SIGCHAR_VOID:
             // TODO: Should I pass a NULL here?
@@ -107,7 +115,7 @@ void push(pTHX_ Call *call, I32 ax) {
             dcArgDouble(call->cvm, (double)SvNV(ST(pos)));
             break;
         case DC_SIGCHAR_POINTER:
-            warn("passing pointer at %s line %d", __FILE__, __LINE__);
+            //warn("passing pointer at %s line %d", __FILE__, __LINE__);
             {
                 IV tmp = SvIV((SV *)SvRV(ST(pos)));
                 int *arg = INT2PTR(int *, tmp);
@@ -137,13 +145,23 @@ void push(pTHX_ Call *call, I32 ax) {
             break;
         }
         case '{': {
+            warn("here");
+            AV * values;
+            STMT_START {
+                SV* const xsub_tmp_sv = ST(pos);
+                SvGETMAGIC(xsub_tmp_sv);
+                if (SvROK(xsub_tmp_sv) && SvTYPE(SvRV(xsub_tmp_sv)) == SVt_PVAV)
+                    values = (AV*)SvRV(xsub_tmp_sv);
+                else
+                    Perl_croak_nocontext("struct values must be passed as an array reference");
+            } STMT_END;
+
             warn("hash character: %c at %s line %d", ch, __FILE__, __LINE__);
             void *hash_rep;
-            Newxz(hash_rep, 0, void*); // ha!
-            DCaggr *ag = dcNewAggr(2, sizeof(short)*2); // XXX - wrong size; maybe expect an AV * and use count from that?
+            Newxz(hash_rep, 0, int); // ha!
+            DCaggr *ag = dcNewAggr(0,0); // XXX - wrong size; maybe expect an AV * and use count from that?
 
             size_t offset=0;
-            size_t size=0;
 
             for (ch = *++sig_ptr; pos < sig_len - 2; ch = *++sig_ptr, pos++) {
                 warn("    hash content character: %c at %s line %d", ch, __FILE__, __LINE__);
@@ -155,42 +173,51 @@ void push(pTHX_ Call *call, I32 ax) {
                 case DC_SIGCHAR_BOOL:
                     dcArgBool(call->cvm, SvTRUE(ST(pos)));
                     continue;
-                case DC_SIGCHAR_CHAR:
-                    dcArgChar(call->cvm, (char)SvIV(ST(pos)));
+                case DC_SIGCHAR_CHAR:{
+                    offset += padding_needed_for( offset, 1 );
+
+                    dcAggrField(ag, ch, offset, 1);
+                    DCfield *field = &ag->fields[ag->n_fields - 1];
+                    warn("size: %d | offset: %d", field->size, offset);
+                    hash_rep = saferealloc(hash_rep, offset + field->size);
+                    SV * s =av_shift(values);
+                    char d = (char) SvIV(s);
+                    warn("char == %c [%d]", d, d);
+                    memcpy(hash_rep + offset, &d, field->size);
+                    offset+=field->size;
+                    }
                     continue;
                 case DC_SIGCHAR_UCHAR:
                     dcArgChar(call->cvm, (unsigned char)SvIV(ST(pos)));
                     continue;
                 case DC_SIGCHAR_SHORT:{
+                    offset += padding_needed_for( offset, 2 );
+
                     dcAggrField(ag, ch, offset, 1);
                     DCfield * field = &ag->fields[ag->n_fields - 1];
-                    //warn("before: %d", sizeof(hash_rep));
-                    warn("want:   %d", size + field->size);
-                    warn("size:   %d", size);
-                    warn("offset: %d", offset);
-                    hash_rep = saferealloc(hash_rep, size + field->size);
-                    warn("eh: %p", hash_rep);
-                    warn("eh? %p", hash_rep + offset);
-                    warn("target: %d", (void *)hash_rep + offset);
-                    short d = SvIV(ST(pos));
-                    warn("raw: [%s] | %d", hash_rep, d);
+                    warn("size: %d | offset: %d", field->size, offset);
+
+                    hash_rep = saferealloc(hash_rep, offset + field->size);
+                    SV * s =av_shift(values);
+                    short d = (short) SvIV(s);
                     memcpy(hash_rep + offset, &d, field->size);
-                    warn("raw: [%s]", hash_rep);
-                    offset+=field->size;
-                    size  +=field->size;
+                    offset+=field->size * 1;
                 }
                     continue;
                 case DC_SIGCHAR_USHORT:
                     dcArgShort(call->cvm, (unsigned short)SvUV(ST(pos)));
                     continue;
                 case DC_SIGCHAR_INT:{
+                    offset += padding_needed_for( offset, 4 );
                     dcAggrField(ag, ch, offset, 1);
                     DCfield *field = &ag->fields[ag->n_fields - 1];
-                    hash_rep = saferealloc(hash_rep, size + field->size);
-                    int d = (int) SvIV(ST(pos));
+                    warn("size: %d | offset: %d", field->size, offset);
+                    hash_rep = saferealloc(hash_rep, offset + field->size);
+                    SV * s =av_shift(values);
+                    int d = (int) SvIV(s);
                     memcpy(hash_rep + offset, &d, field->size);
-                    offset+=field->size;
-                    size  +=field->size;                }
+                    offset+=field->size * 1;
+                }
                     continue;
                 case DC_SIGCHAR_UINT:
                     dcArgInt(call->cvm, (unsigned int)SvUV(ST(pos)));
@@ -235,11 +262,12 @@ void push(pTHX_ Call *call, I32 ax) {
                 }
                 break;
             }
+
             dcCloseAggr(ag);
             dcArgAggr(call->cvm, ag, hash_rep);
                     warn("gotta go at %s line %d", __FILE__, __LINE__);
 
-            Safefree(hash_rep);
+            //Safefree(hash_rep);
             break;
         }
         case '<':
@@ -269,21 +297,21 @@ SV *retval(pTHX_ Call *call) {
     case DC_SIGCHAR_BOOL:
         return boolSV(dcCallBool(call->cvm, call->fptr));
     case DC_SIGCHAR_CHAR:
-        return newSVnv((char)dcCallChar(call->cvm, call->fptr));
+        return newSVnv(dcCallChar(call->cvm, call->fptr));
     case DC_SIGCHAR_UCHAR:
-        return newSVuv((u_char)dcCallChar(call->cvm, call->fptr));
+        return newSVuv(dcCallChar(call->cvm, call->fptr));
     case DC_SIGCHAR_SHORT:
-        return newSViv((short)dcCallShort(call->cvm, call->fptr));
+        return newSViv(dcCallShort(call->cvm, call->fptr));
     case DC_SIGCHAR_USHORT:
-        return newSVuv((u_short)dcCallShort(call->cvm, call->fptr));
+        return newSVuv(dcCallShort(call->cvm, call->fptr));
     case DC_SIGCHAR_INT:
         return newSViv(dcCallInt(call->cvm, call->fptr));
     case DC_SIGCHAR_UINT:
-        return newSVuv((u_int)dcCallInt(call->cvm, call->fptr));
+        return newSVuv(dcCallInt(call->cvm, call->fptr));
     case DC_SIGCHAR_LONG:
         return newSViv(dcCallLong(call->cvm, call->fptr));
     case DC_SIGCHAR_ULONG:
-        return newSVuv((u_long)dcCallLong(call->cvm, call->fptr));
+        return newSVuv(dcCallLong(call->cvm, call->fptr));
     case DC_SIGCHAR_LONGLONG:
         return newSViv(dcCallLongLong(call->cvm, call->fptr));
     case DC_SIGCHAR_ULONGLONG:
@@ -339,6 +367,7 @@ static Call *_load(pTHX_ DLLib *lib, const char *symbol, const char *sig) {
     Newx(RETVAL, 1, Call);
     RETVAL->lib = lib;
     RETVAL->cvm = dcNewCallVM(1024);
+    //RETVAL->retval = newSV();
     if (RETVAL->cvm == NULL) return NULL;
     RETVAL->fptr = dlFindSymbol(RETVAL->lib, symbol);
     if (RETVAL->fptr == NULL) // TODO: throw warning
@@ -409,7 +438,12 @@ static Call *_load(pTHX_ DLLib *lib, const char *symbol, const char *sig) {
         case DC_SIGCHAR_LONGLONG:
         case DC_SIGCHAR_ULONGLONG:
         case DC_SIGCHAR_FLOAT:
-        case DC_SIGCHAR_DOUBLE:
+        case DC_SIGCHAR_DOUBLE: {
+            RETVAL->sig[sig_pos] = sig[i];
+            ++sig_pos;
+                    }
+
+                break;
         case DC_SIGCHAR_POINTER:
         case DC_SIGCHAR_STRING:
         case DC_SIGCHAR_AGGREGATE:
@@ -458,7 +492,15 @@ static Call *_load(pTHX_ DLLib *lib, const char *symbol, const char *sig) {
     return RETVAL;
 }
 
+
+
+
 MODULE = Dyn PACKAGE = Dyn
+
+void
+test(AV * values, int lettter)
+CODE:
+    ;
 
 void
 DESTROY(...)
@@ -474,9 +516,8 @@ CODE:
 
 void
 call_Dyn(...)
-CODE:
-    Call * call;
-    call = (Call *) XSANY.any_ptr;
+PPCODE:
+    Call * call = XSANY.any_ptr;
     _call_
 
 SV *
@@ -666,3 +707,5 @@ PPCODE:
 
 BOOT:
     delayed = NULL;
+
+

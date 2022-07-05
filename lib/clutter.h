@@ -82,6 +82,15 @@ static PerlInterpreter *my_perl; /***    The Perl interpreter    ***/
     }                                                                                              \
     STMT_END
 
+/* Useful but undefined in perlapi */
+#define FLOATSIZE sizeof(float)
+
+#if PERL_VERSION_LE(5, 8, 999) /* PERL_VERSION_LT is 5.33+ */
+char *file = __FILE__;
+#else
+const char *file = __FILE__;
+#endif
+
 /* api wrapping utils */
 
 typedef struct
@@ -108,3 +117,52 @@ typedef struct _callback
     SV *userdata;
     DCCallVM *cvm;
 } _callback;
+
+/* Returns the amount of padding needed after `offset` to ensure that the
+following address will be aligned to `alignment`. */
+size_t padding_needed_for(size_t offset, size_t alignment) {
+    // dTHX;
+    size_t misalignment = offset % alignment;
+    if (misalignment > 0) // round to the next multiple of alignment
+        return alignment - misalignment;
+    return 0; // already a multiple of alignment
+}
+
+HV *Fl_stash,   // For inserting stuff directly into Fl's namespace
+    *Fl_export, // For inserting stuff directly into Fl's exports//
+    *Fl_cache;  // For caching weak refs to widgets and other objects
+
+void set_isa(const char *klass, const char *parent) {
+    dTHX;
+    HV *parent_stash = gv_stashpv(parent, GV_ADD | GV_ADDMULTI);
+    av_push(get_av(form("%s::ISA", klass), TRUE), newSVpv(parent, 0));
+    // TODO: make this spider up the list and make deeper connections?
+}
+
+void register_constant(const char *package, const char *name, SV *value) {
+    dTHX;
+    HV *_stash = gv_stashpv(package, TRUE);
+    newCONSTSUB(_stash, (char *)name, value);
+}
+
+void export_function(const char *what, const char *_tag) {
+    dTHX;
+    warn("Exporting %s to %s", what, _tag);
+    SV **tag = hv_fetch(Fl_export, _tag, strlen(_tag), TRUE);
+    if (tag && SvOK(*tag) && SvROK(*tag) && (SvTYPE(SvRV(*tag))) == SVt_PVAV)
+        av_push((AV *)SvRV(*tag), newSVpv(what, 0));
+    else {
+        SV *av;
+        av = (SV *)newAV();
+        av_push((AV *)av, newSVpv(what, 0));
+        tag = hv_store(Fl_export, _tag, strlen(_tag), newRV_noinc(av), 0);
+    }
+}
+
+void export_constant(const char *name, const char *_tag, double val) {
+    dTHX;
+    SV *value;
+    value = newSVnv(val);
+    register_constant("Dyn", name, value);
+    export_function(name, _tag);
+}

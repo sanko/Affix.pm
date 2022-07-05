@@ -42,7 +42,6 @@ SKIP: {
             diag 'Failed to attach ' . $fptr;
         }
         else {
-            diag 'Attached ' . $fptr;
             is $loaders{$fptr}->(30), $correct, sprintf '$loaders{%s}->( 30 );', $fptr;
 
             #skip sprintf( '$loaders{%s}->( 30 ) failed: %s', $fptr, $@ ), 1 if $@;

@@ -2,7 +2,7 @@ use strict;
 use warnings;
 use lib '../lib', '../blib/arch', '../blib/lib', 'blib/arch', 'blib/lib';
 use Dyn qw[:sugar];
-use FFI::Platypus 1.00;
+use FFI::Platypus 1.58;
 use Config;
 use Benchmark qw[cmpthese timethese :hireswallclock];
 

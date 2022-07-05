@@ -6,15 +6,87 @@ use Dyn qw[:all];
 use File::Spec;
 use t::nativecall;
 use experimental 'signatures';
+#use Data::Dump;
 $|++;
 #
+
 compile_test_lib('04-aggr-args');
+
+=cut
+my $iii = Dynamo::Types::Int->new();
+warn $iii;
+ddx $iii;
+warn $iii->sizeof;
+warn $iii->alignment;
+ddx $iii->signature;
+sub TakeADouble : Native('t/04-aggr-args') : Signature('(d)i')    {...}
+sub TakeADoubleNaN : Native('t/04-aggr-args') : Signature('(d)i') {...}
+sub TakeAFloat : Native('t/04-aggr-args') : Signature('(f)i')     {...}
+sub TakeAFloatNaN : Native('t/04-aggr-args') : Signature('(f)i')  {...}
+
+sub give4{
+    return 4 if (-6.9 - $_[0] < 0.001) ;
+    return 0;}
+my $four;
+for (1..500000){
+$four = TakeADouble(-6.9e0);
+$four = give4(-6.9e0);
+}
+
+is TakeADouble(-6.9e0), 4, 'passed a double';
+
+#is TakeADoubleNaN('NaN'), 4, 'passed a NaN (double)';
+#is TakeAFloat(4.2e0),     5, 'passed a float';
+#is TakeAFloatNaN('NaN'),  5, 'passed a NaN (float)';
+
+
+
+
+
+
+
+my $struct = Dynamo::Struct [
+    i => Dynamo::Int,
+
+    #j => Float,
+    #k => I16
+];
+
+ddx $struct;
+exit;
+#
+#package Int {}
+
+
+
+
+my $int = Dynamo::Types::Int->new();
+ddx $int;
+#$int->[11] = 8;
+warn $int->check(1);
+warn $int->check(1.5);
+warn $int->check('Test');
+warn '----------------';
+my $float = Dynamo::Types::Float->new();
+warn $float->check(1);
+warn $float->check(1.5);
+warn $float->check('Test');
+
+
+
+#ddx Dyn::Int[];
+#
+warn $int->sizeof;
+
+die;
+=cut
 
 # Int related
 sub TakeIntStruct : Native('t/04-aggr-args') : Signature('({i})i')         {...}
 sub TakeTwoShortsStruct : Native('t/04-aggr-args') : Signature('({ss})i')    {...}
-#sub AssortedIntArgs : Native('t/04-aggr-args') : Signature('(jsc)j') {...}
+sub IntShortChar : Native('t/04-aggr-args') : Signature('({isc})i') {...}
 #
+
 
 =fdsa
 DCaggr *
@@ -39,12 +111,17 @@ dcCloseAggr( DCaggr * ag )
 #dcAggrField( $ag, 'i', 0, 1 );
 #dcCloseAggr($ag);
 #
-is TakeIntStruct(42),                      1, 'passed struct with a single int';
-is TakeTwoShortsStruct( 10, 20 ),          3, 'passed struct with two shorts';
-#is AssortedIntArgs( 101, 102, 103 ), 3, 'passed an int32, int16 and int8';
+#die chr 43;
+#is TakeIntStruct([42]),                      1, 'passed struct with a single int';
+#is TakeTwoShortsStruct( [10, 20] ),          3, 'passed struct with two shorts';
+
+
+
+
+is IntShortChar( [101, 102, 103] ), 3, 'passed an int, short and char struct';
 done_testing;
 
-exit;
+exit 0;
 # Float related
 sub TakeADouble : Native('t/04-aggr-args') : Signature('(d)i')    {...}
 sub TakeADoubleNaN : Native('t/04-aggr-args') : Signature('(d)i') {...}
