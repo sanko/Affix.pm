@@ -111,11 +111,13 @@ package Dyn 0.03 {
         use Test::More;
         diag $lib;
         diag $version;
+        warn $lib;
+        warn $version;
         $lib // return;
         return locate_lib( $lib, $version );
         CORE::state %_lib_cache;
-        if ( !defined $_lib_cache{ $lib . chr(0) . ( $version // '' ) } ) {
 
+        if ( !defined $_lib_cache{ $lib . chr(0) . ( $version // '' ) } ) {
             #use Data::Dump;
             #ddx \@_;
             if ( $^O eq 'MSWin32' ) {
@@ -154,19 +156,21 @@ package Dyn 0.03 {
     sub guess_library_name ( $name = (), $version = () ) {
         $name // return ();    # NULL
         return $name if -f $name;
-        CORE::state %_lib_cache;
+        CORE::state $_lib_cache;
         my @retval;
         ($version) = version->parse($version)->stringify =~ m[^v?(.+)$];
 
         # warn $version;
         $version = $version ? qr[\.${version}] : qr/([\.\d]*)?/;
-        if ( !defined $_lib_cache{ $name . chr(0) . ( $version // '' ) } ) {
+        if ( !defined $_lib_cache->{ $name . chr(0) . ( $version // '' ) } ) {
             if ( $OS eq 'MSWin32' ) {
+                warn;
 
                 #return $name . '.dll'     if -f $name . '.dll';
                 return File::Spec->canonpath( File::Spec->rel2abs( $name . '.dll' ) )
                     if -e $name . '.dll';
                 require Win32;
+                warn;
 
 # https://docs.microsoft.com/en-us/windows/win32/dlls/dynamic-link-library-search-order#search-order-for-desktop-applications
                 my @dirs = (
@@ -186,6 +190,7 @@ package Dyn 0.03 {
                     },
                     @dirs
                 );
+                warn;
             }
             elsif ( $OS eq 'darwin' ) {
                 return $name . '.so'     if -f $name . '.so';
@@ -193,6 +198,7 @@ package Dyn 0.03 {
                 return $name . '.bundle' if -f $name . '.bundle';
                 return $name             if $name =~ /\.so$/;
                 return $name;    # Let 'em work it out
+                warn;
 
 # https://developer.apple.com/library/archive/documentation/DeveloperTools/Conceptual/DynamicLibraries/100-Articles/UsingDynamicLibraries.html
                 my @dirs = (
@@ -206,6 +212,7 @@ package Dyn 0.03 {
                 );
                 use Test::More;
                 diag join ', ', @dirs;
+                warn;
                 find(
                     {   wanted => sub {
                             $File::Find::prune = 1
@@ -217,12 +224,14 @@ package Dyn 0.03 {
                     @dirs
                 );
                 diag join ', ', @retval;
+                warn;
             }
             else {
                 return $name . '.so' if -f $name . '.so';
                 return $name         if -f $name;
                 my $ext = $Config{so};
                 my @libs;
+                warn;
 
                # warn $name . '.' . $ext . $version;
                #\b(?:lib)?${name}(?:-[\d\.]+)?\.${ext}${version}
@@ -238,6 +247,7 @@ package Dyn 0.03 {
                     map { $ENV{$_} // () }
                         qw[LD_LIBRARY_PATH DYLD_LIBRARY_PATH DYLD_FALLBACK_LIBRARY_PATH]
                 );
+                warn;
 
                 #use Data::Dump;
                 #ddx \@dirs;
@@ -252,10 +262,16 @@ package Dyn 0.03 {
                     },
                     @dirs
                 );
+                warn;
             }
-            $_lib_cache{ $name . chr(0) . ( $version // '' ) } = pop @retval;
+            warn;
+            $_lib_cache->{ $name . chr(0) . ( $version // '' ) } = pop @retval;
         }
-        $_lib_cache{ $name . chr(0) . ( $version // '' ) };
+        warn;
+
+        # TODO: Make a test with a bad lib name
+        $_lib_cache->{ $name . chr(0) . ( $version // '' ) }
+            // Carp::croak( 'Cannot locate symbol: ' . $name );
     }
 };
 1;

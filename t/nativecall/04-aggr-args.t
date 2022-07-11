@@ -6,13 +6,27 @@ use Dyn qw[:all];
 use File::Spec;
 use t::nativecall;
 use experimental 'signatures';
-#use Data::Dump;
 $|++;
 #
 
-compile_test_lib('04-aggr-args');
+=todo
+
+my $field=Dyn::Call::Field->new(
+    {size => 3, type => 'd'}
+);
+
+ddx ($field);
+warn $field->size;
+warn $field->size(4);
+warn $field->size;
+warn $field->type;
 
 =cut
+
+compile_test_lib('04-aggr-args');
+
+=todo
+
 my $iii = Dynamo::Types::Int->new();
 warn $iii;
 ddx $iii;
@@ -81,8 +95,16 @@ warn $int->sizeof;
 die;
 =cut
 
+#sub TakeIntStruct : Native('t/04-aggr-args') : Signature(Struct[Int] => Double)         {...}
+
 # Int related
-sub TakeIntStruct : Native('t/04-aggr-args') : Signature('({i})i')         {...}
+sub TakeIntStruct : Native('t/04-aggr-args') : Signature('({i})i')     {...}
+sub TakeIntIntStruct : Native('t/04-aggr-args') : Signature('({ii})i') {...}
+#
+is TakeIntStruct( [42] ),        1,  'passed struct with a single int';
+is TakeIntIntStruct( [ 5, 9 ] ), 14, 'passed struct with a two ints';
+done_testing;
+__END__
 sub TakeTwoShortsStruct : Native('t/04-aggr-args') : Signature('({ss})i')    {...}
 sub IntShortChar : Native('t/04-aggr-args') : Signature('({isc})i') {...}
 #
@@ -112,13 +134,13 @@ dcCloseAggr( DCaggr * ag )
 #dcCloseAggr($ag);
 #
 #die chr 43;
-#is TakeIntStruct([42]),                      1, 'passed struct with a single int';
+is TakeIntStruct([42]),                      1, 'passed struct with a single int';
 #is TakeTwoShortsStruct( [10, 20] ),          3, 'passed struct with two shorts';
 
 
 
 
-is IntShortChar( [101, 102, 103] ), 3, 'passed an int, short and char struct';
+#is IntShortChar( [101, 102, 103] ), 3, 'passed an int, short and char struct';
 done_testing;
 
 exit 0;

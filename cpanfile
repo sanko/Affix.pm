@@ -6,7 +6,7 @@ requires 'Sub::Util';
 requires 'Text::ParseWords';
 #
 on 'test' => sub {
-    requires 'Test2::V0' => '0.000145';
+    requires 'Test::More' => 0.98;
 };
 on 'configure' => sub {
     requires 'Archive::Tar';

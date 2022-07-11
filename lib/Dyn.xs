@@ -32,8 +32,34 @@ Delayed *delayed; // Not thread safe
 
 
 
-
-
+void DumpHex(const void* data, size_t size) {
+    char ascii[17];
+    size_t i, j;
+    ascii[16] = '\0';
+    for (i = 0; i < size; ++i) {
+        printf("%02X ", ((unsigned char*)data)[i]);
+        if (((unsigned char*)data)[i] >= ' ' && ((unsigned char*)data)[i] <= '~') {
+            ascii[i % 16] = ((unsigned char*)data)[i];
+        } else {
+            ascii[i % 16] = '.';
+        }
+        if ((i+1) % 8 == 0 || i+1 == size) {
+            printf(" ");
+            if ((i+1) % 16 == 0) {
+                printf("|  %s \n", ascii);
+            } else if (i+1 == size) {
+                ascii[(i+1) % 16] = '\0';
+                if ((i+1) % 16 <= 8) {
+                    printf(" ");
+                }
+                for (j = (i+1) % 16; j < 16; ++j) {
+                    printf("   ");
+                }
+                printf("|  %s \n", ascii);
+            }
+        }
+    }
+}
 
 
 
@@ -48,29 +74,262 @@ static char * clean(char *str) {
     *(end + 1) = '\0';
     return str;
 }
+enum layout { STRUCT, ARRAY, UNION };
 
-void push_aggr(pTHX_ I32 ax, int pos, DCaggr *ag, void *struct_rep) {
-    struct DCfield_ *addr;
-    int size = 0;
-    for (int x = 0; x < ag->n_fields; x++) {
-        addr = &ag->fields[x];
-        warn("[%d] %d", x, addr->size);
-        size += addr->size;
+
+// structure of a stack node
+struct sNode {
+    char data;
+  struct sNode *next;
+};
+
+
+// Function to push an item to stack
+void _push(struct sNode **top_ref, char new_data) {
+  // allocate node
+  struct sNode *new_node = safemalloc(sizeof(struct sNode));
+new_node->data = new_data;
+  if (new_node == NULL) {
+    warn("Stack overflow\n");
+    Safefree(new_node);
+    exit(0);
+  }
+
+  // link the old list off the new node
+  new_node->next = (*top_ref);
+
+  // move the head to point to the new node
+  (*top_ref) = new_node;
+}
+
+// Function to pop an item from stack
+char _pop(struct sNode **top_ref) {
+  char res;
+  struct sNode *top;
+
+  // If stack is empty then error
+  if (*top_ref == NULL)
+    croak("Stack overflow");
+
+
+    top = *top_ref;
+    res = top->data;
+    *top_ref = top->next;
+    Safefree(top);
+    return res;
+
+
+}
+
+int cleanup(struct sNode **top_ref) {
+  /* deref top_ref to get the real head */
+  struct sNode *current = *top_ref;
+  struct sNode *next;
+
+  while (current != NULL) {
+    next = current->next;
+
+    free(current);
+    current = next;
+  }
+
+  /* deref top_ref to affect the real head back
+     in the caller. */
+  *top_ref = NULL;
+}
+
+
+// Returns 1 if character1 and character2 are matching left
+// and right Brackets
+bool isMatchingPair(char character1, char character2) {
+  if (character1 == '(' && character2 == ')')
+    return 1;
+  else if (character1 == '{' && character2 == '}')
+    return 1;
+  else if (character1 == '[' && character2 == ']')
+    return 1;
+  else if (character1 == '<' && character2 == '>')
+    return 1;
+  else
+    return 0;
+}
+
+int parse_signature(pTHX_ Call * call) {
+    warn("parse_signature [%d] %s", call->sig_len, call->sig);
+    char *sig_ptr= safesysmalloc(call->sig_len+1);
+    Copy(call->sig, sig_ptr, call->sig_len+1, char);
+    Zero(call->sig, call->sig_len, char);
+    int sig_len = call->sig_len;
+    int sig_pos = 0;
+
+    char ch;
+    int i, depth = 0;
+
+    struct sNode *stack = safemalloc(sizeof(struct sNode));
+
+    for (i = 0; sig_ptr[i + 1] != '\0'; ++i) {
+
+        switch (sig_ptr[i]) {
+        case DC_SIGCHAR_CC_PREFIX:
+            ++i;
+            switch (sig_ptr[i]) {
+            case DC_SIGCHAR_CC_DEFAULT:
+                dcMode(call->cvm, DC_CALL_C_DEFAULT);
+                break;
+            case DC_SIGCHAR_CC_THISCALL:
+                dcMode(call->cvm, DC_CALL_C_DEFAULT_THIS);
+                break;
+            case DC_SIGCHAR_CC_ELLIPSIS:
+                dcMode(call->cvm, DC_CALL_C_ELLIPSIS);
+                break;
+            case DC_SIGCHAR_CC_ELLIPSIS_VARARGS:
+                dcMode(call->cvm, DC_CALL_C_ELLIPSIS_VARARGS);
+                break;
+            case DC_SIGCHAR_CC_CDECL:
+                dcMode(call->cvm, DC_CALL_C_X86_CDECL);
+                break;
+            case DC_SIGCHAR_CC_STDCALL:
+                dcMode(call->cvm, DC_CALL_C_X86_WIN32_STD);
+                break;
+            case DC_SIGCHAR_CC_FASTCALL_MS:
+                dcMode(call->cvm, DC_CALL_C_X86_WIN32_FAST_MS);
+                break;
+            case DC_SIGCHAR_CC_FASTCALL_GNU:
+                dcMode(call->cvm, DC_CALL_C_X86_WIN32_FAST_GNU);
+                break;
+            case DC_SIGCHAR_CC_THISCALL_MS:
+                dcMode(call->cvm, DC_CALL_C_X86_WIN32_THIS_MS);
+                break;
+            case DC_SIGCHAR_CC_THISCALL_GNU:
+                dcMode(call->cvm, DC_CALL_C_X86_WIN32_FAST_GNU);
+                break;
+            case DC_SIGCHAR_CC_ARM_ARM:
+                dcMode(call->cvm, DC_CALL_C_ARM_ARM);
+                break;
+            case DC_SIGCHAR_CC_ARM_THUMB:
+                dcMode(call->cvm, DC_CALL_C_ARM_THUMB);
+                break;
+            case DC_SIGCHAR_CC_SYSCALL:
+                dcMode(call->cvm, DC_CALL_SYS_DEFAULT);
+                break;
+            default:
+                warn("Unknown signature character: %c at %s line %d", call->sig[i], __FILE__, __LINE__);
+                break;
+            };
+            break;
+        case DC_SIGCHAR_VOID:
+        case DC_SIGCHAR_BOOL:
+        case DC_SIGCHAR_CHAR:
+        case DC_SIGCHAR_UCHAR:
+        case DC_SIGCHAR_SHORT:
+        case DC_SIGCHAR_USHORT:
+        case DC_SIGCHAR_INT:
+        case DC_SIGCHAR_UINT:
+        case DC_SIGCHAR_LONG:
+        case DC_SIGCHAR_ULONG:
+        case DC_SIGCHAR_LONGLONG:
+        case DC_SIGCHAR_ULONGLONG:
+        case DC_SIGCHAR_FLOAT:
+        case DC_SIGCHAR_DOUBLE: {
+            if (depth == 0) call->perl_sig[sig_pos] = '$';
+                        call->sig[sig_pos++] = sig_ptr[i];
+}
+            break;
+        case DC_SIGCHAR_POINTER:
+        case DC_SIGCHAR_STRING:
+        case DC_SIGCHAR_AGGREGATE:
+            if (depth == 0) call->perl_sig[sig_pos] = '$';
+            call->sig[sig_pos++] = sig_ptr[i];
+            break;
+        case '<': // union
+            if (depth == 0) call->perl_sig[sig_pos] = '$';
+            call->sig[sig_pos++] = sig_ptr[i];
+            _push(&stack, sig_ptr[i]);
+            depth++;
+            break;
+        case '{': // struct
+            if (depth == 0) call->perl_sig[sig_pos] = '%';
+            call->sig[sig_pos++] = sig_ptr[i];
+            _push(&stack, sig_ptr[i]);
+            depth++;
+            break;
+        case '[': // array
+            if (depth == 0) call->perl_sig[sig_pos] = '@';
+            call->sig[sig_pos++] = sig_ptr[i];
+            _push(&stack, sig_ptr[i]);
+            depth++;
+            break;
+        case '>':
+        case '}':
+        case ']':
+
+        // If we see an ending bracket without a pair
+      // then return false
+      if (stack == NULL// depth == -1
+         // Pop the top element from stack, if it is not
+      // a pair bracket of character then there is a
+      // mismatch.
+      // This happens for expressions like {(})
+      || (!isMatchingPair(_pop(&stack), sig_ptr[i]))) {
+
+        size_t len = strlen(sig_ptr);
+        char buffer[len+1];
+	            warn("here at %s line %d", __FILE__, __LINE__);
+
+                Copy( sig_ptr+1, buffer, i, char);
+
+        buffer[len+1] = '\0';
+        croak("Unmatched %c in signature; marked by <-- HERE in %s<-- HERE%s",
+             sig_ptr[i], buffer, sig_ptr + i + 1);
+        cleanup(&stack);
+        return 0;
+      }
+
+
+            call->sig[sig_pos++] = sig_ptr[i];
+
+
+                warn("here at %s line %d", __FILE__, __LINE__);
+
+
+
+
+
+            --depth;
+            break;
+        case DC_SIGCHAR_ENDARG:
+            call->sig_len = sig_pos;
+            call->ret = sig_ptr[i+1];
+            break;
+        case '(': // Start of signature
+
+            break;
+        default:
+            warn("Unknown signature character: %c at %s line %d", call->sig[i], __FILE__, __LINE__);
+            break;
+        };
     }
+                warn("here at %s line %d", __FILE__, __LINE__);
 
-    struct_rep = saferealloc(struct_rep, size);
-    warn("sizeof(&ag) == %d", sizeof(&ag));
-    warn("&ag->size == %d", &ag->size);
 
-    int d = 42;
-    memcpy(struct_rep, &d, size); // OK
+  int ok = stack != NULL;
+
+  Safefree(stack);
+
+	            warn("here at %s line %d", __FILE__, __LINE__);
+
+
+
+warn("signature now looks like: %s", call->sig);
+    return ok ? sig_pos: -1;
 }
 
 void push(pTHX_ Call *call, I32 ax) {
+	 warn("here at %s line %d", __FILE__, __LINE__);
     const char *sig_ptr = call->sig;
     int sig_len = call->sig_len, pos = 0;
     char ch;
-    for (ch = *sig_ptr; pos < sig_len - 1; ch = *++sig_ptr,++pos ) {
+    for (ch = *sig_ptr; pos < sig_len; ch = *++sig_ptr,++pos ) {
         switch (ch) {
         case DC_SIGCHAR_VOID:
             // TODO: Should I pass a NULL here?
@@ -138,14 +397,13 @@ void push(pTHX_ Call *call, I32 ax) {
             else
                 croak("expected an aggregate but this is not of type Dyn::Call::Aggr");
 
-            push_aggr(aTHX_ ax, pos, ag, struct_rep);
+            //push_aggr(aTHX_ ax, pos, ag, struct_rep);
             dcArgAggr(call->cvm, ag, struct_rep);
 
             Safefree(struct_rep);
             break;
         }
         case '{': {
-            warn("here");
             AV * values;
             STMT_START {
                 SV* const xsub_tmp_sv = ST(pos);
@@ -157,13 +415,30 @@ void push(pTHX_ Call *call, I32 ax) {
             } STMT_END;
 
             warn("hash character: %c at %s line %d", ch, __FILE__, __LINE__);
-            void *hash_rep;
-            Newxz(hash_rep, 0, int); // ha!
-            DCaggr *ag = dcNewAggr(0,0); // XXX - wrong size; maybe expect an AV * and use count from that?
+            bool called = false;
+/*
+            if (call->aggregate == NULL) {
+                Newxz(call->aggregate, 1, Aggr);
+                Newxz(agg, 1, DCaggr);
+
+                Newxz(agg_ptr, 0, char); // ha!
+                //struct Aggr * next;
+            }
+            else called = true;
+*/
+                DCaggr * agg;
+                agg = dcNewAggr(1024, 0);
+                void * agg_ptr= safemalloc(0);
+
+       // DCaggr *s = dcNewAggr(1, sizeof(t));
+
 
             size_t offset=0;
+            size_t agg_pos =-1;
+//*++sig_ptr;
+            for (ch = *++sig_ptr; pos < sig_len-1; pos++, ch = *++sig_ptr) {
+                                agg_pos++;
 
-            for (ch = *++sig_ptr; pos < sig_len - 2; ch = *++sig_ptr, pos++) {
                 warn("    hash content character: %c at %s line %d", ch, __FILE__, __LINE__);
 
                 switch (ch) {
@@ -175,15 +450,18 @@ void push(pTHX_ Call *call, I32 ax) {
                     continue;
                 case DC_SIGCHAR_CHAR:{
                     offset += padding_needed_for( offset, 1 );
+                                                    if(!called)
 
-                    dcAggrField(ag, ch, offset, 1);
-                    DCfield *field = &ag->fields[ag->n_fields - 1];
+                    dcAggrField(agg, ch, offset, 1);
+                    DCfield *field = &agg->fields[agg_pos];
                     warn("size: %d | offset: %d", field->size, offset);
-                    hash_rep = saferealloc(hash_rep, offset + field->size);
+                                                    if(!called)
+
+                    agg_ptr = saferealloc(agg_ptr, offset + field->size);
                     SV * s =av_shift(values);
                     char d = (char) SvIV(s);
                     warn("char == %c [%d]", d, d);
-                    memcpy(hash_rep + offset, &d, field->size);
+                    memcpy(agg_ptr + offset, &d, field->size);
                     offset+=field->size;
                     }
                     continue;
@@ -192,15 +470,17 @@ void push(pTHX_ Call *call, I32 ax) {
                     continue;
                 case DC_SIGCHAR_SHORT:{
                     offset += padding_needed_for( offset, 2 );
+                                if(!called)
 
-                    dcAggrField(ag, ch, offset, 1);
-                    DCfield * field = &ag->fields[ag->n_fields - 1];
+                    dcAggrField(agg, ch, offset, 1);
+                    DCfield *field = &agg->fields[agg_pos];
                     warn("size: %d | offset: %d", field->size, offset);
+                                if(!called)
 
-                    hash_rep = saferealloc(hash_rep, offset + field->size);
-                    SV * s =av_shift(values);
+                    agg_ptr = saferealloc(agg_ptr, offset + field->size);
+                    SV * s = av_shift(values);
                     short d = (short) SvIV(s);
-                    memcpy(hash_rep + offset, &d, field->size);
+                    memcpy(agg_ptr + offset, &d, field->size);
                     offset+=field->size * 1;
                 }
                     continue;
@@ -208,15 +488,18 @@ void push(pTHX_ Call *call, I32 ax) {
                     dcArgShort(call->cvm, (unsigned short)SvUV(ST(pos)));
                     continue;
                 case DC_SIGCHAR_INT:{
-                    offset += padding_needed_for( offset, 4 );
-                    dcAggrField(ag, ch, offset, 1);
-                    DCfield *field = &ag->fields[ag->n_fields - 1];
-                    warn("size: %d | offset: %d", field->size, offset);
-                    hash_rep = saferealloc(hash_rep, offset + field->size);
-                    SV * s =av_shift(values);
-                    int d = (int) SvIV(s);
-                    memcpy(hash_rep + offset, &d, field->size);
-                    offset+=field->size * 1;
+                    offset += padding_needed_for( offset, INTSIZE );
+                    dcAggrField(agg, ch, offset, 1);
+                    DCfield *field = &agg->fields[agg_pos];
+                    warn("*size: %d | offset: %d | to: %d", field->size, offset, offset + field->size);
+                    int slot = offset + field->size;
+                    agg_ptr = saferealloc(agg_ptr, slot);
+                    SV ** s = av_fetch(values, agg_pos, 1);
+                    void * d = (int) SvIV(*s);
+                    agg_ptr = saferealloc(agg_ptr,agg->size + field->size);
+                    CopyD(&d, agg_ptr + offset,field->size, void);
+                    agg->size+=field->size;
+                    offset+=field->size * 1; // TODO: 1 here is array size
                 }
                     continue;
                 case DC_SIGCHAR_UINT:
@@ -256,18 +539,19 @@ void push(pTHX_ Call *call, I32 ax) {
 
                     continue;
                 default:
-                    //warn("no idea what to do here at %s line %d", __FILE__, __LINE__);
+                    warn("no idea what to do here at %s line %d", __FILE__, __LINE__);
 
                     continue;
                 }
                 break;
             }
+            warn("sizeof(hash_rep) == %d at %s line %d", sizeof(agg_ptr), __FILE__, __LINE__);
 
-            dcCloseAggr(ag);
-            dcArgAggr(call->cvm, ag, hash_rep);
-                    warn("gotta go at %s line %d", __FILE__, __LINE__);
-
-            //Safefree(hash_rep);
+            dcCloseAggr(agg);
+            dcArgAggr(call->cvm, agg, agg_ptr);
+            DumpHex(agg_ptr, agg->size);
+            //Safefree(agg);
+            //Safefree(agg_ptr);
             break;
         }
         case '<':
@@ -278,6 +562,10 @@ void push(pTHX_ Call *call, I32 ax) {
             warn("array character: %c at %s line %d", ch, __FILE__, __LINE__);
 
             break;
+        case '(':
+        case '_':
+            pos--;
+        break;
         default:
             warn("unhandled signature character: %c at %s line %d", ch, __FILE__, __LINE__);
             break;
@@ -288,7 +576,7 @@ void push(pTHX_ Call *call, I32 ax) {
 }
 
 SV *retval(pTHX_ Call *call) {
-    // warn("Here I am! at %s line %d", __FILE__, __LINE__);
+     warn("Here I am! [%c] at %s line %d", call->ret, __FILE__, __LINE__);
     //  TODO: Also sort out pointers that might be return values?
     switch (call->ret) {
     case DC_SIGCHAR_VOID:
@@ -297,37 +585,31 @@ SV *retval(pTHX_ Call *call) {
     case DC_SIGCHAR_BOOL:
         return boolSV(dcCallBool(call->cvm, call->fptr));
     case DC_SIGCHAR_CHAR:
-        return newSVnv(dcCallChar(call->cvm, call->fptr));
+        return newSVnv((char)dcCallChar(call->cvm, call->fptr));
     case DC_SIGCHAR_UCHAR:
-        return newSVuv(dcCallChar(call->cvm, call->fptr));
+        return newSVuv((unsigned char)dcCallChar(call->cvm, call->fptr));
     case DC_SIGCHAR_SHORT:
-        return newSViv(dcCallShort(call->cvm, call->fptr));
+        return newSViv((short)dcCallShort(call->cvm, call->fptr));
     case DC_SIGCHAR_USHORT:
-        return newSVuv(dcCallShort(call->cvm, call->fptr));
+        return newSVuv((unsigned short)dcCallShort(call->cvm, call->fptr));
     case DC_SIGCHAR_INT:
-        return newSViv(dcCallInt(call->cvm, call->fptr));
+        return newSViv((int)dcCallInt(call->cvm, call->fptr));
     case DC_SIGCHAR_UINT:
-        return newSVuv(dcCallInt(call->cvm, call->fptr));
+        return newSVuv((unsigned int)dcCallInt(call->cvm, call->fptr));
     case DC_SIGCHAR_LONG:
-        return newSViv(dcCallLong(call->cvm, call->fptr));
+        return newSViv((long)dcCallLong(call->cvm, call->fptr));
     case DC_SIGCHAR_ULONG:
-        return newSVuv(dcCallLong(call->cvm, call->fptr));
+        return newSVuv((unsigned long)dcCallLong(call->cvm, call->fptr));
     case DC_SIGCHAR_LONGLONG:
-        return newSViv(dcCallLongLong(call->cvm, call->fptr));
+        return newSViv((long long)dcCallLongLong(call->cvm, call->fptr));
     case DC_SIGCHAR_ULONGLONG:
-        return newSVuv(dcCallLongLong(call->cvm, call->fptr));
+        return newSVuv((unsigned long long)dcCallLongLong(call->cvm, call->fptr));
     case DC_SIGCHAR_FLOAT:
-        return newSVnv(dcCallFloat(call->cvm, call->fptr));
+        return newSVnv((float)dcCallFloat(call->cvm, call->fptr));
     case DC_SIGCHAR_DOUBLE:
-        return newSVnv(dcCallDouble(call->cvm, call->fptr));
-    case DC_SIGCHAR_POINTER:; // empty statement before decl. [C89 vs. C99]
-        SV *retval;
-        retval = sv_newmortal();
-        if (0)
-            sv_setref_pv(retval, "Dyn::pointer", (void *)dcCallPointer(call->cvm, call->fptr));
-        else
-            sv_setpv(retval, (const char *)dcCallPointer(call->cvm, call->fptr));
-        return retval;
+        return newSVnv((double)dcCallDouble(call->cvm, call->fptr));
+    case DC_SIGCHAR_POINTER:
+		return newSVpv(dcCallPointer(call->cvm, call->fptr), 0);
     case DC_SIGCHAR_STRING:
         return newSVpv(dcCallPointer(call->cvm, call->fptr), 0);
     case DC_SIGCHAR_AGGREGATE: /* TODO: dyncall structs/union/array aren't ready upstream yet*/
@@ -344,20 +626,21 @@ SV *retval(pTHX_ Call *call) {
 // TODO: This might need to return values in arg pointers
 #define _call_                                                                                     \
     if (call != NULL) {                                                                            \
-        dcReset(call->cvm);                                                                        \
-        push(aTHX_(Call *) call, ax);                                                              \
-        /*warn("ret == %c", call->ret);*/                                                          \
-        SV *ret = retval(aTHX_ call);                                                              \
-        if (ret != NULL) {                                                                         \
+        dcReset(call->cvm); 	                                                                    \
+        push(aTHX_(Call *) call, ax);                                                               \
+        /*warn("ret == %c", call->ret);*/                                                           \
+        SV *ret = retval(aTHX_ call);                                                               \
+        if (ret != NULL) {                                                                          \
+            ret = sv_2mortal(ret);                                                                  \
             ST(0) = ret;                                                                           \
             XSRETURN(1);                                                                           \
         }                                                                                          \
         else                                                                                       \
-            XSRETURN_EMPTY;                                                                        \
+            XSRETURN_EMPTY;                                                                         \
         /*//warn("here at %s line %d", __FILE__, __LINE__);*/                                      \
     }                                                                                              \
     else                                                                                           \
-        croak("Function is not attached! This is a serious bug!");                                 \
+        croak("Function is not attached! This is a serious bug!");                                \
     /*//warn("here at %s line %d", __FILE__, __LINE__);*/
 
 static Call *_load(pTHX_ DLLib *lib, const char *symbol, const char *sig) {
@@ -367,128 +650,19 @@ static Call *_load(pTHX_ DLLib *lib, const char *symbol, const char *sig) {
     Newx(RETVAL, 1, Call);
     RETVAL->lib = lib;
     RETVAL->cvm = dcNewCallVM(1024);
-    //RETVAL->retval = newSV();
     if (RETVAL->cvm == NULL) return NULL;
     RETVAL->fptr = dlFindSymbol(RETVAL->lib, symbol);
     if (RETVAL->fptr == NULL) // TODO: throw warning
         return NULL;
-    Newxz(RETVAL->sig, strlen(sig), char);      // Dumb
-    Newxz(RETVAL->perl_sig, strlen(sig), char); // Dumb
-    int i, sig_pos, depth;
-    sig_pos = depth = 0;
-    for (i = 0; sig[i + 1] != '\0'; ++i) {
-        switch (sig[i]) {
-        case DC_SIGCHAR_CC_PREFIX:
-            ++i;
-            switch (sig[i]) {
-            case DC_SIGCHAR_CC_DEFAULT:
-                dcMode(RETVAL->cvm, DC_CALL_C_DEFAULT);
-                break;
-            case DC_SIGCHAR_CC_THISCALL:
-                dcMode(RETVAL->cvm, DC_CALL_C_DEFAULT_THIS);
-                break;
-            case DC_SIGCHAR_CC_ELLIPSIS:
-                dcMode(RETVAL->cvm, DC_CALL_C_ELLIPSIS);
-                break;
-            case DC_SIGCHAR_CC_ELLIPSIS_VARARGS:
-                dcMode(RETVAL->cvm, DC_CALL_C_ELLIPSIS_VARARGS);
-                break;
-            case DC_SIGCHAR_CC_CDECL:
-                dcMode(RETVAL->cvm, DC_CALL_C_X86_CDECL);
-                break;
-            case DC_SIGCHAR_CC_STDCALL:
-                dcMode(RETVAL->cvm, DC_CALL_C_X86_WIN32_STD);
-                break;
-            case DC_SIGCHAR_CC_FASTCALL_MS:
-                dcMode(RETVAL->cvm, DC_CALL_C_X86_WIN32_FAST_MS);
-                break;
-            case DC_SIGCHAR_CC_FASTCALL_GNU:
-                dcMode(RETVAL->cvm, DC_CALL_C_X86_WIN32_FAST_GNU);
-                break;
-            case DC_SIGCHAR_CC_THISCALL_MS:
-                dcMode(RETVAL->cvm, DC_CALL_C_X86_WIN32_THIS_MS);
-                break;
-            case DC_SIGCHAR_CC_THISCALL_GNU:
-                dcMode(RETVAL->cvm, DC_CALL_C_X86_WIN32_FAST_GNU);
-                break;
-            case DC_SIGCHAR_CC_ARM_ARM:
-                dcMode(RETVAL->cvm, DC_CALL_C_ARM_ARM);
-                break;
-            case DC_SIGCHAR_CC_ARM_THUMB:
-                dcMode(RETVAL->cvm, DC_CALL_C_ARM_THUMB);
-                break;
-            case DC_SIGCHAR_CC_SYSCALL:
-                dcMode(RETVAL->cvm, DC_CALL_SYS_DEFAULT);
-                break;
-            default:
-                warn("Unknown signature character: %c at %s line %d", sig[i], __FILE__, __LINE__);
-                break;
-            };
-            break;
-        case DC_SIGCHAR_VOID:
-        case DC_SIGCHAR_BOOL:
-        case DC_SIGCHAR_CHAR:
-        case DC_SIGCHAR_UCHAR:
-        case DC_SIGCHAR_SHORT:
-        case DC_SIGCHAR_USHORT:
-        case DC_SIGCHAR_INT:
-        case DC_SIGCHAR_UINT:
-        case DC_SIGCHAR_LONG:
-        case DC_SIGCHAR_ULONG:
-        case DC_SIGCHAR_LONGLONG:
-        case DC_SIGCHAR_ULONGLONG:
-        case DC_SIGCHAR_FLOAT:
-        case DC_SIGCHAR_DOUBLE: {
-            RETVAL->sig[sig_pos] = sig[i];
-            ++sig_pos;
-                    }
+    size_t sig_len = strlen(sig);
+    RETVAL->sig_len = sig_len;
+    Newxz(RETVAL->sig, sig_len+1, char);
 
-                break;
-        case DC_SIGCHAR_POINTER:
-        case DC_SIGCHAR_STRING:
-        case DC_SIGCHAR_AGGREGATE:
-            if (depth == 0) RETVAL->perl_sig[sig_pos] = '$';
-            RETVAL->sig[sig_pos] = sig[i];
-            ++sig_pos;
-            break;
-        case '<': // union
-            if (depth == 0) RETVAL->perl_sig[sig_pos] = '$';
-            RETVAL->sig[sig_pos] = sig[i];
-            ++sig_pos;
-            depth++;
-            break;
-        case '{': // struct
-            if (depth == 0) RETVAL->perl_sig[sig_pos] = '%';
-            RETVAL->sig[sig_pos] = sig[i];
-            ++sig_pos;
-            depth++;
-            break;
-        case '[': // array
-            if (depth == 0) RETVAL->perl_sig[sig_pos] = '@';
-            RETVAL->sig[sig_pos] = sig[i];
-            ++sig_pos;
-            depth++;
-            break;
-        case '>':
-        case '}':
-        case ']':
-            RETVAL->sig[sig_pos] = sig[i];
-            ++sig_pos;
-            --depth;
-            break;
-        case DC_SIGCHAR_ENDARG:
-            RETVAL->sig_len = sig_pos + 1;
-            RETVAL->ret = sig[i + 1];
-            break;
-        case '(': // Start of signature
+    CopyD(sig, RETVAL->sig, sig_len, char);
+    Newxz(RETVAL->perl_sig, sig_len, char); // Dumb
+    parse_signature(aTHX_ RETVAL);
 
-            break;
-        default:
-            warn("Unknown signature character: %c at %s line %d", sig[i], __FILE__, __LINE__);
-            break;
-        };
-    }
-    // warn("Now: %s|%s|%c", RETVAL->perl_sig, RETVAL->sig, RETVAL->ret);
+    warn("Now: %s|%s|%c", RETVAL->perl_sig, RETVAL->sig, RETVAL->ret);
     return RETVAL;
 }
 
@@ -518,7 +692,9 @@ void
 call_Dyn(...)
 PPCODE:
     Call * call = XSANY.any_ptr;
+	 warn("here at %s line %d", __FILE__, __LINE__);
     _call_
+	 warn("here at %s line %d", __FILE__, __LINE__);
 
 SV *
 wrap(lib, const char * func_name, const char * sig, ...)

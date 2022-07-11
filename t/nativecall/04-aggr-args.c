@@ -4,6 +4,9 @@
 
 #include <stddef.h> // offsetof
 
+#define warn(FORMAT, ...)                                                                          \
+    fprintf(stderr, FORMAT " in %s at line %i\n", ##__VA_ARGS__, __FILE__, __LINE__)
+
 #ifdef _WIN32
 #define DLLEXPORT __declspec(dllexport)
 #include <BaseTsd.h>
@@ -14,16 +17,31 @@ typedef signed __int64 int64_t;
 #include <inttypes.h>
 #include <sys/types.h>
 #endif
-
-struct intstruct
+typedef struct intstruct
 {
     int i;
-};
-typedef struct intstruct IntStruct;
+} IntStruct;
+typedef struct intintstruct
+{
+    int i, j;
+} IntIntStruct;
 
 DLLEXPORT int TakeIntStruct(IntStruct x) {
+    warn("x.i!, %d", x.i);
+
+    warn("IntStruct.i == %lu", offsetof(IntStruct, i));
+    warn("IntIntStruct.i == %lu", offsetof(IntIntStruct, i));
+    warn("IntIntStruct.j == %lu", offsetof(IntIntStruct, j));
+
     if (x.i == 42) return 1;
     return 0;
+}
+
+DLLEXPORT int TakeIntIntStruct(IntIntStruct x) {
+    warn("x.i!, %d", x.i);
+    warn("x.j, %d", x.j);
+
+    return x.i + x.j;
 }
 
 struct twoshortstruct

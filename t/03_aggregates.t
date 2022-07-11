@@ -1,6 +1,5 @@
 use strict;
-use Test2::V0;
-use Test2::Tools::Compare qw[string];
+use Test::More 0.98;
 use lib '../lib', '../blib/arch', '../blib/lib', 'blib/arch', 'blib/lib';
 use Dyn qw[:all];
 use File::Spec;
@@ -110,30 +109,26 @@ SKIP: {
     subtest 'Dyn::Load' => sub {
         $lib = dlLoadLibrary($lib_file);
         ok $lib, 'dlLoadLibrary(...)';
-        {
-            my $todo   = 'Some platforms do rel2abs and some do not';
+    TODO: {
+            local $TODO = 'Some platforms do rel2abs and some do not';
             my $___lib = ' ' x 1024;
             my $_abs_  = File::Spec->rel2abs($lib_file);
-
-            #is dlGetLibraryPath( $lib, $___lib, length $___lib ), length($_abs_) + 1,
-            #      'dlGetLibraryPath(...)';
-            # is $___lib, $_abs_, '  $sOut is correct';
+            is dlGetLibraryPath( $lib, $___lib, length $___lib ), length($_abs_) + 1,
+                'dlGetLibraryPath(...)';
+            is $___lib, $_abs_, '  $sOut is correct';
         }
         diag $lib_file;
     SKIP: {
             plan skip_all => 'ExtUtils::CBuilder will only build bundles but I need a dynlib on OSX'
                 if $^O eq 'darwin' && $lib_file =~ m[\.bundle$];
             my $dsyms = dlSymsInit($lib_file);
-            ok $dsyms, 'dlSymsInit(...)';
-
-       #    ok dlSymsCount($dsyms) > 10, 'dlSymsCount(...) > 10';  # linker might export extra stuff
+            ok $dsyms,                   'dlSymsInit(...)';
+            ok dlSymsCount($dsyms) > 10, 'dlSymsCount(...) > 10';  # linker might export extra stuff
             for ( 1 .. dlSymsCount($dsyms) - 1 ) {
-
-                #diag '  -> ' . dlSymsName( $dsyms, $_ );
+                diag '  -> ' . dlSymsName( $dsyms, $_ );
             }
             dlSymsCleanup($dsyms);
-
-            # is $dsyms, undef, 'dlSymsCleanup(...)';
+            is $dsyms, undef, 'dlSymsCleanup(...)';
         }
 
         #diag `nm $lib_file`;
@@ -158,13 +153,13 @@ SKIP: {
             is $fields[0]->alignment, 1,                    'field->alignment == 1';
             is $fields[0]->array_len, 1,                    'field->array_len == 1';
             is $fields[0]->type,      chr DC_SIGCHAR_UCHAR, 'field->type == DC_SIGCHAR_UCHAR';
-            is $fields[0]->sub_aggr,  U(),                  'field->sub_aggr == undef';
+            is $fields[0]->sub_aggr,  undef,                'field->sub_aggr == undef';
         };
         dcFreeAggr($s);
         ok 'remove';
     };
     subtest 'aggregate builder [struct arg]' => sub {
-        my $todo = todo 'aggregates are still unstable upstream';
+        our $TODO = 'aggregates are still unstable upstream';
         use Dyn qw[:all];    # Exports nothing by default
         my $lib = dlLoadLibrary($lib_file);
         my $ptr = dlFindSymbol( $lib, 'A2C' );
@@ -182,7 +177,7 @@ SKIP: {
         dcFreeAggr($s);
     };
     subtest 'aggregate builder [struct return [raw]]' => sub {
-        my $todo = todo 'aggregates are still unstable upstream';
+        our $TODO = 'aggregates are still unstable upstream';
         use Dyn qw[:all];    # Exports nothing by default
         my $lib = dlLoadLibrary($lib_file);
         my $ptr = dlFindSymbol( $lib, 'C2A' );
@@ -194,12 +189,14 @@ SKIP: {
         dcAggrField( $s, chr DC_SIGCHAR_UCHAR, 0, 1 );
         dcCloseAggr($s);
         dcReset($cvm);
+        dcBeginCallAggr($cvm,$s);
         dcArgChar( $cvm, 'm' );
         isa_ok dcCallAggr( $cvm, $ptr, $s ), 'Dyn::pointer';
+        diag $s;
         dcFreeAggr($s);
     };
     subtest 'aggregate builder [struct return [obj]]' => sub {
-        my $todo = todo 'aggregates are still unstable upstream';
+        our $TODO = 'aggregates are still unstable upstream';
         use Dyn qw[:all];    # Exports nothing by default
         my $lib = dlLoadLibrary($lib_file);
         my $ptr = dlFindSymbol( $lib, 'C2A' );
@@ -219,7 +216,7 @@ SKIP: {
         dcFreeAggr($s);
     };
     subtest 'aggregate builder [struct arg and return]' => sub {
-        my $todo = todo 'aggregates are still unstable upstream';
+        our $TODO = 'aggregates are still unstable upstream';
         use Dyn qw[:all];    # Exports nothing by default
         my $lib = dlLoadLibrary($lib_file);
         my $ptr = dlFindSymbol( $lib, 'A2A' );

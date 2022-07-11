@@ -9,7 +9,7 @@ typedef struct {
 START_MY_CXT
 
 void unroll_aggregate(void *ptr, DCaggr *ag, SV *obj) {
-    // warn(".a == %c", struct_rep.a);
+ warn("unroll_aggregate");
     //*(int*)ptr = 42;
     char *base;
     size_t offset;
@@ -89,7 +89,7 @@ CODE:
 void *
 dcAllocMem(size_t size)
 CODE:
-    dcAllocMem(RETVAL, size, void *);
+    dcAllocMem(RETVAL, size, int);
 OUTPUT:
     RETVAL
 
@@ -181,15 +181,45 @@ DCpointer
 dcCallPointer(DCCallVM * vm, DCpointer funcptr);
 
 DCpointer
-dcCallAggr(DCCallVM * vm, DCpointer funcptr, DCaggr * ag, SV * obj = NULL);
+dcCallAggr(DCCallVM * vm, DCpointer funcptr, DCaggr * ag, SV * obj = sv_newmortal());
+PREINIT:
+    dXSI32;
 CODE:
      //aggr_ptr struct_rep;
-    void * struct_rep;
-    struct_rep = malloc(sizeof(&ag));
-    warn ("sizeof(&ag) == %d", sizeof(&ag));
-    RETVAL = dcCallAggr(vm, funcptr, ag, &struct_rep);
+    void * struct_rep = safecalloc(ag->size, sizeof(char));
+    warn ("ag->size == %d --- items == %d", ag->size, items);
+    RETVAL = dcCallAggr(vm, funcptr, ag, struct_rep);
+    warn ("hi lllll");
+    if (items == 4){
+    if(!sv_derived_from(ST(3), "Dyn::Type::Struct"))
+        croak("obj is not of type Dyn::Type::Struct");
+    if (!(SvROK(obj) && SvTYPE(SvRV(obj)) == SVt_PVAV))
+        croak("invalid instance method invocant: no array ref supplied");
+    SV ** ptr = av_fetch((AV*)SvRV(obj), ix, 1);
+
+
+
+
+
+    if (obj != NULL)
+            warn ("hi ppjmkl");
+
+    if (sv_isobject(obj) )    warn ("hi yyyyyy");
+
+    if (sv_derived_from(obj, "Dyn::Type::Struct") )   warn ("hi ,.,omkl");
+
+
     if ((obj != NULL) && sv_isobject(obj) && sv_derived_from(obj, "Dyn::Type::Struct"))
       unroll_aggregate(struct_rep, ag, obj);
+    }
+  else
+    warn ("trouble! ppppppp");
+
+        if (struct_rep != NULL)
+
+    Safefree(struct_rep);
+    else
+        warn ("trouble! ooooooo");
 OUTPUT:
     RETVAL
 
@@ -289,17 +319,57 @@ CODE:
 
 =cut
 
-
 MODULE = Dyn::Call   PACKAGE = Dyn::Call::Field
 
+void
+new(char * package, HV * args = newHV_mortal())
+PPCODE:
+    DCfield * RETVAL;
+    Newx(RETVAL, 1, DCfield *);
+    SV ** val_ref = hv_fetchs(args, "offset", 0);
+    if (val_ref != NULL)
+        RETVAL->offset = (DCsize)SvIV(*val_ref);
+    val_ref = hv_fetchs(args, "size", 0);
+    if (val_ref != NULL)
+        RETVAL->size = (DCsize)SvIV(*val_ref);
+    val_ref = hv_fetchs(args, "alignment", 0);
+    if (val_ref != NULL)
+        RETVAL->alignment = (DCsize)SvIV(*val_ref);
+    val_ref = hv_fetchs(args, "array_len", 0);
+    if (val_ref != NULL)
+        RETVAL->array_len = (DCsize)SvIV(*val_ref);
+    val_ref = hv_fetchs(args, "type", 0);
+    if (val_ref != NULL)
+        RETVAL->type = (DCsigchar)*SvPV_nolen(*val_ref);
+    // TODO: unwrap     const DCaggr* sub_aggr;
+
+    {
+        SV * RETVALSV;
+        RETVALSV = sv_newmortal();
+        sv_setref_pv(RETVALSV, package, (void*)RETVAL);
+        ST(0) = RETVALSV;
+    }
+    XSRETURN(1);
+
 DCsize
-_field(DCfield * thing)
+_field(DCfield * thing, int newvalue = NULL)
 ALIAS:
     offset    = 1
     size      = 2
     alignment = 3
     array_len = 4
 CODE:
+    warn ("items == %d",items);
+    if(items == 2) {
+        switch(ix) {
+            case 1: thing->offset   = newvalue; break;
+            case 2: thing->size     = newvalue; break;
+            case 3: thing->alignment= newvalue; break;
+            case 4: thing->array_len= newvalue; break;
+            default:
+                croak("Unknown field attribute: %d", ix); break;
+        }
+    }
     switch(ix) {
         case 1: RETVAL = thing->offset;    break;
         case 2: RETVAL = thing->size;      break;
@@ -312,20 +382,47 @@ OUTPUT:
     RETVAL
 
 DCsigchar
-type(DCfield * thing)
+type(DCfield * thing, DCsigchar newvalue = NULL)
 CODE:
+    if(items == 2)
+        thing->type = (char)*SvPV_nolen(ST(1));
     RETVAL = thing->type;
 OUTPUT:
     RETVAL
 
 const DCaggr *
-sub_aggr(DCfield * thing)
+sub_aggr(DCfield * thing, DCaggr * aggr = NULL)
 CODE:
+    if(items == 2)
+        thing->sub_aggr = aggr;
     RETVAL = thing->sub_aggr;
 OUTPUT:
     RETVAL
 
 MODULE = Dyn::Call   PACKAGE = Dyn::Call::Aggr
+
+void
+new(char * package, HV * args = newHV_mortal())
+PPCODE:
+    // Do not mention this constructor; prefer dcNewAggr(...)
+    struct DCaggr_ * RETVAL;
+    Newx(RETVAL, 1, struct DCaggr_ *);
+    SV ** val_ref = hv_fetchs(args, "size", 0);
+    if (val_ref != NULL)
+        RETVAL->size = (DCsize)SvIV(*val_ref);
+    val_ref = hv_fetchs(args, "n_fields", 0);
+    if (val_ref != NULL)
+        RETVAL->n_fields = (DCsize)SvIV(*val_ref);
+    val_ref = hv_fetchs(args, "alignment", 0);
+    if (val_ref != NULL)
+        RETVAL->alignment = (DCsize)SvIV(*val_ref);
+    {
+        SV * RETVALSV;
+        RETVALSV = sv_newmortal();
+        sv_setref_pv(RETVALSV, package, (void*)RETVAL);
+        ST(0) = RETVALSV;
+    }
+    XSRETURN(1);
 
 DCsize
 _aggr(DCaggr * thing)
@@ -404,13 +501,13 @@ CODE:
     AV * avtypes  = newAV();
     //AV * modes  = newAV(); // Currently unused
 
-    char * new_ = malloc(strlen(pkg) + 1);
+    char new_[strlen(pkg)+1];
     strcpy(new_, pkg);
 		strcat(new_, "::new");
     (void)newXSproto_portable(new_, XS_Dyn__Type__Struct_new, file, "$%");
 
     {
-      char * blah = malloc(strlen(pkg)+1);
+      char * blah[strlen(pkg)+1];
                     strcpy(blah, pkg);
                     strcat(blah, "::ISA");
     AV *isa = perl_get_av(blah,1);
@@ -841,6 +938,8 @@ BOOT:
 
 void
 Struct(...)
+PREINIT:
+    dMY_CXT;
 PPCODE:
     const char * package = "Dyn::Types::Struct";
     int pos = 0;
@@ -941,10 +1040,7 @@ PPCODE:
     RETVAL = sv_2mortal(RETVAL);
     ST(0) = RETVAL;
     XSRETURN(1);
-
-
     */
-
 
 BOOT:
     (void)newXSproto_portable("Dynamo::Struct", XS_Dynamo__Types__Struct_new, file, "$;$");
