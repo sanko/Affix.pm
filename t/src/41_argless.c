@@ -1,11 +1,4 @@
-#include <stdio.h>
-#include <string.h>
-
-#ifdef _WIN32
-#define DLLEXPORT __declspec(dllexport)
-#else
-#define DLLEXPORT extern
-#endif
+#include "std.h"
 
 DLLEXPORT void Nothing() {
     /* we don't even print something */
@@ -28,8 +21,8 @@ DLLEXPORT int *ArglessPointer() {
     return &my_int;
 }
 
-char *my_str = "Just a string";
-DLLEXPORT char *ArglessUTF8String() {
+const char *my_str = "Just a string";
+DLLEXPORT const char *ArglessUTF8String() {
     return my_str;
 }
 

@@ -1,6 +1,6 @@
 use strict;
 use Test::More 0.98;
-BEGIN { chdir '../../' if !-d 't'; }
+BEGIN { chdir '../' if !-d 't'; }
 use lib '../lib', '../blib/arch', '../blib/lib', 'blib/arch', 'blib/lib', '../../', '.';
 use Dyn qw[:all];
 use File::Spec;
@@ -23,7 +23,7 @@ warn $field->type;
 
 =cut
 
-compile_test_lib('04-aggr-args');
+compile_test_lib('44_aggr_args');
 
 =todo
 
@@ -98,8 +98,8 @@ die;
 #sub TakeIntStruct : Native('t/04-aggr-args') : Signature(Struct[Int] => Double)         {...}
 
 # Int related
-sub TakeIntStruct : Native('t/04-aggr-args') : Signature('({i})i')      {...}
-sub TakeIntIntStruct : Native('t/04-aggr-args') : Signature('({ii})i') {...}
+sub TakeIntStruct : Native('t/44_aggr_args') : Signature('({i})i')     {...}
+sub TakeIntIntStruct : Native('t/44_aggr_args') : Signature('({ii})i') {...}
 is TakeIntStruct( [42] ),        1,  'passed struct with a single int';
 is TakeIntIntStruct( [ 5, 9 ] ), 14, 'passed struct with a two ints';
 done_testing;
@@ -114,6 +114,7 @@ DCaggr *
 dcNewAggr( DCsize maxFieldCount, DCsize size )
 
 void
+
 dcFreeAggr( DCaggr * ag )
 CODE:
     dcFreeAggr(ag);

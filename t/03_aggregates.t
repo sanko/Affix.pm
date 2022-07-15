@@ -218,8 +218,7 @@ SKIP: {
         diag 'here A';
         dcArgChar( $cvm, 'm' );
         diag 'here G';
-        my $idk = Dyn::Type::Struct::add_fields 'Some::Class' =>
-            [ a => DC_SIGCHAR_UCHAR ];
+        my $idk = Dyn::Type::Struct::add_fields 'Some::Class' => [ a => DC_SIGCHAR_UCHAR ];
         diag 'here C';
 
         #my $obj = Some::Class->new( { a => 3 } );

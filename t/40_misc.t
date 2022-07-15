@@ -1,23 +1,23 @@
 use strict;
 use Test::More 0.98;
-BEGIN { chdir '../../' if !-d 't'; }
+BEGIN { chdir '../' if !-d 't'; }
 use lib '../lib', '../blib/arch', '../blib/lib', 'blib/arch', 'blib/lib', '../../', '.';
 use Dyn qw[:all];
 use File::Spec;
 use t::lib::nativecall;
 $|++;
 #
-compile_test_lib('00-misc');
+compile_test_lib('40_misc');
 #
 package misc {
     use Dyn qw[:sugar];
-    sub NCstrlen : Native('t/00-misc') : Signature('(Z)i') {...}
+    sub NCstrlen : Native('t/40_misc') : Signature('(Z)i') {...}
     sub test ()                                            { NCstrlen(123) }
 }
 is misc::test(), 3, 'body of a native sub declared in a package replaced';
 
 BEGIN {
-    sub NCstrlen : Native('t/00-misc') : Signature('(Z)i') {...}
+    sub NCstrlen : Native('t/40_misc') : Signature('(Z)i') {...}
 }
 is NCstrlen(123), 3, 'body of a native sub declared in a BEGIN block replaced';
 

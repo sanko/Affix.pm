@@ -1,6 +1,6 @@
 use strict;
 use Test::More 0.98;
-BEGIN { chdir '../../' if !-d 't'; }
+BEGIN { chdir '../' if !-d 't'; }
 use lib '../lib', '../blib/arch', '../blib/lib', 'blib/arch', 'blib/lib', '../../', '.';
 use Dyn qw[:all];
 use File::Spec;
@@ -8,34 +8,34 @@ use t::lib::nativecall;
 use experimental 'signatures';
 $|++;
 #
-compile_test_lib('02-simple-args');
+compile_test_lib('42_simple_args');
 
 # Int related
-sub TakeInt : Native('t/02-simple-args') : Signature('(i)i')           {...}
-sub TakeTwoShorts : Native('t/02-simple-args') : Signature('(ss)j')    {...}
-sub AssortedIntArgs : Native('t/02-simple-args') : Signature('(jsc)j') {...}
+sub TakeInt : Native('t/42_simple_args') : Signature('(i)i')           {...}
+sub TakeTwoShorts : Native('t/42_simple_args') : Signature('(ss)j')    {...}
+sub AssortedIntArgs : Native('t/42_simple_args') : Signature('(jsc)j') {...}
 #
 is TakeInt(42),                      1, 'passed int 42';
 is TakeTwoShorts( 10, 20 ),          2, 'passed two shorts';
 is AssortedIntArgs( 101, 102, 103 ), 3, 'passed an int32, int16 and int8';
 
 # Float related
-sub TakeADouble : Native('t/02-simple-args') : Signature('(d)i')    {...}
-sub TakeADoubleNaN : Native('t/02-simple-args') : Signature('(d)i') {...}
-sub TakeAFloat : Native('t/02-simple-args') : Signature('(f)i')     {...}
-sub TakeAFloatNaN : Native('t/02-simple-args') : Signature('(f)i')  {...}
+sub TakeADouble : Native('t/42_simple_args') : Signature('(d)i')    {...}
+sub TakeADoubleNaN : Native('t/42_simple_args') : Signature('(d)i') {...}
+sub TakeAFloat : Native('t/42_simple_args') : Signature('(f)i')     {...}
+sub TakeAFloatNaN : Native('t/42_simple_args') : Signature('(f)i')  {...}
 is TakeADouble(-6.9e0),   4, 'passed a double';
 is TakeADoubleNaN('NaN'), 4, 'passed a NaN (double)';
 is TakeAFloat(4.2e0),     5, 'passed a float';
 is TakeAFloatNaN('NaN'),  5, 'passed a NaN (float)';
 
 # String related
-sub TakeAString : Native('t/02-simple-args') : Signature('(Z)i') {...}
+sub TakeAString : Native('t/42_simple_args') : Signature('(Z)i') {...}
 is TakeAString('ok 6 - passed a string'), 6, 'passed a string';
 
 # Explicitly managing strings
-sub SetString : Native('t/02-simple-args') : Signature('(Z)i')  {...}
-sub CheckString : Native('t/02-simple-args') : Signature('()i') {...}
+sub SetString : Native('t/42_simple_args') : Signature('(Z)i')  {...}
+sub CheckString : Native('t/42_simple_args') : Signature('()i') {...}
 my $str = 'ok 7 - checked previously passed string';
 
 #explicitly-manage($str); # https://docs.raku.org/routine/explicitly-manage
@@ -43,21 +43,21 @@ SetString($str);
 is CheckString(), 7, 'checked previously passed string';
 
 # Make sure wrapped subs work
-sub wrapped : Native('t/02-simple-args') : Signature('(i)i') {...}
+sub wrapped : Native('t/42_simple_args') : Signature('(i)i') {...}
 sub wrapper ($arg)                                           { is wrapped($arg), 8, 'wrapped sub' }
 wrapper(42);
 
 # 64-bit integer
-sub TakeInt64 : Native('t/02-simple-args') : Signature('(l)i') {...}
+sub TakeInt64 : Native('t/42_simple_args') : Signature('(l)i') {...}
 {
     no warnings 'portable';
     is TakeInt64(0xFFFFFFFFFF), 9, 'passed int64 0xFFFFFFFFFF';
 }
 
 # Unsigned integers.
-sub TakeUint8 : Native('t/02-simple-args') : Signature('(C)i')  {...}
-sub TakeUint16 : Native('t/02-simple-args') : Signature('(S)i') {...}
-sub TakeUint32 : Native('t/02-simple-args') : Signature('(J)i') {...}
+sub TakeUint8 : Native('t/42_simple_args') : Signature('(C)i')  {...}
+sub TakeUint16 : Native('t/42_simple_args') : Signature('(S)i') {...}
+sub TakeUint32 : Native('t/42_simple_args') : Signature('(J)i') {...}
 SKIP: {
     #skip 'Cannot test TakeUint8(0xFE) on OS X with -O3', 1 if $^O eq 'darwin';
     #
@@ -72,9 +72,9 @@ SKIP: {
 #skip("Cannot test TakeUint16(0xFFFE) with clang without -O0");
 is TakeUint16(0xFFFE),     11, 'passed uint16 0xFFFE';
 is TakeUint32(0xFFFFFFFE), 12, 'passed uint32 0xFFFFFFFE';
-sub TakeSizeT : Native('t/02-simple-args') : Signature('(i)j');
+sub TakeSizeT : Native('t/42_simple_args') : Signature('(i)j');
 is TakeSizeT(42), 13, 'passed size_t 42';
-sub TakeSSizeT : Native('t/02-simple-args') : Signature('(I)j');
+sub TakeSSizeT : Native('t/42_simple_args') : Signature('(I)j');
 is TakeSSizeT(-42), 14, 'passed ssize_t -42';
 
 # https://docs.raku.org/type/Proxy - Sort of like a magical tied hash?
