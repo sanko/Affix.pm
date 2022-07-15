@@ -1,4 +1,4 @@
-package t::nativecall {
+package t::lib::nativecall {
     use strict;
     use warnings;
     use Test::More;
@@ -20,14 +20,14 @@ package t::nativecall {
         #my $cfg = $VM->{config};
         if ( $OS eq 'MSWin32' ) {
             @cmds = (
-                "cl /LD /EHsc /Fe$libname t/nativecall/$name.c",
-                "gcc --shared -fPIC -DBUILD_LIB -o t/$libname t/nativecall/$name.c"
+                "cl /LD /EHsc /Fe$libname t/src/$name.c",
+                "gcc --shared -fPIC -DBUILD_LIB -o t/$libname t/src/$name.c"
             );
         }
         else {
             @cmds = (
-                "gcc --shared -fPIC -DBUILD_LIB -o t/$libname t/nativecall/$name.c",
-                "clang -stdlib=libc --shared -fPIC -o t/$libname t/nativecall/$name.c"
+                "gcc --shared -fPIC -DBUILD_LIB -o t/$libname t/src/$name.c",
+                "clang -stdlib=libc --shared -fPIC -o t/$libname t/src/$name.c"
             );
         }
         my ( @fails, $succeeded );
@@ -52,14 +52,14 @@ package t::nativecall {
         #my $cfg = $VM->{config};
         if ( $OS eq 'MSWin32' ) {
             @cmds = (
-                "cl /LD /EHsc /Fe$libname t/nativecall/$name.cpp",
-                "g++ --shared -fPIC -DBUILD_LIB -o t/$libname t/nativecall/$name.cpp"
+                "cl /LD /EHsc /Fe$libname t/src/$name.cpp",
+                "g++ --shared -fPIC -DBUILD_LIB -o t/$libname t/src/$name.cpp"
             );
         }
         else {
             @cmds = (
-                "g++ --shared -fPIC -DBUILD_LIB -o t/$libname t/nativecall/$name.cpp",
-                "clang++ -stdlib=libc++ --shared -fPIC -o t/$libname t/nativecall/$name.cpp"
+                "g++ --shared -fPIC -DBUILD_LIB -o t/$libname t/src/$name.cpp",
+                "clang++ -stdlib=libc++ --shared -fPIC -o t/$libname t/src/$name.cpp"
             );
         }
         my ( @fails, $succeeded );

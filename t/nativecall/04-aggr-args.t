@@ -4,7 +4,7 @@ BEGIN { chdir '../../' if !-d 't'; }
 use lib '../lib', '../blib/arch', '../blib/lib', 'blib/arch', 'blib/lib', '../../', '.';
 use Dyn qw[:all];
 use File::Spec;
-use t::nativecall;
+use t::lib::nativecall;
 use experimental 'signatures';
 $|++;
 #
