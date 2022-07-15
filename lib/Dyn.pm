@@ -118,6 +118,7 @@ package Dyn 0.03 {
         CORE::state %_lib_cache;
 
         if ( !defined $_lib_cache{ $lib . chr(0) . ( $version // '' ) } ) {
+
             #use Data::Dump;
             #ddx \@_;
             if ( $^O eq 'MSWin32' ) {

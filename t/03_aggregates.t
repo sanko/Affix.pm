@@ -143,17 +143,17 @@ SKIP: {
         dcReset($cvm);
         my $s = dcNewAggr( 1, 1 );
         isa_ok $s, 'Dyn::Call::Aggr';
-        dcAggrField( $s, chr DC_SIGCHAR_UCHAR, 0, 1 );
+        dcAggrField( $s, DC_SIGCHAR_UCHAR, 0, 1 );
         dcCloseAggr($s);
         my @fields = $s->fields;
         subtest 'Dyn::Call::Field [0]' => sub {
             isa_ok $fields[0], 'Dyn::Call::Field';
-            is $fields[0]->offset,    0,                    'field->offset == 0';
-            is $fields[0]->size,      1,                    'field->size == sizeof(DCchar)';
-            is $fields[0]->alignment, 1,                    'field->alignment == 1';
-            is $fields[0]->array_len, 1,                    'field->array_len == 1';
-            is $fields[0]->type,      chr DC_SIGCHAR_UCHAR, 'field->type == DC_SIGCHAR_UCHAR';
-            is $fields[0]->sub_aggr,  undef,                'field->sub_aggr == undef';
+            is $fields[0]->offset,    0,                'field->offset == 0';
+            is $fields[0]->size,      1,                'field->size == sizeof(DCchar)';
+            is $fields[0]->alignment, 1,                'field->alignment == 1';
+            is $fields[0]->array_len, 1,                'field->array_len == 1';
+            is $fields[0]->type,      DC_SIGCHAR_UCHAR, 'field->type == DC_SIGCHAR_UCHAR';
+            is $fields[0]->sub_aggr,  undef,            'field->sub_aggr == undef';
         };
         dcFreeAggr($s);
         ok 'remove';
@@ -168,7 +168,7 @@ SKIP: {
         dcReset($cvm);
         my $s = dcNewAggr( 1, 1 );
         isa_ok $s, 'Dyn::Call::Aggr';
-        dcAggrField( $s, chr DC_SIGCHAR_UCHAR, 0, 1 );
+        dcAggrField( $s, DC_SIGCHAR_UCHAR, 0, 1 );
         dcCloseAggr($s);
         dcReset($cvm);
         dcBeginCallAggr( $cvm, $s );
@@ -183,15 +183,20 @@ SKIP: {
         my $ptr = dlFindSymbol( $lib, 'C2A' );
         my $cvm = dcNewCallVM(1024);
         dcMode( $cvm, DC_CALL_C_DEFAULT );
-        dcReset($cvm);
         my $s = dcNewAggr( 1, 1 );
         isa_ok $s, 'Dyn::Call::Aggr';
-        dcAggrField( $s, chr DC_SIGCHAR_UCHAR, 0, 1 );
+        diag DC_SIGCHAR_UCHAR;
+        dcAggrField( $s, DC_SIGCHAR_UCHAR, 0, 1 );
         dcCloseAggr($s);
         dcReset($cvm);
-        dcBeginCallAggr($cvm,$s);
+        dcBeginCallAggr( $cvm, $s );
         dcArgChar( $cvm, 'm' );
-        isa_ok dcCallAggr( $cvm, $ptr, $s ), 'Dyn::pointer';
+        diag $cvm;
+        diag $ptr;
+        diag $s;
+        my $ret = Dyn::Type::Pointer->new(1);
+        diag $ret;
+        isa_ok dcCallAggr( $cvm, $ptr, $s, $ret ), 'Dyn::pointer';
         diag $s;
         dcFreeAggr($s);
     };
@@ -205,14 +210,32 @@ SKIP: {
         dcReset($cvm);
         my $s = dcNewAggr( 1, 1 );
         isa_ok $s, 'Dyn::Call::Aggr';
-        dcAggrField( $s, chr DC_SIGCHAR_UCHAR, 0, 1 );
+        dcAggrField( $s, DC_SIGCHAR_UCHAR, 0, 1 );
+        diag 'here A';
         dcCloseAggr($s);
+        diag 'here A';
         dcReset($cvm);
+        diag 'here A';
         dcArgChar( $cvm, 'm' );
-        my $idk = Dyn::Type::Struct::add_fields 'Some::Class' => [ a => bless( \[], 'Uchar' ) ];
-        my $obj = Some::Class->new( { a => 3 } );
+        diag 'here G';
+        my $idk = Dyn::Type::Struct::add_fields 'Some::Class' =>
+            [ a => DC_SIGCHAR_UCHAR ];
+        diag 'here C';
+
+        #my $obj = Some::Class->new( { a => 3 } );
+        my $obj = Dyn::Type::Pointer->new(1);
+        diag 'here D';
+        diag $obj;
+        diag 'here A';
         isa_ok dcCallAggr( $cvm, $ptr, $s, $obj ), 'Dyn::pointer';
-        is $obj->a, 110, 'struct->a is now "n"';
+        diag 'here A';
+        my $struct = $obj->cast('Some::Class');
+        diag $struct;
+
+        #use Data::Dump;
+        #ddx $struct;
+        diag ord 'n';
+        is $struct->a, 'n', 'struct->a is now "n"';
         dcFreeAggr($s);
     };
     subtest 'aggregate builder [struct arg and return]' => sub {
@@ -225,7 +248,7 @@ SKIP: {
         dcReset($cvm);
         my $s = dcNewAggr( 1, 1 );
         isa_ok $s, 'Dyn::Call::Aggr';
-        dcAggrField( $s, chr DC_SIGCHAR_UCHAR, 0, 1 );
+        dcAggrField( $s, DC_SIGCHAR_UCHAR, 0, 1 );
         dcCloseAggr($s);
         dcReset($cvm);
         dcBeginCallAggr( $cvm, $s );

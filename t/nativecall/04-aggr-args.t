@@ -98,9 +98,8 @@ die;
 #sub TakeIntStruct : Native('t/04-aggr-args') : Signature(Struct[Int] => Double)         {...}
 
 # Int related
-sub TakeIntStruct : Native('t/04-aggr-args') : Signature('({i})i')     {...}
+sub TakeIntStruct : Native('t/04-aggr-args') : Signature('({i})i')      {...}
 sub TakeIntIntStruct : Native('t/04-aggr-args') : Signature('({ii})i') {...}
-#
 is TakeIntStruct( [42] ),        1,  'passed struct with a single int';
 is TakeIntIntStruct( [ 5, 9 ] ), 14, 'passed struct with a two ints';
 done_testing;

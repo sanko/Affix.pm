@@ -29,41 +29,6 @@ typedef struct Delayed
 
 Delayed *delayed; // Not thread safe
 
-
-
-
-void DumpHex(const void* data, size_t size) {
-    char ascii[17];
-    size_t i, j;
-    ascii[16] = '\0';
-    for (i = 0; i < size; ++i) {
-        printf("%02X ", ((unsigned char*)data)[i]);
-        if (((unsigned char*)data)[i] >= ' ' && ((unsigned char*)data)[i] <= '~') {
-            ascii[i % 16] = ((unsigned char*)data)[i];
-        } else {
-            ascii[i % 16] = '.';
-        }
-        if ((i+1) % 8 == 0 || i+1 == size) {
-            printf(" ");
-            if ((i+1) % 16 == 0) {
-                printf("|  %s \n", ascii);
-            } else if (i+1 == size) {
-                ascii[(i+1) % 16] = '\0';
-                if ((i+1) % 16 <= 8) {
-                    printf(" ");
-                }
-                for (j = (i+1) % 16; j < 16; ++j) {
-                    printf("   ");
-                }
-                printf("|  %s \n", ascii);
-            }
-        }
-    }
-}
-
-
-
-
 static char * clean(char *str) {
     char *end;
     while (isspace(*str) || *str == '"' || *str == '\'')
@@ -87,7 +52,7 @@ struct sNode {
 // Function to push an item to stack
 void _push(struct sNode **top_ref, char new_data) {
   // allocate node
-  struct sNode *new_node = safemalloc(sizeof(struct sNode));
+  struct sNode *new_node = (struct sNode *)safemalloc(sizeof(struct sNode));
 new_node->data = new_data;
   if (new_node == NULL) {
     warn("Stack overflow\n");
@@ -156,7 +121,7 @@ bool isMatchingPair(char character1, char character2) {
 
 int parse_signature(pTHX_ Call * call) {
     warn("parse_signature [%d] %s", call->sig_len, call->sig);
-    char *sig_ptr= safesysmalloc(call->sig_len+1);
+    char * sig_ptr = (char *)safesysmalloc(call->sig_len+1);
     Copy(call->sig, sig_ptr, call->sig_len+1, char);
     Zero(call->sig, call->sig_len, char);
     int sig_len = call->sig_len;
@@ -165,7 +130,7 @@ int parse_signature(pTHX_ Call * call) {
     char ch;
     int i, depth = 0;
 
-    struct sNode *stack = safemalloc(sizeof(struct sNode));
+    struct sNode *stack = (struct sNode *)safemalloc(sizeof(struct sNode));
 
     for (i = 0; sig_ptr[i + 1] != '\0'; ++i) {
 
@@ -426,8 +391,11 @@ void push(pTHX_ Call *call, I32 ax) {
             }
             else called = true;
 */
+
                 DCaggr * agg;
                 agg = dcNewAggr(1024, 0);
+                dcBeginCallAggr(call->cvm, agg);
+
                 void * agg_ptr= safemalloc(0);
 
        // DCaggr *s = dcNewAggr(1, sizeof(t));
@@ -495,7 +463,7 @@ void push(pTHX_ Call *call, I32 ax) {
                     int slot = offset + field->size;
                     agg_ptr = saferealloc(agg_ptr, slot);
                     SV ** s = av_fetch(values, agg_pos, 1);
-                    void * d = (int) SvIV(*s);
+                    int d = (int) SvIV(*s);
                     agg_ptr = saferealloc(agg_ptr,agg->size + field->size);
                     CopyD(&d, agg_ptr + offset,field->size, void);
                     agg->size+=field->size;
@@ -609,9 +577,9 @@ SV *retval(pTHX_ Call *call) {
     case DC_SIGCHAR_DOUBLE:
         return newSVnv((double)dcCallDouble(call->cvm, call->fptr));
     case DC_SIGCHAR_POINTER:
-		return newSVpv(dcCallPointer(call->cvm, call->fptr), 0);
+        return sv_setref_pv(newSV(0), "Dyn::pointer", dcCallPointer(call->cvm, call->fptr));
     case DC_SIGCHAR_STRING:
-        return newSVpv(dcCallPointer(call->cvm, call->fptr), 0);
+        return newSVpv((const char *) dcCallPointer(call->cvm, call->fptr), 0);
     case DC_SIGCHAR_AGGREGATE: /* TODO: dyncall structs/union/array aren't ready upstream yet*/
         warn(
             "dyncall aggregate types (structs/union/array) aren't ready upstream yet at %s line %d",
@@ -691,7 +659,7 @@ CODE:
 void
 call_Dyn(...)
 PPCODE:
-    Call * call = XSANY.any_ptr;
+    Call * call = (Call *) XSANY.any_ptr;
 	 warn("here at %s line %d", __FILE__, __LINE__);
     _call_
 	 warn("here at %s line %d", __FILE__, __LINE__);

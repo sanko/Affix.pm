@@ -399,7 +399,14 @@ sub process_xs {
     my $c_file  = catfile( $tempdir, "$file_base.c" );
     require ExtUtils::ParseXS;
     mkpath( $tempdir, $opt{verbose}, oct '755' );
-    ExtUtils::ParseXS::process_file( filename => $source, prototypes => 1, output => $c_file );
+    ExtUtils::ParseXS::process_file(
+        prototypes  => 1,
+        linenumbers => 1,
+        'C++'       => 0,
+        filename    => $source,
+        prototypes  => 1,
+        output      => $c_file
+    );
     my $version = $opt{meta}->version;
     require ExtUtils::CBuilder;
     my $builder = ExtUtils::CBuilder->new( config => ( $opt{config}->values_set ) );

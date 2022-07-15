@@ -32,7 +32,7 @@ void unroll_aggregate(void *ptr, DCaggr *ag, SV *obj) {
             // Compute address of member_b
             b = (int *)(base + offset);
 
-            warn(".a == %c", (unsigned char)b);
+            //warn(".a == %c", (unsigned char)b);
             // av_store(obj, i,newSVuv((unsigned char) b));
             break;
         default:
@@ -181,47 +181,7 @@ DCpointer
 dcCallPointer(DCCallVM * vm, DCpointer funcptr);
 
 DCpointer
-dcCallAggr(DCCallVM * vm, DCpointer funcptr, DCaggr * ag, SV * obj = sv_newmortal());
-PREINIT:
-    dXSI32;
-CODE:
-     //aggr_ptr struct_rep;
-    void * struct_rep = safecalloc(ag->size, sizeof(char));
-    warn ("ag->size == %d --- items == %d", ag->size, items);
-    RETVAL = dcCallAggr(vm, funcptr, ag, struct_rep);
-    warn ("hi lllll");
-    if (items == 4){
-    if(!sv_derived_from(ST(3), "Dyn::Type::Struct"))
-        croak("obj is not of type Dyn::Type::Struct");
-    if (!(SvROK(obj) && SvTYPE(SvRV(obj)) == SVt_PVAV))
-        croak("invalid instance method invocant: no array ref supplied");
-    SV ** ptr = av_fetch((AV*)SvRV(obj), ix, 1);
-
-
-
-
-
-    if (obj != NULL)
-            warn ("hi ppjmkl");
-
-    if (sv_isobject(obj) )    warn ("hi yyyyyy");
-
-    if (sv_derived_from(obj, "Dyn::Type::Struct") )   warn ("hi ,.,omkl");
-
-
-    if ((obj != NULL) && sv_isobject(obj) && sv_derived_from(obj, "Dyn::Type::Struct"))
-      unroll_aggregate(struct_rep, ag, obj);
-    }
-  else
-    warn ("trouble! ppppppp");
-
-        if (struct_rep != NULL)
-
-    Safefree(struct_rep);
-    else
-        warn ("trouble! ooooooo");
-OUTPUT:
-    RETVAL
+dcCallAggr(DCCallVM* vm, DCpointer funcptr, DCaggr* ag, DCpointer ret);
 
 const char *
 dcCallString(DCCallVM * vm, DCpointer funcptr);
@@ -272,7 +232,7 @@ CODE:
     sv_setsv(ST(0), sv);
 
 void
-dcAggrField( DCaggr * ag, DCsigchar type, DCint offset, DCsize arrayLength, ... )
+dcAggrField( DCaggr * ag, DCchar type, DCint offset, DCsize arrayLength, ... )
 
 void
 dcCloseAggr( DCaggr * ag )
@@ -319,13 +279,172 @@ CODE:
 
 =cut
 
+MODULE = Dyn::Call   PACKAGE = Dyn::Type::Pointer
+
+BOOT:
+    set_isa("Dyn::Type::Pointer",  "Dyn::pointer");
+
+void
+new(char * package, size_t size = 0)
+PPCODE:
+    DCpointer * RETVAL;
+    Newx(RETVAL, size, DCpointer);
+    {
+        SV * RETVALSV;
+        RETVALSV = sv_newmortal();
+        sv_setref_pv(RETVALSV, package, (void*)RETVAL);
+        ST(0) = RETVALSV;
+    }
+    XSRETURN(1);
+
+
+SV *
+cast(DCpointer * obj, char * pkg)
+PREINIT:
+    dMY_CXT;
+CODE:
+    warn("Tick");
+
+
+
+    /*DCpointer *  pointer;
+
+  // Dyn::Call | DCCallVM * | DCCallVMPtr
+  if (sv_derived_from(ST(0), "Dyn::pointer")){
+    IV tmp = SvIV((SV*)SvRV(ST(0)));
+    vm = INT2PTR(DCpointer *, tmp);
+  }
+  else
+    croak("obj is not of type Dyn::pointer");*/
+
+    DumpHex(obj, sizeof(obj));
+
+    SV** classinfo_ref = hv_fetch(MY_CXT.structs, pkg, strlen(pkg), 0);
+    warn("Tick");
+
+    HV * action;
+    if (classinfo_ref && SvOK(*classinfo_ref))
+        action  = (HV*) SvRV(*classinfo_ref);
+    else
+        croak("Attempt to cast a pointer to %s which is undefined", pkg);
+
+
+    warn("Tick");
+    SV ** fields_ref = hv_fetchs(action, "types", 0);
+
+    AV * fields;
+    if (fields_ref && SvOK(*fields_ref)) {
+        fields = (AV*) SvRV(*fields_ref);
+    }
+    else
+        croak("Attempt to cast a pointer to %s which is undefined", pkg);
+
+    warn("Tick");
+
+
+        warn("Tick fdasfdsa");
+        AV * ref = newAV();
+
+        int offset= 0;
+    for (int i = 0; i < av_count(fields); i++) {
+            warn("Tick lllklkokoljk");
+
+        void * holder;
+        SV ** field = av_fetch(fields, i, 0);
+        char    type = (char)*SvPV_nolen(*field);
+
+
+    warn("Tick safdafdfdsafds");
+
+        switch(type) {
+            case DC_SIGCHAR_UCHAR:{
+                warn("Tick reeeeee");
+
+                                warn("Tick ssssss");
+
+                char * holder = (char *) safemalloc(1);
+                                warn("Tick rrrrrrr (%d, %p, 1, char)", obj + offset, holder);
+
+                Copy(obj + offset, holder, 1, char);
+                                warn("Tick qqqq");
+
+                offset += padding_needed_for( offset, SHORTSIZE );
+                av_push(ref, newSVpv(holder, 1));
+
+                warn("---> %s", holder);
+            break;}
+            default:
+                warn("UGH!");
+            break;
+        }
+        //Copy(obj + offset, holder, size, type);
+    }
+
+    RETVAL    = sv_bless(newRV_noinc((SV*)ref), gv_stashpv(pkg, TRUE));
+
+
+    //RETVAL = newSVsv(*fields);
+    /*
+    for (size_t i = 0; i < av_count((AV*)fields); i++ )
+        warn("Tick [%d]", i);
+            warn("Tick");
+
+    RETVAL = sv_bless(newRV_noinc((SV*)ref), gv_stashpv(pkg, TRUE));
+            warn("Tick");*/
+
+
+
+    /*
+    hv_store(classinfo,      "fields", 6,           newRV_inc((SV*)avfields),  0);
+    hv_store(classinfo,      "types",  5,           newRV_inc((SV*)avtypes),   0);
+    hv_store(MY_CXT.structs, pkg,      strlen(pkg), newRV_inc((SV*)classinfo), 0);
+    //RETVAL=MY_CXT.structs;*/
+    /*
+    if(!sv_derived_from(ST(1), "Dyn::Type::Struct"))
+        croak("obj is not of type Dyn::Type::Struct");
+    if (!(SvROK(obj) && SvTYPE(SvRV(obj)) == SVt_PVAV))
+        croak("invalid instance method invocant: no array ref supplied");
+
+    //SV ** ptr = av_fetch((AV*)SvRV(obj), ix, 1);
+    if(ptr == NULL)
+        XSRETURN_UNDEF;
+    RETVAL = newSVsv(*ptr);*/
+    /*{
+        CV * cv;
+        int i = 0;
+        while(av_count(fields)) {
+            if (av_count(fields) % 2) {
+                SV * sv_type = av_shift(fields);
+                if (!sv_type)
+                    warn("NOT OKAY!");
+                else
+                    av_push(avtypes, sv_type);
+            }
+            else {
+                SV * sv_field = av_shift(fields);
+                if (!sv_field)
+                    warn("NOT OKAY!");
+                else {
+                    av_push(avfields, sv_field);
+                    cv = newXSproto_portable(form("%s::%s", pkg, SvPV_nolen(sv_field)), XS_Dyn__Type__Struct_get, file, "$");
+                    XSANY.any_i32 = i++; // Use perl's ALIAS api to pseudo-index aggr's data
+                }
+            }
+        }
+    }
+*/
+OUTPUT:
+    RETVAL
+
+# TODO: DESTROY
+
 MODULE = Dyn::Call   PACKAGE = Dyn::Call::Field
 
 void
 new(char * package, HV * args = newHV_mortal())
 PPCODE:
     DCfield * RETVAL;
-    Newx(RETVAL, 1, DCfield *);
+    Newx(RETVAL, 1, DCfield);
     SV ** val_ref = hv_fetchs(args, "offset", 0);
     if (val_ref != NULL)
         RETVAL->offset = (DCsize)SvIV(*val_ref);
@@ -401,12 +520,15 @@ OUTPUT:
 
 MODULE = Dyn::Call   PACKAGE = Dyn::Call::Aggr
 
+BOOT:
+    set_isa("Dyn::Call::Aggr",  "Dyn::pointer");
+
 void
 new(char * package, HV * args = newHV_mortal())
 PPCODE:
     // Do not mention this constructor; prefer dcNewAggr(...)
     struct DCaggr_ * RETVAL;
-    Newx(RETVAL, 1, struct DCaggr_ *);
+    Newx(RETVAL, 1, struct DCaggr_);
     SV ** val_ref = hv_fetchs(args, "size", 0);
     if (val_ref != NULL)
         RETVAL->size = (DCsize)SvIV(*val_ref);
@@ -462,6 +584,9 @@ PPCODE:
 
 MODULE = Dyn::Call   PACKAGE = Dyn::Type::Struct
 
+BOOT:
+    set_isa("Dyn::Type::Struct",  "Dyn::pointer");
+
 void
 new(const char * pkg, HV * data = newHV())
 PREINIT:
@@ -497,22 +622,11 @@ CODE:
         Perl_croak_nocontext("%s: %s must be an even sized list",
 				"Dyn::Type::Struct::add_fields",
 				"fields");
-    AV * avfields = newAV();
-    AV * avtypes  = newAV();
+    AV * avfields = newAV_mortal();
+    AV * avtypes  = newAV_mortal();
     //AV * modes  = newAV(); // Currently unused
-
-    char new_[strlen(pkg)+1];
-    strcpy(new_, pkg);
-		strcat(new_, "::new");
-    (void)newXSproto_portable(new_, XS_Dyn__Type__Struct_new, file, "$%");
-
-    {
-      char * blah[strlen(pkg)+1];
-                    strcpy(blah, pkg);
-                    strcat(blah, "::ISA");
-    AV *isa = perl_get_av(blah,1);
-    av_push(isa, newSVpv("Dyn::Type::Struct", strlen("Dyn::Type::Struct")) );
-    }
+    (void)newXSproto_portable(form("%s::new", pkg), XS_Dyn__Type__Struct_new, file, "$%");
+    set_isa(pkg,  "Dyn::Type::Struct");
     {
         CV * cv;
         int i = 0;
@@ -530,12 +644,7 @@ CODE:
                     warn("NOT OKAY!");
                 else {
                     av_push(avfields, sv_field);
-
-                    char * blah = malloc(strlen(pkg)+1);
-                    strcpy(blah, pkg);
-                    strcat(blah, "::");
-                    strcat(blah, SvPV_nolen(sv_field));
-                    cv = newXSproto_portable(blah, XS_Dyn__Type__Struct_get, file, "$");
+                    cv = newXSproto_portable(form("%s::%s", pkg, SvPV_nolen(sv_field)), XS_Dyn__Type__Struct_get, file, "$");
                     XSANY.any_i32 = i++; // Use perl's ALIAS api to pseudo-index aggr's data
                 }
             }
@@ -560,7 +669,6 @@ CLONE(...)
 CODE:
       MY_CXT_CLONE;
 
-
 BOOT:
 {
     MY_CXT_INIT;
@@ -571,77 +679,77 @@ BOOT:
 
     HV *stash = gv_stashpv("Dyn::Call", 0);
     // Supported Calling Convention Modes
-    newCONSTSUB(stash, "DC_CALL_C_DEFAULT", newSViv(DC_CALL_C_DEFAULT));
-    newCONSTSUB(stash, "DC_CALL_C_ELLIPSIS", newSViv(DC_CALL_C_ELLIPSIS));
-    newCONSTSUB(stash, "DC_CALL_C_ELLIPSIS_VARARGS", newSViv(DC_CALL_C_ELLIPSIS_VARARGS));
-    newCONSTSUB(stash, "DC_CALL_C_X86_CDECL", newSViv(DC_CALL_C_X86_CDECL));
-    newCONSTSUB(stash, "DC_CALL_C_X86_WIN32_STD", newSViv(DC_CALL_C_X86_WIN32_STD));
-    newCONSTSUB(stash, "DC_CALL_C_X86_WIN32_FAST_MS", newSViv(DC_CALL_C_X86_WIN32_FAST_MS));
-    newCONSTSUB(stash, "DC_CALL_C_X86_WIN32_FAST_GNU", newSViv(DC_CALL_C_X86_WIN32_FAST_GNU));
-    newCONSTSUB(stash, "DC_CALL_C_X86_WIN32_THIS_MS", newSViv(DC_CALL_C_X86_WIN32_THIS_MS));
-    newCONSTSUB(stash, "DC_CALL_C_X86_WIN32_THIS_GNU", newSViv(DC_CALL_C_X86_WIN32_THIS_GNU));
-    newCONSTSUB(stash, "DC_CALL_C_X64_WIN64", newSViv(DC_CALL_C_X64_WIN64));
-    newCONSTSUB(stash, "DC_CALL_C_X64_SYSV", newSViv(DC_CALL_C_X64_SYSV));
-    newCONSTSUB(stash, "DC_CALL_C_PPC32_DARWIN", newSViv(DC_CALL_C_PPC32_DARWIN));
-    newCONSTSUB(stash, "DC_CALL_C_PPC32_OSX", newSViv(DC_CALL_C_PPC32_OSX));
-    newCONSTSUB(stash, "DC_CALL_C_ARM_ARM_EABI", newSViv(DC_CALL_C_ARM_ARM_EABI));
-    newCONSTSUB(stash, "DC_CALL_C_ARM_THUMB_EABI", newSViv(DC_CALL_C_ARM_THUMB_EABI));
-    newCONSTSUB(stash, "DC_CALL_C_ARM_ARMHF", newSViv(DC_CALL_C_ARM_ARMHF));
-    newCONSTSUB(stash, "DC_CALL_C_MIPS32_EABI", newSViv(DC_CALL_C_MIPS32_EABI));
-    newCONSTSUB(stash, "DC_CALL_C_MIPS32_PSPSDK", newSViv(DC_CALL_C_MIPS32_PSPSDK));
-    newCONSTSUB(stash, "DC_CALL_C_PPC32_SYSV", newSViv(DC_CALL_C_PPC32_SYSV));
-    newCONSTSUB(stash, "DC_CALL_C_PPC32_LINUX", newSViv(DC_CALL_C_PPC32_LINUX));
-    newCONSTSUB(stash, "DC_CALL_C_ARM_ARM", newSViv(DC_CALL_C_ARM_ARM));
-    newCONSTSUB(stash, "DC_CALL_C_ARM_THUMB", newSViv(DC_CALL_C_ARM_THUMB));
-    newCONSTSUB(stash, "DC_CALL_C_MIPS32_O32", newSViv(DC_CALL_C_MIPS32_O32));
-    newCONSTSUB(stash, "DC_CALL_C_MIPS64_N32", newSViv(DC_CALL_C_MIPS64_N32));
-    newCONSTSUB(stash, "DC_CALL_C_MIPS64_N64", newSViv(DC_CALL_C_MIPS64_N64));
-    newCONSTSUB(stash, "DC_CALL_C_X86_PLAN9", newSViv(DC_CALL_C_X86_PLAN9));
-    newCONSTSUB(stash, "DC_CALL_C_SPARC32", newSViv(DC_CALL_C_SPARC32));
-    newCONSTSUB(stash, "DC_CALL_C_SPARC64", newSViv(DC_CALL_C_SPARC64));
-    newCONSTSUB(stash, "DC_CALL_C_ARM64", newSViv(DC_CALL_C_ARM64));
-    newCONSTSUB(stash, "DC_CALL_C_PPC64", newSViv(DC_CALL_C_PPC64));
-    newCONSTSUB(stash, "DC_CALL_C_PPC64_LINUX", newSViv(DC_CALL_C_PPC64_LINUX));
-    newCONSTSUB(stash, "DC_CALL_SYS_DEFAULT", newSViv(DC_CALL_SYS_DEFAULT));
-    newCONSTSUB(stash, "DC_CALL_SYS_X86_INT80H_LINUX", newSViv(DC_CALL_SYS_X86_INT80H_LINUX));
-    newCONSTSUB(stash, "DC_CALL_SYS_X86_INT80H_BSD", newSViv(DC_CALL_SYS_X86_INT80H_BSD));
-    newCONSTSUB(stash, "DC_CALL_SYS_PPC32", newSViv(DC_CALL_SYS_PPC32));
-    newCONSTSUB(stash, "DC_CALL_SYS_PPC64", newSViv(DC_CALL_SYS_PPC64));
+    newCONSTSUB(stash, "DC_CALL_C_DEFAULT", newSVpv(form("%c",DC_CALL_C_DEFAULT), 1));
+    newCONSTSUB(stash, "DC_CALL_C_ELLIPSIS", newSVpv(form("%c",DC_CALL_C_ELLIPSIS), 1));
+    newCONSTSUB(stash, "DC_CALL_C_ELLIPSIS_VARARGS", newSVpv(form("%c",DC_CALL_C_ELLIPSIS_VARARGS), 1));
+    newCONSTSUB(stash, "DC_CALL_C_X86_CDECL", newSVpv(form("%c",DC_CALL_C_X86_CDECL), 1));
+    newCONSTSUB(stash, "DC_CALL_C_X86_WIN32_STD", newSVpv(form("%c",DC_CALL_C_X86_WIN32_STD), 1));
+    newCONSTSUB(stash, "DC_CALL_C_X86_WIN32_FAST_MS", newSVpv(form("%c",DC_CALL_C_X86_WIN32_FAST_MS), 1));
+    newCONSTSUB(stash, "DC_CALL_C_X86_WIN32_FAST_GNU", newSVpv(form("%c",DC_CALL_C_X86_WIN32_FAST_GNU), 1));
+    newCONSTSUB(stash, "DC_CALL_C_X86_WIN32_THIS_MS", newSVpv(form("%c",DC_CALL_C_X86_WIN32_THIS_MS), 1));
+    newCONSTSUB(stash, "DC_CALL_C_X86_WIN32_THIS_GNU", newSVpv(form("%c",DC_CALL_C_X86_WIN32_THIS_GNU), 1));
+    newCONSTSUB(stash, "DC_CALL_C_X64_WIN64", newSVpv(form("%c",DC_CALL_C_X64_WIN64), 1));
+    newCONSTSUB(stash, "DC_CALL_C_X64_SYSV", newSVpv(form("%c",DC_CALL_C_X64_SYSV), 1));
+    newCONSTSUB(stash, "DC_CALL_C_PPC32_DARWIN", newSVpv(form("%c",DC_CALL_C_PPC32_DARWIN), 1));
+    newCONSTSUB(stash, "DC_CALL_C_PPC32_OSX", newSVpv(form("%c",DC_CALL_C_PPC32_OSX), 1));
+    newCONSTSUB(stash, "DC_CALL_C_ARM_ARM_EABI", newSVpv(form("%c",DC_CALL_C_ARM_ARM_EABI), 1));
+    newCONSTSUB(stash, "DC_CALL_C_ARM_THUMB_EABI", newSVpv(form("%c",DC_CALL_C_ARM_THUMB_EABI), 1));
+    newCONSTSUB(stash, "DC_CALL_C_ARM_ARMHF", newSVpv(form("%c",DC_CALL_C_ARM_ARMHF), 1));
+    newCONSTSUB(stash, "DC_CALL_C_MIPS32_EABI", newSVpv(form("%c",DC_CALL_C_MIPS32_EABI), 1));
+    newCONSTSUB(stash, "DC_CALL_C_MIPS32_PSPSDK", newSVpv(form("%c",DC_CALL_C_MIPS32_PSPSDK), 1));
+    newCONSTSUB(stash, "DC_CALL_C_PPC32_SYSV", newSVpv(form("%c",DC_CALL_C_PPC32_SYSV), 1));
+    newCONSTSUB(stash, "DC_CALL_C_PPC32_LINUX", newSVpv(form("%c",DC_CALL_C_PPC32_LINUX), 1));
+    newCONSTSUB(stash, "DC_CALL_C_ARM_ARM", newSVpv(form("%c",DC_CALL_C_ARM_ARM), 1));
+    newCONSTSUB(stash, "DC_CALL_C_ARM_THUMB", newSVpv(form("%c",DC_CALL_C_ARM_THUMB), 1));
+    newCONSTSUB(stash, "DC_CALL_C_MIPS32_O32", newSVpv(form("%c",DC_CALL_C_MIPS32_O32), 1));
+    newCONSTSUB(stash, "DC_CALL_C_MIPS64_N32", newSVpv(form("%c",DC_CALL_C_MIPS64_N32), 1));
+    newCONSTSUB(stash, "DC_CALL_C_MIPS64_N64", newSVpv(form("%c",DC_CALL_C_MIPS64_N64), 1));
+    newCONSTSUB(stash, "DC_CALL_C_X86_PLAN9", newSVpv(form("%c",DC_CALL_C_X86_PLAN9), 1));
+    newCONSTSUB(stash, "DC_CALL_C_SPARC32", newSVpv(form("%c",DC_CALL_C_SPARC32), 1));
+    newCONSTSUB(stash, "DC_CALL_C_SPARC64", newSVpv(form("%c",DC_CALL_C_SPARC64), 1));
+    newCONSTSUB(stash, "DC_CALL_C_ARM64", newSVpv(form("%c",DC_CALL_C_ARM64), 1));
+    newCONSTSUB(stash, "DC_CALL_C_PPC64", newSVpv(form("%c",DC_CALL_C_PPC64), 1));
+    newCONSTSUB(stash, "DC_CALL_C_PPC64_LINUX", newSVpv(form("%c",DC_CALL_C_PPC64_LINUX), 1));
+    newCONSTSUB(stash, "DC_CALL_SYS_DEFAULT", newSVpv(form("%c",DC_CALL_SYS_DEFAULT), 1));
+    newCONSTSUB(stash, "DC_CALL_SYS_X86_INT80H_LINUX", newSVpv(form("%c",DC_CALL_SYS_X86_INT80H_LINUX), 1));
+    newCONSTSUB(stash, "DC_CALL_SYS_X86_INT80H_BSD", newSVpv(form("%c",DC_CALL_SYS_X86_INT80H_BSD), 1));
+    newCONSTSUB(stash, "DC_CALL_SYS_PPC32", newSVpv(form("%c",DC_CALL_SYS_PPC32), 1));
+    newCONSTSUB(stash, "DC_CALL_SYS_PPC64", newSVpv(form("%c",DC_CALL_SYS_PPC64), 1));
 
     // Signature characters
-    newCONSTSUB(stash, "DC_SIGCHAR_VOID", newSViv(DC_SIGCHAR_VOID));
-    newCONSTSUB(stash, "DC_SIGCHAR_BOOL", newSViv(DC_SIGCHAR_BOOL));
-    newCONSTSUB(stash, "DC_SIGCHAR_CHAR", newSViv(DC_SIGCHAR_CHAR));
-    newCONSTSUB(stash, "DC_SIGCHAR_UCHAR", newSViv(DC_SIGCHAR_UCHAR));
-    newCONSTSUB(stash, "DC_SIGCHAR_SHORT", newSViv(DC_SIGCHAR_SHORT));
-    newCONSTSUB(stash, "DC_SIGCHAR_USHORT", newSViv(DC_SIGCHAR_USHORT));
-    newCONSTSUB(stash, "DC_SIGCHAR_INT", newSViv(DC_SIGCHAR_INT));
-    newCONSTSUB(stash, "DC_SIGCHAR_UINT", newSViv(DC_SIGCHAR_UINT));
-    newCONSTSUB(stash, "DC_SIGCHAR_LONG", newSViv(DC_SIGCHAR_LONG));
-    newCONSTSUB(stash, "DC_SIGCHAR_ULONG", newSViv(DC_SIGCHAR_ULONG));
-    newCONSTSUB(stash, "DC_SIGCHAR_LONGLONG", newSViv(DC_SIGCHAR_LONGLONG));
-    newCONSTSUB(stash, "DC_SIGCHAR_ULONGLONG", newSViv(DC_SIGCHAR_ULONGLONG));
-    newCONSTSUB(stash, "DC_SIGCHAR_FLOAT", newSViv(DC_SIGCHAR_FLOAT));
-    newCONSTSUB(stash, "DC_SIGCHAR_DOUBLE", newSViv(DC_SIGCHAR_DOUBLE));
-    newCONSTSUB(stash, "DC_SIGCHAR_POINTER", newSViv(DC_SIGCHAR_POINTER));
-    newCONSTSUB(stash, "DC_SIGCHAR_STRING", newSViv(DC_SIGCHAR_STRING));/* in theory same as 'p', but convenient to disambiguate */
-    newCONSTSUB(stash, "DC_SIGCHAR_AGGREGATE", newSViv(DC_SIGCHAR_AGGREGATE));
-    newCONSTSUB(stash, "DC_SIGCHAR_ENDARG", newSViv(DC_SIGCHAR_ENDARG));/* also works for end struct */
+    newCONSTSUB(stash, "DC_SIGCHAR_VOID", newSVpv(form("%c",DC_SIGCHAR_VOID), 1));
+    newCONSTSUB(stash, "DC_SIGCHAR_BOOL", newSVpv(form("%c",DC_SIGCHAR_BOOL), 1));
+    newCONSTSUB(stash, "DC_SIGCHAR_CHAR", newSVpv(form("%c",DC_SIGCHAR_CHAR), 1));
+    newCONSTSUB(stash, "DC_SIGCHAR_UCHAR", newSVpv(form("%c",DC_SIGCHAR_UCHAR), 1));
+    newCONSTSUB(stash, "DC_SIGCHAR_SHORT", newSVpv(form("%c",DC_SIGCHAR_SHORT), 1));
+    newCONSTSUB(stash, "DC_SIGCHAR_USHORT", newSVpv(form("%c",DC_SIGCHAR_USHORT), 1));
+    newCONSTSUB(stash, "DC_SIGCHAR_INT", newSVpv(form("%c",DC_SIGCHAR_INT), 1));
+    newCONSTSUB(stash, "DC_SIGCHAR_UINT", newSVpv(form("%c",DC_SIGCHAR_UINT), 1));
+    newCONSTSUB(stash, "DC_SIGCHAR_LONG", newSVpv(form("%c",DC_SIGCHAR_LONG), 1));
+    newCONSTSUB(stash, "DC_SIGCHAR_ULONG", newSVpv(form("%c",DC_SIGCHAR_ULONG), 1));
+    newCONSTSUB(stash, "DC_SIGCHAR_LONGLONG", newSVpv(form("%c",DC_SIGCHAR_LONGLONG), 1));
+    newCONSTSUB(stash, "DC_SIGCHAR_ULONGLONG", newSVpv(form("%c",DC_SIGCHAR_ULONGLONG), 1));
+    newCONSTSUB(stash, "DC_SIGCHAR_FLOAT", newSVpv(form("%c",DC_SIGCHAR_FLOAT), 1));
+    newCONSTSUB(stash, "DC_SIGCHAR_DOUBLE", newSVpv(form("%c",DC_SIGCHAR_DOUBLE), 1));
+    newCONSTSUB(stash, "DC_SIGCHAR_POINTER", newSVpv(form("%c",DC_SIGCHAR_POINTER), 1));
+    newCONSTSUB(stash, "DC_SIGCHAR_STRING", newSVpv(form("%c",DC_SIGCHAR_STRING), 1));/* in theory same as 'p', but convenient to disambiguate */
+    newCONSTSUB(stash, "DC_SIGCHAR_AGGREGATE", newSVpv(form("%c",DC_SIGCHAR_AGGREGATE), 1));
+    newCONSTSUB(stash, "DC_SIGCHAR_ENDARG", newSVpv(form("%c",DC_SIGCHAR_ENDARG), 1));/* also works for end struct */
 
     /* calling convention / mode signatures */
-    newCONSTSUB(stash, "DC_SIGCHAR_CC_PREFIX", newSViv(DC_SIGCHAR_CC_PREFIX));
-    newCONSTSUB(stash, "DC_SIGCHAR_CC_DEFAULT", newSViv(DC_SIGCHAR_CC_DEFAULT));
-    newCONSTSUB(stash, "DC_SIGCHAR_CC_ELLIPSIS", newSViv(DC_SIGCHAR_CC_ELLIPSIS));
-    newCONSTSUB(stash, "DC_SIGCHAR_CC_ELLIPSIS_VARARGS", newSViv(DC_SIGCHAR_CC_ELLIPSIS_VARARGS));
-    newCONSTSUB(stash, "DC_SIGCHAR_CC_CDECL", newSViv(DC_SIGCHAR_CC_CDECL));
-    newCONSTSUB(stash, "DC_SIGCHAR_CC_STDCALL", newSViv(DC_SIGCHAR_CC_STDCALL));
-    newCONSTSUB(stash, "DC_SIGCHAR_CC_FASTCALL_MS", newSViv(DC_SIGCHAR_CC_FASTCALL_MS));
-    newCONSTSUB(stash, "DC_SIGCHAR_CC_FASTCALL_GNU", newSViv(DC_SIGCHAR_CC_FASTCALL_GNU));
-    newCONSTSUB(stash, "DC_SIGCHAR_CC_THISCALL_MS", newSViv(DC_SIGCHAR_CC_THISCALL_MS));
-    newCONSTSUB(stash, "DC_SIGCHAR_CC_THISCALL_GNU", newSViv(DC_SIGCHAR_CC_THISCALL_GNU));
-    newCONSTSUB(stash, "DC_SIGCHAR_CC_ARM_ARM", newSViv(DC_SIGCHAR_CC_ARM_ARM));
-    newCONSTSUB(stash, "DC_SIGCHAR_CC_ARM_THUMB", newSViv(DC_SIGCHAR_CC_ARM_THUMB));
-    newCONSTSUB(stash, "DC_SIGCHAR_CC_SYSCALL", newSViv(DC_SIGCHAR_CC_SYSCALL));
+    newCONSTSUB(stash, "DC_SIGCHAR_CC_PREFIX", newSVpv(form("%c",DC_SIGCHAR_CC_PREFIX), 1));
+    newCONSTSUB(stash, "DC_SIGCHAR_CC_DEFAULT", newSVpv(form("%c",DC_SIGCHAR_CC_DEFAULT), 1));
+    newCONSTSUB(stash, "DC_SIGCHAR_CC_ELLIPSIS", newSVpv(form("%c",DC_SIGCHAR_CC_ELLIPSIS), 1));
+    newCONSTSUB(stash, "DC_SIGCHAR_CC_ELLIPSIS_VARARGS", newSVpv(form("%c",DC_SIGCHAR_CC_ELLIPSIS_VARARGS), 1));
+    newCONSTSUB(stash, "DC_SIGCHAR_CC_CDECL", newSVpv(form("%c",DC_SIGCHAR_CC_CDECL), 1));
+    newCONSTSUB(stash, "DC_SIGCHAR_CC_STDCALL", newSVpv(form("%c",DC_SIGCHAR_CC_STDCALL), 1));
+    newCONSTSUB(stash, "DC_SIGCHAR_CC_FASTCALL_MS", newSVpv(form("%c",DC_SIGCHAR_CC_FASTCALL_MS), 1));
+    newCONSTSUB(stash, "DC_SIGCHAR_CC_FASTCALL_GNU", newSVpv(form("%c",DC_SIGCHAR_CC_FASTCALL_GNU), 1));
+    newCONSTSUB(stash, "DC_SIGCHAR_CC_THISCALL_MS", newSVpv(form("%c",DC_SIGCHAR_CC_THISCALL_MS), 1));
+    newCONSTSUB(stash, "DC_SIGCHAR_CC_THISCALL_GNU", newSVpv(form("%c",DC_SIGCHAR_CC_THISCALL_GNU), 1));
+    newCONSTSUB(stash, "DC_SIGCHAR_CC_ARM_ARM", newSVpv(form("%c",DC_SIGCHAR_CC_ARM_ARM), 1));
+    newCONSTSUB(stash, "DC_SIGCHAR_CC_ARM_THUMB", newSVpv(form("%c",DC_SIGCHAR_CC_ARM_THUMB), 1));
+    newCONSTSUB(stash, "DC_SIGCHAR_CC_SYSCALL", newSVpv(form("%c",DC_SIGCHAR_CC_SYSCALL), 1));
 
     // Error codes
     newCONSTSUB(stash, "DC_ERROR_NONE", newSViv(DC_ERROR_NONE));
@@ -977,13 +1085,13 @@ PPCODE:
     AV * avtypes  = newAV();
     //AV * modes  = newAV(); // Currently unused
 
-    char * new_ = malloc(strlen(package) + 1);
+    char * new_ = (char *)safemalloc(strlen(package) + 1);
     strcpy(new_, package);
         strcat(new_, "::new");
     (void)newXSproto_portable(new_, XS_Dyn__Type__Struct_new, file, "$%");
 
     {
-      char * blah = malloc(strlen(package)+1);
+      char * blah = (char *)safemalloc(strlen(package)+1);
                     strcpy(blah, package);
                     strcat(blah, "::ISA");
     AV *isa = perl_get_av(blah,1);
@@ -1007,7 +1115,7 @@ PPCODE:
                 else {
                     av_push(avfields, sv_field);
 
-                    char * blah = malloc(strlen(package)+1);
+                    char * blah = (char *)safemalloc(strlen(package)+1);
                     strcpy(blah, package);
                     strcat(blah, "::");
                     strcat(blah, SvPV_nolen(sv_field));
@@ -1022,7 +1130,7 @@ PPCODE:
     hv_store(classinfo,      "fields", 6,           newRV_inc((SV*)avfields),  0);
     hv_store(classinfo,      "types",  5,           newRV_inc((SV*)avtypes),   0);
     hv_store(MY_CXT.structs, package,  strlen(package), newRV_inc((SV*)classinfo), 0);
-    SV * RETVAL;
+    HV * RETVAL;
     RETVAL=MY_CXT.structs;
     }
     /*
