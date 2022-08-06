@@ -120,6 +120,7 @@ SKIP: {
             local $TODO = 'Some platforms do rel2abs and some do not';
             my $___lib = ' ' x 1024;
             my $_abs_  = File::Spec->rel2abs($lib_file);
+            warn $lib;
             is dlGetLibraryPath( $lib, $___lib, length $___lib ), length($_abs_) + 1,
                 'dlGetLibraryPath(...)';
             is $___lib, $_abs_, '  $sOut is correct';
@@ -143,7 +144,7 @@ SKIP: {
     };
     subtest 'Dyn synopsis' => sub {
         use Dyn qw[:all];    # Exports nothing by default
-        my $lib = dlLoadLibrary($lib_file);
+        $lib = dlLoadLibrary($lib_file);
         my $ptr = dlFindSymbol( $lib, 'add_i' );
         my $cvm = dcNewCallVM(1024);
         dcMode( $cvm, DC_CALL_C_DEFAULT );
@@ -151,8 +152,11 @@ SKIP: {
         dcArgInt( $cvm, 5 );
         dcArgInt( $cvm, 6 );
         is dcCallInt( $cvm, $ptr ), 11, 'Dyn synopsis';    #  '5 + 6 == 11';
+        warn;
     };
+    warn;
     subtest 'const char * b2Z(bool)' => sub {
+        use Dyn qw[:all];                                  # Exports nothing by default
         my $ptr = dlFindSymbol( $lib, 'b2Z' );
         my $cvm = dcNewCallVM(1024);
         dcMode( $cvm, DC_CALL_C_DEFAULT );
@@ -210,8 +214,8 @@ SKIP: {
     };
     subtest 'int ii2i(int, int)' => sub {
         my $ptr = dlFindSymbol( $lib, 'ii2i' );
-        isa_ok $ptr, 'Dyn::pointer';
-        diag 'TODO: FindSymbol should return something other than Dyn::pointer';
+        isa_ok $ptr, 'Dyn::Call::Pointer';
+        diag 'TODO: FindSymbol should return something other than Dyn::Call::Pointer';
         my $cvm = dcNewCallVM(1024);
         isa_ok $cvm, 'Dyn::Call';
         dcMode( $cvm, DC_CALL_C_DEFAULT );
@@ -338,7 +342,7 @@ SKIP: {
             dcMode( $cvm, DC_CALL_C_DEFAULT );
             dcReset($cvm);
             $person = dcCallPointer( $cvm, $ptr );
-            isa_ok $person, 'Dyn::pointer';
+            isa_ok $person, 'Dyn::Call::Pointer';
             diag 'TODO: I need to handle classes';
             dcFree($cvm);
         };
@@ -389,18 +393,18 @@ SKIP: {
         can_ok __PACKAGE__, @{ $Dyn::Call::EXPORT_TAGS{vars} };
 
         # Testing known values
-        is DC_CALL_C_DEFAULT,            chr 0,   'DC_CALL_C_DEFAULT == 0';
-        is DC_CALL_C_ELLIPSIS,           chr 100, 'DC_CALL_C_ELLIPSIS == 100';
-        is DC_CALL_C_ELLIPSIS_VARARGS,   chr 101, 'DC_CALL_C_ELLIPSIS_VARARGS == 101';
-        is DC_CALL_C_X86_CDECL,          chr 1,   'DC_CALL_C_X86_CDECL == 1';
-        is DC_CALL_C_X86_WIN32_STD,      chr 2,   'DC_CALL_C_X86_WIN32_STD == 2';
-        is DC_CALL_C_X86_WIN32_FAST_MS,  chr 3,   'DC_CALL_C_X86_WIN32_FAST_MS == 3';
-        is DC_CALL_C_X86_WIN32_FAST_GNU, chr 4,   'DC_CALL_C_X86_WIN32_FAST_GNU == 4';
-        is DC_CALL_C_X86_WIN32_THIS_MS,  chr 5,   'DC_CALL_C_X86_WIN32_THIS_MS == 5';
-        is DC_CALL_C_X86_WIN32_THIS_GNU, chr 1,   'DC_CALL_C_X86_WIN32_THIS_GNU == 1';
-        is DC_CALL_C_X64_WIN64,          chr 7,   'DC_CALL_C_X64_WIN64 == 7';
-        is DC_CALL_C_X64_SYSV,           chr 8,   'DC_CALL_C_X64_SYSV == 8';
-        is DC_CALL_C_PPC32_DARWIN,       chr 9,   'DC_CALL_C_PPC32_DARWIN == 9';
+        is DC_CALL_C_DEFAULT,            0,   'DC_CALL_C_DEFAULT == 0';
+        is DC_CALL_C_ELLIPSIS,           100, 'DC_CALL_C_ELLIPSIS == 100';
+        is DC_CALL_C_ELLIPSIS_VARARGS,   101, 'DC_CALL_C_ELLIPSIS_VARARGS == 101';
+        is DC_CALL_C_X86_CDECL,          1,   'DC_CALL_C_X86_CDECL == 1';
+        is DC_CALL_C_X86_WIN32_STD,      2,   'DC_CALL_C_X86_WIN32_STD == 2';
+        is DC_CALL_C_X86_WIN32_FAST_MS,  3,   'DC_CALL_C_X86_WIN32_FAST_MS == 3';
+        is DC_CALL_C_X86_WIN32_FAST_GNU, 4,   'DC_CALL_C_X86_WIN32_FAST_GNU == 4';
+        is DC_CALL_C_X86_WIN32_THIS_MS,  5,   'DC_CALL_C_X86_WIN32_THIS_MS == 5';
+        is DC_CALL_C_X86_WIN32_THIS_GNU, 1,   'DC_CALL_C_X86_WIN32_THIS_GNU == 1';
+        is DC_CALL_C_X64_WIN64,          7,   'DC_CALL_C_X64_WIN64 == 7';
+        is DC_CALL_C_X64_SYSV,           8,   'DC_CALL_C_X64_SYSV == 8';
+        is DC_CALL_C_PPC32_DARWIN,       9,   'DC_CALL_C_PPC32_DARWIN == 9';
 
         # Testing known aliases
         is DC_CALL_C_X86_WIN32_THIS_GNU, DC_CALL_C_X86_CDECL,  'DC_CALL_C_X86_WIN32_THIS_GNU alias';

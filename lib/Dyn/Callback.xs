@@ -57,6 +57,13 @@ static char callback_handler(DCCallback * cb, DCArgs * args, DCValue * result, v
                 case DC_SIGCHAR_DOUBLE:
                     XPUSHs(newSVnv(dcbArgDouble(args))); break;
                 case DC_SIGCHAR_POINTER:
+                     XPUSHs(
+                        sv_setref_pv(
+                            newSV(0),
+                            "Dyn::Call::Pointer",
+                            dcbArgPointer(args)
+                        )
+                    ); break;
                 case DC_SIGCHAR_STRING:
                     XPUSHs(newSVpv((const char *) dcbArgPointer(args), 0) ); break;
                 case DC_SIGCHAR_AGGREGATE:
@@ -210,7 +217,7 @@ PREINIT:
     PERL_SET_CONTEXT(my_perl);
 #endif
 CODE:
-    container = (_callback *) malloc(sizeof(_callback));
+    container = (_callback *) safemalloc(sizeof(_callback));
     if (!container) // OOM
         XSRETURN_UNDEF;
     container->cvm = dcNewCallVM(1024);

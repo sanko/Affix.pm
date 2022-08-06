@@ -134,13 +134,13 @@ CODE:
         DCCallback * arg = INT2PTR(DCCallback *, tmp);
         dcArgPointer(vm, arg);
     }
-    else if (sv_derived_from(ST(1), "Dyn::pointer")){
+    else if (sv_derived_from(ST(1), "Dyn::Call::Pointer")){
         IV tmp = SvIV((SV*)SvRV(ST(1)));
         DCpointer arg = INT2PTR(DCpointer, tmp);
         dcArgPointer(vm, arg);
     }
     else
-        croak("arg is not of type Dyn::pointer");
+        croak("arg is not of type Dyn::Call::Pointer or Dyn::Callback");
 
 void
 dcArgAggr(DCCallVM * vm, DCaggr * s, void * value);
@@ -282,7 +282,7 @@ CODE:
 MODULE = Dyn::Call   PACKAGE = Dyn::Type::Pointer
 
 BOOT:
-    set_isa("Dyn::Type::Pointer",  "Dyn::pointer");
+    set_isa("Dyn::Type::Pointer",  "Dyn::Call::Pointer");
 
 void
 new(char * package, size_t size = 0)
@@ -310,12 +310,12 @@ CODE:
     /*DCpointer *  pointer;
 
   // Dyn::Call | DCCallVM * | DCCallVMPtr
-  if (sv_derived_from(ST(0), "Dyn::pointer")){
+  if (sv_derived_from(ST(0), "Dyn::Call::Pointer")){
     IV tmp = SvIV((SV*)SvRV(ST(0)));
     vm = INT2PTR(DCpointer *, tmp);
   }
   else
-    croak("obj is not of type Dyn::pointer");*/
+    croak("obj is not of type Dyn::Call::Pointer");*/
 
     DumpHex(obj, sizeof(obj));
 
@@ -518,10 +518,33 @@ CODE:
 OUTPUT:
     RETVAL
 
+MODULE = Dyn::Call  PACKAGE = Dyn::Call::Pointer
+
+void
+new(const char * package, size_t size = 1)
+PPCODE:
+    DCpointer * RETVAL;
+    Newx(RETVAL, size, DCpointer);
+    {
+        SV * RETVALSV;
+        RETVALSV = sv_newmortal();
+        sv_setref_pv(RETVALSV, package, (void*)RETVAL);
+        ST(0) = RETVALSV;
+    }
+    XSRETURN(1);
+
+void
+DESTROY(DCpointer * ptr)
+PPCODE:
+    //if (ptr != NULL) dcFree(ptr);
+
 MODULE = Dyn::Call   PACKAGE = Dyn::Call::Aggr
 
 BOOT:
-    set_isa("Dyn::Call::Aggr",  "Dyn::pointer");
+    set_isa("Dyn::Call::Aggr",  "Dyn::Call::Pointer");
+
+
+
 
 void
 new(char * package, HV * args = newHV_mortal())
@@ -585,7 +608,7 @@ PPCODE:
 MODULE = Dyn::Call   PACKAGE = Dyn::Type::Struct
 
 BOOT:
-    set_isa("Dyn::Type::Struct",  "Dyn::pointer");
+    set_isa("Dyn::Type::Struct",  "Dyn::Call::Pointer");
 
 void
 new(const char * pkg, HV * data = newHV())
@@ -679,42 +702,42 @@ BOOT:
 
     HV *stash = gv_stashpv("Dyn::Call", 0);
     // Supported Calling Convention Modes
-    newCONSTSUB(stash, "DC_CALL_C_DEFAULT", newSVpv(form("%c",DC_CALL_C_DEFAULT), 1));
-    newCONSTSUB(stash, "DC_CALL_C_ELLIPSIS", newSVpv(form("%c",DC_CALL_C_ELLIPSIS), 1));
-    newCONSTSUB(stash, "DC_CALL_C_ELLIPSIS_VARARGS", newSVpv(form("%c",DC_CALL_C_ELLIPSIS_VARARGS), 1));
-    newCONSTSUB(stash, "DC_CALL_C_X86_CDECL", newSVpv(form("%c",DC_CALL_C_X86_CDECL), 1));
-    newCONSTSUB(stash, "DC_CALL_C_X86_WIN32_STD", newSVpv(form("%c",DC_CALL_C_X86_WIN32_STD), 1));
-    newCONSTSUB(stash, "DC_CALL_C_X86_WIN32_FAST_MS", newSVpv(form("%c",DC_CALL_C_X86_WIN32_FAST_MS), 1));
-    newCONSTSUB(stash, "DC_CALL_C_X86_WIN32_FAST_GNU", newSVpv(form("%c",DC_CALL_C_X86_WIN32_FAST_GNU), 1));
-    newCONSTSUB(stash, "DC_CALL_C_X86_WIN32_THIS_MS", newSVpv(form("%c",DC_CALL_C_X86_WIN32_THIS_MS), 1));
-    newCONSTSUB(stash, "DC_CALL_C_X86_WIN32_THIS_GNU", newSVpv(form("%c",DC_CALL_C_X86_WIN32_THIS_GNU), 1));
-    newCONSTSUB(stash, "DC_CALL_C_X64_WIN64", newSVpv(form("%c",DC_CALL_C_X64_WIN64), 1));
-    newCONSTSUB(stash, "DC_CALL_C_X64_SYSV", newSVpv(form("%c",DC_CALL_C_X64_SYSV), 1));
-    newCONSTSUB(stash, "DC_CALL_C_PPC32_DARWIN", newSVpv(form("%c",DC_CALL_C_PPC32_DARWIN), 1));
-    newCONSTSUB(stash, "DC_CALL_C_PPC32_OSX", newSVpv(form("%c",DC_CALL_C_PPC32_OSX), 1));
-    newCONSTSUB(stash, "DC_CALL_C_ARM_ARM_EABI", newSVpv(form("%c",DC_CALL_C_ARM_ARM_EABI), 1));
-    newCONSTSUB(stash, "DC_CALL_C_ARM_THUMB_EABI", newSVpv(form("%c",DC_CALL_C_ARM_THUMB_EABI), 1));
-    newCONSTSUB(stash, "DC_CALL_C_ARM_ARMHF", newSVpv(form("%c",DC_CALL_C_ARM_ARMHF), 1));
-    newCONSTSUB(stash, "DC_CALL_C_MIPS32_EABI", newSVpv(form("%c",DC_CALL_C_MIPS32_EABI), 1));
-    newCONSTSUB(stash, "DC_CALL_C_MIPS32_PSPSDK", newSVpv(form("%c",DC_CALL_C_MIPS32_PSPSDK), 1));
-    newCONSTSUB(stash, "DC_CALL_C_PPC32_SYSV", newSVpv(form("%c",DC_CALL_C_PPC32_SYSV), 1));
-    newCONSTSUB(stash, "DC_CALL_C_PPC32_LINUX", newSVpv(form("%c",DC_CALL_C_PPC32_LINUX), 1));
-    newCONSTSUB(stash, "DC_CALL_C_ARM_ARM", newSVpv(form("%c",DC_CALL_C_ARM_ARM), 1));
-    newCONSTSUB(stash, "DC_CALL_C_ARM_THUMB", newSVpv(form("%c",DC_CALL_C_ARM_THUMB), 1));
-    newCONSTSUB(stash, "DC_CALL_C_MIPS32_O32", newSVpv(form("%c",DC_CALL_C_MIPS32_O32), 1));
-    newCONSTSUB(stash, "DC_CALL_C_MIPS64_N32", newSVpv(form("%c",DC_CALL_C_MIPS64_N32), 1));
-    newCONSTSUB(stash, "DC_CALL_C_MIPS64_N64", newSVpv(form("%c",DC_CALL_C_MIPS64_N64), 1));
-    newCONSTSUB(stash, "DC_CALL_C_X86_PLAN9", newSVpv(form("%c",DC_CALL_C_X86_PLAN9), 1));
-    newCONSTSUB(stash, "DC_CALL_C_SPARC32", newSVpv(form("%c",DC_CALL_C_SPARC32), 1));
-    newCONSTSUB(stash, "DC_CALL_C_SPARC64", newSVpv(form("%c",DC_CALL_C_SPARC64), 1));
-    newCONSTSUB(stash, "DC_CALL_C_ARM64", newSVpv(form("%c",DC_CALL_C_ARM64), 1));
-    newCONSTSUB(stash, "DC_CALL_C_PPC64", newSVpv(form("%c",DC_CALL_C_PPC64), 1));
-    newCONSTSUB(stash, "DC_CALL_C_PPC64_LINUX", newSVpv(form("%c",DC_CALL_C_PPC64_LINUX), 1));
-    newCONSTSUB(stash, "DC_CALL_SYS_DEFAULT", newSVpv(form("%c",DC_CALL_SYS_DEFAULT), 1));
-    newCONSTSUB(stash, "DC_CALL_SYS_X86_INT80H_LINUX", newSVpv(form("%c",DC_CALL_SYS_X86_INT80H_LINUX), 1));
-    newCONSTSUB(stash, "DC_CALL_SYS_X86_INT80H_BSD", newSVpv(form("%c",DC_CALL_SYS_X86_INT80H_BSD), 1));
-    newCONSTSUB(stash, "DC_CALL_SYS_PPC32", newSVpv(form("%c",DC_CALL_SYS_PPC32), 1));
-    newCONSTSUB(stash, "DC_CALL_SYS_PPC64", newSVpv(form("%c",DC_CALL_SYS_PPC64), 1));
+    newCONSTSUB(stash, "DC_CALL_C_DEFAULT", newSViv(DC_CALL_C_DEFAULT));
+    newCONSTSUB(stash, "DC_CALL_C_ELLIPSIS", newSViv(DC_CALL_C_ELLIPSIS));
+    newCONSTSUB(stash, "DC_CALL_C_ELLIPSIS_VARARGS", newSViv(DC_CALL_C_ELLIPSIS_VARARGS));
+    newCONSTSUB(stash, "DC_CALL_C_X86_CDECL", newSViv(DC_CALL_C_X86_CDECL));
+    newCONSTSUB(stash, "DC_CALL_C_X86_WIN32_STD", newSViv(DC_CALL_C_X86_WIN32_STD));
+    newCONSTSUB(stash, "DC_CALL_C_X86_WIN32_FAST_MS", newSViv(DC_CALL_C_X86_WIN32_FAST_MS));
+    newCONSTSUB(stash, "DC_CALL_C_X86_WIN32_FAST_GNU", newSViv(DC_CALL_C_X86_WIN32_FAST_GNU));
+    newCONSTSUB(stash, "DC_CALL_C_X86_WIN32_THIS_MS", newSViv(DC_CALL_C_X86_WIN32_THIS_MS));
+    newCONSTSUB(stash, "DC_CALL_C_X86_WIN32_THIS_GNU", newSViv(DC_CALL_C_X86_WIN32_THIS_GNU));
+    newCONSTSUB(stash, "DC_CALL_C_X64_WIN64", newSViv(DC_CALL_C_X64_WIN64));
+    newCONSTSUB(stash, "DC_CALL_C_X64_SYSV", newSViv(DC_CALL_C_X64_SYSV));
+    newCONSTSUB(stash, "DC_CALL_C_PPC32_DARWIN", newSViv(DC_CALL_C_PPC32_DARWIN));
+    newCONSTSUB(stash, "DC_CALL_C_PPC32_OSX", newSViv(DC_CALL_C_PPC32_OSX));
+    newCONSTSUB(stash, "DC_CALL_C_ARM_ARM_EABI", newSViv(DC_CALL_C_ARM_ARM_EABI));
+    newCONSTSUB(stash, "DC_CALL_C_ARM_THUMB_EABI", newSViv(DC_CALL_C_ARM_THUMB_EABI));
+    newCONSTSUB(stash, "DC_CALL_C_ARM_ARMHF", newSViv(DC_CALL_C_ARM_ARMHF));
+    newCONSTSUB(stash, "DC_CALL_C_MIPS32_EABI", newSViv(DC_CALL_C_MIPS32_EABI));
+    newCONSTSUB(stash, "DC_CALL_C_MIPS32_PSPSDK", newSViv(DC_CALL_C_MIPS32_PSPSDK));
+    newCONSTSUB(stash, "DC_CALL_C_PPC32_SYSV", newSViv(DC_CALL_C_PPC32_SYSV));
+    newCONSTSUB(stash, "DC_CALL_C_PPC32_LINUX", newSViv(DC_CALL_C_PPC32_LINUX));
+    newCONSTSUB(stash, "DC_CALL_C_ARM_ARM", newSViv(DC_CALL_C_ARM_ARM));
+    newCONSTSUB(stash, "DC_CALL_C_ARM_THUMB", newSViv(DC_CALL_C_ARM_THUMB));
+    newCONSTSUB(stash, "DC_CALL_C_MIPS32_O32", newSViv(DC_CALL_C_MIPS32_O32));
+    newCONSTSUB(stash, "DC_CALL_C_MIPS64_N32", newSViv(DC_CALL_C_MIPS64_N32));
+    newCONSTSUB(stash, "DC_CALL_C_MIPS64_N64", newSViv(DC_CALL_C_MIPS64_N64));
+    newCONSTSUB(stash, "DC_CALL_C_X86_PLAN9", newSViv(DC_CALL_C_X86_PLAN9));
+    newCONSTSUB(stash, "DC_CALL_C_SPARC32", newSViv(DC_CALL_C_SPARC32));
+    newCONSTSUB(stash, "DC_CALL_C_SPARC64", newSViv(DC_CALL_C_SPARC64));
+    newCONSTSUB(stash, "DC_CALL_C_ARM64", newSViv(DC_CALL_C_ARM64));
+    newCONSTSUB(stash, "DC_CALL_C_PPC64", newSViv(DC_CALL_C_PPC64));
+    newCONSTSUB(stash, "DC_CALL_C_PPC64_LINUX", newSViv(DC_CALL_C_PPC64_LINUX));
+    newCONSTSUB(stash, "DC_CALL_SYS_DEFAULT", newSViv(DC_CALL_SYS_DEFAULT));
+    newCONSTSUB(stash, "DC_CALL_SYS_X86_INT80H_LINUX", newSViv(DC_CALL_SYS_X86_INT80H_LINUX));
+    newCONSTSUB(stash, "DC_CALL_SYS_X86_INT80H_BSD", newSViv(DC_CALL_SYS_X86_INT80H_BSD));
+    newCONSTSUB(stash, "DC_CALL_SYS_PPC32", newSViv(DC_CALL_SYS_PPC32));
+    newCONSTSUB(stash, "DC_CALL_SYS_PPC64", newSViv(DC_CALL_SYS_PPC64));
 
     // Signature characters
     newCONSTSUB(stash, "DC_SIGCHAR_VOID", newSVpv(form("%c",DC_SIGCHAR_VOID), 1));
@@ -800,7 +823,7 @@ _alignment(AV * s)
 ALIAS:
     Dynamo::Types::_Scalar::alignment  = 0
     Dynamo::Types::Pointer::alignment  = 4
-    Dynamo::Types::Char::alignment      = 1
+    Dynamo::Types::Char::alignment     = 1
     Dynamo::Types::Int::alignment      = 4
     Dynamo::Types::Short::alignment    = 2
     Dynamo::Types::I8::alignment       = 1

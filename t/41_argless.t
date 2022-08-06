@@ -22,7 +22,7 @@ pass 'survived the call';
 is Argless(),         2, 'called argless function returning int32';
 is ArglessChar(),     2, 'called argless function returning char';
 is ArglessLongLong(), 2, 'called argless function returning long long';
-isa_ok ArglessPointer(), 'Dyn::pointer', 'called argless function returning pointer';
+isa_ok ArglessPointer(), 'Dyn::Call::Pointer', 'called argless function returning pointer';
 is ArglessUTF8String(), 'Just a string', 'called argless function returning string';
 is short(),             3,               'called long_and_complicated_name';
 

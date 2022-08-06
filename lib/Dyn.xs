@@ -2,6 +2,381 @@
 
 #define META_ATTR "ATTR_SUB"
 
+#define MY_CXT_KEY "Dyn::_guts" XS_VERSION
+
+typedef struct
+{
+    int count;
+    HV *classes;
+} my_cxt_t;
+
+START_MY_CXT
+
+
+
+#define lex_consume(s)  MY_lex_consume(aTHX_ s)
+static int MY_lex_consume(pTHX_ char *s)
+{    warn("=== %s", __FUNCTION__);
+
+  /* I want strprefix() */
+  size_t i;
+  for(i = 0; s[i]; i++) {
+    if(s[i] != PL_parser->bufptr[i])
+      return 0;
+  }
+
+  lex_read_to(PL_parser->bufptr + i);
+  return i;
+}
+
+
+#define sv_cat_c(SV, U32)  MY_sv_cat_c(aTHX_ SV, U32)
+static void MY_sv_cat_c(pTHX_ SV *sv, U32 c)
+{    warn("=== %s", __FUNCTION__);
+
+  char ds[UTF8_MAXBYTES + 1], *d;
+  d = (char *)uvchr_to_utf8((U8 *)ds, c);
+  if (d - ds > 1) {
+    sv_utf8_upgrade(sv);
+  }
+  sv_catpvn(sv, ds, d - ds);
+}
+
+
+#define MY_UNI_IDFIRST(C) isIDFIRST_uni(C)
+#define MY_UNI_IDCONT(C)  isALNUM_uni(C)
+#if PERL_VERSION_LE(5, 25, 9)
+#define MY_UNI_IDFIRST_utf8(P, Z) isIDFIRST_utf8_safe((const unsigned char *)(P), (const unsigned char *)(Z))
+#define MY_UNI_IDCONT_utf8(P, Z)  isWORDCHAR_utf8_safe((const unsigned char *)(P), (const unsigned char *)(Z))
+#else
+#define MY_UNI_IDFIRST_utf8(P, Z) isIDFIRST_utf8((const unsigned char *)(P))
+#define MY_UNI_IDCONT_utf8(P, Z)  isALNUM_utf8((const unsigned char *)(P))
+#endif
+
+
+#define lex_scan_ident(bool)  MY_lex_scan_ident(aTHX_ bool)
+static SV *MY_lex_scan_ident(pTHX_ bool allow_package)
+{
+  /* Inspired by
+   *   https://metacpan.org/release/MAUKE/Function-Parameters-2.001003/source/Parameters.xs#L351
+   */
+    warn("=== %s", __FUNCTION__);
+
+    I32 c;
+    bool at_start, at_substart;
+    SV *ret = newSVpvs("");
+    if(lex_bufutf8())
+        SvUTF8_on(ret);
+
+    at_start = at_substart = TRUE;
+
+    c = lex_peek_unichar(0);
+
+    while (c != -1) {
+        if (at_substart ? MY_UNI_IDFIRST(c) : MY_UNI_IDCONT(c)) {
+            lex_read_unichar(0);
+            sv_cat_c(ret, c);
+            at_substart = FALSE;
+            c = lex_peek_unichar(0);
+        } else if (allow_package && !at_substart && c == '\'') {
+            lex_read_unichar(0);
+            c = lex_peek_unichar(0);
+            if (!MY_UNI_IDFIRST(c)) {
+                lex_stuff_pvs("'", 0);
+                break;
+            }
+            sv_catpvs(ret, "'");
+            at_substart = TRUE;
+        } else if (allow_package && (at_start || !at_substart) && c == ':') {
+            lex_read_unichar(0);
+            if (lex_peek_unichar(0) != ':') {
+                lex_stuff_pvs(":", 0);
+                break;
+            }
+            lex_read_unichar(0);
+            c = lex_peek_unichar(0);
+            if (!MY_UNI_IDFIRST(c)) {
+                lex_stuff_pvs("::", 0);
+                break;
+            }
+            sv_catpvs(ret, "::");
+            at_substart = TRUE;
+        } else {
+            break;
+        }
+        at_start = FALSE;
+    }
+
+    if(SvCUR(ret))
+        return ret;
+
+    SvREFCNT_dec(ret);
+
+    return NULL;
+}
+
+#define lex_scan_attr()  MY_lex_scan_attr(aTHX)
+static SV *MY_lex_scan_attr(pTHX)
+{    warn("=== %s", __FUNCTION__);
+
+  I32 cr = lex_peek_unichar(0);
+
+        warn("Test [%c]", (char)cr);
+
+  lex_read_space(0);SV *ret;
+
+    switch(lex_peek_unichar(0)) {
+/*
+        case '(':{
+            ret = lex_scan_ident(0);
+            if(!ret)
+                return ret;
+            sv_cat_c(ret, lex_read_unichar(0));
+
+            int count = 1;
+            I32 c = lex_peek_unichar(0);
+            while(count && c != -1) {
+                if(c == '(')
+                    count++;
+                if(c == ')')
+                    count--;
+                if(c == '\\') {
+      /* The next char does not bump count even if it is ( or );
+       * the \\ is still captured
+       * /
+                    sv_cat_c(ret, lex_read_unichar(0));
+                    c = lex_peek_unichar(0);
+                    if(c == -1)
+                        goto unterminated;
+                }
+
+                sv_cat_c(ret, lex_read_unichar(0));
+                c = lex_peek_unichar(0);
+            }
+
+            if(c != -1)
+            return ret;
+        }
+        break;*/
+        case ':':
+            warn("Yeah!");
+            lex_read_space(0); // get rid of it
+            lex_read_unichar(0);// get rid of :
+            lex_read_space(0); // get rid of it
+
+            ret = lex_scan_ident(1);
+
+            if(!ret)
+                return ret;
+            else if(memEQ("packed", (const char *)SvPV_nolen(ret), 6)){
+                warn("attribute: %s", (const char *)SvPV_nolen(ret));
+                return
+                ret;
+                }
+            else
+                croak("Unknown struct attribute: %s", (const char *)SvPV_nolen(ret));
+            break;
+
+      default:
+        return ret;
+    }
+unterminated:
+    croak("Unterminated attribute parameter in attribute list");
+}
+
+#define lex_scan_lexvar()  MY_lex_scan_lexvar(aTHX)
+static SV *MY_lex_scan_lexvar(pTHX)
+{    warn("=== %s", __FUNCTION__);
+
+  int sigil = lex_peek_unichar(0);
+  switch(sigil) {
+    case '$':
+    case '@':
+    case '%':
+      lex_read_unichar(0);
+      break;
+
+    default:
+      croak("Expected a lexical variable");
+  }
+
+  SV *ret = lex_scan_ident(0);
+  if(!ret)
+    return NULL;
+
+  /* prepend sigil - which we know to be a single byte */
+  SvGROW(ret, SvCUR(ret) + 1);
+  Move(SvPVX(ret), SvPVX(ret) + 1, SvCUR(ret), char);
+  SvPVX(ret)[0] = sigil;
+  SvCUR(ret)++;
+
+  SvPVX(ret)[SvCUR(ret)] = 0;
+
+  return ret;
+}
+
+#define lex_scan_parenthesized()  MY_lex_scan_parenthesized(aTHX)
+static SV *MY_lex_scan_parenthesized(pTHX)
+{
+    warn("=== %s", __FUNCTION__);
+  I32 c;
+  int parencount = 0;
+  SV *ret = newSVpvs("");
+  if(lex_bufutf8())
+    SvUTF8_on(ret);
+
+  c = lex_peek_unichar(0);
+
+  while(c != -1) {
+    sv_cat_c(ret, lex_read_unichar(0));
+
+    switch(c) {
+      case '(': parencount++; break;
+      case ')': parencount--; break;
+    }
+    if(!parencount)
+      break;
+
+    c = lex_peek_unichar(0);
+  }
+
+  if(SvCUR(ret))
+    return ret;
+
+  SvREFCNT_dec(ret);
+  return NULL;
+}
+
+#define parse_lexvar()  MY_parse_lexvar(aTHX)
+static PADOFFSET MY_parse_lexvar(pTHX)
+{    warn("=== %s", __FUNCTION__);
+
+  /* TODO: Rewrite this in terms of using lex_scan_lexvar()
+  */
+  char *lexname = PL_parser->bufptr;
+
+  if(lex_read_unichar(0) != '$')
+    croak("Expected a lexical scalar at %s", lexname);
+
+  if(!isIDFIRST_uni(lex_peek_unichar(0)))
+    croak("Expected a lexical scalar at %s", lexname);
+  lex_read_unichar(0);
+  while(isIDCONT_uni(lex_peek_unichar(0)))
+    lex_read_unichar(0);
+
+  /* Forbid $_ */
+  if(PL_parser->bufptr - lexname == 2 && lexname[1] == '_')
+    croak("Can't use global $_ in \"my\"");
+
+  return pad_add_name_pvn(lexname, PL_parser->bufptr - lexname, 0, NULL, NULL);
+}
+
+
+
+#define active_keywords_hv()  MY_active_keywords_hv(aTHX)
+static HV *MY_active_keywords_hv(pTHX)
+{
+/* TODO: #ifdef MULTIPLICITY and look in PL_modglobal.
+ */
+    //warn("=== %s", __FUNCTION__);
+
+  static HV *kw = NULL;
+  if(!kw)
+    kw = newHV();
+
+  return kw;
+}
+
+static int (*next_keyword_plugin)(pTHX_ char *, STRLEN, OP **);
+
+static int my_keyword_plugin(pTHX_ char *kw, STRLEN kwlen, OP **op_ptr)
+{
+    SV *key = newSVpvf("%.*s", kwlen, kw);
+    sv_2mortal(key);
+
+    HE *he = hv_fetch_ent(active_keywords_hv(), key, 0, 0);
+    if(!he || !HeVAL(he))
+        return (*next_keyword_plugin)(aTHX_ kw, kwlen, op_ptr);
+
+    warn("=== %s( '%s', ... )", __FUNCTION__, kw);
+    lex_read_space(0);
+    if(memEQ("struct", kw, 6)) {
+        warn("STRUCT");
+
+        SV * pkg = lex_scan_ident(1);
+        SAVEFREESV(pkg);
+
+        warn("package: %s", (const char *)SvPV_nolen(pkg));
+
+  lex_read_space(0);
+
+  SV *parenstring = lex_scan_attr();
+        sv_dump(parenstring);
+
+  //lex_scan_parenthesized();
+  SAVEFREESV(parenstring);
+
+  lex_read_space(0);
+  warn("lex_peek_unichar(0) == %c", lex_peek_unichar(0));
+
+  switch(lex_peek_unichar(0)){
+        case '{': warn("block?");break;// block
+        case 'h': warn("has?"); break;
+        case 'f': warn("field?"  ); break;
+  }
+/*
+  if(lex_peek_unichar(0) != '{')
+    croak("Expected a { BLOCK }");
+*/
+
+  I32 floor_ix = start_subparse(FALSE, CVf_ANON);
+  SAVEFREESV(PL_compcv);
+  I32 save_ix = block_start(TRUE);
+
+  OP *body = parse_block(0);
+
+  SvREFCNT_inc(PL_compcv);
+  body = block_end(save_ix, body);
+
+  CV *protocv = newATTRSUB(floor_ix, NULL, NULL, NULL, body);
+  SAVEFREESV(protocv);
+
+  {
+    dSP;
+
+    ENTER;
+    SAVETMPS;
+
+    EXTEND(SP, 3);
+    PUSHMARK(SP);
+    PUSHs(pkg);
+    PUSHs(parenstring);
+    mPUSHs(newRV_noinc((SV *)cv_clone(protocv)));
+    PUTBACK;
+
+    call_sv(HeVAL(he), G_VOID);
+
+    FREETMPS;
+    LEAVE;
+  }
+
+  *op_ptr = newOP(OP_NULL, 0);
+  return KEYWORD_PLUGIN_STMT;
+
+    }
+    else if(memEQ("field", kw, 5)) {
+        warn("FIELD");
+    }
+
+}
+
+
+
+
+
+
+
+
 typedef struct Call
 {
     DLLib *lib;
@@ -48,6 +423,16 @@ struct sNode {
   struct sNode *next;
 };
 
+
+SV * struct2sv(void * ptr, DCaggr * ag) {
+    for (int i = 0; i < ag->n_fields; ++i)
+        warn("Test [%d]", i);
+}
+
+
+void * sv2struct(SV * sv, DCaggr * ag) {
+
+}
 
 // Function to push an item to stack
 void _push(struct sNode **top_ref, char new_data) {
@@ -239,7 +624,7 @@ int parse_signature(pTHX_ Call * call) {
 
         size_t len = strlen(sig_ptr);
         char buffer[len+1];
-	            warn("here at %s line %d", __FILE__, __LINE__);
+                warn("here at %s line %d", __FILE__, __LINE__);
 
                 Copy( sig_ptr+1, buffer, i, char);
 
@@ -281,7 +666,7 @@ int parse_signature(pTHX_ Call * call) {
 
   Safefree(stack);
 
-	            warn("here at %s line %d", __FILE__, __LINE__);
+                warn("here at %s line %d", __FILE__, __LINE__);
 
 
 
@@ -290,11 +675,13 @@ warn("signature now looks like: %s", call->sig);
 }
 
 void push(pTHX_ Call *call, I32 ax) {
-	 warn("here at %s line %d", __FILE__, __LINE__);
+     warn("here at %s line %d", __FILE__, __LINE__);
     const char *sig_ptr = call->sig;
     int sig_len = call->sig_len, pos = 0;
     char ch;
     for (ch = *sig_ptr; pos < sig_len; ch = *++sig_ptr,++pos ) {
+        warn("pushing #%d [%c], here at %s line %d", pos, ch, __FILE__, __LINE__);
+
         switch (ch) {
         case DC_SIGCHAR_VOID:
             // TODO: Should I pass a NULL here?
@@ -339,15 +726,19 @@ void push(pTHX_ Call *call, I32 ax) {
             dcArgDouble(call->cvm, (double)SvNV(ST(pos)));
             break;
         case DC_SIGCHAR_POINTER:
-            //warn("passing pointer at %s line %d", __FILE__, __LINE__);
-            {
+            if( SvOK(ST(pos)) ) {
+                warn("passing pointer at %s line %d", __FILE__, __LINE__);
                 IV tmp = SvIV((SV *)SvRV(ST(pos)));
-                int *arg = INT2PTR(int *, tmp);
+                intptr_t* arg = INT2PTR(intptr_t*, tmp);
                 dcArgPointer(call->cvm, arg);
+            }
+            else {
+                warn("passing NULL pointer at %s line %d", __FILE__, __LINE__);
+                dcArgPointer(call->cvm, NULL);
             }
             break;
         case DC_SIGCHAR_STRING:
-            dcArgPointer(call->cvm, SvPVutf8_nolen(ST(pos)));
+            dcArgPointer(call->cvm, SvOK(ST(pos)) ? (const char *) SvPVutf8_nolen(ST(pos)) : (const char *) NULL);
             break;
         case DC_SIGCHAR_AGGREGATE: {
             ; // empty statement before decl. [C89 vs. C99]
@@ -495,12 +886,16 @@ void push(pTHX_ Call *call, I32 ax) {
                     warn("passing pointer at %s line %d", __FILE__, __LINE__);
                     {
                         IV tmp = SvIV((SV *)SvRV(ST(pos)));
-                        int *arg = INT2PTR(int *, tmp);
+                        intptr_t * arg = INT2PTR(intptr_t*, tmp);
                         dcArgPointer(call->cvm, arg);
                     }
                     continue;
                 case DC_SIGCHAR_STRING:
-                    dcArgPointer(call->cvm, SvPVutf8_nolen(ST(pos)));
+                    if( SvOK(ST(pos)))
+                        warn("OKAY!!!!!!!!!!!!!!!");
+                    else
+                        warn("NULL!!!!!!!!!!!!!!!!!!!!!!!!!!!!");
+                    dcArgPointer(call->cvm, SvOK(ST(pos)) ? SvPVutf8_nolen(ST(pos)) : (char *) NULL);
                     continue;
                 case DC_SIGCHAR_AGGREGATE:
                     warn("gotta go deeper at %s line %d", __FILE__, __LINE__);
@@ -549,7 +944,7 @@ SV *retval(pTHX_ Call *call) {
     switch (call->ret) {
     case DC_SIGCHAR_VOID:
         dcCallVoid(call->cvm, call->fptr);
-        return NULL;
+        return &PL_sv_undef;
     case DC_SIGCHAR_BOOL:
         return boolSV(dcCallBool(call->cvm, call->fptr));
     case DC_SIGCHAR_CHAR:
@@ -577,7 +972,7 @@ SV *retval(pTHX_ Call *call) {
     case DC_SIGCHAR_DOUBLE:
         return newSVnv((double)dcCallDouble(call->cvm, call->fptr));
     case DC_SIGCHAR_POINTER:
-        return sv_setref_pv(newSV(0), "Dyn::pointer", dcCallPointer(call->cvm, call->fptr));
+        return sv_setref_pv(newSV(0), "Dyn::Call::Pointer", dcCallPointer(call->cvm, call->fptr));
     case DC_SIGCHAR_STRING:
         return newSVpv((const char *) dcCallPointer(call->cvm, call->fptr), 0);
     case DC_SIGCHAR_AGGREGATE: /* TODO: dyncall structs/union/array aren't ready upstream yet*/
@@ -594,7 +989,7 @@ SV *retval(pTHX_ Call *call) {
 // TODO: This might need to return values in arg pointers
 #define _call_                                                                                     \
     if (call != NULL) {                                                                            \
-        dcReset(call->cvm); 	                                                                    \
+        dcReset(call->cvm);                                                                         \
         push(aTHX_(Call *) call, ax);                                                               \
         /*warn("ret == %c", call->ret);*/                                                           \
         SV *ret = retval(aTHX_ call);                                                               \
@@ -613,13 +1008,14 @@ SV *retval(pTHX_ Call *call) {
 
 static Call *_load(pTHX_ DLLib *lib, const char *symbol, const char *sig) {
     if (lib == NULL) return NULL;
-    // warn("_load(..., %s, %s)", symbol, sig);
+     warn("_load(..., %s, %s)", symbol, sig);
     Call *RETVAL;
     Newx(RETVAL, 1, Call);
     RETVAL->lib = lib;
     RETVAL->cvm = dcNewCallVM(1024);
     if (RETVAL->cvm == NULL) return NULL;
     RETVAL->fptr = dlFindSymbol(RETVAL->lib, symbol);
+
     if (RETVAL->fptr == NULL) // TODO: throw warning
         return NULL;
     size_t sig_len = strlen(sig);
@@ -640,7 +1036,7 @@ static Call *_load(pTHX_ DLLib *lib, const char *symbol, const char *sig) {
 MODULE = Dyn PACKAGE = Dyn
 
 void
-test(AV * values, int lettter)
+test(AV * values, int lettter, CV * code)
 CODE:
     ;
 
@@ -660,9 +1056,9 @@ void
 call_Dyn(...)
 PPCODE:
     Call * call = (Call *) XSANY.any_ptr;
-	 warn("here at %s line %d", __FILE__, __LINE__);
+     warn("here at %s line %d", __FILE__, __LINE__);
     _call_
-	 warn("here at %s line %d", __FILE__, __LINE__);
+     warn("here at %s line %d", __FILE__, __LINE__);
 
 SV *
 wrap(lib, const char * func_name, const char * sig, ...)
@@ -673,8 +1069,12 @@ CODE:
         lib = INT2PTR(DLLib *, tmp);
     }
     else
-        lib = dlLoadLibrary( (const char *) SvPV_nolen(ST(0)) );
-
+        lib =
+#if defined(_WIN32) || defined(_WIN64)
+        dlLoadLibrary( (const char *) SvPV_nolen(ST(0)) );
+#else
+        (DLLib*)dlopen( (const char *) SvPV_nolen(ST(0)), RTLD_LAZY/* RTLD_NOW|RTLD_GLOBAL */);
+#endif
     Call * call = _load(aTHX_ lib, func_name, sig);
     CV * cv;
     STMT_START {
@@ -705,8 +1105,12 @@ CODE:
         lib = INT2PTR(DLLib *, tmp);
     }
     else
-        lib = dlLoadLibrary( (const char *)SvPV_nolen(ST(0)) );
-
+        lib =
+#if defined(_WIN32) || defined(_WIN64)
+        dlLoadLibrary( (const char *) SvPV_nolen(ST(0)) );
+#else
+        (DLLib*)dlopen( (const char *) SvPV_nolen(ST(0)), RTLD_LAZY/* RTLD_NOW|RTLD_GLOBAL */);
+#endif
     ////warn("ix == %d | items == %d", ix, items);
     if (func_name == NULL)
         func_name = symbol_name;
@@ -777,13 +1181,13 @@ PPCODE:
         Delayed * _now  = delayed;
         while (_now != NULL) {
             if (strcmp(_now->name, autoload) == 0) {
-                //warn(" signature: %s", _now->signature);
-                //warn(" name:      %s", _now->name);
-                //warn(" symbol:    %s", _now->symbol);
-                //warn(" library:   %s", _now->library);
-                //if (_now->library_version != NULL)
-                //    warn (" version:  %s", _now->library_version);
-                //warn(" package:   %s", _now->package);
+                warn(" signature: %s", _now->signature);
+                warn(" name:      %s", _now->name);
+                warn(" symbol:    %s", _now->symbol);
+                warn(" library:   %s", _now->library);
+                if (_now->library_version != NULL)
+                    warn (" version:  %s", _now->library_version);
+                warn(" package:   %s", _now->package);
                 SV * lib;
                 //if (strstr(_now->library, "{")) {
                     char eval[1024]; // idk
@@ -791,23 +1195,29 @@ PPCODE:
                         _now->package, _now->library,
                         _now->library_version
                     );
-                    //warn("eval: %s", eval);
+                    warn("eval: %s", eval);
                     lib = eval_pv( eval, FALSE ); // TODO: Cache this?
+                    warn("after eval, lib == %s", SvPV_nolen(lib));
                 //}
                 //else
                 //    lib = newSVpv(_now->library, strlen(_now->library));
                 //SV * lib = get_sv(_now->library, TRUE);
                 //warn("     => %s", (const char *) SvPV_nolen(lib));
                 char *sig, ret, met;
-				const char * lib_name = SvPV_nolen(lib);
-                DLLib * _lib = dlLoadLibrary( lib_name );
+                const char * lib_name = SvPV_nolen(lib);
+                DLLib * _lib =
+#if defined(_WIN32) || defined(_WIN64)
+                    dlLoadLibrary( lib_name );
+#else
+                    (DLLib*)dlopen( lib_name, RTLD_LAZY/* RTLD_NOW|RTLD_GLOBAL */);
+#endif
                 if (_lib == NULL) {
 #if defined(_WIN32) || defined(__WIN32__)
-				unsigned int err = GetLastError();
-				warn ("GetLastError() == %d", err);
+                unsigned int err = GetLastError();
+                warn ("GetLastError() == %d", err);
 #endif
                     croak("Failed to load %s", lib_name);
-				}
+                }
                 Call * call = _load(aTHX_ _lib, _now->symbol, _now->signature );
 
                 //warn("Z");
@@ -853,3 +1263,57 @@ BOOT:
     delayed = NULL;
 
 
+
+
+MODULE = Dyn    PACKAGE = Dyn
+
+void
+sublike(kwname, body)
+    char *kwname
+    CV   *body
+  INIT:
+    SV *key;
+    HE *he;
+  CODE:
+    warn("=== %s", __FUNCTION__);
+
+    key = newSVpvf("%s", kwname);
+    sv_2mortal(key);
+
+    he = hv_fetch_ent(active_keywords_hv(), key, 1, 0);
+    HeVAL(he) = SvREFCNT_inc(body);
+
+    /* TODO: SAVE a destructor for end of scope to remove it again
+     */
+
+
+
+HV *
+___defined_aggrs()
+PREINIT:
+    dMY_CXT;
+CODE:
+    RETVAL = newHVhv(MY_CXT.classes);
+OUTPUT:
+    RETVAL
+
+
+BOOT:
+  //wrap_keyword_plugin(&my_keyword_plugin, &next_keyword_plugin);
+
+
+    MY_CXT_INIT;
+    MY_CXT.count = 0;
+    MY_CXT.classes = newHV();
+
+
+
+MODULE = Dyn    PACKAGE = Dyn::Call::Aggregate
+
+bool
+_define_aggregate(const char * name, AV * types, bool packed = false)
+CODE:
+    warn("Hello, world!");
+    RETVAL = true;
+OUTPUT:
+    RETVAL

@@ -8,6 +8,8 @@ package Dyn 0.03 {
     use Config;
     use Sub::Util qw[subname];
     use Text::ParseWords;
+    use Attribute::Handlers;
+    no warnings 'redefine';
     use 5.030;
     use XSLoader;
     XSLoader::load( __PACKAGE__, our $VERSION );
@@ -22,7 +24,7 @@ package Dyn 0.03 {
         dc    => [@Dyn::Call::EXPORT_OK],
         dcb   => [@Dyn::Callback::EXPORT_OK],
         dl    => [@Dyn::Load::EXPORT_OK],
-        sugar => [qw[wrap MODIFY_SCALAR_ATTRIBUTES MODIFY_CODE_ATTRIBUTES AUTOLOAD]]
+        sugar => [qw[wrap MODIFY_CODE_ATTRIBUTES AUTOLOAD]]
     );
     @{ $EXPORT_TAGS{all} } = our @EXPORT_OK = map { @{ $EXPORT_TAGS{$_} } } keys %EXPORT_TAGS;
     {
@@ -49,11 +51,14 @@ package Dyn 0.03 {
     #
     sub MODIFY_CODE_ATTRIBUTES ( $package, $code, @attributes ) {
 
-        #use Data::Dump; ddx \@_;
+        #use Data::Dump;
+        #ddx \@_;
         my ( $library, $library_version, $signature, $symbol, $full_name );
         for my $attribute (@attributes) {
             if ( $attribute =~ m[^Native\s*\(\s*(.+)\s*\)\s*$] ) {
                 ( $library, $library_version ) = Text::ParseWords::parse_line( '\s*,\s*', 1, $1 );
+                warn $library;
+                warn $library_version;
                 $library_version //= 0;
             }
             elsif ( $attribute =~ m[^Symbol\s*\(\s*(['"])?\s*(.+)\s*\1\s*\)$] ) {
@@ -96,9 +101,9 @@ package Dyn 0.03 {
                 };
             }
 
-            #else {
-            #use Data::Dump;
-            #ddx [ $package, $library, $library_version, $signature//'(v)v', $symbol, $full_name ];
+           #else {
+           #use Data::Dump;
+           #ddx [ $package, $library, $library_version, $signature // '(v)v', $symbol, $full_name ];
             __install_sub( $package, $library, $library_version, $signature // '(v)v',
                 $symbol, $full_name );
 
@@ -150,6 +155,7 @@ package Dyn 0.03 {
             #warn $ENV{LD_LIBRARY_PATH};
             $_lib_cache{ $lib . chr(0) . ( $version // '' ) } = $lib;
         }
+        warn $lib;
         $_lib_cache{ $lib . chr(0) . ( $version // '' ) };
     }
     our $OS = $^O;

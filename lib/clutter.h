@@ -12,6 +12,9 @@ extern "C" {
 static PerlInterpreter *my_perl; /***    The Perl interpreter    ***/
 #endif
 
+
+
+
 #ifdef __cplusplus
 } /* extern "C" */
 #endif
@@ -20,6 +23,16 @@ static PerlInterpreter *my_perl; /***    The Perl interpreter    ***/
 #define dcFreeMem Safefree
 
 #include "ppport.h"
+
+#ifndef  aTHX_
+#  define aTHX_ aTHX,
+#endif
+
+#if defined(_WIN32) || defined(_WIN64)
+// Handle special Windows stuff
+#else
+#include <dlfcn.h>
+#endif
 
 #include <dyncall.h>
 #include <dyncall_callback.h>
@@ -122,6 +135,7 @@ typedef struct _callback
 following address will be aligned to `alignment`. */
 size_t padding_needed_for(size_t offset, size_t alignment) {
     // dTHX;
+    // warn("padding_needed_for( %d, %d );", offset, alignment);
     size_t misalignment = offset % alignment;
     if (misalignment > 0) // round to the next multiple of alignment
         return alignment - misalignment;
@@ -167,27 +181,46 @@ void export_constant(const char *name, const char *_tag, double val) {
     export_function(name, _tag);
 }
 
-void DumpHex(const void *data, size_t size) {
-    char ascii[17];
-    size_t i, j;
-    ascii[16] = '\0';
-    for (i = 0; i < size; ++i) {
-        printf("%02X ", ((unsigned char *)data)[i]);
-        if (((unsigned char *)data)[i] >= ' ' && ((unsigned char *)data)[i] <= '~') {
-            ascii[i % 16] = ((unsigned char *)data)[i];
+void DumpHex(const void *addr, size_t len) {
+    fflush(stdout);
+    int perLine = 16; // TODO: Make this accept user values
+    // Silently ignore silly per-line values.
+    if (perLine < 4 || perLine > 64) perLine = 16;
+
+    int i;
+    unsigned char buff[perLine + 1];
+    const unsigned char *pc = (const unsigned char *)addr;
+
+    // Length checks.
+    // if (len == 0) croak("ZERO LENGTH");
+
+    if (len < 0) croak("NEGATIVE LENGTH: %d", len);
+
+    for (i = 0; i < len; i++) {
+        if ((i % perLine) == 0) { // Only print previous-line ASCII buffer for
+            // lines beyond first.
+            if (i != 0) printf(" | %s\n", buff);
+            printf("#  %04x ", i); // Output the offset of current line.
         }
-        else { ascii[i % 16] = '.'; }
-        if ((i + 1) % 8 == 0 || i + 1 == size) {
-            printf(" ");
-            if ((i + 1) % 16 == 0) { printf("|  %s \n", ascii); }
-            else if (i + 1 == size) {
-                ascii[(i + 1) % 16] = '\0';
-                if ((i + 1) % 16 <= 8) { printf(" "); }
-                for (j = (i + 1) % 16; j < 16; ++j) {
-                    printf("   ");
-                }
-                printf("|  %s \n", ascii);
-            }
-        }
+
+        // Now the hex code for the specific character.
+
+        printf(" %02x", pc[i]);
+
+        // And buffer a printable ASCII character for later.
+        if ((pc[i] < 0x20) || (pc[i] > 0x7e)) // isprint() may be better.
+            buff[i % perLine] = '.';
+        else
+            buff[i % perLine] = pc[i];
+        buff[(i % perLine) + 1] = '\0';
     }
+
+    // Pad out last line if not exactly perLine characters.
+
+    while ((i % perLine) != 0) {
+        printf("   ");
+        i++;
+    }
+
+    printf(" | %s\n", buff);
 }

@@ -3,10 +3,16 @@
 MODULE = Dyn::Load PACKAGE = Dyn::Load
 
 DLLib *
-dlLoadLibrary(const char * libpath)
-INIT:
-    if (ST(0) == (SV*) &PL_sv_undef)
-        libpath = (const char *) NULL; // This still doesn't seem to work under perl
+dlLoadLibrary(const char * libpath = NULL)
+CODE:
+    RETVAL =
+#if defined(_WIN32) || defined(_WIN64)
+        dlLoadLibrary( libpath );
+#else
+        (DLLib*)dlopen( libpath, RTLD_LAZY/* RTLD_NOW|RTLD_GLOBAL */);
+#endif
+OUTPUT:
+    RETVAL
 
 void
 dlFreeLibrary(DLLib * pLib)

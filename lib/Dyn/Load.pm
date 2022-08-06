@@ -15,9 +15,16 @@ package Dyn::Load 0.03 {
     @{ $EXPORT_TAGS{all} } = our @EXPORT_OK = map { @{ $EXPORT_TAGS{$_} } } keys %EXPORT_TAGS;
 };
 1;
-__END__
+
+=pod
 
 =encoding utf-8
+
+=begin stopwords
+
+dynload sOut
+
+=end stopwords
 
 =head1 NAME
 
@@ -227,11 +234,5 @@ conditions may apply to data transmitted through this module.
 =head1 AUTHOR
 
 Sanko Robinson E<lt>sanko@cpan.orgE<gt>
-
-=begin stopwords
-
-dynload sOut
-
-=end stopwords
 
 =cut
