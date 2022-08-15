@@ -18,14 +18,14 @@ our $libfile
         '/lib/x86_64-linux-gnu/libm.so.6' :
     '/lib/libm.so.6';
 #
-sub sin_attach : Native($libfile) : Signature('(d)d') : Symbol('sin') {...}
-sub sin_ : Native($libfile) : Signature('(d)d') : Symbol('sin');
-sub sin_var : Native($libfile) : Signature('(_:d)d') : Symbol('sin');
-sub sin_ell : Native($libfile) : Signature('(_.d)d') : Symbol('sin');
-sub sin_cdecl : Native($libfile) : Signature('(_cd)d') : Symbol('sin');
-sub sin_std : Native($libfile) : Signature('(_sd)d') : Symbol('sin');
-sub sin_fc : Native($libfile) : Signature('(_fd)d') : Symbol('sin');
-sub sin_tc : Native($libfile) : Signature('(_#d)d') : Symbol('sin');
+sub sin_override : Native({$libfile}) : Signature('(d)d') : Symbol('sin') {...}
+sub sin_ : Native({$libfile}) : Signature('(d)d') : Symbol('sin');
+sub sin_var : Native({$libfile}) : Signature('(_:d)d') : Symbol('sin');
+sub sin_ell : Native({$libfile}) : Signature('(_.d)d') : Symbol('sin');
+sub sin_cdecl : Native({$libfile}) : Signature('(_cd)d') : Symbol('sin');
+sub sin_std : Native({$libfile}) : Signature('(_sd)d') : Symbol('sin');
+sub sin_fc : Native({$libfile}) : Signature('(_fd)d') : Symbol('sin');
+sub sin_tc : Native({$libfile}) : Signature('(_#d)d') : Symbol('sin');
 #
 my $sin_default  = Dyn::wrap( $libfile, 'sin', 'd)d' );
 my $sin_vararg   = Dyn::wrap( $libfile, 'sin', '_:d)d' );
@@ -47,11 +47,40 @@ my $ffi = FFI::Platypus->new( api => 1 );
 $ffi->lib($libfile);
 my $ffi_func = $ffi->function( sin => ['double'] => 'double' );
 $ffi->attach( [ sin => 'ffi_sin' ] => ['double'] => 'double' );
+
+# prime the pump
+{
+    my $sin = sin 500;
+    die 'oops' if sin_override(500) != $sin;
+    die 'oops' if sin_(500) != $sin;
+    die 'oops' if sin_var(500) != $sin;
+    die 'oops' if sin_ell(500) != $sin;
+    die 'oops' if sin_std(500) != $sin;
+    die 'oops' if sin_fc(500) != $sin;
+    die 'oops' if sin_tc(500) != $sin;
+    die 'oops' if $sin_default->(500) != $sin;
+    die 'oops' if $sin_vararg->(500) != $sin;
+    die 'oops' if $sin_ellipsis->(500) != $sin;
+    die 'oops' if $sin_cdecl->(500) != $sin;
+    die 'oops' if $sin_stdcall->(500) != $sin;
+    die 'oops' if $sin_fastcall->(500) != $sin;
+    die 'oops' if $sin_thiscall->(500) != $sin;
+    die 'oops' if _attach_sin_default(500) != $sin;
+    die 'oops' if _attach_sin_var(500) != $sin;
+    die 'oops' if _attach_sin_ellipse(500) != $sin;
+    die 'oops' if _attach_sin_cdecl(500) != $sin;
+    die 'oops' if _attach_sin_std(500) != $sin;
+    die 'oops' if _attach_sin_fc(500) != $sin;
+    die 'oops' if _attach_sin_tc(500) != $sin;
+    die 'oops' if ffi_sin(500) != $sin;
+    die 'oops' if $ffi_func->(500) != $sin;
+    die 'oops' if $ffi_func->call(500) != $sin;
+}
 #
 my $depth = 1000;
 cmpthese(
     timethese(
-        -5,
+        -10,
         {   perl => sub {
                 my $x = 0;
                 while ( $x < $depth ) { my $n = sin($x); $x++ }
@@ -83,6 +112,10 @@ cmpthese(
             attach_sin_tc => sub {
                 my $x = 0;
                 while ( $x < $depth ) { my $n = _attach_sin_tc($x); $x++ }
+            },
+            sub_sin_override => sub {
+                my $x = 0;
+                while ( $x < $depth ) { my $n = sin_override($x); $x++ }
             },
             sub_sin_default => sub {
                 my $x = 0;

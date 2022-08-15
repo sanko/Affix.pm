@@ -26,7 +26,6 @@ on 'configure' => sub {
     requires 'IO::Uncompress::Unzip';
     requires 'JSON::PP' => 2;
     requires 'Module::Build::Tiny';
-    requires 'Module::Load::Conditional';
     requires 'Net::SSLeay' => 1.49;
     requires 'Path::Tiny';
 };

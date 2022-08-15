@@ -12,9 +12,6 @@ extern "C" {
 static PerlInterpreter *my_perl; /***    The Perl interpreter    ***/
 #endif
 
-
-
-
 #ifdef __cplusplus
 } /* extern "C" */
 #endif
@@ -24,8 +21,8 @@ static PerlInterpreter *my_perl; /***    The Perl interpreter    ***/
 
 #include "ppport.h"
 
-#ifndef  aTHX_
-#  define aTHX_ aTHX,
+#ifndef aTHX_
+#define aTHX_ aTHX,
 #endif
 
 #if defined(_WIN32) || defined(_WIN64)

@@ -184,7 +184,6 @@ sub unwrap {
         'Dyn::Type::I8'     => sub { shift->value },
         'Dyn::Type::Struct' => sub {
             my $s = shift;
-            ddx $s;
             ddx {@$s};
             ...;
         }

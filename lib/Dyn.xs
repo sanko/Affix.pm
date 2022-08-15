@@ -505,7 +505,7 @@ bool isMatchingPair(char character1, char character2) {
 }
 
 int parse_signature(pTHX_ Call * call) {
-    warn("parse_signature [%d] %s", call->sig_len, call->sig);
+    //warn("parse_signature [%d] %s", call->sig_len, call->sig);
     char * sig_ptr = (char *)safesysmalloc(call->sig_len+1);
     Copy(call->sig, sig_ptr, call->sig_len+1, char);
     Zero(call->sig, call->sig_len, char);
@@ -659,28 +659,20 @@ int parse_signature(pTHX_ Call * call) {
             break;
         };
     }
-                warn("here at %s line %d", __FILE__, __LINE__);
 
 
   int ok = stack != NULL;
 
   Safefree(stack);
-
-                warn("here at %s line %d", __FILE__, __LINE__);
-
-
-
-warn("signature now looks like: %s", call->sig);
     return ok ? sig_pos: -1;
 }
 
 void push(pTHX_ Call *call, I32 ax) {
-     warn("here at %s line %d", __FILE__, __LINE__);
     const char *sig_ptr = call->sig;
     int sig_len = call->sig_len, pos = 0;
     char ch;
-    for (ch = *sig_ptr; pos < sig_len; ch = *++sig_ptr,++pos ) {
-        warn("pushing #%d [%c], here at %s line %d", pos, ch, __FILE__, __LINE__);
+    for (ch = *sig_ptr; (pos < sig_len); ch = *++sig_ptr,++pos ) {
+        //warn("pushing #%d [%c], here at %s line %d", pos, ch, __FILE__, __LINE__);
 
         switch (ch) {
         case DC_SIGCHAR_VOID:
@@ -727,15 +719,12 @@ void push(pTHX_ Call *call, I32 ax) {
             break;
         case DC_SIGCHAR_POINTER:
             if( SvOK(ST(pos)) ) {
-                warn("passing pointer at %s line %d", __FILE__, __LINE__);
                 IV tmp = SvIV((SV *)SvRV(ST(pos)));
                 intptr_t* arg = INT2PTR(intptr_t*, tmp);
                 dcArgPointer(call->cvm, arg);
             }
-            else {
-                warn("passing NULL pointer at %s line %d", __FILE__, __LINE__);
+            else
                 dcArgPointer(call->cvm, NULL);
-            }
             break;
         case DC_SIGCHAR_STRING:
             dcArgPointer(call->cvm, SvOK(ST(pos)) ? (const char *) SvPVutf8_nolen(ST(pos)) : (const char *) NULL);
@@ -939,7 +928,7 @@ void push(pTHX_ Call *call, I32 ax) {
 }
 
 SV *retval(pTHX_ Call *call) {
-     warn("Here I am! [%c] at %s line %d", call->ret, __FILE__, __LINE__);
+     //warn("Here I am! [%c] at %s line %d", call->ret, __FILE__, __LINE__);
     //  TODO: Also sort out pointers that might be return values?
     switch (call->ret) {
     case DC_SIGCHAR_VOID:
@@ -987,28 +976,15 @@ SV *retval(pTHX_ Call *call) {
 }
 
 // TODO: This might need to return values in arg pointers
-#define _call_                                                                                     \
-    if (call != NULL) {                                                                            \
-        dcReset(call->cvm);                                                                         \
-        push(aTHX_(Call *) call, ax);                                                               \
-        /*warn("ret == %c", call->ret);*/                                                           \
-        SV *ret = retval(aTHX_ call);                                                               \
-        if (ret != NULL) {                                                                          \
-            ret = sv_2mortal(ret);                                                                  \
-            ST(0) = ret;                                                                           \
-            XSRETURN(1);                                                                           \
-        }                                                                                          \
-        else                                                                                       \
-            XSRETURN_EMPTY;                                                                         \
-        /*//warn("here at %s line %d", __FILE__, __LINE__);*/                                      \
-    }                                                                                              \
-    else                                                                                           \
-        croak("Function is not attached! This is a serious bug!");                                \
-    /*//warn("here at %s line %d", __FILE__, __LINE__);*/
+#define _call_                                  \
+        dcReset(call->cvm);                     \
+        push(aTHX_(Call *) call, ax);           \
+        ST(0) = sv_2mortal(retval(aTHX_ call)); \
+        XSRETURN(1);
 
 static Call *_load(pTHX_ DLLib *lib, const char *symbol, const char *sig) {
     if (lib == NULL) return NULL;
-     warn("_load(..., %s, %s)", symbol, sig);
+    //warn("_load(..., %s, %s)", symbol, sig);
     Call *RETVAL;
     Newx(RETVAL, 1, Call);
     RETVAL->lib = lib;
@@ -1026,12 +1002,9 @@ static Call *_load(pTHX_ DLLib *lib, const char *symbol, const char *sig) {
     Newxz(RETVAL->perl_sig, sig_len, char); // Dumb
     parse_signature(aTHX_ RETVAL);
 
-    warn("Now: %s|%s|%c", RETVAL->perl_sig, RETVAL->sig, RETVAL->ret);
+    //warn("Now: %s|%s|%c", RETVAL->perl_sig, RETVAL->sig, RETVAL->ret);
     return RETVAL;
 }
-
-
-
 
 MODULE = Dyn PACKAGE = Dyn
 
@@ -1053,12 +1026,10 @@ CODE:
     Safefree(call);
 
 void
-call_Dyn(...)
+_call_Dyn(...)
 PPCODE:
     Call * call = (Call *) XSANY.any_ptr;
-     warn("here at %s line %d", __FILE__, __LINE__);
     _call_
-     warn("here at %s line %d", __FILE__, __LINE__);
 
 SV *
 wrap(lib, const char * func_name, const char * sig, ...)
@@ -1068,17 +1039,28 @@ CODE:
         IV tmp = SvIV((SV*)SvRV(ST(0)));
         lib = INT2PTR(DLLib *, tmp);
     }
-    else
+    else {
+        const char * lib_name = (const char *) SvPV_nolen(ST(0));
         lib =
 #if defined(_WIN32) || defined(_WIN64)
-        dlLoadLibrary( (const char *) SvPV_nolen(ST(0)) );
+            dlLoadLibrary( lib_name );
 #else
-        (DLLib*)dlopen( (const char *) SvPV_nolen(ST(0)), RTLD_LAZY/* RTLD_NOW|RTLD_GLOBAL */);
+            (DLLib*)dlopen( lib_name, RTLD_LAZY/* RTLD_NOW|RTLD_GLOBAL */);
 #endif
+        if (lib == NULL) {
+#if defined(_WIN32) || defined(__WIN32__)
+            unsigned int err = GetLastError();
+            croak("Failed to load %s: %d", lib_name, err);
+#else
+            char * reason = dlerror();
+            croak("Failed to load %s", reason);
+#endif
+        }
+    }
     Call * call = _load(aTHX_ lib, func_name, sig);
     CV * cv;
     STMT_START {
-        cv = newXSproto_portable(NULL, XS_Dyn_call_Dyn, (char*)__FILE__, call->perl_sig);
+        cv = newXSproto_portable(NULL, XS_Dyn__call_Dyn, (char*)__FILE__, call->perl_sig);
         if (cv == NULL)
             croak("ARG! Something went really wrong while installing a new XSUB!");
         XSANY.any_ptr = (void *) call;
@@ -1094,7 +1076,7 @@ PPCODE:
     _call_
 
 SV *
-attach(lib, const char * symbol_name, const char * sig, const char * func_name = NULL)
+attach(lib, const char * symbol_name, const char * sig, const char * func_name = symbol_name)
 PREINIT:
     Call * call;
     DLLib * lib;
@@ -1104,17 +1086,25 @@ CODE:
         IV tmp = SvIV((SV*)SvRV(ST(0)));
         lib = INT2PTR(DLLib *, tmp);
     }
-    else
+    else {
+        const char * lib_name = (const char *) SvPV_nolen(ST(0));
         lib =
 #if defined(_WIN32) || defined(_WIN64)
-        dlLoadLibrary( (const char *) SvPV_nolen(ST(0)) );
+            dlLoadLibrary( lib_name );
 #else
-        (DLLib*)dlopen( (const char *) SvPV_nolen(ST(0)), RTLD_LAZY/* RTLD_NOW|RTLD_GLOBAL */);
+            (DLLib*)dlopen( lib_name, RTLD_LAZY/* RTLD_NOW|RTLD_GLOBAL */);
+#endif
+        if (lib == NULL) {
+#if defined(_WIN32) || defined(__WIN32__)
+            unsigned int err = GetLastError();
+            croak("Failed to load %s: %d", lib_name, err);
+#else
+            char * reason = dlerror();
+            croak("Failed to load %s", reason);
 #endif
     ////warn("ix == %d | items == %d", ix, items);
-    if (func_name == NULL)
-        func_name = symbol_name;
-
+        }
+    }
     call = _load(aTHX_ lib, symbol_name, sig);
     if (call == NULL)
         croak("Failed to attach %s", symbol_name);
@@ -1123,7 +1113,7 @@ CODE:
     **/
     CV * cv;
     STMT_START {
-        cv = newXSproto_portable(func_name, XS_Dyn_call_Dyn, (char*)__FILE__, call->perl_sig);
+        cv = newXSproto_portable(func_name, XS_Dyn__call_Dyn, (char*)__FILE__, call->perl_sig);
         ////warn("N");
         if (cv == NULL)
             croak("ARG! Something went really wrong while installing a new XSUB!");
@@ -1139,6 +1129,7 @@ __install_sub( char * package, char * library, char * library_version, char * si
 PREINIT:
     Delayed * _now;
     Newx(_now, 1, Delayed);
+    //guess_library_name( eval($library), $library_version )
 CODE:
     Newx(_now->package, strlen(package) +1, char);
     memcpy((void *) _now->package, package, strlen(package)+1);
@@ -1180,31 +1171,57 @@ PPCODE:
     {   Delayed * _prev = delayed;
         Delayed * _now  = delayed;
         while (_now != NULL) {
-            if (strcmp(_now->name, autoload) == 0) {
-                warn(" signature: %s", _now->signature);
+            if ((memEQ(_now->name, autoload, strlen(_now->name)))) {
+               /* warn(" signature: %s", _now->signature);
                 warn(" name:      %s", _now->name);
                 warn(" symbol:    %s", _now->symbol);
                 warn(" library:   %s", _now->library);
-                if (_now->library_version != NULL)
-                    warn (" version:  %s", _now->library_version);
-                warn(" package:   %s", _now->package);
+                warn(" version:   %s", _now->library_version);
+                warn(" package:   %s", _now->package);/**/
                 SV * lib;
-                //if (strstr(_now->library, "{")) {
+                if (memEQs(_now->library, 1, "{")) {
+                    //warn("Value of $%s::%s is %s", _now->package, _now->library, val);
                     char eval[1024]; // idk
-                    sprintf(eval, "package %s{sub{sub{Dyn::guess_library_name(%s,%s)}}->()->();};",
+                    sprintf(eval, "package %s{sub{sub{Dyn::guess_library_name(sub%s->(), %s)}}->()->();};",
                         _now->package, _now->library,
+                        _now->library_version
+                    );
+                    //warn("eval: %s", eval);
+                    lib = eval_pv( eval, FALSE ); // TODO: Cache this?
+                    //warn("after eval, lib == %s", SvPV_nolen(lib));
+                }
+                else if (memEQs(_now->library, 1, "$")) {
+                    char * xlib = safemalloc(strlen(_now->library));
+                    Copy (_now->library+1, xlib, strlen(_now->library)-1, char);
+                    SV* var = get_sv( form("%s::%s", _now->package, xlib), GV_ADD);
+                    safefree(xlib);
+                    const char *val = SvPVutf8_nolen(var);
+                    //warn("Value of $%s::%s is %s", _now->package, _now->library, val);
+                    char eval[1024]; // idk
+                    sprintf(eval, "Dyn::guess_library_name('%s', %s);",
+                        val,
+                        _now->library_version
+                    );
+                    //warn("eval: %s", eval);
+                    lib = eval_pv( eval, FALSE ); // TODO: Cache this?
+                    //warn("after eval, lib == %s", SvPV_nolen(lib));
+                }
+                else {
+                    //lib = newSVpv(_now->library, strlen(_now->library));
+                    char eval[1024]; // idk
+                    sprintf(eval, "Dyn::guess_library_name(%s, %s);",
+                        _now->library,
                         _now->library_version
                     );
                     warn("eval: %s", eval);
                     lib = eval_pv( eval, FALSE ); // TODO: Cache this?
-                    warn("after eval, lib == %s", SvPV_nolen(lib));
-                //}
-                //else
-                //    lib = newSVpv(_now->library, strlen(_now->library));
+                    //warn("after eval, lib == %s", SvPV_nolen(lib));
+                }
                 //SV * lib = get_sv(_now->library, TRUE);
                 //warn("     => %s", (const char *) SvPV_nolen(lib));
                 char *sig, ret, met;
                 const char * lib_name = SvPV_nolen(lib);
+                //warn("lib_name == %s", lib_name);
                 DLLib * _lib =
 #if defined(_WIN32) || defined(_WIN64)
                     dlLoadLibrary( lib_name );
@@ -1214,9 +1231,11 @@ PPCODE:
                 if (_lib == NULL) {
 #if defined(_WIN32) || defined(__WIN32__)
                 unsigned int err = GetLastError();
-                warn ("GetLastError() == %d", err);
+                croak("Failed to load %s: %d", lib_name, err);
+#else
+                char * reason = dlerror();
+                croak("Failed to load %s", reason);
 #endif
-                    croak("Failed to load %s", lib_name);
                 }
                 Call * call = _load(aTHX_ _lib, _now->symbol, _now->signature );
 
@@ -1226,7 +1245,7 @@ PPCODE:
                     //warn("Y");
                     STMT_START {
                        // //warn("M");
-                        cv = newXSproto_portable(autoload, XS_Dyn_call_Dyn, (char*)__FILE__, call->perl_sig);
+                        cv = newXSproto_portable(autoload, XS_Dyn__call_Dyn, (char*)__FILE__, call->perl_sig);
                         ////warn("N");
                         if (cv == NULL)
                             croak("ARG! Something went really wrong while installing a new XSUB!");
@@ -1317,3 +1336,4 @@ CODE:
     RETVAL = true;
 OUTPUT:
     RETVAL
+

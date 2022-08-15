@@ -57,8 +57,9 @@ package Dyn 0.03 {
         for my $attribute (@attributes) {
             if ( $attribute =~ m[^Native\s*\(\s*(.+)\s*\)\s*$] ) {
                 ( $library, $library_version ) = Text::ParseWords::parse_line( '\s*,\s*', 1, $1 );
-                warn $library;
-                warn $library_version;
+
+                #warn $library;
+                #warn $library_version;
                 $library_version //= 0;
             }
             elsif ( $attribute =~ m[^Symbol\s*\(\s*(['"])?\s*(.+)\s*\1\s*\)$] ) {
@@ -113,15 +114,9 @@ package Dyn 0.03 {
     }
 
     sub _guess_library_name ( $lib = undef, $version = undef ) {
-        use Test::More;
-        diag $lib;
-        diag $version;
-        warn $lib;
-        warn $version;
         $lib // return;
         return locate_lib( $lib, $version );
         CORE::state %_lib_cache;
-
         if ( !defined $_lib_cache{ $lib . chr(0) . ( $version // '' ) } ) {
 
             #use Data::Dump;
@@ -197,7 +192,6 @@ package Dyn 0.03 {
                     },
                     @dirs
                 );
-                warn;
             }
             elsif ( $OS eq 'darwin' ) {
                 return $name . '.so'     if -f $name . '.so';
@@ -238,7 +232,6 @@ package Dyn 0.03 {
                 return $name         if -f $name;
                 my $ext = $Config{so};
                 my @libs;
-                warn;
 
                # warn $name . '.' . $ext . $version;
                #\b(?:lib)?${name}(?:-[\d\.]+)?\.${ext}${version}
@@ -254,7 +247,6 @@ package Dyn 0.03 {
                     map { $ENV{$_} // () }
                         qw[LD_LIBRARY_PATH DYLD_LIBRARY_PATH DYLD_FALLBACK_LIBRARY_PATH]
                 );
-                warn;
 
                 #use Data::Dump;
                 #ddx \@dirs;
@@ -269,12 +261,9 @@ package Dyn 0.03 {
                     },
                     @dirs
                 );
-                warn;
             }
-            warn;
             $_lib_cache->{ $name . chr(0) . ( $version // '' ) } = pop @retval;
         }
-        warn;
 
         # TODO: Make a test with a bad lib name
         $_lib_cache->{ $name . chr(0) . ( $version // '' ) }

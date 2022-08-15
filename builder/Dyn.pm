@@ -21,10 +21,11 @@ use Archive::Tar;
 use IO::File;
 use IO::Uncompress::Unzip qw($UnzipError);
 use File::stat;
-use Config;
-use Module::Load::Conditional;
 #
 my $libver;
+my $CFLAGS
+    = ' -DNDEBUG -DBOOST_DISABLE_ASSERTS -flto -O2 -ffast-math -funroll-loops -fno-align-functions -fno-align-loops';
+my $LDFLAGS = ' -flto';    # https://wiki.freebsd.org/LinkTimeOptimization
 #
 sub write_file {
     my ( $filename, $content ) = @_;
@@ -72,7 +73,10 @@ sub alien {
         my $configure
             = ( $^O eq 'MSWin32' ? '.\configure.bat /tool-gcc /prefix ' : './configure --prefix=' );
         warn($_) && system($_ )
-            for grep {defined} $configure . $pre->absolute, # . ' CFLAGS="-Ofast" LDFLAGS="-Ofast"',
+            for grep {defined}
+            $configure . $pre->absolute .
+            ' CFLAGS="-fPIC ' . ( $opt{config}->get('osname') =~ /bsd/ ? '' : $CFLAGS ) .
+            '" LDFLAGS="' .     ( $opt{config}->get('osname') =~ /bsd/ ? '' : $LDFLAGS ) . '"',
             'make V=1' .
             ( $^O eq 'MSWin32' ? ' CC=gcc VPATH=. PREFIX="' . $pre->absolute . '"' : '' ),
             'make V=1' .
@@ -98,7 +102,7 @@ sub alien {
         # https://dyncall.org/r1.2/dyncall-1.2-windows-xp-x86-r.zip
         # https://dyncall.org/r1.2/dyncall-1.2-windows-10-arm64-r.zip
         if ( $^O eq 'MSWin32' ) {    # Use prebuilt libs on Windows
-            my $x64  = $Config{ptrsize} == 8;
+            my $x64  = $opt{config}->get('ptrsize') == 8;
             my $plat = $x64 ? '64' : '86';
             my %versions;
             for my $url ( map { 'https://dyncall.org/' . $_ }
@@ -284,7 +288,7 @@ sub x_alien {
         # https://dyncall.org/r1.2/dyncall-1.2-windows-xp-x86-r.zip
         # https://dyncall.org/r1.2/dyncall-1.2-windows-10-arm64-r.zip
         if ( $^O eq 'MSWin32' ) {    # Use prebuilt libs on Windows
-            my $x64  = $Config{ptrsize} == 8;
+            my $x64  = $opt{config}->get('ptrsize') == 8;
             my $plat = $x64 ? '64' : '86';
             my %versions;
             for my $url ( map { 'https://dyncall.org/' . $_ }
@@ -381,16 +385,6 @@ sub process_xs {
     my ( $source, %opt ) = @_;
     die "Can't build xs files under --pureperl-only\n" if $opt{'pureperl-only'};
     my $DEBUG = 0;
-    my $OP    = 1;
-    if (
-        $OP &&
-        Module::Load::Conditional::can_load(
-            modules => { 'Object::Pad' => 0, 'Object::Pad::ExtensionBuilder' => 0.57 }
-        )
-    ) {
-        Object::Pad::ExtensionBuilder->write_object_pad_h;
-    }
-    else { $OP = 0 }
     warn $@ if $@;
     my ( undef, @parts ) = splitdir( dirname($source) );
     push @parts, my $file_base = basename( $source, '.xs' );
@@ -419,17 +413,15 @@ sub process_xs {
         include_dirs =>
             [ curdir, dirname($source), $pre->child( $opt{meta}->name, 'include' )->stringify ],
         extra_compiler_flags => (
-            ( $DEBUG ? '-ggdb3 ' : '' ) . $OP ?
-                '-DOBJECT_PAD ' . Object::Pad::ExtensionBuilder->extra_compiler_flags :
-                '-DNOOBJECT_PAD'
-        )    #.' -std=c99'
+            '-fPIC ' . ( $opt{config}->get('osname') =~ /bsd/ ? '' : $CFLAGS ) .
+                ( $DEBUG ? ' -ggdb3 ' : '' )
+        )
     );
     require DynaLoader;
     my $mod2fname
         = defined &DynaLoader::mod2fname ? \&DynaLoader::mod2fname : sub { return $_[0][-1] };
     mkpath( $archdir, $opt{verbose}, oct '755' ) unless -d $archdir;
     my $lib_file = catfile( $archdir, $mod2fname->( \@parts ) . '.' . $opt{config}->get('dlext') );
-    my $paths    = ExtUtils::InstallPaths->new( dist_name => 'Object::Pad' );
 
     #my $op_lib_file = catfile(
     #    $paths->install_destination('arch'),
@@ -437,11 +429,11 @@ sub process_xs {
     #'Pad' . $opt{config}->get('dlext')
     #);
     return $builder->link(
-        extra_linker_flags => [
-            '-L' . dirname($source),
-            '-L' . $pre->child( $opt{meta}->name, 'lib' )->stringify,
-            '-ldyncall_s', '-ldyncallback_s', '-ldynload_s'
-        ],
+        extra_linker_flags => (
+            ( $opt{config}->get('osname') =~ /bsd/ ? '' : $LDFLAGS ) . ' -L' .
+                dirname($source) . ' -L' . $pre->child( $opt{meta}->name, 'lib' )->stringify .
+                ' -ldyncall_s -ldyncallback_s -ldynload_s'
+        ),
         objects     => [$ob_file],
         lib_file    => $lib_file,
         module_name => join '::',
