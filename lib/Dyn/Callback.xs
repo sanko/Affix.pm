@@ -310,6 +310,7 @@ CODE:
     RETVAL = newSV(0);
     _callback * container = ((_callback*) dcbGetUserData(self));
     const char * signature = container->signature;
+    //warn("Callback sig: %s", signature);
     int done = 0;
     int i;
     dcReset(container->cvm); // Get it ready to call again
@@ -320,51 +321,75 @@ CODE:
         //if (i > items - 1) // TODO: Don't do this is signature is var_list, etc.
         //    croak("Incorrect number of arguments for callback. Expected %d but were handed %d.", i, items - 1);
         tally++;
+        //warn("Checking char: %c", signature[i - 1]);
+        //warn("DC_SIGCHAR_CHAR == %c", DC_SIGCHAR_INT);
         switch(signature[i - 1]) {
             case DC_SIGCHAR_VOID:
                 //dcArgVoid(container->cvm, self);
                 tally--;
                 break;
             case DC_SIGCHAR_BOOL:
-                dcArgBool(container->cvm, SvTRUE(ST(i))); break;
+                dcArgBool(container->cvm, SvTRUE(ST(i)));
+                break;
             case DC_SIGCHAR_CHAR:
+                dcArgChar(container->cvm, SvIOK(ST(i)) ? SvIV(ST(i)) : (char)NULL);
+                break;
             case DC_SIGCHAR_UCHAR:
-                dcArgChar(container->cvm, SvIV(ST(i)));   break;
+                dcArgChar(container->cvm, SvUOK(ST(i)) ? SvIV(ST(i)) : NULL);
+                break;
             case DC_SIGCHAR_SHORT:
+                dcArgShort(container->cvm, SvIOK(ST(i)) ? SvIV(ST(i)) : NULL);
+                break;
             case DC_SIGCHAR_USHORT:
-                dcArgShort(container->cvm, SvIV(ST(i)));   break;
+                dcArgShort(container->cvm, SvUOK(ST(i)) ? SvIV(ST(i)) : NULL);
+                break;
             case DC_SIGCHAR_INT:
+                dcArgInt(container->cvm, SvIOK(ST(i)) ? SvIV(ST(i)) : NULL);
+                break;
             case DC_SIGCHAR_UINT:
-                dcArgInt(container->cvm, SvIV(ST(i)));   break;
+                dcArgInt(container->cvm, SvUOK(ST(i)) ? SvIV(ST(i)) : NULL);
+                break;
             case DC_SIGCHAR_LONG:
+                dcArgLong(container->cvm, SvIOK(ST(i)) ? SvIV(ST(i)) : NULL);
+                break;
             case DC_SIGCHAR_ULONG:
-                dcArgLong(container->cvm, SvIV(ST(i)));   break;
+                dcArgLong(container->cvm, SvUOK(ST(i)) ? SvIV(ST(i)) : NULL);
+                break;
             case DC_SIGCHAR_LONGLONG:
+                dcArgLongLong(container->cvm, SvIOK(ST(i)) ? SvIV(ST(i)) : NULL);
+                break;
             case DC_SIGCHAR_ULONGLONG:
-                dcArgLongLong(container->cvm, SvIV(ST(i)));   break;
+                dcArgLongLong(container->cvm, SvUOK(ST(i)) ? SvIV(ST(i)) : NULL);
+                break;
             case DC_SIGCHAR_FLOAT:
-                dcArgFloat(container->cvm, SvNV(ST(i)));   break;
+                dcArgFloat(container->cvm, SvNIOK(ST(i)) ? SvNV(ST(i)) : 0.0f);
+                break;
             case DC_SIGCHAR_DOUBLE:
-                dcArgDouble(container->cvm, SvNV(ST(i)));   break;
+                dcArgDouble(container->cvm, SvNIOK(ST(i)) ? SvNV(ST(i)) : 0.0f);
+                break;
             case DC_SIGCHAR_POINTER:
-                warn("Unhandled return type [%c] at %s line %d.", container->ret_type, __FILE__, __LINE__);
+                warn("Unhandled arg type [%c] at %s line %d.", container->ret_type, __FILE__, __LINE__);
                 break;
             case DC_SIGCHAR_STRING:
                 dcArgPointer(container->cvm, SvPV_nolen(ST(i)));   break;
             case DC_SIGCHAR_AGGREGATE:
-                warn("Unhandled return type [%c] at %s line %d.", container->ret_type, __FILE__, __LINE__);
+                warn("Unhandled arg type [%c] at %s line %d.", container->ret_type, __FILE__, __LINE__);
                 break;
             case DC_SIGCHAR_ENDARG:
                 if (tally > items) // TODO: Don't do this is signature is var_list, etc.
-                    croak("Not enough arguments for callback.");
+                    croak("Not enough arguments for callback");
                 else if (tally < items)
-                    croak("Too many arguments for callback.");
+                    croak("Too many arguments for callback");
                 done++;
                 break;
+            case '(':
+                break;
+                // skip it for now
             default:
-                warn("Unhandled return type [%c] at %s line %d.", container->ret_type, __FILE__, __LINE__);
+                warn("Unhandled arg type [%c] at %s line %d.", container->ret_type, __FILE__, __LINE__);
                 break;
         }
+        //warn("Done: %s", (done? "Yes": "No"));
         if (done) break;
     }
     //warn("Return type: %c at %s line %d.", container->ret_type, __FILE__, __LINE__);

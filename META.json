@@ -45,7 +45,6 @@
             "IO::Uncompress::Unzip" : "0",
             "JSON::PP" : "2",
             "Module::Build::Tiny" : "0.035",
-            "Module::Load::Conditional" : "0",
             "Net::SSLeay" : "1.49",
             "Path::Tiny" : "0"
          }
