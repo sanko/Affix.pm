@@ -30,7 +30,7 @@
 
 #ifdef __cplusplus
 extern "C" {
-#endif
+#endif 
 
 #if defined(DC_UNIX) && defined(DC__Arch_AMD64)
 

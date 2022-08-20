@@ -149,30 +149,28 @@ DCpointer   dcbArgAggr     (DCArgs* p, DCpointer target)
 }
 
 
-/* A 16 byte struct would be sufficient for System V (because at most two of the four registers can be full). */
-/* But then it's much more complicated to copy the result to the correct registers in assembly. */
-typedef struct {
-  DClonglong r[2]; /* rax, rdx   */
-  DCdouble   x[2]; /* xmm0, xmm1 */
-} DCRetRegs_SysV;
-
 void dcbReturnAggr(DCArgs *args, DCValue *result, DCpointer ret)
 {
   int i;
   DCaggr *ag = *(args->aggrs++);
 
-  if(!ag) {
-    /* non-trivial aggr: all we can do is to provide the ptr to the output space, user has to make copy */
-    result->p = (DCpointer) args->reg_data.i[0];
-    return;
-  }
-
-  if (args->aggr_return_register >= 0) {
+  if(args->aggr_return_register >= 0) {
     DCpointer dest = (DCpointer) args->reg_data.i[args->aggr_return_register];
-    memcpy(dest, ret, ag->size);
+    if(ag)
+      memcpy(dest, ret, ag->size);
+    else {
+      /* non-trivial aggr: all we can do is to provide the ptr to the output space, user has to make copy */
+    }
     result->p = dest;
   } else {
 #if defined(DC_UNIX)
+    /* A 16 byte struct would be sufficient for System V (because at most two of the four registers can be full). */
+    /* But then it's much more complicated to copy the result to the correct registers in assembly. */
+    typedef struct {
+      DClonglong r[2]; /* rax, rdx   */
+      DCdouble   x[2]; /* xmm0, xmm1 */
+    } DCRetRegs_SysV;
+
     /* a max of 2 regs are used in this case, out of rax, rdx, xmm0 and xmm1 */
     /* space for 4 qwords is pointed to by (DCRetRegs_SysV*)result */
     DClonglong *intRegs = ((DCRetRegs_SysV*)result)->r;

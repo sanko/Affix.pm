@@ -111,7 +111,7 @@ int testNonTrivAggrArgsCallback()
 
 char cbNonTrivAggrReturnHandler(DCCallback* cb, DCArgs* args, DCValue* result, void* userdata)
 {
-  printf("reached callback\n");
+  printf("reached callback (for sig \"%s\")\n", *(const char**)userdata);
   dcbReturnAggr(args, result, NULL);    // this sets result->p to the non-triv aggr space allocated by the calling convention
   *(NonTriv*)result->p = NonTriv(1, 3); // explicit non-copy ctor and assignment operator, so not using NonTriv's statics a and b
 
@@ -119,31 +119,49 @@ char cbNonTrivAggrReturnHandler(DCCallback* cb, DCArgs* args, DCValue* result, v
 }
 
 
+// class with single vtable entry, used to get the compiler to generate a
+// method call; entry is at beginning w/o offset (see plain_c++/test_main.cc
+// about potential vtable entry offsets)
+struct Dummy { virtual NonTriv f() = 0; };
+
+
 int testNonTrivAggrReturnCallback()
 {
   int ret = 1;
 
-  {
-    DCCallback* cb;
-    DCaggr *aggrs[1] = { NULL }; // one non-triv aggr
-    cb = dcbNewCallback2(")A", &cbNonTrivAggrReturnHandler, NULL, aggrs);
+  const char *sigs[] = {
+    ")A",   // standard call
+    "_*p)A"  // thiscall w/ this-ptr arg (special retval register handling in win/x64 calling conv)
+  };
 
-    NonTriv result = ((NonTriv(*)())cb)(); // potential copy elision on construction
+
+  for(int i=0; i<sizeof(sigs)/sizeof(sigs[0]); ++i)
+  {
+    int is_method = (sigs[i][0] == '_' && sigs[i][1] == '*');
+
+    DCaggr *aggrs[1] = { NULL }; // one non-triv aggr
+    DCCallback* cb = dcbNewCallback2(sigs[i], &cbNonTrivAggrReturnHandler, sigs+i, aggrs);
+
+    DCpointer fakeClass[sizeof(Dummy)/sizeof(sizeof(DCpointer))];
+    fakeClass[0] = &cb; // write method ptr f
+
+    // potential copy elision on construction
+    NonTriv result = is_method ? ((Dummy*)&fakeClass)->f() : ((NonTriv(*)())cb)();
 
     int a = NonTriv::a-1;
     int b = NonTriv::b-1;
-    printf("successfully returned from callback 1/2\n");
+    printf("successfully returned from callback 1/2 of \"%s\"\n", sigs[i]);
     printf("retval w/ potential retval optimization and copy-init (should be %d %d for init or %d %d for copy, both allowed by C++): %d %d\n", 1, 3, a, b, result.i, result.j);
 
     ret = ((result.i == 1 && result.j == 3) || (result.i == a && result.j == b)) && ret;
 
-	// avoid copy elision on construction
-	result.i = result.j = -77;
-	result = ((NonTriv(*)())cb)(); // potential copy elision
+    // avoid copy elision on construction
+    result.i = result.j = -77;
+    result = is_method ? ((Dummy*)&fakeClass)->f() : ((NonTriv(*)())cb)(); // potential copy elision
 
     a = NonTriv::a-1;
     b = NonTriv::b-1;
-    printf("successfully returned from callback 2/2\n");
+    printf("successfully returned from callback 2/2 of \"%s\"\n", sigs[i]);
     printf("retval w/ potential retval optimization and copy-init (should be %d %d for init or %d %d for copy, both allowed by C++): %d %d\n", 1, 3, a, b, result.i, result.j);
 
     dcbFreeCallback(cb);

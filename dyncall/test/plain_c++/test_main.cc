@@ -87,11 +87,16 @@ union ValueUnion
 
 /*
  * the layout of the VTable is non-standard and it is not clear what is the initial real first method index.
- * so far it turns out that:
- * on vc/x86  : 1
- * on GCC/x86 : 2
+ * so far it turns out, *iff* dtor is defined, that:
+ * on msvc/x86  : 1
+ * on msvc/x64  : 1
+ * on gcc/x86   : 2
+ * on gcc/x64   : 2
+ * on clang/x86 : 2
+ * on clang/x64 : 2
  */
 
+// vtable offset to first func of class Value and class ValueMS, skipping dtor
 #if defined DC__C_MSVC
 #define VTBI_BASE 1
 #else
