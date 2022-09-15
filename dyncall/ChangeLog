@@ -30,16 +30,22 @@ tests:
   o callback_suite_aggrs: new test suite, like call_suite_aggrs but for callbacks
   o plain_c++: added non-trivial C++ aggregate tests
   o callback_plain_c++: new test, focusing on methods and non-trivial C++ aggregates
-  o simplifications and refactoring to share more code (especially signature
-    and case generator) across test suites
+  o simplifications and major refactoring to share more code (especially
+    signature and case generator) across test suites
+  o dynload_plain: simplified build and robustness fixes on some platforms
+buildsys:
+  o ./configure output for sun make builds: set correct C++ compiler flag var
+  o ./configure for SunOS now uses isainfo(1) to deduce native instruction set
 doc:
   o callconv section additions about aggregate-by-value passing for all platforms
   o new Linux-Std-Base-specific PPC32/SysV section, as aggregate retval handling differs from
     default SysV for such systems
   o man page changes/additions to document new aggregate interfaces
+  o added many more usage examples to man pages
   o replaced API description in manual with references to the manpages, to
     avoid duplication and keeping things in sync
-  o general clarifications and cleanup
+  o general clarifications and cleanup, adding missing definitions to man
+    pages, ...
 
 
 Version 1.3 (2021/12/17)

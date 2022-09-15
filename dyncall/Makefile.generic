@@ -37,6 +37,6 @@ show-compiler-predefs:
 	${CC} ${CFLAGS} -dM -E - < /dev/null
 show-tool-versions:
 	${CC} -v
-	${LD} -v
+	${LD} -V
 	${MAKE} -v 2>/dev/null || echo ${MAKE} ${MAKE_VERSION}
 

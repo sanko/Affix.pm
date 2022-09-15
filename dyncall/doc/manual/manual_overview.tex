@@ -148,14 +148,14 @@ call.as.sqrt TEX\textlessXET- function(funptr,x)
 
 The feature matrix below gives a brief overview of the currently supported
 platforms. Different colors are used, where a green cell indicates a supported
-platform, with both, call and callback support, but lacking aggregate (struct,
-union) support, yellow a platform that might work (but is untested) and red a
-platform that is currently unsupported. Gray cells are combinations that don't
-exist at the time of writing, or that are not taken into account.\\
+platform, with both, call and callback support, yellow a platform that might
+work (but is untested) and red a platform that is currently unsupported. Gray
+cells are combinations that don't exist at the time of writing, or that are not
+taken into account.\\
 Light green cells mark complete feature support, including passing aggregates
-(struct, union) by value. Dark green means basic support but lacking features
-(e.g. dyncall support, but not dyncallback).  Please note that a green cell
-(even a light-green one) doesn't imply that all existing calling
+(struct, union) by value. Dark green means basic support but lacking lesser
+used features (e.g. no aggregate-by-value support). Please note that a green
+cell (even a light-green one) doesn't imply that all existing calling
 conventions/features/build tools are supported for that platform (but the most
 important).
 % @@@ The rightmost column gives a brief info about calling convention support or other notes.
@@ -223,7 +223,7 @@ m88k                       &    & \marknotx  & \marknimp  & \marknotx  & \markno
 x86                        &    & \markimpl  & \markimpl  & \markimpl  & \markimpl  & \markimpl  & \markimpl  & \markimpl  & \markimpl  & \markimpl  & \markimpl  & \markimpl  & \marknotx  & \marknotx \\%& cdecl, stdcall, fastcall (MS \& GNU), thiscall (MS \& GNU), plan9 \\
 \hline
 x64                        &    & \markcmpl  & \markcmpl  & \markcmpl  & \markcmpl  & \markcmpl  & \markcmpl  & \markcmpl  & \markcmpl  & \marknimp  & \markcmpl  & \marknotx  & \marknotx  & \marknotx \\%& ms, sysv\\
-\hline%                                                                                                                      ^- @@@ check              ^- @@@ check
+\hline
 Itanium                    &    & \marknimp  & \marknimp  & \marknotx  & \marknimp  & \marknimp  & \marknimp  & \marknotx  & \marknotx  & \marknotx  & \marknotx  & \marknotx  & \marknotx  & \marknotx \\%& \\
 \hline
 SPARC                      &    & \marknotx  & \markimpl  & \marknotx  & \marknotx  & \markimpl  & \markimpl  & \marknotx  & \markimpl  & \marknimp  & \marknotx  & \marknotx  & \marknotx  & \marknotx \\%& v7, v8\\

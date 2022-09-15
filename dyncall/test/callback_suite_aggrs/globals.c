@@ -31,7 +31,10 @@
 DEF_TYPES
 #undef X
 
-#define AGGR_MISALIGN 1
+/* intentional misalignment of test aggregates (use only positive numbers);
+ * crashes/exceptions (e.g. sigbus on some platforms) when using values > 0
+ * might reveal missing aggr-by-val copies in the implementation */
+#define AGGR_MISALIGN 1 /* @@@AGGR make configurable */
 
 static double rand_d()      { return ( ( (double) rand() )  / ( (double) RAND_MAX ) ); }
 

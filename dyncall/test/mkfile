@@ -22,7 +22,7 @@ TOP		= ..
 <$TOP/buildsys/mk/prolog.mk
 
 # only C-stuff for now, b/c C++ on Plan9 is rather inexistant
-DIRS = callf plain call_suite call_suite_aggrs suite thunk malloc_wx callback_plain callback_plain_c++ callback_suite callback_suite_aggrs
-#DIRS = plain_c++ suite2 suite3 suite_floats ellipsis
+DIRS = callf plain call_suite call_suite_aggrs suite thunk malloc_wx callback_plain callback_suite callback_suite_aggrs
+#DIRS = plain_c++ callback_plain_c++ suite2 suite3 suite_floats ellipsis
 
 <$TOP/buildsys/mk/epilog.mk

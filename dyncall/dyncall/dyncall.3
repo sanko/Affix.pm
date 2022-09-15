@@ -187,9 +187,9 @@ is a pointer to the aggregate in question. Calling a function that returns an
 aggregate by value is done via two functions,
 .Fn dcBeginCallAggr ,
 which handles special cases to facilitate the implementation and
-.Sy must
+.Em must
 be called
-.Sy before
+.Em before
 pushing any arguments, and finally
 .Fn dcCallAggr
 where
@@ -201,7 +201,7 @@ points to memory large enough to hold the to be returned aggregate.
 returns a pointer to
 .Ar ret .
 .Pp
-.Sy NOTE:
+.Em NOTE :
 C++ non-trivial aggregates (check with the std::is_trivial type trait) need
 some special handling. First of all, no aggregate description is needed and
 NULL must be passed wherever a
@@ -210,10 +210,10 @@ argument is needed. Also, as
 .Nm
 is oblivious to how to do any custom/non-trivial construction or copy, and thus
 cannot do the copy of the aggregate, passed by-value, itself, the user has to
-provide such copies, where needed. E.g. when passing such an aggregate as an
-argument by-value, using
+provide such copies, manually, where needed (e.g. when passing such an
+aggregate as an argument by-value, using
 .Fn dcArgAggr ,
-in order to preserver the call's by-value semantics.
+in order to preserver the call's by-value semantics).
 .Pp
 .Fn dcArgF ,
 .Fn dcVArgF ,
@@ -238,7 +238,7 @@ For passing aggregates using
 functions, pass two varargs for each aggregate, first a pointer to DCaggr, then
 a pointer to the aggregate in question. For returning aggregates using those
 functions, pass
-.Sy two final extra
+.Em "two final extra"
 arguments, first a pointer to DCaggr describing the return value, then a
 pointer to memory large enough to hold it. An explicit call do
 .Fn dcBeginCallAggr
@@ -268,7 +268,7 @@ being the offset of the field from the beginning of the aggregate (use C's
 offsetof(3)), and
 .Ar array_len
 being the number of array elements,
-.Sy iff
+.Em iff
 the field is an array, otherwise use 1. For nested aggregates (when using
 DC_SIGCHAR_AGGREGATE as
 .Ft type ) ,
@@ -283,24 +283,164 @@ after having described all fields of an aggregate.
 Note that c99 flexible array members do not count as a field, and must be
 omitted, as passing aggregates with a flexible array member by value in C would
 also omit it.
-.Sh EXAMPLE
-Let's say, we want to make a call to the function:
-.Bd -literal -offset indent
-	double sqrt(double x); 
-.Ed
+.Sh EXAMPLES
+.Em Note :
+none of the examples below perform any error checking for simplicity of
+the example.
 .Pp
+Let's start with a simple example, making a call to the function
+.Xr sqrt 3 .
 Using the
 .Nm
 library, this function would be called as follows: 
 .Bd -literal -offset indent
-	double r;
-	DCCallVM* vm = dcNewCallVM(4096);
-	dcMode(vm, DC_CALL_C_DEFAULT);
-	dcReset(vm);
-	dcArgDouble(vm, 4.2373);
-	r = dcCallDouble(vm, (DCpointer)&sqrt);
-	dcFree(vm);
+double r;
+DCCallVM* vm = dcNewCallVM(4096);
+dcMode(vm, DC_CALL_C_DEFAULT);
+dcReset(vm);
+/* call: double sqrt(double x); */
+dcArgDouble(vm, 4.2373);
+r = dcCallDouble(vm, (DCpointer)&sqrt);
+dcFree(vm);
 .Ed
+.Pp
+Note that the
+.Sy DCCallVM
+object can be reused and shouldn't be created and freed per call, for
+performance reasons. The following examples will omit creation and freeing of
+the
+.Sy DCCallVM ,
+for simplicity.
+.Pp
+In a more complicated example, let's call
+.Xr printf 3 ,
+which requires a different initial mode, as well as a mode switch for the
+varargs part:
+.Bd -literal -offset indent
+int n_written_chars, r;
+/* initial callconv mode */
+dcMode(vm, DC_CALL_C_ELLIPSIS);
+dcReset(vm);
+/* int printf(const char * restrict format, ...); */
+dcArgPointer(vm, "my printf(%d) %s string%n");
+/* switch mode for varargs part */
+dcMode(vm, DC_CALL_C_ELLIPSIS_VARARGS);
+dcArgInt(vm, 3);
+dcArgPointer(vm, "format");
+dcArgPointer(vm, &n_written_chars);
+r = dcCallInt(vm, (DCpointer)&printf);
+.Ed
+.Pp
+.Ss C/trivial aggregates by-value
+Onto an example passing an aggregate
+.Em "by value"
+(note that this is only available on platforms where macro
+.Dv DC__Feature_AggrByVal
+is defined). E.g. passing the following
+.Sy struct S
+to
+.Fn f :
+.Bd -literal -offset indent
+struct S { char x[3]; double y; };
+void f(int, struct S);
+.Ed
+.Pp
+requires a
+.Sy DCaggr
+description of the fields/layout of
+.Sy struct S ,
+and is called as follows:
+.Bd -literal -offset indent
+struct S s = { { 56, -23, 0 }, -6.28 };
+
+DCaggr *a = dcNewAggr(2, sizeof(struct S));
+dcAggrField(a, DC_SIGCHAR_CHAR,   offsetof(struct S, x), 3);
+dcAggrField(a, DC_SIGCHAR_DOUBLE, offsetof(struct S, y), 1);
+dcCloseAggr(a);
+
+dcMode(vm, DC_CALL_C_DEFAULT);
+dcArgInt(vm, 999);
+dcArgAggr(vm, a, &s);
+
+dcCallVoid(vm, (DCpointer)&f);
+
+dcFreeAggr(a);
+.Ed
+.Pp
+Let's look at an example returning
+.Em "by value"
+the above
+.Sy struct S
+from function:
+.Bd -literal -offset indent
+struct S g(int, short);
+.Ed
+.Pp
+Omitting creation of the
+.Sy DCaggr
+.Ar *a
+description, for simplicity:
+.Bd -literal -offset indent
+struct S s;
+
+dcMode(vm, DC_CALL_C_DEFAULT);
+
+/* needed when returning aggrs by value, *before* pushing args */
+dcBeginCallAggr(vm, a);
+
+dcArgInt(vm, 9);
+dcArgShort(vm, 7);
+
+dcCallAggr(vm, (DCpointer)&g, a, &s);
+.Ed
+.Ss C++
+In our next example, let's look at calling a simple C++ method, with the method
+declaration being:
+.Bd -literal -offset indent
+virtual void Klass::Method(float, int);
+.Ed
+.Pp
+To keep the example simple, let's assume we have a pointer to this virtual
+method in var
+.Ar mptr
+(e.g. grabbed from the instance's vtable), and a pointer to the instance in var
+.Ar thisptr :
+.Bd -literal -offset indent
+/* thiscall calling convention */
+dcMode(vm, DC_CALL_C_DEFAULT_THIS);
+dcReset(vm);
+/* C++ methods use this-ptr as first/hidden argument */
+dcArgPointer(vm, thisptr);
+dcArgFloat(vm, 2.3f);
+dcArgInt(vm, -19);
+dcCallVoid(vm, (DCpointer)mptr);
+.Ed
+.Pp
+Extending the last example to a vararg method would need some more
+.Xr dcMode 3
+calls. E.g.:
+.Bd -literal -offset indent
+virtual void Klass::Method(float, int, ...);
+.Ed
+.Pp
+would be called as follows:
+.Bd -literal -offset indent
+/* thiscall calling convention (to pass this-ptr) */
+dcMode(vm, DC_CALL_C_DEFAULT_THIS);
+dcReset(vm);
+/* C++ methods use this-ptr as first/hidden argument */
+dcArgPointer(vm, thisptr);
+/* fixed part of arguments */
+dcMode(vm, DC_CALL_C_ELLIPSIS);
+dcArgFloat(vm, 2.3f);
+dcArgInt(vm, -19);
+/* variable part of arguments */
+dcMode(vm, DC_CALL_C_ELLIPSIS_VARARGS);
+dcArgInt(vm, 7);
+dcArgDouble(vm, 7.99);
+dcCallVoid(vm, (DCpointer)mptr);
+.Ed
+.Pp
 .Sh CONFORMING TO
 The dyncall library needs at least a c99 compiler with additional support for
 anonymous structs/unions (which were introduced officially in c11). Given that

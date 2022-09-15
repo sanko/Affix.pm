@@ -140,7 +140,7 @@ public:
   virtual DCpointer  __cdecl getPtr()                  { return mValue.p; }
 
   /* ellipsis test w/ this ptr */
-  virtual int        __cdecl sum3Ints(DCint x, ...)    { va_list va; va_start(va,x); x += va_arg(va,int) + va_arg(va,int); va_end(va); return x; }
+  virtual int        __cdecl sum3Ints(DCint x, ...)    { va_list va; va_start(va,x); x += va_arg(va,int); x += va_arg(va,int); va_end(va); return x; }
 
 private:
   ValueUnion mValue;
@@ -253,8 +253,8 @@ bool testCallValue(DCCallVM* pc, const char* name)
   /* ellipsis test w/ this pointer */
 
   dcReset(pc);
-  dcMode(pc, DC_CALL_C_ELLIPSIS);
   dcArgPointer(pc, pThis);
+  dcMode(pc, DC_CALL_C_ELLIPSIS);
   dcArgInt(pc, 23);
   dcMode(pc, DC_CALL_C_ELLIPSIS_VARARGS);
   dcArgInt(pc, -223);
@@ -498,7 +498,7 @@ int main(int argc, char* argv[])
   r = testCallThisAggr() && r;
 #endif
 
-  printf("result: plain_cpp: %d\n", r);
+  printf("result: plain_c++: %d\n", r);
 
   dcTest_deInitPlatform();
 

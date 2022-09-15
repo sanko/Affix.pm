@@ -130,7 +130,7 @@ int testNonTrivAggrReturnCallback()
   int ret = 1;
 
   const char *sigs[] = {
-    ")A",   // standard call
+    ")A",    // standard call
     "_*p)A"  // thiscall w/ this-ptr arg (special retval register handling in win/x64 calling conv)
   };
 
@@ -142,8 +142,9 @@ int testNonTrivAggrReturnCallback()
     DCaggr *aggrs[1] = { NULL }; // one non-triv aggr
     DCCallback* cb = dcbNewCallback2(sigs[i], &cbNonTrivAggrReturnHandler, sigs+i, aggrs);
 
-    DCpointer fakeClass[sizeof(Dummy)/sizeof(sizeof(DCpointer))];
-    fakeClass[0] = &cb; // write method ptr f
+    DCpointer fakeClass[sizeof(Dummy)/sizeof(DCpointer)];
+    for(int j=0; j<sizeof(Dummy)/sizeof(DCpointer); ++j)
+    	fakeClass[j] = &cb; // hack: write method ptr f over entire vtable to be sure
 
     // potential copy elision on construction
     NonTriv result = is_method ? ((Dummy*)&fakeClass)->f() : ((NonTriv(*)())cb)();
