@@ -1,206 +1,5 @@
 #include "lib/clutter.h"
 
-static char callback_handler(DCCallback * cb, DCArgs * args, DCValue * result, void * userdata) {
-    dTHX;
-#ifdef USE_ITHREADS
-    PERL_SET_CONTEXT(my_perl);
-#endif
-    char ret_type;
-    {
-    dSP;
-    int count;
-
-    _callback * container = ((_callback*) userdata);
-    //int * ud = (int*) container->userdata;
-
-    SV * cb_sv = container->cb;
-
-    ENTER;
-    SAVETMPS;
-    //warn("here at %s line %d.", __FILE__, __LINE__);
-    PUSHMARK(SP);
-    {   const char * signature = container->signature;
-        //warn("signature == %s at %s line %d.", container->signature, __FILE__, __LINE__);
-        int done, okay;
-        int i;
-        //warn("signature: %s at %s line %d.", signature, __FILE__, __LINE__);
-        for (i = 0; signature[i+1] != '\0'; ++i ) {
-            done = okay = 0;
-            //warn("here at %s line %d.", __FILE__, __LINE__);
-            //warn("signature[%d] == %c at %s line %d.", i, signature[i], __FILE__, __LINE__);
-            switch (signature[i]) {
-                case DC_SIGCHAR_VOID:
-                    //warn("Unhandled callback argument '%c' at %s line %d.", signature[i], __FILE__, __LINE__);
-                    break;
-                case DC_SIGCHAR_BOOL:
-                    XPUSHs(newSViv(dcbArgBool(args))); break;
-                case DC_SIGCHAR_CHAR:
-                case DC_SIGCHAR_UCHAR:
-                    XPUSHs(newSViv(dcbArgChar(args))); break;
-                case DC_SIGCHAR_SHORT:
-                case DC_SIGCHAR_USHORT:
-                    XPUSHs(newSViv(dcbArgShort(args))); break;
-                case DC_SIGCHAR_INT:
-                    XPUSHs(newSViv(dcbArgInt(args))); break;
-                case DC_SIGCHAR_UINT:
-                    XPUSHs(newSVuv(dcbArgInt(args))); break;
-                case DC_SIGCHAR_LONG:
-                    XPUSHs(newSVnv(dcbArgLong(args))); break;
-                case DC_SIGCHAR_ULONG:
-                    XPUSHs(newSVuv(dcbArgLong(args))); break;
-                case DC_SIGCHAR_LONGLONG:
-                    XPUSHs(newSVnv(dcbArgLongLong(args))); break;
-                case DC_SIGCHAR_ULONGLONG:
-                    XPUSHs(newSVuv(dcbArgLongLong(args))); break;
-                case DC_SIGCHAR_FLOAT:
-                    XPUSHs(newSVnv(dcbArgFloat(args))); break;
-                case DC_SIGCHAR_DOUBLE:
-                    XPUSHs(newSVnv(dcbArgDouble(args))); break;
-                case DC_SIGCHAR_POINTER:
-                     XPUSHs(
-                        sv_setref_pv(
-                            newSV(0),
-                            "Dyn::Call::Pointer",
-                            dcbArgPointer(args)
-                        )
-                    ); break;
-                case DC_SIGCHAR_STRING:
-                    XPUSHs(newSVpv((const char *) dcbArgPointer(args), 0) ); break;
-                case DC_SIGCHAR_AGGREGATE:
-                    warn("Unhandled callback argument '%c' at %s line %d.", signature[i], __FILE__, __LINE__);
-                    break;
-                case DC_SIGCHAR_ENDARG:
-                    ret_type = signature[i + 1];
-                    done++;
-                    break;
-                default:
-                    warn("Unhandled callback argument '%c' at %s line %d.", signature[i], __FILE__, __LINE__);
-                    break;
-            };
-            if (done) break;
-  /*
-                  int       arg1 = dcbArgInt     (args);
-  float     arg2 = dcbArgFloat   (args);
-  short     arg3 = dcbArgShort   (args);
-  double    arg4 = dcbArgDouble  (args);
-  long long arg5 = dcbArgLongLong(args);
-    */
-        }
-        //warn("here at %s line %d.", __FILE__, __LINE__);
-    }
-    //warn("here at %s line %d.", __FILE__, __LINE__);
-
-    // XXX: Does anyone expect this?
-    //XPUSHs(container->userdata);
-
-    PUTBACK;
-
-    //warn("here at %s line %d.", __FILE__, __LINE__);
-    //SV ** signature = hv_fetch(container, "f_signature", 11, 0);
-    //warn("here at %s line %d.", __FILE__, __LINE__);
-    //warn("signature was %s", signature);
-
-    count = call_sv(cb_sv, ret_type == DC_SIGCHAR_VOID ? G_VOID : G_SCALAR );
-
-    SPAGAIN;
-
-        //warn("return type: %c at %s line %d.", ret_type, __FILE__, __LINE__);
-
-
-    switch(ret_type)     {
-        case DC_SIGCHAR_VOID:
-            break;
-        case DC_SIGCHAR_BOOL:
-            if (count != 1)
-                croak("Unexpected return values");
-            result->B = (bool) POPi;
-            break;
-        case DC_SIGCHAR_CHAR:
-            if (count != 1)
-                croak("Unexpected return values");
-            result->c = (char) POPi;
-            break;
-        case DC_SIGCHAR_UCHAR:
-            if (count != 1)
-                croak("Unexpected return values");
-            result->C = (u_char) POPi;
-            break;
-        case DC_SIGCHAR_SHORT:
-            if (count != 1)
-                croak("Unexpected return values");
-            result->s = (short) POPi;
-            break;
-        case DC_SIGCHAR_USHORT:
-            if (count != 1)
-                croak("Unexpected return values");
-            result->S = (u_short) POPi;
-            break;
-        case DC_SIGCHAR_INT:
-            if (count != 1)
-                croak("Unexpected return values");
-            result->i = (int) POPi;
-            break;
-        case DC_SIGCHAR_UINT:
-            if (count != 1)
-                croak("Unexpected return values");
-            result->I = (u_int) POPi;
-            break;
-        case DC_SIGCHAR_LONG:
-            if (count != 1)
-                croak("Unexpected return values");
-            result->j = POPl;
-            break;
-        case DC_SIGCHAR_ULONG:
-            if (count != 1)
-                croak("Unexpected return values");
-            result->J = POPul;
-            break;
-        case DC_SIGCHAR_LONGLONG:
-            if (count != 1)
-                croak("Unexpected return values");
-            result->l = (long long) POPl;
-            break;
-        case DC_SIGCHAR_ULONGLONG:
-            if (count != 1)
-                croak("Unexpected return values");
-            result->L = POPul;
-            break;
-        case DC_SIGCHAR_FLOAT: // double
-            if (count != 1)
-                croak("Unexpected return values");
-            result->f = (float) POPn;
-            break;
-        case DC_SIGCHAR_DOUBLE: // double
-            if (count != 1)
-                croak("Unexpected return values");
-            result->d = (double) POPn;
-            break;
-        case DC_SIGCHAR_POINTER: // string
-            if (count != 1)
-                croak("Unexpected return values");
-            result->p = (DCpointer *) POPl;
-            break;
-        case DC_SIGCHAR_STRING: // string
-            if (count != 1)
-                croak("Unexpected return values");
-            result->Z = POPpx;
-            break;
-        case DC_SIGCHAR_AGGREGATE: // string
-            if (count != 1)
-                croak("Unexpected return values");
-            warn("Unhandled return type at %s line %d.", __FILE__, __LINE__);
-            //result->l = POPl;            break;
-            break;
-    }
-
-    PUTBACK;
-    FREETMPS;
-    LEAVE;
-}
-
-    return ret_type;
-}
-
 MODULE = Dyn::Callback PACKAGE = Dyn::Callback
 
 BOOT:
@@ -329,43 +128,43 @@ CODE:
                 tally--;
                 break;
             case DC_SIGCHAR_BOOL:
-                dcArgBool(container->cvm, SvTRUE(ST(i)));
+                dcArgBool(container->cvm, (bool)SvTRUE(ST(i)));
                 break;
             case DC_SIGCHAR_CHAR:
-                dcArgChar(container->cvm, SvIOK(ST(i)) ? SvIV(ST(i)) : (char)NULL);
+                dcArgChar(container->cvm,  (char)(SvIOK(ST(i)) ?SvIV(ST(i)) : 0));
                 break;
             case DC_SIGCHAR_UCHAR:
-                dcArgChar(container->cvm, SvUOK(ST(i)) ? SvIV(ST(i)) : NULL);
+                dcArgChar(container->cvm,(unsigned char) (SvUOK(ST(i)) ? SvIV(ST(i)) : 0));
                 break;
             case DC_SIGCHAR_SHORT:
-                dcArgShort(container->cvm, SvIOK(ST(i)) ? SvIV(ST(i)) : NULL);
+                dcArgShort(container->cvm, (short)(SvIOK(ST(i)) ? SvIV(ST(i)) : 0));
                 break;
             case DC_SIGCHAR_USHORT:
-                dcArgShort(container->cvm, SvUOK(ST(i)) ? SvIV(ST(i)) : NULL);
+                dcArgShort(container->cvm, (unsigned short)(SvUOK(ST(i)) ? SvIV(ST(i)) : 0));
                 break;
             case DC_SIGCHAR_INT:
-                dcArgInt(container->cvm, SvIOK(ST(i)) ? SvIV(ST(i)) : NULL);
+                dcArgInt(container->cvm, (int)(SvIOK(ST(i)) ? SvIV(ST(i)) : 0));
                 break;
             case DC_SIGCHAR_UINT:
-                dcArgInt(container->cvm, SvUOK(ST(i)) ? SvIV(ST(i)) : NULL);
+                dcArgInt(container->cvm, (unsigned int)(SvUOK(ST(i)) ? SvIV(ST(i)) : 0));
                 break;
             case DC_SIGCHAR_LONG:
-                dcArgLong(container->cvm, SvIOK(ST(i)) ? SvIV(ST(i)) : NULL);
+                dcArgLong(container->cvm, (long)(SvIOK(ST(i)) ? SvIV(ST(i)) : 0));
                 break;
             case DC_SIGCHAR_ULONG:
-                dcArgLong(container->cvm, SvUOK(ST(i)) ? SvIV(ST(i)) : NULL);
+                dcArgLong(container->cvm, (unsigned long)(SvUOK(ST(i)) ? SvIV(ST(i)) : 0));
                 break;
             case DC_SIGCHAR_LONGLONG:
-                dcArgLongLong(container->cvm, SvIOK(ST(i)) ? SvIV(ST(i)) : NULL);
+                dcArgLongLong(container->cvm, (long long)(SvIOK(ST(i)) ? SvIV(ST(i)) : 0));
                 break;
             case DC_SIGCHAR_ULONGLONG:
-                dcArgLongLong(container->cvm, SvUOK(ST(i)) ? SvIV(ST(i)) : NULL);
+                dcArgLongLong(container->cvm, (unsigned long long)(SvUOK(ST(i)) ? SvIV(ST(i)) : 0));
                 break;
             case DC_SIGCHAR_FLOAT:
-                dcArgFloat(container->cvm, SvNIOK(ST(i)) ? SvNV(ST(i)) : 0.0f);
+                dcArgFloat(container->cvm, (float)(SvNIOK(ST(i)) ? SvNV(ST(i)) : 0.0f));
                 break;
             case DC_SIGCHAR_DOUBLE:
-                dcArgDouble(container->cvm, SvNIOK(ST(i)) ? SvNV(ST(i)) : 0.0f);
+                dcArgDouble(container->cvm, (double)(SvNIOK(ST(i)) ? SvNV(ST(i)) : 0.0f));
                 break;
             case DC_SIGCHAR_POINTER:
                 warn("Unhandled arg type [%c] at %s line %d.", container->ret_type, __FILE__, __LINE__);

@@ -196,7 +196,7 @@ SKIP: {
         diag $s;
         my $ret = Dyn::Type::Pointer->new(1);
         diag $ret;
-        isa_ok dcCallAggr( $cvm, $ptr, $s, $ret ), 'Dyn::pointer';
+        isa_ok dcCallAggr( $cvm, $ptr, $s, $ret ), 'Dyn::Call::Pointer';
         diag $s;
         dcFreeAggr($s);
     };
@@ -226,7 +226,7 @@ SKIP: {
         diag 'here D';
         diag $obj;
         diag 'here A';
-        isa_ok dcCallAggr( $cvm, $ptr, $s, $obj ), 'Dyn::pointer';
+        isa_ok dcCallAggr( $cvm, $ptr, $s, $obj ), 'Dyn::Call::Pointer';
         diag 'here A';
         my $struct = $obj->cast('Some::Class');
         diag $struct;

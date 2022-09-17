@@ -42,6 +42,16 @@ static PerlInterpreter *my_perl; /***    The Perl interpreter    ***/
 
 #include <dyncall/dyncall/dyncall_aggregate.h>
 
+//{ii[5]Z&<iZ>}
+#define DC_SIGCHAR_CODE '&'   // 'p' but allows us to wrap CV * for the user
+#define DC_SIGCHAR_ARRAY '['  // 'A' but nicer
+#define DC_SIGCHAR_STRUCT '{' // 'A' but nicer
+#define DC_SIGCHAR_UNION '<'  // 'A' but nicer
+// bring balance
+#define DC_SIGCHAR_ARRAY_END ']'
+#define DC_SIGCHAR_STRUCT_END '}'
+#define DC_SIGCHAR_UNION_END '>'
+
 /* portability stuff not supported by ppport.h yet */
 
 #ifndef STATIC_INLINE /* from 5.13.4 */
@@ -79,6 +89,11 @@ static PerlInterpreter *my_perl; /***    The Perl interpreter    ***/
 #define LooksLikeNumber(x) (SvPOKp(x) ? looks_like_number(x) : (I32)SvNIOKp(x))
 #endif
 
+// added in perl 5.35.7?
+#ifndef sv_setbool_mg
+#define sv_setbool_mg(sv, b) sv_setsv_mg(sv, boolSV(b))
+#endif
+
 #define newAV_mortal() (AV *)sv_2mortal((SV *)newAV())
 #define newHV_mortal() (HV *)sv_2mortal((SV *)newHV())
 #define newRV_inc_mortal(sv) sv_2mortal(newRV_inc(sv))
@@ -94,6 +109,7 @@ static PerlInterpreter *my_perl; /***    The Perl interpreter    ***/
 
 /* Useful but undefined in perlapi */
 #define FLOATSIZE sizeof(float)
+#define BOOLSIZE sizeof(bool) // ha!
 
 #if PERL_VERSION_LE(5, 8, 999) /* PERL_VERSION_LT is 5.33+ */
 char *file = __FILE__;
@@ -178,9 +194,13 @@ void export_constant(const char *name, const char *_tag, double val) {
     export_function(name, _tag);
 }
 
-void DumpHex(const void *addr, size_t len) {
+#define DumpHex(addr, len)                                                                         \
+    ;                                                                                              \
+    _DumpHex(addr, len, __FILE__, __LINE__)
+
+void _DumpHex(const void *addr, size_t len, const char *file, int line) {
     fflush(stdout);
-    int perLine = 16; // TODO: Make this accept user values
+    int perLine = 16;
     // Silently ignore silly per-line values.
     if (perLine < 4 || perLine > 64) perLine = 16;
 
@@ -188,8 +208,10 @@ void DumpHex(const void *addr, size_t len) {
     unsigned char buff[perLine + 1];
     const unsigned char *pc = (const unsigned char *)addr;
 
+    printf("Dumping %d bytes from %p at %s line %d\n", len, addr, file, line);
+
     // Length checks.
-    // if (len == 0) croak("ZERO LENGTH");
+    if (len == 0) croak("ZERO LENGTH");
 
     if (len < 0) croak("NEGATIVE LENGTH: %d", len);
 
@@ -220,4 +242,209 @@ void DumpHex(const void *addr, size_t len) {
     }
 
     printf(" | %s\n", buff);
+    fflush(stdout);
+}
+
+static char callback_handler(DCCallback *cb, DCArgs *args, DCValue *result, void *userdata) {
+    dTHX;
+#ifdef USE_ITHREADS
+    PERL_SET_CONTEXT(my_perl);
+#endif
+    char ret_type;
+    {
+        dSP;
+        int count;
+
+        _callback *container = ((_callback *)userdata);
+        // int * ud = (int*) container->userdata;
+
+        SV *cb_sv = container->cb;
+
+        ENTER;
+        SAVETMPS;
+        // warn("here at %s line %d.", __FILE__, __LINE__);
+        PUSHMARK(SP);
+        {
+            const char *signature = container->signature;
+            // warn("signature == %s at %s line %d.", container->signature, __FILE__, __LINE__);
+            int done, okay;
+            int i;
+            // warn("signature: %s at %s line %d.", signature, __FILE__, __LINE__);
+            for (i = 0; signature[i + 1] != '\0'; ++i) {
+                done = okay = 0;
+                // warn("here at %s line %d.", __FILE__, __LINE__);
+                // warn("signature[%d] == %c at %s line %d.", i, signature[i], __FILE__, __LINE__);
+                switch (signature[i]) {
+                case DC_SIGCHAR_VOID:
+                    // warn("Unhandled callback argument '%c' at %s line %d.", signature[i],
+                    // __FILE__, __LINE__);
+                    break;
+                case DC_SIGCHAR_BOOL:
+                    XPUSHs(newSViv(dcbArgBool(args)));
+                    break;
+                case DC_SIGCHAR_CHAR:
+                case DC_SIGCHAR_UCHAR:
+                    XPUSHs(newSViv(dcbArgChar(args)));
+                    break;
+                case DC_SIGCHAR_SHORT:
+                case DC_SIGCHAR_USHORT:
+                    XPUSHs(newSViv(dcbArgShort(args)));
+                    break;
+                case DC_SIGCHAR_INT:
+                    XPUSHs(newSViv(dcbArgInt(args)));
+                    break;
+                case DC_SIGCHAR_UINT:
+                    XPUSHs(newSVuv(dcbArgInt(args)));
+                    break;
+                case DC_SIGCHAR_LONG:
+                    XPUSHs(newSVnv(dcbArgLong(args)));
+                    break;
+                case DC_SIGCHAR_ULONG:
+                    XPUSHs(newSVuv(dcbArgLong(args)));
+                    break;
+                case DC_SIGCHAR_LONGLONG:
+                    XPUSHs(newSVnv(dcbArgLongLong(args)));
+                    break;
+                case DC_SIGCHAR_ULONGLONG:
+                    XPUSHs(newSVuv(dcbArgLongLong(args)));
+                    break;
+                case DC_SIGCHAR_FLOAT:
+                    XPUSHs(newSVnv(dcbArgFloat(args)));
+                    break;
+                case DC_SIGCHAR_DOUBLE:
+                    XPUSHs(newSVnv(dcbArgDouble(args)));
+                    break;
+                case DC_SIGCHAR_POINTER:
+                    XPUSHs(sv_setref_pv(newSV(0), "Dyn::Call::Pointer", dcbArgPointer(args)));
+                    break;
+                case DC_SIGCHAR_STRING:
+                    XPUSHs(newSVpv((const char *)dcbArgPointer(args), 0));
+                    break;
+                case DC_SIGCHAR_AGGREGATE:
+                    warn("Unhandled callback argument '%c' at %s line %d.", signature[i], __FILE__,
+                         __LINE__);
+                    break;
+                case DC_SIGCHAR_ENDARG:
+                    ret_type = signature[i + 1];
+                    done++;
+                    break;
+                default:
+                    warn("Unhandled callback argument '%c' at %s line %d.", signature[i], __FILE__,
+                         __LINE__);
+                    break;
+                };
+                if (done) break;
+                /*
+                                int       arg1 = dcbArgInt     (args);
+                float     arg2 = dcbArgFloat   (args);
+                short     arg3 = dcbArgShort   (args);
+                double    arg4 = dcbArgDouble  (args);
+                long long arg5 = dcbArgLongLong(args);
+                  */
+            }
+            // warn("here at %s line %d.", __FILE__, __LINE__);
+        }
+        // warn("here at %s line %d.", __FILE__, __LINE__);
+
+        // XXX: Does anyone expect this?
+        // XPUSHs(container->userdata);
+
+        PUTBACK;
+
+        // warn("here at %s line %d.", __FILE__, __LINE__);
+        // SV ** signature = hv_fetch(container, "f_signature", 11, 0);
+        // warn("here at %s line %d.", __FILE__, __LINE__);
+        // warn("signature was %s", signature);
+
+        count = call_sv(cb_sv, ret_type == DC_SIGCHAR_VOID ? G_VOID : G_SCALAR);
+
+        SPAGAIN;
+
+        // warn("return type: %c at %s line %d.", ret_type, __FILE__, __LINE__);
+
+        switch (ret_type) {
+        case DC_SIGCHAR_VOID:
+            break;
+        case DC_SIGCHAR_BOOL:
+            if (count != 1) croak("Unexpected return values");
+            result->B = (bool)POPi;
+            break;
+        case DC_SIGCHAR_CHAR:
+            if (count != 1) croak("Unexpected return values");
+            result->c = (char)POPi;
+            break;
+        case DC_SIGCHAR_UCHAR:
+            if (count != 1) croak("Unexpected return values");
+            result->C = (u_char)POPi;
+            break;
+        case DC_SIGCHAR_SHORT:
+            if (count != 1) croak("Unexpected return values");
+            result->s = (short)POPi;
+            break;
+        case DC_SIGCHAR_USHORT:
+            if (count != 1) croak("Unexpected return values");
+            result->S = (u_short)POPi;
+            break;
+        case DC_SIGCHAR_INT:
+            if (count != 1) croak("Unexpected return values");
+            result->i = (int)POPi;
+            break;
+        case DC_SIGCHAR_UINT:
+            if (count != 1) croak("Unexpected return values");
+            result->I = (u_int)POPi;
+            break;
+        case DC_SIGCHAR_LONG:
+            if (count != 1) croak("Unexpected return values");
+            result->j = POPl;
+            break;
+        case DC_SIGCHAR_ULONG:
+            if (count != 1) croak("Unexpected return values");
+            result->J = POPul;
+            break;
+        case DC_SIGCHAR_LONGLONG:
+            if (count != 1) croak("Unexpected return values");
+            result->l = (long long)POPl;
+            break;
+        case DC_SIGCHAR_ULONGLONG:
+            if (count != 1) croak("Unexpected return values");
+            result->L = POPul;
+            break;
+        case DC_SIGCHAR_FLOAT: // double
+            if (count != 1) croak("Unexpected return values");
+            result->f = (float)POPn;
+            break;
+        case DC_SIGCHAR_DOUBLE: // double
+            if (count != 1) croak("Unexpected return values");
+            result->d = (double)POPn;
+            break;
+        case DC_SIGCHAR_POINTER: // string
+            if (count != 1) croak("Unexpected return values");
+            result->p = (DCpointer)((intptr_t) POPl);
+            break;
+        case DC_SIGCHAR_STRING: // string
+            if (count != 1) croak("Unexpected return values");
+            result->Z = POPpx;
+            break;
+        case DC_SIGCHAR_AGGREGATE: // string
+            if (count != 1) croak("Unexpected return values");
+            warn("Unhandled return type at %s line %d.", __FILE__, __LINE__);
+            // result->l = POPl;            break;
+            break;
+        }
+
+        PUTBACK;
+        FREETMPS;
+        LEAVE;
+    }
+
+    return ret_type;
+}
+
+const char *ordinal(int n) {
+    static const char suffixes[][3] = {"th", "st", "nd", "rd"};
+    auto ord = n % 100;
+    if (ord / 10 == 1) { ord = 0; }
+    ord = ord % 10;
+    if (ord > 3) { ord = 0; }
+    return suffixes[ord];
 }

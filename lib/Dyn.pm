@@ -8,7 +8,9 @@ package Dyn 0.03 {
     use Config;
     use Sub::Util qw[subname];
     use Text::ParseWords;
-    use Attribute::Handlers;
+    use Carp qw[];
+
+    #use Attribute::Handlers;
     no warnings 'redefine';
     use 5.030;
     use XSLoader;
@@ -24,51 +26,127 @@ package Dyn 0.03 {
         dc    => [@Dyn::Call::EXPORT_OK],
         dcb   => [@Dyn::Callback::EXPORT_OK],
         dl    => [@Dyn::Load::EXPORT_OK],
-        sugar => [qw[wrap MODIFY_CODE_ATTRIBUTES AUTOLOAD]]
+        sugar => [
+            qw[wrap
+                MODIFY_CODE_ATTRIBUTES
+                AUTOLOAD]
+        ],
+        types => [
+            qw[
+                Void        Bool
+                Char        UChar
+                Short       UShort
+                Int         UInt
+                Long        ULong
+                LongLong    ULongLong
+                Float       Double
+                Struct      ArrayRef    CodeRef
+                Pointer     Str
+                Union
+            ]
+        ]
     );
     @{ $EXPORT_TAGS{all} } = our @EXPORT_OK = map { @{ $EXPORT_TAGS{$_} } } keys %EXPORT_TAGS;
-    {
-        # Types hack
-        sub Bool()       {'b'}
-        sub Char()       {'c'}                             # Int8
-        sub UChar()      {'C'}                             # UInt8
-        sub Short()      {'s'}                             # Int16
-        sub UShort ()    {'S'}                             # UInt16
-        sub Int()        {'i'}
-        sub UInt()       {'I'}
-        sub Long ()      {'j'}                             # Int32
-        sub ULong ()     {'J'}                             # UInt32
-        sub LongLong ()  {'l'}                             # Int64
-        sub ULongLong () {'L'}                             # UInt64
-        sub Float ()     {'f'}                             # Float32
-        sub Double()     {'d'}                             # Float64
-        sub Pointer    ($type) { warn $type; ...; 'p' }    # Void*
-        sub InstanceOf ($type) { warn $type; ...; 'T' }    # Struct
-        sub Void()   {'v'}
-        sub String() {'Z'}
-        sub Struct() {'{'}
+    my %_delay;
+
+    sub go() {
+        #warn "HOOOOOOOOOOOOOOOOOOOOOOOOOOOOOOOO";
+        #use Data::Dump;
+        #ddx \%_delay;
+        for my $sub ( keys %_delay ) {
+            if ( defined $_delay{$sub} ) {
+                #use Data::Dump;
+
+                #ddx \%_delay;
+                #warn $_delay{$sub}[3];
+                my $line
+                    = sprintf( 'package %s{sub{sub{Dyn::guess_library_name(%s,%s)}}->()->();};',
+                    $_delay{$sub}[0], $_delay{$sub}[1], $_delay{$sub}[2] );
+
+                #warn $line;
+                #warn eval $line;
+                #warn $main::lib_file;
+                my $cv = attach( guess_library_name( eval( $_delay{$sub}[1] ), $_delay{$sub}[2] ),
+                    $_delay{$sub}[3], $_delay{$sub}[4], $_delay{$sub}[5], $_delay{$sub}[6] );
+                {
+                    no strict 'refs';
+                    *{$sub} = $cv;
+                }
+
+                #*{$full_name} = $cv
+                delete $_delay{$sub};
+                return goto &$cv;
+            }
+        }
+    }
+
+    sub AUTOLOAD {
+        my $self = $_[0];           # Not shift, using goto.
+        my $sub  = our $AUTOLOAD;
+        if ( defined $_delay{$sub} ) {
+            #use Data::Dump;
+            #ddx $_delay{$sub};
+            my $cv = attach(
+                guess_library_name( eval( $_delay{$sub}[1] ), $_delay{$sub}[2] ),
+                $_delay{$sub}[3], $_delay{$sub}[4], $_delay{$sub}[5],
+                $_delay{$sub}[6], $_delay{$sub}[7]
+            );
+            {
+                no strict 'refs';
+                *{$sub} = $cv;
+            }
+
+            #*{$full_name} = $cv
+            delete $_delay{$sub};
+            return goto &$cv;
+        }
+        elsif ( my $code = $self->can('SUPER::AUTOLOAD') ) {
+            return goto &$code;
+        }
+        elsif ( $sub eq 'DESTROY' ) {
+            return;
+        }
+        Carp::croak("No method $sub ...");
     }
     #
     sub MODIFY_CODE_ATTRIBUTES ( $package, $code, @attributes ) {
 
         #use Data::Dump;
         #ddx \@_;
-        my ( $library, $library_version, $signature, $symbol, $full_name );
+        my ( $library, $library_version, $signature, $return, $symbol, $full_name, $mode );
         for my $attribute (@attributes) {
-            if ( $attribute =~ m[^Native\s*\(\s*(.+)\s*\)\s*$] ) {
+            if ( $attribute =~ m[^Native\(\s*(.+)\s*\)\s*$] ) {
                 ( $library, $library_version ) = Text::ParseWords::parse_line( '\s*,\s*', 1, $1 );
 
                 #warn $library;
                 #warn $library_version;
                 $library_version //= 0;
             }
-            elsif ( $attribute =~ m[^Symbol\s*\(\s*(['"])?\s*(.+)\s*\1\s*\)$] ) {
+            elsif ( $attribute =~ m[^Symbol\(\s*(['"])?\s*(.+)\s*\1\s*\)$] ) {
                 $symbol = $2;
             }
-            elsif ( $attribute =~ m[^Signature\s*?\(\s*(['"])?\s*(.+)\s*\1\s*\)$] ) {    # direct
-                $signature = $2;
+            elsif ( $attribute =~ m[^Mode\(\s*(DC_SIGCHAR_CC_.+?)\s*\)$] ) {
+                $mode    # Don't wait for Dyn::Call::DC_SIGCHAR...
+                    = $1 eq 'DC_SIGCHAR_CC_DEFAULT'        ? ':' :
+                    $1 eq 'DC_SIGCHAR_CC_THISCALL'         ? '*' :
+                    $1 eq 'DC_SIGCHAR_CC_ELLIPSIS'         ? 'e' :
+                    $1 eq 'DC_SIGCHAR_CC_ELLIPSIS_VARARGS' ? '.' :
+                    $1 eq 'DC_SIGCHAR_CC_CDECL'            ? 'c' :
+                    $1 eq 'DC_SIGCHAR_CC_STDCALL'          ? 's' :
+                    $1 eq 'DC_SIGCHAR_CC_FASTCALL_MS'      ? 'F' :
+                    $1 eq 'DC_SIGCHAR_CC_FASTCALL_GNU'     ? 'f' :
+                    $1 eq 'DC_SIGCHAR_CC_THISCALL_MS'      ? '+' :
+                    $1 eq 'DC_SIGCHAR_CC_THISCALL_GNU'     ? '#' :
+                    $1 eq 'DC_SIGCHAR_CC_ARM_ARM'          ? 'A' :
+                    $1 eq 'DC_SIGCHAR_CC_ARM_THUMB'        ? 'a' :
+                    $1 eq 'DC_SIGCHAR_CC_SYSCALL'          ? '$' :
+                    length($1) == 1                        ? $1 :
+                    return $attribute;
+                $mode = ord $mode if $mode =~ /\D/;
             }
-            elsif ( $attribute =~ m[^Signature\s*?\(\s*(.+?)?(?:\s*=>\s*(\w+)?)?\s*\)$] ) { # pretty
+
+           #elsif ( $attribute =~ m[^Signature\s*?\(\s*(.+?)?(?:\s*=>\s*(\w+)?)?\s*\)$] ) { # pretty
+            elsif ( $attribute =~ m[^Signature\(\s*(\[.*\])\s*=>\s*(.*)\)$] ) {    # pretty
                 my $args = $1;
                 my $ret  = $2;
 
@@ -77,38 +155,33 @@ package Dyn 0.03 {
 
                 #warn $args;
                 #warn $ret;
-                $signature = sprintf '(%s)%s', join( '', eval($args) ), eval($ret);
-
-                #warn $signature;
-                #ddx eval $out;
-                #$signature = $2;
+                $signature = eval($args);
+                $return    = eval($ret);
             }
             else { return $attribute }
         }
+        $mode      //= DC_SIGCHAR_CC_DEFAULT();
+        $signature //= [];
+        $return    //= Void();
         $full_name = subname $code;
         if ( !grep { !defined } $library, $library_version, $full_name ) {
             if ( !defined $symbol ) {
                 $full_name =~ m[::(.*?)$];
                 $symbol = $1;
             }
-            if ( defined &{$full_name} ) {
-                no strict 'refs';
-                no warnings 'prototype', 'redefine';
-                *{$full_name} = sub {
-                    my $_code = wrap( guess_library_name( eval($library), $library_version ),
-                        $symbol, $signature // '(v)v' );
-                    *{$full_name} = $_code;
-                    return $_code->(@_);
-                };
+            #use Data::Dump;
+            #ddx [
+            #    $package,   $library, $library_version, $symbol,
+            #    $signature, $return,  $mode,            $full_name
+            #];
+            if ( defined &{$full_name} ) {    #no strict 'refs';
+                return attach( guess_library_name( eval($library), $library_version ),
+                    $symbol, $signature, $return, $mode, $full_name );
             }
-
-           #else {
-           #use Data::Dump;
-           #ddx [ $package, $library, $library_version, $signature // '(v)v', $symbol, $full_name ];
-            __install_sub( $package, $library, $library_version, $signature // '(v)v',
-                $symbol, $full_name );
-
-            #}
+            $_delay{$full_name} = [
+                $package,   $library, $library_version, $symbol,
+                $signature, $return,  $mode,            $full_name
+            ];
         }
         return;
     }
@@ -166,13 +239,11 @@ package Dyn 0.03 {
         $version = $version ? qr[\.${version}] : qr/([\.\d]*)?/;
         if ( !defined $_lib_cache->{ $name . chr(0) . ( $version // '' ) } ) {
             if ( $OS eq 'MSWin32' ) {
-                warn;
 
                 #return $name . '.dll'     if -f $name . '.dll';
                 return File::Spec->canonpath( File::Spec->rel2abs( $name . '.dll' ) )
                     if -e $name . '.dll';
                 require Win32;
-                warn;
 
 # https://docs.microsoft.com/en-us/windows/win32/dlls/dynamic-link-library-search-order#search-order-for-desktop-applications
                 my @dirs = (
@@ -199,7 +270,6 @@ package Dyn 0.03 {
                 return $name . '.bundle' if -f $name . '.bundle';
                 return $name             if $name =~ /\.so$/;
                 return $name;    # Let 'em work it out
-                warn;
 
 # https://developer.apple.com/library/archive/documentation/DeveloperTools/Conceptual/DynamicLibraries/100-Articles/UsingDynamicLibraries.html
                 my @dirs = (
@@ -211,9 +281,10 @@ package Dyn 0.03 {
                     map { $ENV{$_} // () }
                         qw[LD_LIBRARY_PATH DYLD_LIBRARY_PATH DYLD_FALLBACK_LIBRARY_PATH]
                 );
-                use Test::More;
-                diag join ', ', @dirs;
-                warn;
+
+                #use Test::More;
+                #diag join ', ', @dirs;
+                #warn;
                 find(
                     {   wanted => sub {
                             $File::Find::prune = 1
@@ -224,8 +295,8 @@ package Dyn 0.03 {
                     },
                     @dirs
                 );
-                diag join ', ', @retval;
-                warn;
+
+                #diag join ', ', @retval;
             }
             else {
                 return $name . '.so' if -f $name . '.so';

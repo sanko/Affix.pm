@@ -396,7 +396,7 @@ sub process_xs {
     ExtUtils::ParseXS::process_file(
         prototypes  => 1,
         linenumbers => 1,
-        'C++'       => 0,
+        'C++'       => 1,
         filename    => $source,
         prototypes  => 1,
         output      => $c_file
@@ -407,7 +407,7 @@ sub process_xs {
     my $pre     = Path::Tiny->cwd->child(qw[blib arch auto])->absolute;
     my $obj     = $builder->object_file($c_file);
     my $ob_file = $builder->compile(
-        'C++'        => 0,
+        'C++'        => 1,
         source       => $c_file,
         defines      => { VERSION => qq/"$version"/, XS_VERSION => qq/"$version"/ },
         include_dirs =>
