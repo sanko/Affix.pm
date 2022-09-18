@@ -119,6 +119,17 @@ const char *file = __FILE__;
 
 /* api wrapping utils */
 
+#define MY_CXT_KEY "Dyn::_guts" XS_VERSION
+
+typedef struct
+{
+    int count;
+    HV *structs;
+    DCCallVM *cvm;
+} my_cxt_t;
+
+START_MY_CXT
+
 typedef struct
 {
     DLLib *lib;
@@ -135,11 +146,12 @@ typedef struct
     Dyncall *lib;
 } DynXSub;
 
-typedef struct _callback
+typedef struct
 {
     SV *cb;
     const char *signature;
     char ret_type;
+    char mode;
     SV *userdata;
     DCCallVM *cvm;
 } _callback;

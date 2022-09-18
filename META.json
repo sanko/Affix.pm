@@ -89,6 +89,6 @@
    },
    "version" : "0.03",
    "x_authority" : "cpan:SANKO",
-   "x_serialization_backend" : "JSON::PP version 4.10",
+   "x_serialization_backend" : "JSON::PP version 4.11",
    "x_static_install" : 0
 }

@@ -1,13 +1,5 @@
 #include "lib/clutter.h"
 
-/* Global struct registry */
-#define MY_CXT_KEY "Dyn::Type::Struct::_guts" XS_VERSION
-typedef struct {
-    HV * structs;
-} my_cxt_t;
-
-START_MY_CXT
-
 void unroll_aggregate(void *ptr, DCaggr *ag, SV *obj) {
  warn("unroll_aggregate");
     //*(int*)ptr = 42;
