@@ -1,7 +1,7 @@
 use strict;
 use warnings;
 use lib '../lib', '../blib/arch', '../blib/lib', 'blib/arch', 'blib/lib';
-use Dyn qw[:sugar];
+use Dyn qw[:sugar :types :all];
 use FFI::Platypus 1.58;
 use Config;
 use Benchmark qw[cmpthese timethese :hireswallclock];
@@ -18,30 +18,38 @@ our $libfile
         '/lib/x86_64-linux-gnu/libm.so.6' :
     '/lib/libm.so.6';
 #
-sub sin_override : Native({$libfile}) : Signature('(d)d') : Symbol('sin') {...}
-sub sin_ : Native({$libfile}) : Signature('(d)d') : Symbol('sin');
-sub sin_var : Native({$libfile}) : Signature('(_:d)d') : Symbol('sin');
-sub sin_ell : Native({$libfile}) : Signature('(_.d)d') : Symbol('sin');
-sub sin_cdecl : Native({$libfile}) : Signature('(_cd)d') : Symbol('sin');
-sub sin_std : Native({$libfile}) : Signature('(_sd)d') : Symbol('sin');
-sub sin_fc : Native({$libfile}) : Signature('(_fd)d') : Symbol('sin');
-sub sin_tc : Native({$libfile}) : Signature('(_#d)d') : Symbol('sin');
+sub sin_ : Native('/lib64/libm.so.6') : Signature([Double]=>Double) : Symbol('sin');
+sub sin_var : Native('/lib64/libm.so.6') : Signature([Double]=>Double) : Symbol('sin') :
+    Mode(DC_SIGCHAR_CC_ELLIPSIS_VARARGS);
+sub sin_ell : Native('/lib64/libm.so.6') : Signature([Double]=>Double) : Symbol('sin') :
+    Mode(DC_SIGCHAR_CC_ELLIPSIS);
+sub sin_cdecl : Native('/lib64/libm.so.6') : Signature([Double]=>Double) : Symbol('sin') :
+    Mode(DC_SIGCHAR_CC_CDECL);
+sub sin_std : Native('/lib64/libm.so.6') : Signature([Double]=>Double) : Symbol('sin') :
+    Mode(DC_SIGCHAR_CC_STDCALL);
+sub sin_fc : Native('/lib64/libm.so.6') : Signature([Double]=>Double) : Symbol('sin') :
+    Mode(DC_SIGCHAR_CC_FASTCALL_GNU);
+sub sin_tc : Native('/lib64/libm.so.6') : Signature([Double]=>Double) : Symbol('sin') :
+    Mode(DC_SIGCHAR_CC_THISCALL_GNU);
 #
-my $sin_default  = Dyn::wrap( $libfile, 'sin', 'd)d' );
-my $sin_vararg   = Dyn::wrap( $libfile, 'sin', '_:d)d' );
-my $sin_ellipsis = Dyn::wrap( $libfile, 'sin', '_.d)d' );
-my $sin_cdecl    = Dyn::wrap( $libfile, 'sin', '_cd)d' );
-my $sin_stdcall  = Dyn::wrap( $libfile, 'sin', '_sd)d' );
-my $sin_fastcall = Dyn::wrap( $libfile, 'sin', '_fd)d' );
-my $sin_thiscall = Dyn::wrap( $libfile, 'sin', '_#d)d' );
+my $sin_default  = Dyn::wrap( $libfile, 'sin', [Double] => Double );
+my $sin_vararg   = Dyn::wrap( $libfile, 'sin', [Double] => Double, DC_SIGCHAR_CC_ELLIPSIS_VARARGS );
+my $sin_ellipsis = Dyn::wrap( $libfile, 'sin', [Double] => Double, DC_SIGCHAR_CC_ELLIPSIS );
+my $sin_cdecl    = Dyn::wrap( $libfile, 'sin', [Double] => Double, DC_SIGCHAR_CC_CDECL );
+my $sin_stdcall  = Dyn::wrap( $libfile, 'sin', [Double] => Double, DC_SIGCHAR_CC_STDCALL );
+my $sin_fastcall = Dyn::wrap( $libfile, 'sin', [Double] => Double, DC_SIGCHAR_CC_FASTCALL_GNU );
+my $sin_thiscall = Dyn::wrap( $libfile, 'sin', [Double] => Double, DC_SIGCHAR_CC_THISCALL_GNU );
 #
-Dyn::attach( $libfile, 'sin', '(d)d',   '_attach_sin_default' );
-Dyn::attach( $libfile, 'sin', '(_:d)d', '_attach_sin_var' );
-Dyn::attach( $libfile, 'sin', '(_.d)d', '_attach_sin_ellipse' );
-Dyn::attach( $libfile, 'sin', '(_cd)d', '_attach_sin_cdecl' );
-Dyn::attach( $libfile, 'sin', '(_sd)d', '_attach_sin_std' );
-Dyn::attach( $libfile, 'sin', '(_fd)d', '_attach_sin_fc' );
-Dyn::attach( $libfile, 'sin', '(_#d)d', '_attach_sin_tc' );
+Dyn::attach( $libfile, 'sin', [Double] => Double, DC_SIGCHAR_CC_DEFAULT, '_attach_sin_default' );
+Dyn::attach(
+    $libfile, 'sin', [Double] => Double,
+    DC_SIGCHAR_CC_ELLIPSIS_VARARGS, '_attach_sin_var'
+);
+Dyn::attach( $libfile, 'sin', [Double] => Double, DC_SIGCHAR_CC_ELLIPSIS, '_attach_sin_ellipse' );
+Dyn::attach( $libfile, 'sin', [Double] => Double, DC_SIGCHAR_CC_CDECL,    '_attach_sin_cdecl' );
+Dyn::attach( $libfile, 'sin', [Double] => Double, DC_SIGCHAR_CC_STDCALL,  '_attach_sin_std' );
+Dyn::attach( $libfile, 'sin', [Double] => Double, DC_SIGCHAR_CC_FASTCALL_GNU, '_attach_sin_fc' );
+Dyn::attach( $libfile, 'sin', [Double] => Double, DC_SIGCHAR_CC_THISCALL_GNU, '_attach_sin_tc' );
 #
 my $ffi = FFI::Platypus->new( api => 1 );
 $ffi->lib($libfile);
@@ -49,9 +57,8 @@ my $ffi_func = $ffi->function( sin => ['double'] => 'double' );
 $ffi->attach( [ sin => 'ffi_sin' ] => ['double'] => 'double' );
 
 # prime the pump
+my $sin = sin 500;
 {
-    my $sin = sin 500;
-    die 'oops' if sin_override(500) != $sin;
     die 'oops' if sin_(500) != $sin;
     die 'oops' if sin_var(500) != $sin;
     die 'oops' if sin_ell(500) != $sin;
@@ -112,10 +119,6 @@ cmpthese(
             attach_sin_tc => sub {
                 my $x = 0;
                 while ( $x < $depth ) { my $n = _attach_sin_tc($x); $x++ }
-            },
-            sub_sin_override => sub {
-                my $x = 0;
-                while ( $x < $depth ) { my $n = sin_override($x); $x++ }
             },
             sub_sin_default => sub {
                 my $x = 0;

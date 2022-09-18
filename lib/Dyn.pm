@@ -27,12 +27,12 @@ package Dyn 0.03 {
         dcb   => [@Dyn::Callback::EXPORT_OK],
         dl    => [@Dyn::Load::EXPORT_OK],
         sugar => [
-            qw[wrap
+            qw[wrap attach
                 MODIFY_CODE_ATTRIBUTES
                 AUTOLOAD]
         ],
         types => [
-            qw[
+            qw[typedef      Type
                 Void        Bool
                 Char        UChar
                 Short       UShort
@@ -49,14 +49,19 @@ package Dyn 0.03 {
     @{ $EXPORT_TAGS{all} } = our @EXPORT_OK = map { @{ $EXPORT_TAGS{$_} } } keys %EXPORT_TAGS;
     my %_delay;
 
+    sub wrap ( $lib, $symbol_name, $args, $return, $mode = DC_SIGCHAR_CC_DEFAULT ) {
+        attach( $lib, $symbol_name, $args, $return, $mode );
+    }
+
     sub go() {
+
         #warn "HOOOOOOOOOOOOOOOOOOOOOOOOOOOOOOOO";
         #use Data::Dump;
         #ddx \%_delay;
         for my $sub ( keys %_delay ) {
             if ( defined $_delay{$sub} ) {
-                #use Data::Dump;
 
+                #use Data::Dump;
                 #ddx \%_delay;
                 #warn $_delay{$sub}[3];
                 my $line
@@ -84,6 +89,7 @@ package Dyn 0.03 {
         my $self = $_[0];           # Not shift, using goto.
         my $sub  = our $AUTOLOAD;
         if ( defined $_delay{$sub} ) {
+
             #use Data::Dump;
             #ddx $_delay{$sub};
             my $cv = attach(
@@ -100,9 +106,10 @@ package Dyn 0.03 {
             delete $_delay{$sub};
             return goto &$cv;
         }
-        elsif ( my $code = $self->can('SUPER::AUTOLOAD') ) {
-            return goto &$code;
-        }
+
+        #~ elsif ( my $code = $self->can('SUPER::AUTOLOAD') ) {
+        #~ return goto &$code;
+        #~ }
         elsif ( $sub eq 'DESTROY' ) {
             return;
         }
@@ -169,6 +176,7 @@ package Dyn 0.03 {
                 $full_name =~ m[::(.*?)$];
                 $symbol = $1;
             }
+
             #use Data::Dump;
             #ddx [
             #    $package,   $library, $library_version, $symbol,

@@ -419,7 +419,7 @@ static char callback_handler(DCCallback *cb, DCArgs *args, DCValue *result, void
             break;
         case DC_SIGCHAR_POINTER: // string
             if (count != 1) croak("Unexpected return values");
-            result->p = (DCpointer)((intptr_t) POPl);
+            result->p = (DCpointer)((intptr_t)POPl);
             break;
         case DC_SIGCHAR_STRING: // string
             if (count != 1) croak("Unexpected return values");
