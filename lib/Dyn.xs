@@ -639,110 +639,97 @@ XS_EUPXS(Types) {
         hv_stores(RETVAL_SV, "type", newSVsv(type));
     } break;
     case DC_SIGCHAR_CODE: {
+        AV *oh, *args;
+        SV *retval;
+        size_t field_count;
 
-        warn("CODE[...] %d ", items);
-        /*
-                AV *oh, *args;
-                SV *retval;
-                size_t field_count;
+        if (items == 2) {
+            oh = MUTABLE_AV(SvRV(ST(1)));
+            field_count = av_count(oh);
+            if (av_count(oh) != 2) croak("Expected a list of arguments and a return value");
+            args = MUTABLE_AV(SvRV(*av_fetch(oh, 0, 0)));
+            field_count = av_count(args);
+            retval = (*av_fetch(oh, 1, 0));
+        }
+        else
+            croak("CodeRef[ [args], return]");
+        hv_stores(MUTABLE_HV(RETVAL_SV), "args", newRV_noinc(MUTABLE_SV(args)));
 
-                if (items == 2) {
-                    oh = MUTABLE_AV(SvRV(ST(1)));
-                    field_count = av_count(oh);
-                    if (av_count(oh) != 2) croak("Expected a list of arguments and a return value");
-                    args = MUTABLE_AV(SvRV(*av_fetch(oh, 0, 0)));
-                    field_count = av_count(args);
-                    retval = (*av_fetch(oh, 1, 0));
+        // sv_dump(SvRV(retval));
+        // sv_dump(retval);
+        hv_stores(MUTABLE_HV(RETVAL_SV), "return", newSVsv(retval));
+
+        if (!(sv_isobject(retval) && sv_derived_from(retval, "Dyn::Type::Base")))
+            croak("Given type for return value is not a subclass of Dyn::Type::Base");
+
+        char signature[field_count+2];
+        for (int i = 0; i < field_count; i++) {
+            SV **type_ref = av_fetch(args, i, 0);
+            if (!(sv_isobject(*type_ref) && sv_derived_from(*type_ref, "Dyn::Type::Base")))
+                croak("Given type for arg %d is not a subclass of Dyn::Type::Base", i);
+            char *str = SvPVbytex_nolen(*type_ref);
+            switch (str[0]) {
+                case DC_SIGCHAR_CODE:
+                case DC_SIGCHAR_ARRAY:
+                    signature[i] = DC_SIGCHAR_POINTER;
+                    break;
+                case DC_SIGCHAR_AGGREGATE:
+                case DC_SIGCHAR_STRUCT:
+                    signature[i] = DC_SIGCHAR_AGGREGATE;
+                    break;
+                default:
+                    signature[i] = str[0];
+                    break;
+            }
+        }
+        signature[field_count] = ')';
+        {
+            char *str = SvPVbytex_nolen(retval);
+            switch (str[0]) {
+                case DC_SIGCHAR_CODE:
+                case DC_SIGCHAR_ARRAY:
+                    signature[field_count + 1] = DC_SIGCHAR_POINTER;
+                    break;
+                case DC_SIGCHAR_AGGREGATE:
+                case DC_SIGCHAR_STRUCT:
+                    signature[field_count + 1] = DC_SIGCHAR_AGGREGATE;
+                    break;
+                default:
+                    signature[field_count + 1] = str[0];
+                    break;
+            }
+        }
+        signature[field_count + 2] = (char)0;
+        hv_stores(MUTABLE_HV(RETVAL_SV), "signature", newSVpv(signature, field_count + 2));
+        {
+            DCCallback *RETVAL;
+            SV *funcptr = NULL;
+            _callback *container = (_callback *)safemalloc(sizeof(_callback));
+            if (!container) // OOM
+                XSRETURN_UNDEF;
+            dcMode(MY_CXT.cvm, container->mode);
+            dcReset(MY_CXT.cvm);
+            Newxz(container->signature, field_count + 2, char);
+            Copy(signature, container->signature, field_count + 2, char);
+            container->cb = &PL_sv_undef;       // Filled in later
+            container->userdata = &PL_sv_undef; // items > 2 ? newRV_inc(ST(2)) :
+            for (int i = 0; container->signature[i + 1] != '\0'; ++i) {
+                // warn("here at %s line %d.", __FILE__, __LINE__);
+                if (container->signature[i] == ')') {
+                    container->ret_type = container->signature[i + 1];
+                    break;
                 }
-                else
-                    croak("CodeRef[ [args], return]");
-                hv_stores(MUTABLE_HV(RETVAL_SV), "args", newRV_noinc(MUTABLE_SV(args)));
-
-                // sv_dump(SvRV(retval));
-                // sv_dump(retval);
-                hv_stores(MUTABLE_HV(RETVAL_SV), "return", newSVsv(retval));
-
-                if (!(sv_isobject(retval))) croak("NOT AN
-           OBJECT_!_!_!_!_@_@__~~_~__!_>_?_?_?_?__?!?!?!?");
-
-                if (!(sv_isobject(retval) && sv_derived_from(retval, "Dyn::Type::Base")))
-                    croak("Given type for return value is not a subclass of Dyn::Type::Base");
-
-                char signature[field_count + 2];
-
-                for (int i = 0; i < field_count; i++) {
-                    warn("i %d", i);
-                    SV **type_ref = av_fetch(args, i, 0);
-                    if (!(sv_isobject(*type_ref) && sv_derived_from(*type_ref, "Dyn::Type::Base")))
-                        croak("Given type for arg %d is not a subclass of Dyn::Type::Base", i);
-                    char *str = SvPVbytex_nolen(*type_ref);
-                    warn("Type: %s", str);
-                    switch (str[0]) {
-                    case DC_SIGCHAR_CODE:
-                    case DC_SIGCHAR_ARRAY:
-                        signature[i] = DC_SIGCHAR_POINTER;
-                        break;
-                    case DC_SIGCHAR_AGGREGATE:
-                    case DC_SIGCHAR_STRUCT:
-                        signature[i] = DC_SIGCHAR_AGGREGATE;
-                        break;
-                    default:
-                        signature[i] = str[0];
-                        break;
-                    }
-                }
-                signature[field_count] = ')';
-                {
-                    char *str = SvPVbytex_nolen(retval);
-                    switch (str[0]) {
-                    case DC_SIGCHAR_CODE:
-                    case DC_SIGCHAR_ARRAY:
-                        signature[field_count + 1] = DC_SIGCHAR_POINTER;
-                        break;
-                    case DC_SIGCHAR_AGGREGATE:
-                    case DC_SIGCHAR_STRUCT:
-                        signature[field_count + 1] = DC_SIGCHAR_AGGREGATE;
-                        break;
-                    default:
-                        signature[field_count + 1] = str[0];
-                        break;
-                    }
-                }
-                signature[field_count + 2] = (char)0;
-
-                hv_stores(MUTABLE_HV(RETVAL_SV), "signature", newSVpv(signature, field_count + 2));
-                {
-                    DCCallback *RETVAL;
-                    SV *funcptr = NULL;
-                    _callback *container = (_callback *)safemalloc(sizeof(_callback));
-                    if (!container) // OOM
-                        XSRETURN_UNDEF;
-                    dcMode(MY_CXT.cvm, container->mode);
-                    dcReset(MY_CXT.cvm);
-                    Newxz(container->signature, field_count + 2, char);
-                    Copy(signature, container->signature, field_count + 2, char);
-                    container->cb = &PL_sv_undef;       // Filled in later
-                    container->userdata = &PL_sv_undef; // items > 2 ? newRV_inc(ST(2)) :
-           &PL_sv_undef; int i; for (i = 0; container->signature[i + 1] != '\0'; ++i) {
-                        // warn("here at %s line %d.", __FILE__, __LINE__);
-                        if (container->signature[i] == ')') {
-                            container->ret_type = container->signature[i + 1];
-                            break;
-                        }
-                    }
-                    // warn("signature: %s at %s line %d.", signature, __FILE__, __LINE__);
-                    RETVAL = dcbNewCallback(signature, callback_handler, (void *)container);
-                    {
-                        SV *RETVALSV;
-                        RETVALSV = sv_newmortal();
-                        // Dyn::Callback | DCCallback * | DCCallbackPtr
-                        sv_setref_pv(RETVALSV, "Dyn::Callback", (void *)RETVAL);
-                        hv_stores(MUTABLE_HV(RETVAL_SV), "callback", newSVsv(RETVALSV));
-                    }
-                }
-        */
-        hv_stores(MUTABLE_HV(RETVAL_SV), "packed", sv_2mortal(boolSV(false)));
-
+            }
+            // warn("signature: %s at %s line %d.", signature, __FILE__, __LINE__);
+            RETVAL = dcbNewCallback(signature, callback_handler, (void *)container);
+            {
+                SV *RETVALSV;
+                RETVALSV = sv_newmortal();
+                // Dyn::Callback | DCCallback * | DCCallbackPtr
+                sv_setref_pv(RETVALSV, "Dyn::Callback", (void *)RETVAL);
+                hv_stores(MUTABLE_HV(RETVAL_SV), "callback", newSVsv(RETVALSV));
+            }
+        }
     } break;
     case DC_SIGCHAR_STRUCT: {
         if (items == 2) {
@@ -1594,10 +1581,10 @@ XS_EUPXS(Types_type_callx) {
     dMY_CXT;
 
     Call *call = (Call *)XSANY.any_ptr;
-    warn("Here at %s line %d", __FILE__, __LINE__);
+
     DCpointer ptr;
     SV *ret_type = SvRV(call->retval);
-    warn("Here at %s line %d", __FILE__, __LINE__);
+
 
     AV *args = MUTABLE_AV(SvRV(MUTABLE_SV(call->args)));
 
@@ -1609,12 +1596,12 @@ XS_EUPXS(Types_type_callx) {
         if (arg_count < items) croak("Too many arguments");
         if (arg_count > items) croak("Not enough arguments");
     }
-    warn("Here at %s line %d", __FILE__, __LINE__);
+
     dcMode(MY_CXT.cvm, call->mode);
     dcReset(MY_CXT.cvm);
     bool pointers = false;
     DCaggr *ag;
-    warn("Here at %s line %d", __FILE__, __LINE__);
+
     for (int i = 0; i < arg_count; ++i) {
         SV *field = *av_fetch(args, i, 0); // Make broad assumptions
         switch (call->sig[0]) {
@@ -1757,11 +1744,11 @@ XS_EUPXS(Types_type_callx) {
             if (sv_derived_from(field, "Dyn::Type::Struct")) {}
         }
     }
-    warn("Here at %s line %d", __FILE__, __LINE__);
+
 
     // dXSTARG;
 
-    warn("Here at %s line %d", __FILE__, __LINE__);
+
 
     SV *retval;
     {
@@ -1864,7 +1851,7 @@ static Call *_load(pTHX_ DLLib *lib, const char *symbol, AV *args, SV *retval, D
         return NULL;
     }
 
-    warn("Here at %s line %d", __FILE__, __LINE__);
+
 
     sv_dump(MUTABLE_SV(args));
 
