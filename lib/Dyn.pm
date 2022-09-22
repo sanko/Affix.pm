@@ -42,7 +42,7 @@ package Dyn 0.03 {
                 Float       Double
                 Struct      ArrayRef    CodeRef
                 Pointer     Str
-                Union
+                Union       InstanceOf
             ]
         ]
     );

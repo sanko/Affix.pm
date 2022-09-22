@@ -47,6 +47,7 @@ static PerlInterpreter *my_perl; /***    The Perl interpreter    ***/
 #define DC_SIGCHAR_ARRAY '['  // 'A' but nicer
 #define DC_SIGCHAR_STRUCT '{' // 'A' but nicer
 #define DC_SIGCHAR_UNION '<'  // 'A' but nicer
+#define DC_SIGCHAR_BLESSED '$' // 'p' but an object or subclass of a given package
 // bring balance
 #define DC_SIGCHAR_ARRAY_END ']'
 #define DC_SIGCHAR_STRUCT_END '}'
@@ -327,6 +328,8 @@ static char callback_handler(DCCallback *cb, DCArgs *args, DCValue *result, void
                     XPUSHs(newSVnv(dcbArgDouble(args)));
                     break;
                 case DC_SIGCHAR_POINTER:
+                case DC_SIGCHAR_BLESSED:
+                    /* TODO: I need to grab the type from the related InstanceOf */
                     XPUSHs(sv_setref_pv(newSV(0), "Dyn::Call::Pointer", dcbArgPointer(args)));
                     break;
                 case DC_SIGCHAR_STRING:
@@ -459,4 +462,24 @@ const char *ordinal(int n) {
     ord = ord % 10;
     if (ord > 3) { ord = 0; }
     return suffixes[ord];
+}
+
+bool is_valid_class_name(SV* sv) { // Stolen from Type::Tiny::XS::Util
+    bool RETVAL;
+    SvGETMAGIC(sv);
+    if(SvPOKp(sv) && SvCUR(sv) > 0){
+        UV i;
+        RETVAL = TRUE;
+        for(i = 0; i < SvCUR(sv); i++){
+            char const c = SvPVX(sv)[i];
+            if(!(isALNUM(c) || c == ':')){
+                RETVAL = FALSE;
+                break;
+            }
+        }
+    }
+    else{
+        RETVAL = SvNIOKp(sv) ? TRUE : FALSE;
+    }
+    return RETVAL;
 }
