@@ -1,7 +1,10 @@
 use strict;
 use Test::More 0.98;
 use lib '../lib', '../blib/arch', '../blib/lib', 'blib/arch', 'blib/lib';
-use Dyn qw[:all];
+use Dyn           qw[:all];
+use Dyn::Call     qw[:all];
+use Dyn::Callback qw[:all];
+use Dyn::Load     qw[:all];
 use File::Spec;
 $|++;
 #
@@ -120,7 +123,6 @@ SKIP: {
             local $TODO = 'Some platforms do rel2abs and some do not';
             my $___lib = ' ' x 1024;
             my $_abs_  = File::Spec->rel2abs($lib_file);
-            warn $lib;
             is dlGetLibraryPath( $lib, $___lib, length $___lib ), length($_abs_) + 1,
                 'dlGetLibraryPath(...)';
             is $___lib, $_abs_, '  $sOut is correct';

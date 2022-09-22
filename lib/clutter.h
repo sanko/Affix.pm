@@ -43,10 +43,10 @@ static PerlInterpreter *my_perl; /***    The Perl interpreter    ***/
 #include <dyncall/dyncall/dyncall_aggregate.h>
 
 //{ii[5]Z&<iZ>}
-#define DC_SIGCHAR_CODE '&'   // 'p' but allows us to wrap CV * for the user
-#define DC_SIGCHAR_ARRAY '['  // 'A' but nicer
-#define DC_SIGCHAR_STRUCT '{' // 'A' but nicer
-#define DC_SIGCHAR_UNION '<'  // 'A' but nicer
+#define DC_SIGCHAR_CODE '&'    // 'p' but allows us to wrap CV * for the user
+#define DC_SIGCHAR_ARRAY '['   // 'A' but nicer
+#define DC_SIGCHAR_STRUCT '{'  // 'A' but nicer
+#define DC_SIGCHAR_UNION '<'   // 'A' but nicer
 #define DC_SIGCHAR_BLESSED '$' // 'p' but an object or subclass of a given package
 // bring balance
 #define DC_SIGCHAR_ARRAY_END ']'
@@ -119,6 +119,7 @@ const char *file = __FILE__;
 #endif
 
 /* api wrapping utils */
+HV *Dyn_export;
 
 #define MY_CXT_KEY "Dyn::_guts" XS_VERSION
 
@@ -168,10 +169,6 @@ size_t padding_needed_for(size_t offset, size_t alignment) {
     return 0; // already a multiple of alignment
 }
 
-HV *Fl_stash,   // For inserting stuff directly into Fl's namespace
-    *Fl_export, // For inserting stuff directly into Fl's exports//
-    *Fl_cache;  // For caching weak refs to widgets and other objects
-
 void set_isa(const char *klass, const char *parent) {
     dTHX;
     HV *parent_stash = gv_stashpv(parent, GV_ADD | GV_ADDMULTI);
@@ -187,15 +184,15 @@ void register_constant(const char *package, const char *name, SV *value) {
 
 void export_function(const char *what, const char *_tag) {
     dTHX;
-    warn("Exporting %s to %s", what, _tag);
-    SV **tag = hv_fetch(Fl_export, _tag, strlen(_tag), TRUE);
+    // warn("Exporting %s to %s", what, _tag);
+    SV **tag = hv_fetch(Dyn_export, _tag, strlen(_tag), TRUE);
     if (tag && SvOK(*tag) && SvROK(*tag) && (SvTYPE(SvRV(*tag))) == SVt_PVAV)
         av_push((AV *)SvRV(*tag), newSVpv(what, 0));
     else {
         SV *av;
         av = (SV *)newAV();
         av_push((AV *)av, newSVpv(what, 0));
-        tag = hv_store(Fl_export, _tag, strlen(_tag), newRV_noinc(av), 0);
+        tag = hv_store(Dyn_export, _tag, strlen(_tag), newRV_noinc(av), 0);
     }
 }
 
@@ -464,22 +461,21 @@ const char *ordinal(int n) {
     return suffixes[ord];
 }
 
-bool is_valid_class_name(SV* sv) { // Stolen from Type::Tiny::XS::Util
+bool is_valid_class_name(SV *sv) { // Stolen from Type::Tiny::XS::Util
+    dTHX;
     bool RETVAL;
     SvGETMAGIC(sv);
-    if(SvPOKp(sv) && SvCUR(sv) > 0){
+    if (SvPOKp(sv) && SvCUR(sv) > 0) {
         UV i;
         RETVAL = TRUE;
-        for(i = 0; i < SvCUR(sv); i++){
+        for (i = 0; i < SvCUR(sv); i++) {
             char const c = SvPVX(sv)[i];
-            if(!(isALNUM(c) || c == ':')){
+            if (!(isALNUM(c) || c == ':')) {
                 RETVAL = FALSE;
                 break;
             }
         }
     }
-    else{
-        RETVAL = SvNIOKp(sv) ? TRUE : FALSE;
-    }
+    else { RETVAL = SvNIOKp(sv) ? TRUE : FALSE; }
     return RETVAL;
 }

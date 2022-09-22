@@ -8,7 +8,9 @@ package Dyn 0.03 {
     use Config;
     use Sub::Util qw[subname];
     use Text::ParseWords;
-    use Carp qw[];
+    use Carp      qw[];
+    use vars      qw[@EXPORT_OK @EXPORT %EXPORT_TAGS];
+    use Dyn::Call qw[DC_SIGCHAR_CC_DEFAULT];
 
     #use Attribute::Handlers;
     no warnings 'redefine';
@@ -16,37 +18,21 @@ package Dyn 0.03 {
     use XSLoader;
     XSLoader::load( __PACKAGE__, our $VERSION );
     #
-    use Dyn::Call     qw[:all];
-    use Dyn::Callback qw[:all];
-    use Dyn::Load     qw[:all];
     use experimental 'signatures';
     #
     use parent 'Exporter';
-    our %EXPORT_TAGS = (
-        dc    => [@Dyn::Call::EXPORT_OK],
-        dcb   => [@Dyn::Callback::EXPORT_OK],
-        dl    => [@Dyn::Load::EXPORT_OK],
-        sugar => [
-            qw[wrap attach
-                MODIFY_CODE_ATTRIBUTES
-                AUTOLOAD]
-        ],
-        types => [
-            qw[typedef      Type
-                Void        Bool
-                Char        UChar
-                Short       UShort
-                Int         UInt
-                Long        ULong
-                LongLong    ULongLong
-                Float       Double
-                Struct      ArrayRef    CodeRef
-                Pointer     Str
-                Union       InstanceOf
-            ]
-        ]
-    );
+    @EXPORT_OK          = sort map { @$_ = sort @$_; @$_ } values %EXPORT_TAGS;
+    $EXPORT_TAGS{'all'} = \@EXPORT_OK;    # When you want to import everything
+
+    #@{ $EXPORT_TAGS{'enum'} }             # Merge these under a single tag
+    #    = sort map { defined $EXPORT_TAGS{$_} ? @{ $EXPORT_TAGS{$_} } : () }
+    #    qw[types?]
+    #    if 1 < scalar keys %EXPORT_TAGS;
+    @EXPORT    # Export these tags (if prepended w/ ':') or functions by default
+        = sort map { m[^:(.+)] ? @{ $EXPORT_TAGS{$1} } : $_ } qw[:default :types]
+        if keys %EXPORT_TAGS > 1;
     @{ $EXPORT_TAGS{all} } = our @EXPORT_OK = map { @{ $EXPORT_TAGS{$_} } } keys %EXPORT_TAGS;
+    #
     my %_delay;
 
     sub wrap ( $lib, $symbol_name, $args, $return, $mode = DC_SIGCHAR_CC_DEFAULT ) {
@@ -89,8 +75,8 @@ package Dyn 0.03 {
         my $self = $_[0];           # Not shift, using goto.
         my $sub  = our $AUTOLOAD;
         if ( defined $_delay{$sub} ) {
-            #warn 'Wrapping ' . $sub;
 
+            #warn 'Wrapping ' . $sub;
             #use Data::Dump;
             #ddx $_delay{$sub};
             my $cv = attach(
@@ -157,7 +143,6 @@ package Dyn 0.03 {
 
                 #warn $args;
                 #warn $ret;
-
                 $signature = eval($args);
                 $return    = eval($ret);
             }

@@ -1671,6 +1671,7 @@ XS_EUPXS(Dyn_DESTROY) {
         cv = newXSproto_portable(form("%s::new", package), Types, file, "$");                      \
         safefree(XSANY.any_ptr);                                                                   \
         XSANY.any_i32 = (int)SIGCHAR;                                                              \
+        export_function(NAME, "types");                                                         \
         /* Int->sig == 'i'; Struct[Int, Float]->sig == '{if}' */                                   \
         cv = newXSproto_portable(form("%s::sig", package), Types_sig, file, "$");                  \
         XSANY.any_i32 = (int)SIGCHAR;                                                              \
@@ -1701,6 +1702,7 @@ BOOT :
         MY_CXT.count = 0;
         MY_CXT.cvm = dcNewCallVM(4096);
     }
+    Dyn_export = get_hv( "Dyn::EXPORT_TAGS", TRUE );
     {
         //(void)newXSproto_portable("Dyn::attach", XS_Dyn_attach, file, "$$@$");
         (void)newXSproto_portable("Dyn::coerce", Dyn_coerce, file, "$$");
@@ -1734,6 +1736,11 @@ BOOT :
         TYPE("CodeRef", DC_SIGCHAR_CODE, DC_SIGCHAR_AGGREGATE);
         TYPE("InstanceOf", DC_SIGCHAR_BLESSED, DC_SIGCHAR_POINTER);
         // Enum[]?
+        export_function("typedef", "types");
+        export_function("wrap", "sugar");
+        export_function("attach", "sugar");
+        export_function("MODIFY_CODE_ATTRIBUTES", "default");
+        export_function("AUTOLOAD", "default");
     }
 
 SV *
@@ -1855,4 +1862,3 @@ void
 DUMP_IT(SV * sv)
 CODE :
     sv_dump(sv);
-

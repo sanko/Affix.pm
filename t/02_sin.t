@@ -1,7 +1,10 @@
 use strict;
 use warnings;
 use lib '../lib', '../blib/arch', '../blib/lib', 'blib/arch', 'blib/lib';
-use Dyn qw[wrap :dl :dc :types];
+use Dyn           qw[:all];
+use Dyn::Call     qw[:all];
+use Dyn::Callback qw[:all];
+use Dyn::Load     qw[:all];
 use Test::More;
 use Config;
 $|++;

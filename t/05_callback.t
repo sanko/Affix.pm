@@ -2,7 +2,10 @@ use strict;
 use warnings;
 use Test::More 0.98;
 use lib '../lib', '../blib/arch', '../blib/lib', 'blib/arch', 'blib/lib';
-use Dyn qw[:all];
+use Dyn           qw[:all];
+use Dyn::Call     qw[:all];
+use Dyn::Callback qw[:all];
+use Dyn::Load     qw[:all];
 use File::Spec;
 $|++;
 #
