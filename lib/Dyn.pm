@@ -89,6 +89,7 @@ package Dyn 0.03 {
         my $self = $_[0];           # Not shift, using goto.
         my $sub  = our $AUTOLOAD;
         if ( defined $_delay{$sub} ) {
+            #warn 'Wrapping ' . $sub;
 
             #use Data::Dump;
             #ddx $_delay{$sub};
@@ -97,12 +98,6 @@ package Dyn 0.03 {
                 $_delay{$sub}[3], $_delay{$sub}[4], $_delay{$sub}[5],
                 $_delay{$sub}[6], $_delay{$sub}[7]
             );
-            #{
-                #no strict 'refs';
-                #*{$sub} = $cv;
-            #}
-
-            #*{$full_name} = $cv
             delete $_delay{$sub};
             return goto &$cv;
         }
