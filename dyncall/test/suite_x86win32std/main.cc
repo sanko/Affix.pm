@@ -6,7 +6,7 @@
  Description:
  License:
 
-   Copyright (c) 2007-2018 Daniel Adler <dadler@uni-goettingen.de>,
+   Copyright (c) 2007-2022 Daniel Adler <dadler@uni-goettingen.de>,
                            Tassilo Philipp <tphilipp@potion-studios.com>
 
    Permission to use, copy, modify, and distribute this software for any
@@ -38,17 +38,14 @@ DCpointer getFunc(int x);
 DCValue* getArg(int pos);
 
 
-typedef double precise;
-
-
-DCbool     valueBool[NARGS];
-DCshort    valueShort[NARGS];
-DCchar     valueChar[NARGS];
-DCint      valueInt[NARGS];
-DClonglong valueLongLong[NARGS];
-DCdouble   valueDouble[NARGS];
-DCpointer  valuePointer[NARGS];
-DCfloat    valueFloat[NARGS];
+static DCbool     valueBool    [NARGS];
+static DCshort    valueShort   [NARGS];
+static DCchar     valueChar    [NARGS];
+static DCint      valueInt     [NARGS];
+static DClonglong valueLongLong[NARGS];
+static DCdouble   valueDouble  [NARGS];
+static DCpointer  valuePointer [NARGS];
+static DCfloat    valueFloat   [NARGS];
 
 
 bool equals(int select, int pos, void* data)

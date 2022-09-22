@@ -178,7 +178,7 @@ int main(int argc, char* argv[])
   {
     int r_;
     struct A a;
-    DCaggr *s = dcNewAggr(1, sizeof(struct A));
+    DCaggr *s = dcNewAggr(2, sizeof(struct A));
     dcAggrField(s, DC_SIGCHAR_INT,  offsetof(struct A, i), 1);
     dcAggrField(s, DC_SIGCHAR_CHAR, offsetof(struct A, x), 7);
     dcCloseAggr(s);
@@ -197,7 +197,7 @@ int main(int argc, char* argv[])
   {
     int r_;
     struct B b;
-    DCaggr *s = dcNewAggr(1, sizeof(struct B));
+    DCaggr *s = dcNewAggr(2, sizeof(struct B));
     dcAggrField(s, DC_SIGCHAR_INT,   offsetof(struct B, i), 1);
     dcAggrField(s, DC_SIGCHAR_UCHAR, offsetof(struct B, x), 7);
     dcCloseAggr(s);

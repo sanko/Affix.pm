@@ -2,7 +2,7 @@ APP       = suite3
 OBJS      = case.o main.o
 SRCTOP    = ${VPATH}/../..
 BLDTOP    = ../..
-CPPFLAGS += -I${SRCTOP}/dyncall
+CXXFLAGS += -I${SRCTOP}/dyncall
 LDLIBS   += -L${BLDTOP}/dyncall -ldyncall_s
 .PHONY: all clean install
 all: ${APP}

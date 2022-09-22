@@ -3,7 +3,7 @@
  Package: dyncall
  Library: test
  File: test/callback_suite_aggrs/globals.c
- Description: 
+ Description:
  License:
 
    Copyright (c) 2022 Tassilo Philipp <tphilipp@potion-studios.com>
@@ -117,8 +117,8 @@ void deinit_test_data()
 {
   int i;
   for(i=0;i<G_maxargs+1;++i) {
-    free((char*)V_a[i]-AGGR_MISALIGN);
-    free((char*)K_a[i]-AGGR_MISALIGN);
+    if(V_a[i]) free((char*)V_a[i]-AGGR_MISALIGN);
+    if(K_a[i]) free((char*)K_a[i]-AGGR_MISALIGN);
   }
 
 #define X(CH,T) free(V_##CH); free(K_##CH);

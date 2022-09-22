@@ -26,6 +26,8 @@
 #include <stdlib.h>
 #include <assert.h>
 #include <string.h>
+#include <signal.h>
+#include <setjmp.h>
 #include "dyncall_callback.h"
 #include "globals.h"
 #include "../common/platformInit.h"
@@ -273,12 +275,26 @@ static int run_all(int from, int to)
 }
 
 
+jmp_buf jbuf;
+void sig_handler(int sig)
+{
+  longjmp(jbuf, 1);
+}
+
+
 #define Error(X, Y, N) { fprintf(stderr, X, Y); print_usage(N); exit(1); }
 
 int main(int argc, char* argv[])
 {
   int from = 0, to = G_ncases-1;
-  int i, pos = 0, total;
+  int i, pos = 0, r = 0;
+
+  signal(SIGABRT, sig_handler);
+  signal(SIGILL,  sig_handler);
+  signal(SIGSEGV, sig_handler);
+#if !defined(DC_WINDOWS)
+  signal(SIGBUS,  sig_handler);
+#endif
 
   dcTest_initPlatform();
 
@@ -308,13 +324,21 @@ int main(int argc, char* argv[])
 
 
   init_test_data();
-  total = run_all(from, to);
+  if(setjmp(jbuf) == 0)
+    r = run_all(from, to);
+  else
+    printf("\n"); /* new line as current might be filled with garbage */
+
+  /* free all DCaggrs created on the fly (backwards b/c they are interdependency-ordered */
+  for(i=G_naggs-1; i>=0; --i)
+    dcFreeAggr(((DCaggr*(*)())G_agg_touchAfuncs[i])());
+
   deinit_test_data();
 
-  printf("result: callback_suite_aggrs: %d\n", total);
+  printf("result: callback_suite_aggrs: %d\n", r);
 
   dcTest_deInitPlatform();
 
-  return !total;
+  return !r;
 }
 

@@ -47,6 +47,7 @@ int main(int argc, char* argv[])
   {
   	r = syscall_write(1/*stdout*/, "result: syscall: ", 17);
   	r += syscall_write(1/*stdout*/, r==17?"1":"0", 2);
+  	r += syscall_write(1/*stdout*/, "\n", 2);
   }
   return !(r == 19);
 }

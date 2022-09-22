@@ -25,6 +25,8 @@
 #include "dyncall.h"
 #include "globals.h"
 #include <string.h>
+#include <signal.h>
+#include <setjmp.h>
 #include "../common/platformInit.h"
 #include "../common/platformInit.c" /* Impl. for functions only used in this translation unit */
 
@@ -145,11 +147,11 @@ static int invoke(const char *signature, void* t)
       /* bound check memory adjacent to returned aggregate, to check for overflows by dcCallAggr */
       long long* adj_ll = (get_max_aggr_size() - rtype_size) > sizeof(long long) ? (long long*)((char*)V_a[pos] + rtype_size) : NULL;
       if(adj_ll)
-        *adj_ll = 0x0123456789abcdef;
+        *adj_ll = 0x0123456789abcdefLL;
 
       s = ((int(*)(const void*,const void*))rtype_a_cmp)(dcCallAggr(p, t, rtype_a, V_a[pos]), K_a[pos]);
 
-      if(adj_ll && *adj_ll != 0x0123456789abcdef) {
+      if(adj_ll && *adj_ll != 0x0123456789abcdefLL) {
         printf("writing rval overflowed into adjacent memory;");
         return 0;
       }
@@ -225,9 +227,24 @@ static int run_all()
   return !failure;
 }
 
+
+jmp_buf jbuf;
+void sig_handler(int sig)
+{
+  longjmp(jbuf, 1);
+}
+
+
 int main(int argc, char* argv[])
 {
-  int total, i;
+  int r = 0, i;
+
+  signal(SIGABRT, sig_handler);
+  signal(SIGILL,  sig_handler);
+  signal(SIGSEGV, sig_handler);
+#if !defined(DC_WINDOWS)
+  signal(SIGBUS,  sig_handler);
+#endif
 
   dcTest_initPlatform();
 
@@ -235,19 +252,22 @@ int main(int argc, char* argv[])
   G_callvm = (DCCallVM*) dcNewCallVM(32768);
 
   dcReset(G_callvm);
-  total = run_all();
+  if(setjmp(jbuf) == 0)
+    r = run_all();
+  else
+    printf("\n"); /* new line as current might be filled with garbage */
 
-  /* free all DCaggrs created on the fly */
-  for(i=0; i<G_naggs; ++i)
+  /* free all DCaggrs created on the fly (backwards b/c they are interdependency-ordered */
+  for(i=G_naggs-1; i>=0; --i)
     dcFreeAggr(((DCaggr*(*)())G_agg_touchAfuncs[i])());
 
   dcFree(G_callvm);
   deinit_test_data(G_maxargs);
 
-  printf("result: call_suite_aggrs: %d\n", total);
+  printf("result: call_suite_aggrs: %d\n", r);
 
   dcTest_deInitPlatform();
 
-  return !total;
+  return !r;
 }
 

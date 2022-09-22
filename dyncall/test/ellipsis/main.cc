@@ -6,7 +6,7 @@
  Description: call (...) functions via dyncall library, targets are auto-generated
  License:
 
-   Copyright (c) 2007-2021 Daniel Adler <dadler@uni-goettingen.de>,
+   Copyright (c) 2007-2022 Daniel Adler <dadler@uni-goettingen.de>,
                            Tassilo Philipp <tphilipp@potion-studios.com>
 
    Permission to use, copy, modify, and distribute this software for any
@@ -38,10 +38,10 @@ int       getId();
 DCpointer getFunc(int x);
 DCValue*  getArg(int pos);
 
-DCint      valueInt     [NARGS];
-DClonglong valueLongLong[NARGS];
-DCdouble   valueDouble  [NARGS];
-DCpointer  valuePointer [NARGS];
+static DCint      valueInt     [NARGS];
+static DClonglong valueLongLong[NARGS];
+static DCdouble   valueDouble  [NARGS];
+static DCpointer  valuePointer [NARGS];
 
 bool equals(int select, int pos, void* data)
 {

@@ -22,6 +22,9 @@ dyncallback:
   o x64/windows masm directives for frame unwinding information (as dbg help; thanks Raphael Luba!)
 dynload:
   o build fix for ReactOS with RosBE/cmake/mingw-make environment
+general:
+  o more robust detection of platform endianness (on some platforms inclusion
+    of endian.h led to wrong assumptions)
 tests:
   o call_suite: simplified and extended to test also unsigned types, and _Bool
   o callback_suite: refactored to be much more like call_suite test
@@ -260,7 +263,7 @@ architecture:
   o added subproject: autovar - predefined macro framework (was dyncall_macros.h)
   o added support for Solaris and SunPro compiler for i386, x86_64, sparc and sparc64
   o improved auto-detection via preprocessor defines
-dyncall updates:
+dyncall:
   o uses portasm (GNU,Apple,Microsoft) common sources for x86,x64,ppc32,arm32_arm
   o added support for sparc (32-bit) (tested on linux/debian,openbsd,solaris)
   o added support for sparc (64-bit) (tested on linux/debian,openbsd,solaris)
@@ -275,13 +278,13 @@ dyncall updates:
   o bug fix for ppc32/sysv: ellipsis calls work now
   o updated API, introduced DC_CALL_C_ELLIPSIS_VARARGS
   o changed interface: dcMode does not reset internally anymore
-dyncallback updates:
+dyncallback:
   o uses portasm for x86,x64
   o added Solaris/x86/sunpro port (stable)
   o added Minix port (unstable)
   o callback support for Darwin/ppc32
   o updates source, uses relative includes
-dynload updates:
+dynload:
   o fixes for missing includes (dyncall_alloc.h)
   o fixes for self-resolving symbols on windows
   o removed Dbghelf.lib dependency
@@ -311,7 +314,7 @@ buildsys/cmake updates:
   o fixes for universal builds on Mac OS X
   o supports SunPro with *.S files.
   o added experimental 'dynMake' portable make-based build-system (not stable, yet)
-documentation updates:
+doc:
   o added dyncallback documentation
   o updated dyncall documentation
   o minor updates
@@ -319,21 +322,20 @@ tests:
   o added flexible test suite for calls (call_suite) based on Lua and C
   o added syscall test
   o updates to resolve-self test (adding additional link flags to export symbols)
-  o improved dir name portability (renamed plain_c++ -> plain_cxx)
   o renamed *.cpp -> *.cc files (OpenBSD/Sun make has no implicit rules for cpp)
 
 
 Version 0.6 (2010/09/25)
 
-building:
+buildsys:
   o new build systems: CMake and Plan9's mk
   o buildsys/gmake tool chain update: pcc and iphone sdk
   o x64 bugfix: added "-fPIC" even for static libs
-dynload updates:
+dynload:
   o enum symbols update: Mach-O and Win64 (thanks Olivier)
   o numerous convenience changes to dynload interface (thanks Olivier)
   o added support for resolving application images itself
-dyncall updates:
+dyncall:
   o new platform support: arm/iphone (armv6), x86/Plan9
   o new MIPS calling conventions: o32, n64 (both endian models)
   o cleanup: unexported functions in MASM files, b/c export not needed (thanks Olivier)

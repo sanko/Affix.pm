@@ -280,18 +280,22 @@ DC__Arch_PPC32
 DC__Arch_PPC64
 DC__Arch_SuperH
 */
-# if (defined(DC__Arch_PPC64) && (DC__ABI_PPC64_ELF_V == 1)) || defined(_BIG_ENDIAN) || defined(__BIG_ENDIAN__) || defined(MIPSEB) || defined(_MIPSEB) || defined(__MIPSEB) || defined(__MIPSEB__) || defined(__ARMEB__) || defined(__AARCH64EB__)
+# if (defined(DC__Arch_PPC64) && (DC__ABI_PPC64_ELF_V == 1)) || defined(MIPSEB) || defined(_MIPSEB) || defined(__MIPSEB) || defined(__MIPSEB__) || defined(__ARMEB__) || defined(__AARCH64EB__)
 #  define DC__Endian_BIG
-# elif (defined(DC__Arch_PPC64) && (DC__ABI_PPC64_ELF_V == 2)) || defined(_LITTLE_ENDIAN) || defined(__LITTLE_ENDIAN__) || defined(MIPSEL) || defined(_MIPSEL) || defined(__MIPSEL) || defined(__MIPSEL__) || defined(__ARMEL__) || defined(__AARCH64EL__)
+# elif (defined(DC__Arch_PPC64) && (DC__ABI_PPC64_ELF_V == 2)) || defined(MIPSEL) || defined(_MIPSEL) || defined(__MIPSEL) || defined(__MIPSEL__) || defined(__ARMEL__) || defined(__AARCH64EL__)
 #  define DC__Endian_LITTLE
 # elif defined(DC__Arch_Sparc64) && !defined(__BYTE_ORDER__) /* Sparc64 default is big-endian, except if explicitly defined */
 #    define DC__Endian_BIG
-# elif defined(__BYTE_ORDER__) /* explicitly set */
-#  if defined(__ORDER_BIG_ENDIAN__) && (__BYTE_ORDER__ == __ORDER_BIG_ENDIAN__)
+# elif defined(BYTE_ORDER) || defined(_BYTE_ORDER) || defined(__BYTE_ORDER__) /* explicitly set byte order, either through compiler or platform specific endian.h */
+#  if (defined(BIG_ENDIAN) && (BYTE_ORDER == BIG_ENDIAN)) ||  (defined(_BIG_ENDIAN) && (_BYTE_ORDER == _BIG_ENDIAN)) || (defined(__ORDER_BIG_ENDIAN__) && (__BYTE_ORDER__ == __ORDER_BIG_ENDIAN__))
 #    define DC__Endian_BIG
-#  elif defined(__ORDER_LITTLE_ENDIAN__) && (__BYTE_ORDER__ == __ORDER_LITTLE_ENDIAN__)
+#  elif (defined(LITTLE_ENDIAN) && (BYTE_ORDER == LITTLE_ENDIAN)) ||  (defined(_LITTLE_ENDIAN) && (_BYTE_ORDER == _LITTLE_ENDIAN)) || (defined(__ORDER_LITTLE_ENDIAN__) && (__BYTE_ORDER__ == __ORDER_LITTLE_ENDIAN__))
 #    define DC__Endian_LITTLE
 #  endif
+# elif (defined(_BIG_ENDIAN) && (_BIG_ENDIAN == 1)) || (defined(__BIG_ENDIAN__) && (__BIG_ENDIAN__ == 1)) /* explicitly set as on/off */
+#  define DC__Endian_BIG
+# elif (defined(_LITTLE_ENDIAN) && (_LITTLE_ENDIAN == 1)) || (defined(__LITTLE_ENDIAN__) && (__LITTLE_ENDIAN__ == 1)) /* explicitly set as on/off */
+#  define DC__Endian_LITTLE
 # endif /* no else, leave unset if not sure */
 #endif
 

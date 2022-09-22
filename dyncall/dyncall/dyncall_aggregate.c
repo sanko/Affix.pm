@@ -62,15 +62,15 @@ void dcAggrField(DCaggr* ag, DCsigchar type, DCint offset, DCsize array_len, ...
 	f->sub_aggr = NULL;
 	switch(type) {
 		case DC_SIGCHAR_BOOL:       f->size = sizeof(DCbool);     break;
-		case DC_SIGCHAR_CHAR:       
+		case DC_SIGCHAR_CHAR:
 		case DC_SIGCHAR_UCHAR:      f->size = sizeof(DCchar);     break;
-		case DC_SIGCHAR_SHORT:      
+		case DC_SIGCHAR_SHORT:
 		case DC_SIGCHAR_USHORT:     f->size = sizeof(DCshort);    break;
-		case DC_SIGCHAR_INT:        
+		case DC_SIGCHAR_INT:
 		case DC_SIGCHAR_UINT:       f->size = sizeof(DCint);      break;
-		case DC_SIGCHAR_LONG:       
+		case DC_SIGCHAR_LONG:
 		case DC_SIGCHAR_ULONG:      f->size = sizeof(DClong);     break;
-		case DC_SIGCHAR_LONGLONG:   
+		case DC_SIGCHAR_LONGLONG:
 		case DC_SIGCHAR_ULONGLONG:  f->size = sizeof(DClonglong); break;
 		case DC_SIGCHAR_FLOAT:      f->size = sizeof(DCfloat);    break;
 		case DC_SIGCHAR_DOUBLE:     f->size = sizeof(DCdouble);   break;

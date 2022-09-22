@@ -6,7 +6,7 @@
  Description:
  License:
 
-   Copyright (c) 2007-2018 Daniel Adler <dadler@uni-goettingen.de>,
+   Copyright (c) 2007-2022 Daniel Adler <dadler@uni-goettingen.de>,
                            Tassilo Philipp <tphilipp@potion-studios.com>
 
    Permission to use, copy, modify, and distribute this software for any
@@ -38,8 +38,8 @@ int       getId();
 DCpointer getFunc(int x);
 DCValue*  getArg(int pos);
 
-DCdouble   valueDouble  [NARGS];
-DCfloat    valueFloat   [NARGS];
+static DCdouble   valueDouble  [NARGS];
+static DCfloat    valueFloat   [NARGS];
 
 
 bool equals(int select, int pos, void* data)

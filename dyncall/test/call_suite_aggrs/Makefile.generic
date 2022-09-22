@@ -8,7 +8,7 @@ LUA     = lua
 .PHONY: all clean install config config-random
 all: ${APP}
 ${APP}: ${OBJS} 
-	${CC} ${CFLAGS} ${LDFLAGS} ${OBJS} ${LDLIBS} -o ${APP} 
+	${CC} ${CFLAGS} ${LDFLAGS} ${OBJS} ${LDLIBS} -o ${APP}
 clean:
 	rm -f ${APP} ${OBJS}
 install:
