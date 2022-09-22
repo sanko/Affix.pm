@@ -14,6 +14,7 @@
 typedef struct
 {
     char *sig;
+    size_t sig_len;
     char ret;
     char mode;
     void *fptr;
@@ -1335,42 +1336,31 @@ XS_EUPXS(Types_type_call) {
     // warn("Calling at %s line %d", __FILE__, __LINE__);
 
     Call *call = (Call *)XSANY.any_ptr;
+    AV * args = NULL; // just in case...
+    //AV *args = MUTABLE_AV(SvRV(MUTABLE_SV(call->args)));
+    //SV *ret_type = (SvRV(call->retval));
 
-    DCpointer ptr;
-
-    AV *args = MUTABLE_AV(SvRV(MUTABLE_SV(call->args)));
-    SV *ret_type = (SvRV(call->retval));
-
-    size_t arg_count = av_count(args);
-
-    // sv_dump(SvRV(MUTABLE_SV(call->args)));
-    // warn("arg_count:%d, items:%d, sig:%s at %s line %d", arg_count, items, call->sig, __FILE__,
-    // __LINE__);
-
-    if (arg_count != items) {
-        if (arg_count < items) croak("Too many arguments");
-        if (arg_count > items) croak("Not enough arguments");
+    if (call->sig_len != items) {
+        if (call->sig_len < items) croak("Too many arguments");
+        if (call->sig_len > items) croak("Not enough arguments");
     }
 
     dcReset(MY_CXT.cvm);
     bool pointers = false;
-    DCaggr *ag;
     // warn("Calling at %s line %d", __FILE__, __LINE__);
 
-    for (int i = 0; i < arg_count; ++i) {
+    for (int i = 0; i < call->sig_len; ++i) {
         // warn("Working on element %d of %d at %s line %d", i, arg_count, __FILE__, __LINE__);
-
-        SV *field = *av_fetch(args, i, 0); // Make broad assumptions
 
         switch (call->sig[i]) {
         case DC_SIGCHAR_BOOL:
-            dcArgDouble(MY_CXT.cvm, SvTRUE(ST(i)));
+            dcArgBool(MY_CXT.cvm, SvTRUE(ST(i)));
             break; // Anything can bee a bool
         case DC_SIGCHAR_CHAR:
             dcArgChar(MY_CXT.cvm, (char)SvIV(ST(i)));
             break;
         case DC_SIGCHAR_UCHAR:
-            dcArgChar(MY_CXT.cvm, (unsigned char)SvIV(ST(i)));
+            dcArgChar(MY_CXT.cvm, (unsigned char)SvUV(ST(i)));
             break;
         case DC_SIGCHAR_SHORT:
             dcArgShort(MY_CXT.cvm, (short)SvIV(ST(i)));
@@ -1420,6 +1410,9 @@ XS_EUPXS(Types_type_call) {
             dcArgPointer(MY_CXT.cvm, SvPOK(ST(i)) ? SvPV_nolen(ST(i)) : NULL);
         } break;
         case DC_SIGCHAR_CODE: {
+            if(args == NULL)
+                args = MUTABLE_AV(SvRV(MUTABLE_SV(call->args)));
+            SV *field = *av_fetch(args, i, 0); // Make broad assumptions
             SV **cb = hv_fetchs(MUTABLE_HV(SvRV(field)), "callback", 0);
             DCCallback *callback;
 
@@ -1447,6 +1440,10 @@ XS_EUPXS(Types_type_call) {
             dcArgPointer(MY_CXT.cvm, callback);
         } break;
         case DC_SIGCHAR_ARRAY: {
+            if(args == NULL)
+                args = MUTABLE_AV(SvRV(MUTABLE_SV(call->args)));
+            SV *field = *av_fetch(args, i, 0); // Make broad assumptions
+
             if (!SvROK(ST(i)) || SvTYPE(SvRV(ST(i))) != SVt_PVAV)
                 croak("Type of arg %d must be an array ref", i + 1);
             AV *elements = MUTABLE_AV(SvRV(ST(i)));
@@ -1478,8 +1475,7 @@ XS_EUPXS(Types_type_call) {
 
             DumpHex(ptr, size);
             // croak("I need to get this to load the elements into an array");
-
-            ag = dcNewAggr(1, sizeof(ptr));
+            DCaggr *ag = dcNewAggr(1, sizeof(ptr));
 
             // TODO: I need to set the correct type here
             dcAggrField(ag, DC_SIGCHAR_INT, 0, av_len);
@@ -1492,7 +1488,9 @@ XS_EUPXS(Types_type_call) {
         case DC_SIGCHAR_STRUCT: {
             if (!SvROK(ST(i)) || SvTYPE(SvRV(ST(i))) != SVt_PVHV)
                 croak("Type of arg %d must be a hash ref", i + 1);
-
+            if(args == NULL)
+                args = MUTABLE_AV(SvRV(MUTABLE_SV(call->args)));
+            SV *field = *av_fetch(args, i, 0); // Make broad assumptions
             DCaggr *agg = _aggregate(aTHX_ field);
             DCpointer ptr = sloppy_coerce(field, SvRV(ST(i)));
 
@@ -1501,11 +1499,12 @@ XS_EUPXS(Types_type_call) {
 
         default:
             croak("--> Unfinished: [%c/%d]", call->sig[i], i);
+                    if(args == NULL)
+                args = MUTABLE_AV(SvRV(MUTABLE_SV(call->args)));
+            SV *field = *av_fetch(args, i, 0); // Make broad assumptions
             if (sv_derived_from(field, "Dyn::Type::Struct")) {}
         }
     }
-
-    // dXSTARG;
 
     // warn("Return type: %c at %s line %d", call->ret, __FILE__, __LINE__);
 
@@ -1569,7 +1568,7 @@ XS_EUPXS(Types_type_call) {
         }
 
         if (pointers) {
-            for (int i = 0; i < arg_count; ++i) {
+            for (int i = 0; i < call->sig_len; ++i) {
                 switch (call->sig[i]) {
                 case DC_SIGCHAR_POINTER: {
                     // DCpointer ptr = deref_pointer(aTHX_ field, MUTABLE_SV(ST(i)), false);
@@ -1581,14 +1580,10 @@ XS_EUPXS(Types_type_call) {
                 }
             }
         }
-        switch (call->ret) {
-        case DC_SIGCHAR_VOID:
+        if(call->ret == DC_SIGCHAR_VOID)
             XSRETURN_EMPTY;
-            break;
-        default:
-            ST(0) = sv_2mortal(retval);
-            XSRETURN(1);
-        }
+        ST(0) = sv_2mortal(retval);
+        XSRETURN(1);
     }
 }
 
@@ -1858,6 +1853,7 @@ static Call *_load(pTHX_ DLLib *lib, const char *symbol, AV *args, SV *retval, D
     // warn("_load(..., %s, '%c')", symbol, mode);
     Call *RETVAL;
     Newx(RETVAL, 1, Call);
+
 
     RETVAL->lib = lib;
     RETVAL->fptr = dlFindSymbol(RETVAL->lib, symbol);
@@ -2337,55 +2333,51 @@ CODE:
     Newx(call, 1, Call);
 
     // warn("_load(..., %s, '%c')", symbol, mode);
-    if (1) {
-        call->mode = mode;
-        call->lib = lib;
-        call->fptr = dlFindSymbol(call->lib, symbol);
-        int len = av_count(args);
+    call->mode = mode;
+    call->lib = lib;
+    call->fptr = dlFindSymbol(call->lib, symbol);
+    call->sig_len = av_count(args);
 
-        if (call->fptr == NULL) { // TODO: throw a warning
-            safefree(call);
-            XSRETURN_EMPTY;
+    if (call->fptr == NULL) { // TODO: throw a warning
+        safefree(call);
+        XSRETURN_EMPTY;
+    }
+
+    call->args = MUTABLE_AV(newRV_inc(MUTABLE_SV(args)));
+    call->retval = SvREFCNT_inc(ret);
+
+    char perl_sig[call->sig_len];
+    char c_sig[call->sig_len];
+    for (int i = 0; i < call->sig_len; ++i) {
+        SV **type_ref = av_fetch(args, i, 0);
+        if (!(sv_isobject(*type_ref) && sv_derived_from(*type_ref, "Dyn::Type::Base")))
+            croak("Given type for arg %d is not a subclass of Dyn::Type::Base", i);
+        char *str = SvPVbytex_nolen(*type_ref);
+        c_sig[i] = str[0];
+        switch (str[0]) {
+        case DC_SIGCHAR_CODE:
+            perl_sig[i] = '&';
+            break;
+        case DC_SIGCHAR_ARRAY:
+            perl_sig[i] = '@';
+            break;
+        case DC_SIGCHAR_STRUCT:
+            perl_sig[i] = '%';
+            break;
+        default:
+            perl_sig[i] = '$';
+            break;
         }
+    }
 
-        call->args = MUTABLE_AV(newRV_inc(MUTABLE_SV(args)));
-        call->retval = SvREFCNT_inc(ret);
+    Newxz(call->perl_sig, call->sig_len, char);
+    Newxz(call->sig, call->sig_len, char);
 
-        char perl_sig[len + 2];
-        char c_sig[len + 2];
-        for (int i = 0; i < len; ++i) {
-            SV **type_ref = av_fetch(args, i, 0);
-            if (!(sv_isobject(*type_ref) && sv_derived_from(*type_ref, "Dyn::Type::Base")))
-                croak("Given type for arg %d is not a subclass of Dyn::Type::Base", i);
-            char *str = SvPVbytex_nolen(*type_ref);
-            c_sig[i] = str[0];
-            switch (str[0]) {
-            case DC_SIGCHAR_CODE:
-                perl_sig[i] = '&';
-                break;
-            case DC_SIGCHAR_ARRAY:
-                perl_sig[i] = '@';
-                break;
-            case DC_SIGCHAR_STRUCT:
-                perl_sig[i] = '%';
-                break;
-            default:
-                perl_sig[i] = '$';
-                break;
-            }
-        }
-        perl_sig[len] = (char)0;
-        c_sig[len] = (char)0;
-
-        Newxz(call->perl_sig, len, char);
-        Newxz(call->sig, len, char);
-
-        Copy(perl_sig, call->perl_sig, strlen(perl_sig), char);
-        Copy(c_sig, call->sig, strlen(c_sig), char);
-        {
-            char *str = SvPVbytex_nolen(ret);
-            call->ret = str[0];
-        }
+    Copy(perl_sig, call->perl_sig, strlen(perl_sig), char);
+    Copy(c_sig, call->sig, strlen(c_sig), char);
+    {
+        char *str = SvPVbytex_nolen(ret);
+        call->ret = str[0];
     }
 
     // if (call == NULL) croak("Failed to attach %s", symbol);
