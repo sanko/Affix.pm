@@ -20,6 +20,7 @@ dyncallback:
   o new, portable aggregate-by-value callback argument interface
   o aggregate-by-value (struct, union) support for x64 (win and sysv; thanks Raphael Luba!)
   o x64/windows masm directives for frame unwinding information (as dbg help; thanks Raphael Luba!)
+  o sparc64 callback crash fix
 dynload:
   o build fix for ReactOS with RosBE/cmake/mingw-make environment
 general:

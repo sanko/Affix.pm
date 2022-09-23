@@ -34,7 +34,7 @@ There are two proposals, one from Sun and one from Hal, which disagree on how to
 \subsubsection{SPARC (64-bit) Calling Convention}
 
 \begin{itemize}
-\item 32 double precision floating point registers (d0,d2,d4,...,d62, usable as 16 quad precision ones q0,q4,q8,...g60, and also first half of them are usable as 32 single precision registers f0-f31)
+\item 32 double precision floating point registers (d0,d2,d4,...,d62, usable as 16 quad precision ones q0,q4,q8,...q60, and also first half of them are usable as 32 single precision registers f0-f31)
 \item 32 64-bit integer/pointer registers out of a bigger (vendor/model dependent) number that are accessible at a time (8 are global ones (g*), whereas the remaining 24 form a register window with 8 input (i*), 8 output (o*) and 8 local (l*) ones)
 \item calling a function shifts the register window, the old output registers become the new input registers (old local and input ones are not accessible anymore)
 \item stack and frame pointer are offset by a BIAS of 2047 (see official doc for reasons)
