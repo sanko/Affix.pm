@@ -1358,6 +1358,8 @@ XS_EUPXS(Types_type_call) {
         // warn("Working on element %d of %d at %s line %d", i, arg_count, __FILE__, __LINE__);
 
         switch (call->sig[i]) {
+        case DC_SIGCHAR_VOID:
+            break;
         case DC_SIGCHAR_BOOL:
             dcArgBool(MY_CXT.cvm, SvTRUE(ST(i)));
             break; // Anything can bee a bool
