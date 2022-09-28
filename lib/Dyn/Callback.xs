@@ -1,5 +1,214 @@
 #include "lib/clutter.h"
 
+typedef struct
+{
+    SV *cb;
+    const char *signature;
+    char ret_type;
+    char mode;
+    SV *userdata;
+    DCCallVM *cvm;
+    //SV * args;
+    //SV * ret;
+} Callback;
+
+static char callback_handler(DCCallback *cb, DCArgs *args, DCValue *result, void *userdata) {
+    dTHX;
+#ifdef USE_ITHREADS
+    PERL_SET_CONTEXT(my_perl);
+#endif
+    char ret_type;
+    {
+        dSP;
+        int count;
+
+        Callback *container = ((Callback *)userdata);
+        // int * ud = (int*) container->userdata;
+
+        SV *cb_sv = container->cb;
+
+        ENTER;
+        SAVETMPS;
+        // warn("here at %s line %d.", __FILE__, __LINE__);
+        PUSHMARK(SP);
+        {
+            const char *signature = container->signature;
+            // warn("signature == %s at %s line %d.", container->signature, __FILE__, __LINE__);
+            int done, okay;
+            int i;
+            // warn("signature: %s at %s line %d.", signature, __FILE__, __LINE__);
+            for (i = 0; signature[i + 1] != '\0'; ++i) {
+                done = okay = 0;
+                // warn("here at %s line %d.", __FILE__, __LINE__);
+                // warn("signature[%d] == %c at %s line %d.", i, signature[i], __FILE__, __LINE__);
+                switch (signature[i]) {
+                case DC_SIGCHAR_VOID:
+                    // warn("Unhandled callback argument '%c' at %s line %d.", signature[i],
+                    // __FILE__, __LINE__);
+                    break;
+                case DC_SIGCHAR_BOOL:
+                    mXPUSHs(newSViv(dcbArgBool(args)));
+                    break;
+                case DC_SIGCHAR_CHAR:
+                case DC_SIGCHAR_UCHAR:
+                    mXPUSHs(newSViv(dcbArgChar(args)));
+                    break;
+                case DC_SIGCHAR_SHORT:
+                case DC_SIGCHAR_USHORT:
+                    mXPUSHs(newSViv(dcbArgShort(args)));
+                    break;
+                case DC_SIGCHAR_INT:
+                    mXPUSHs(newSViv(dcbArgInt(args)));
+                    break;
+                case DC_SIGCHAR_UINT:
+                    mXPUSHs(newSVuv(dcbArgInt(args)));
+                    break;
+                case DC_SIGCHAR_LONG:
+                    mXPUSHs(newSVnv(dcbArgLong(args)));
+                    break;
+                case DC_SIGCHAR_ULONG:
+                    mXPUSHs(newSVuv(dcbArgLong(args)));
+                    break;
+                case DC_SIGCHAR_LONGLONG:
+                    mXPUSHs(newSVnv(dcbArgLongLong(args)));
+                    break;
+                case DC_SIGCHAR_ULONGLONG:
+                    mXPUSHs(newSVuv(dcbArgLongLong(args)));
+                    break;
+                case DC_SIGCHAR_FLOAT:
+                    mXPUSHs(newSVnv(dcbArgFloat(args)));
+                    break;
+                case DC_SIGCHAR_DOUBLE:
+                    XPUSHs(newSVnv(dcbArgDouble(args)));
+                    break;
+                case DC_SIGCHAR_POINTER:
+                case DC_SIGCHAR_BLESSED:
+                    /* TODO: I need to grab the type from the related InstanceOf */
+                    mXPUSHs(sv_setref_pv(newSV(0), "Dyn::Call::Pointer", dcbArgPointer(args)));
+                    break;
+                case DC_SIGCHAR_STRING:
+                    mXPUSHs(newSVpv((const char *)dcbArgPointer(args), 0));
+                    break;
+                case DC_SIGCHAR_AGGREGATE:
+                    warn("Unhandled callback argument '%c' at %s line %d.", signature[i], __FILE__,
+                         __LINE__);
+                    break;
+                case DC_SIGCHAR_ENDARG:
+                    ret_type = signature[i + 1];
+                    done++;
+                    break;
+                default:
+                    warn("Unhandled callback argument '%c' at %s line %d.", signature[i], __FILE__,
+                         __LINE__);
+                    break;
+                };
+                if (done) break;
+                /*
+                                int       arg1 = dcbArgInt     (args);
+                float     arg2 = dcbArgFloat   (args);
+                short     arg3 = dcbArgShort   (args);
+                double    arg4 = dcbArgDouble  (args);
+                long long arg5 = dcbArgLongLong(args);
+                  */
+            }
+            // warn("here at %s line %d.", __FILE__, __LINE__);
+        }
+        // warn("here at %s line %d.", __FILE__, __LINE__);
+
+        // XXX: Does anyone expect this?
+        // XPUSHs(container->userdata);
+
+        PUTBACK;
+
+        // warn("here at %s line %d.", __FILE__, __LINE__);
+        // SV ** signature = hv_fetch(container, "f_signature", 11, 0);
+        // warn("here at %s line %d.", __FILE__, __LINE__);
+        // warn("signature was %s", signature);
+
+        count = call_sv(cb_sv, ret_type == DC_SIGCHAR_VOID ? G_VOID : G_SCALAR);
+
+        SPAGAIN;
+
+        // warn("return type: %c at %s line %d.", ret_type, __FILE__, __LINE__);
+
+        switch (ret_type) {
+        case DC_SIGCHAR_VOID:
+            break;
+        case DC_SIGCHAR_BOOL:
+            if (count != 1) croak("Unexpected return values");
+            result->B = (bool)POPi;
+            break;
+        case DC_SIGCHAR_CHAR:
+            if (count != 1) croak("Unexpected return values");
+            result->c = (char)POPi;
+            break;
+        case DC_SIGCHAR_UCHAR:
+            if (count != 1) croak("Unexpected return values");
+            result->C = (u_char)POPi;
+            break;
+        case DC_SIGCHAR_SHORT:
+            if (count != 1) croak("Unexpected return values");
+            result->s = (short)POPi;
+            break;
+        case DC_SIGCHAR_USHORT:
+            if (count != 1) croak("Unexpected return values");
+            result->S = (u_short)POPi;
+            break;
+        case DC_SIGCHAR_INT:
+            if (count != 1) croak("Unexpected return values");
+            result->i = (int)POPi;
+            break;
+        case DC_SIGCHAR_UINT:
+            if (count != 1) croak("Unexpected return values");
+            result->I = (u_int)POPi;
+            break;
+        case DC_SIGCHAR_LONG:
+            if (count != 1) croak("Unexpected return values");
+            result->j = POPl;
+            break;
+        case DC_SIGCHAR_ULONG:
+            if (count != 1) croak("Unexpected return values");
+            result->J = POPul;
+            break;
+        case DC_SIGCHAR_LONGLONG:
+            if (count != 1) croak("Unexpected return values");
+            result->l = (long long)POPl;
+            break;
+        case DC_SIGCHAR_ULONGLONG:
+            if (count != 1) croak("Unexpected return values");
+            result->L = POPul;
+            break;
+        case DC_SIGCHAR_FLOAT: // double
+            if (count != 1) croak("Unexpected return values");
+            result->f = (float)POPn;
+            break;
+        case DC_SIGCHAR_DOUBLE: // double
+            if (count != 1) croak("Unexpected return values");
+            result->d = (double)POPn;
+            break;
+        case DC_SIGCHAR_POINTER: // string
+            if (count != 1) croak("Unexpected return values");
+            result->p = (DCpointer)((intptr_t)POPl);
+            break;
+        case DC_SIGCHAR_STRING: // string
+            if (count != 1) croak("Unexpected return values");
+            result->Z = POPpx;
+            break;
+        case DC_SIGCHAR_AGGREGATE: // string
+            if (count != 1) croak("Unexpected return values");
+            warn("Unhandled return type at %s line %d.", __FILE__, __LINE__);
+            // result->l = POPl;            break;
+            break;
+        }
+
+        PUTBACK;
+        FREETMPS;
+        LEAVE;
+    }
+
+    return ret_type;
+}
+
 MODULE = Dyn::Callback PACKAGE = Dyn::Callback
 
 BOOT:
@@ -11,12 +220,12 @@ DCCallback *
 dcbNewCallback(const char * signature, SV * funcptr, ...);
 PREINIT:
     dTHX;
-    _callback * container;
+    Callback * container;
 #ifdef USE_ITHREADS
     PERL_SET_CONTEXT(my_perl);
 #endif
 CODE:
-    container = (_callback *) safemalloc(sizeof(_callback));
+    container = (Callback *) safemalloc(sizeof(Callback));
     if (!container) // OOM
         XSRETURN_UNDEF;
     container->cvm = dcNewCallVM(1024);
@@ -42,12 +251,12 @@ void
 dcbInitCallback(DCCallback * pcb, const char * signature, DCCallbackHandler * funcptr, ...);
 PREINIT:
     dTHX;
-    _callback * container;
+    Callback * container;
 #ifdef USE_ITHREADS
     PERL_SET_CONTEXT(my_perl);
 #endif
 CODE:
-    container = (_callback*) dcbGetUserData(pcb);
+    container = (Callback*) dcbGetUserData(pcb);
     container->signature = signature;
     container->cb = SvREFCNT_inc((SV *) funcptr);
     container->userdata = items > 3 ? newRV_inc(ST(3)): &PL_sv_undef;
@@ -69,7 +278,7 @@ PREINIT:
     PERL_SET_CONTEXT(my_perl);
 #endif
 CODE:
-    _callback * container = ((_callback*) dcbGetUserData(pcb));
+    Callback * container = ((Callback*) dcbGetUserData(pcb));
     dcFree(container->cvm);
     dcbFreeCallback( pcb );
     // TODO: Free SVs
@@ -84,7 +293,7 @@ PREINIT:
 INIT:
     RETVAL = (SV*) &PL_sv_undef;
 CODE:
-    _callback * container = ((_callback*) dcbGetUserData(pcb));
+    Callback * container = ((Callback*) dcbGetUserData(pcb));
     if (SvOK(container->userdata))
         RETVAL = //SvRV(container->userdata);
             SvREFCNT_inc(SvRV(container->userdata));
@@ -107,7 +316,7 @@ PREINIT:
     //AV * args = newAV();
 CODE:
     RETVAL = newSV(0);
-    _callback * container = ((_callback*) dcbGetUserData(self));
+    Callback * container = ((Callback*) dcbGetUserData(self));
     const char * signature = container->signature;
     //warn("Callback sig: %s", signature);
     int done = 0;
