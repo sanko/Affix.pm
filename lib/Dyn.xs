@@ -1515,7 +1515,7 @@ XS_EUPXS(Types_type_call) {
     }
 
     for (int i = 0; i < call->sig_len; ++i) {
-         warn("Working on element %d of %d (type: %c) at %s line %d", i, call->sig_len-1, call->sig[i], __FILE__, __LINE__);
+         //warn("Working on element %d of %d (type: %c) at %s line %d", i, call->sig_len-1, call->sig[i], __FILE__, __LINE__);
 
         switch (call->sig[i]) {
         case DC_SIGCHAR_VOID:
@@ -1709,7 +1709,7 @@ XS_EUPXS(Types_type_call) {
         }
     }
 
-    warn("Return type: %c at %s line %d", call->ret, __FILE__, __LINE__);
+    //warn("Return type: %c at %s line %d", call->ret, __FILE__, __LINE__);
 
     SV *retval;
     {
@@ -1734,11 +1734,7 @@ XS_EUPXS(Types_type_call) {
             retval = newSVuv((unsigned short)dcCallShort(MY_CXT.cvm, call->fptr));
             break;
         case DC_SIGCHAR_INT:
-                    warn("here at %s line %d", __FILE__, __LINE__);
-
             retval = newSViv((int)dcCallInt(MY_CXT.cvm, call->fptr));
-                    warn("here at %s line %d", __FILE__, __LINE__);
-
             break;
         case DC_SIGCHAR_UINT:
             retval = newSVuv((unsigned int)dcCallInt(MY_CXT.cvm, call->fptr));
@@ -1779,7 +1775,6 @@ XS_EUPXS(Types_type_call) {
         default:
             croak("Unhandled return type: %c", call->ret);
         }
-            warn("here at %s line %d", __FILE__, __LINE__);
 
         if (pointers) {
             for (int i = 0; i < call->sig_len; ++i) {
@@ -1794,7 +1789,6 @@ XS_EUPXS(Types_type_call) {
                 }
             }
         }
-                    warn("here at %s line %d", __FILE__, __LINE__);
 
         if(call->ret == DC_SIGCHAR_VOID)
             XSRETURN_EMPTY;
@@ -1860,7 +1854,7 @@ XS_EUPXS(Dyn_DESTROY) {
         cv = newXSproto_portable(form("%s::new", package), Types, file, "$");                      \
         safefree(XSANY.any_ptr);                                                                   \
         XSANY.any_i32 = (int)SIGCHAR;                                                              \
-        export_function(NAME, "types");                                                         \
+        export_function("Dyn", NAME, "types");                                                         \
         /* Int->sig == 'i'; Struct[Int, Float]->sig == '{if}' */                                   \
         cv = newXSproto_portable(form("%s::sig", package), Types_sig, file, "$");                  \
         XSANY.any_i32 = (int)SIGCHAR;                                                              \
@@ -1891,7 +1885,6 @@ BOOT :
         MY_CXT.count = 0;
         MY_CXT.cvm = dcNewCallVM(4096);
     }
-    Dyn_export = get_hv( "Dyn::EXPORT_TAGS", TRUE );
     {
         //(void)newXSproto_portable("Dyn::attach", XS_Dyn_attach, file, "$$@$");
         (void)newXSproto_portable("Dyn::coerce", Dyn_coerce, file, "$$");
@@ -1926,11 +1919,11 @@ BOOT :
         TYPE("CodeRef", DC_SIGCHAR_CODE, DC_SIGCHAR_AGGREGATE);
         TYPE("InstanceOf", DC_SIGCHAR_BLESSED, DC_SIGCHAR_POINTER);
         // Enum[]?
-        export_function("typedef", "types");
-        export_function("wrap", "sugar");
-        export_function("attach", "sugar");
-        export_function("MODIFY_CODE_ATTRIBUTES", "default");
-        export_function("AUTOLOAD", "default");
+        export_function("Dyn", "typedef", "types");
+        export_function("Dyn", "wrap", "sugar");
+        export_function("Dyn", "attach", "sugar");
+        export_function("Dyn", "MODIFY_CODE_ATTRIBUTES", "default");
+        export_function("Dyn", "AUTOLOAD", "default");
     }
 
 SV *

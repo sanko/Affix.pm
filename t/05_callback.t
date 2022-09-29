@@ -78,12 +78,31 @@ my $lib = dlLoadLibrary($lib_file);
 #diag -s $lib;
 #
 subtest 'int cb( int )' => sub {
-    my $cb = dcbNewCallback( 'i)i', sub { is shift, 100, 'int arg correct'; return 55 }, 5 );
+    my $cb = dcbNewCallback(
+        'i)i',
+        sub {
+            my ( $cb, $args, $result, $userdata ) = @_;
+            is dcbArgInt($args), 100, 'int arg correct';
+            is $userdata,        5,   'userdata is correct';
+            $result->i(55);
+            return 'i';
+        },
+        5
+    );
     isa_ok $cb , 'Dyn::Callback';
     is $cb->call(100), 55, 'int return == 55';
 };
 subtest 'void cb( int )' => sub {
-    my $cb = dcbNewCallback( 'i)v', sub { is shift, 100, 'int arg correct'; }, 5 );
+    my $cb = dcbNewCallback(
+        'i)v',
+        sub {
+            my ( $cb, $args, $result, $userdata ) = @_;
+            is dcbArgInt($args), 100, 'int arg correct';
+            is $userdata,        5,   'userdata is correct';
+            return 'v';    # Or undef...
+        },
+        5
+    );
     isa_ok $cb , 'Dyn::Callback';
     is $cb->call(100), undef, 'void return == undef';
 };
@@ -91,10 +110,13 @@ subtest 'const char * cb( int, const char * )' => sub {
     my $cb = dcbNewCallback(
         'iZ)Z',
         sub {
-            my ( $int, $name ) = @_;
-            is $int,  100,    'int arg correct';
-            is $name, 'John', 'string arg is correct';
-            return 'Hello, ' . $name;
+            my ( $cb, $args, $result, $userdata ) = @_;
+            is dcbArgInt($args), 100, 'int arg correct';
+            my $name = dcbArgStr($args);
+            is $name,     'John', 'string arg is correct';
+            is $userdata, 5,      'userdata is correct';
+            $result->Z( 'Hello, ' . $name );
+            return 'Z';
         },
         5
     );
@@ -129,74 +151,6 @@ subtest 'void cb( )' => sub {
     is_deeply dcbGetUserData($cb), [ 6, 'time', { anon => 'hash' } ],
         'userdata is correct after all calls';
 };
-
-=pod
-
-subtest 'int add(int, int)' => sub {
-    my $ptr = Dyn::Load::FindSymbol( $lib, 'add' );
-    diag $ptr;
-    my $cvm = Dyn::Call::NewCallVM(1024);
-    Dyn::Call::Mode( $cvm, 0 );
-    Dyn::Call::Reset($cvm);
-    #
-    diag 'pushing 5 to arg stack';
-    Dyn::Call::ArgInt( $cvm, 5 );
-    diag 'pushing 6 to arg stack';
-    Dyn::Call::ArgInt( $cvm, 6 );
-    is Dyn::Call::CallInt( $cvm, $ptr ), 11, '5 + 6 == 11';
-    #
-    diag 'reset call VM...';
-    Dyn::Call::Reset($cvm);
-    diag 'pushing 9 to arg stack';
-    Dyn::Call::ArgInt( $cvm, 9 );
-    diag 'pushing 100 to arg stack';
-    Dyn::Call::ArgInt( $cvm, 100 );
-    is Dyn::Call::CallInt( $cvm, $ptr ), 109, '9 + 100 == 109';
-    #
-    diag 'reset call VM...';
-    Dyn::Call::Reset($cvm);
-    diag 'pushing -9 to arg stack';
-    Dyn::Call::ArgInt( $cvm, -9 );
-    diag 'pushing 5 to arg stack';
-    Dyn::Call::ArgInt( $cvm, 5 );
-    is Dyn::Call::CallInt( $cvm, $ptr ), -4, '-9 + 5 == -4';
-
-    # Cleanup
-    Dyn::Call::Free($cvm);
-};
-subtest 'const char * hi( char * input )' => sub {
-    my $ptr = Dyn::Load::FindSymbol( $lib, 'to_lower' );
-    diag $ptr;
-    my $cvm = Dyn::Call::NewCallVM(1024);
-    Dyn::Call::Mode( $cvm, 0 );
-    Dyn::Call::Reset($cvm);
-    #
-    diag 'pushing "Hello!" to arg stack';
-
-    #my $hello = 'Hello';
-    #my $ref = \$hello;
-    Dyn::Call::ArgString( $cvm, 'Hi!' );
-    is Dyn::Call::CallString( $cvm, $ptr ), 'Okay!', 'to_lower("Hi!") == "Okay!"';
-    #
-    #diag 'reset call VM...';
-    #Dyn::Call::Reset($cvm);
-    #diag 'pushing 9 to arg stack';
-    #Dyn::Call::ArgInt( $cvm, 9 );
-    #diag 'pushing 100 to arg stack';
-    #Dyn::Call::ArgInt( $cvm, 100 );
-    #is Dyn::Call::CallInt( $cvm, $ptr ), 109, '9 + 100 == 109';
-    #
-    #diag 'reset call VM...';
-    #Dyn::Call::Reset($cvm);
-    #diag 'pushing -9 to arg stack';
-    #Dyn::Call::ArgInt( $cvm, -9 );
-    #diag 'pushing 5 to arg stack';
-    #Dyn::Call::ArgInt( $cvm, 5 );
-    #is Dyn::Call::CallInt( $cvm, $ptr ), -4, '-9 + 5 == -4';
-    # Cleanup
-    Dyn::Call::Free($cvm);
-};
-=cut
 
 # Cleanup
 END {

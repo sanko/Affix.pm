@@ -5,12 +5,7 @@ package Dyn::Callback 0.03 {
     use XSLoader;
     XSLoader::load( __PACKAGE__, our $VERSION );
     use parent 'Exporter';
-    our %EXPORT_TAGS = (
-        dcb => [
-            qw[ dcbNewCallback dcbInitCallback dcbFreeCallback dcbGetUserData
-            ]
-        ]
-    );
+    our %EXPORT_TAGS;
     @{ $EXPORT_TAGS{all} } = our @EXPORT_OK = map { @{ $EXPORT_TAGS{$_} } } keys %EXPORT_TAGS;
 };
 1;
@@ -35,9 +30,9 @@ Dyn::Callback - Perl Code as FFI Callbacks
     my $cb = dcbNewCallback(       # Accepts an int and returns an int
         'i)i',
         sub {
-            my ($in) = @_;
+            my ($cb, $args, $result, $userdata) = @_;
             ...;                   # do something
-            return 1;
+            return 'i';
         },
         5
     );
@@ -62,9 +57,9 @@ describing the function.
     my $pcb = dcbNewCallback(
         'i)i',
         sub {
-            my ($in) = @_;
+            my ($cb, $args, $result, $userdata) = @_;
             ...;
-            return 1;
+            return 'i';
         },
         5
     );

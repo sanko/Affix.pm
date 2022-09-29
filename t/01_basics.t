@@ -154,9 +154,7 @@ SKIP: {
         dcArgInt( $cvm, 5 );
         dcArgInt( $cvm, 6 );
         is dcCallInt( $cvm, $ptr ), 11, 'Dyn synopsis';    #  '5 + 6 == 11';
-        warn;
     };
-    warn;
     subtest 'const char * b2Z(bool)' => sub {
         use Dyn qw[:all];                                  # Exports nothing by default
         my $ptr = dlFindSymbol( $lib, 'b2Z' );
@@ -420,17 +418,21 @@ SKIP: {
         my $cb = dcbNewCallback(
             'i)i',
             sub {
-                my ($in) = @_;
+                my ( $cd, $args, $result, $userdata ) = @_;
+                my $in = dcbArgInt($args);
                 if ( $in == 100 ) {
                     pass 'Args to callback: 100';
-                    return 101;
+                    $result->i(101);
+                    return 'i';
                 }
                 elsif ( $in == 55 ) {
                     pass 'Args to callback: 55';
-                    return 10;
+                    $result->i(10);
+                    return 'i';
                 }
                 fail 'Bad args to callback: ' . $in;
-                return -1;
+                $result->i(-1);
+                return 'i';
             },
             5
         );

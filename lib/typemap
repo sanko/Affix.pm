@@ -22,6 +22,8 @@ DClonglong  LONG_LONG_INT
 DCfloat     T_FLOAT
 DCdouble    T_DOUBLE
 DCpointer * T_PTROBJ_SPECIAL
+DCpointer   T_PTROBJ_SPECIAL
+
 DCaggr  *       T_PTROBJ_AGGREGATE
 const DCaggr  * T_PTROBJ_AGGREGATE
 DCsigchar * T_PV
@@ -33,6 +35,7 @@ DLSyms    * T_PTRREF
 DCValue   * T_PTRREF
 DCValue     T_PTRREF
 DCfield   * T_PTRREF
+DCArgs    * T_PTRREF
 
 DCpointer T_PTROBJ_SPECIAL
 

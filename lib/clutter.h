@@ -119,7 +119,6 @@ const char *file = __FILE__;
 #endif
 
 /* api wrapping utils */
-HV *Dyn_export;
 
 #define MY_CXT_KEY "Dyn::_guts" XS_VERSION
 
@@ -156,18 +155,21 @@ void register_constant(const char *package, const char *name, SV *value) {
     newCONSTSUB(_stash, (char *)name, value);
 }
 
-void export_function(const char *what, const char *_tag) {
+void export_function__(HV *_export, const char *what, const char *_tag) {
     dTHX;
-    // warn("Exporting %s to %s", what, _tag);
-    SV **tag = hv_fetch(Dyn_export, _tag, strlen(_tag), TRUE);
+    SV **tag = hv_fetch(_export, _tag, strlen(_tag), TRUE);
     if (tag && SvOK(*tag) && SvROK(*tag) && (SvTYPE(SvRV(*tag))) == SVt_PVAV)
         av_push((AV *)SvRV(*tag), newSVpv(what, 0));
     else {
         SV *av;
         av = (SV *)newAV();
         av_push((AV *)av, newSVpv(what, 0));
-        tag = hv_store(Dyn_export, _tag, strlen(_tag), newRV_noinc(av), 0);
+        tag = hv_store(_export, _tag, strlen(_tag), newRV_noinc(av), 0);
     }
+}
+void export_function(const char *package, const char *what, const char *tag) {
+    dTHX;
+    export_function__(get_hv(form("%s::EXPORT_TAGS", package), GV_ADD), what, tag);
 }
 
 void export_constant(const char *name, const char *_tag, double val) {
@@ -175,7 +177,7 @@ void export_constant(const char *name, const char *_tag, double val) {
     SV *value;
     value = newSVnv(val);
     register_constant("Dyn", name, value);
-    export_function(name, _tag);
+    export_function("Dyn", name, _tag);
 }
 
 #define DumpHex(addr, len)                                                                         \
