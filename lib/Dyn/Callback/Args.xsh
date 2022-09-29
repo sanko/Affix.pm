@@ -100,7 +100,7 @@ OUTPUT:
     RETVAL
 
 const char *
-dcbArgStr(DCArgs *args)
+dcbArgString(DCArgs *args)
 CODE:
     RETVAL = (const char *) dcbArgPointer(args);
 OUTPUT:
@@ -126,5 +126,5 @@ BOOT:
     export_function("Dyn::Callback", "dcbArgDouble", "args");
     export_function("Dyn::Callback", "dcbArgPointer", "args");
     export_function("Dyn::Callback", "dcbArgAggr", "args");
-    export_function("Dyn::Callback", "dcbArgStr", "args"); // Not in upstream lib
+    export_function("Dyn::Callback", "dcbArgString", "args"); // Not in upstream lib
     export_function("Dyn::Callback", "dcbReturnAggr", "args");

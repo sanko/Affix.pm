@@ -48,3 +48,14 @@ dlSymsName(DLSyms * pSyms, int index);
 
 const char*
 dlSymsNameFromValue(DLSyms * pSyms, void * value)
+
+BOOT:
+    export_function("Dyn::Load", "dlLoadLibrary", "default");
+    export_function("Dyn::Load", "dlFreeLibrary", "default");
+    export_function("Dyn::Load", "dlFindSymbol", "default");
+    export_function("Dyn::Load", "dlGetLibraryPath", "default");
+    export_function("Dyn::Load", "dlSymsInit", "default");
+    export_function("Dyn::Load", "dlSymsCleanup", "default");
+    export_function("Dyn::Load", "dlSymsCount", "default");
+    export_function("Dyn::Load", "dlSymsName", "default");
+    export_function("Dyn::Load", "dlSymsNameFromValue", "default");

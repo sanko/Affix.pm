@@ -5,13 +5,7 @@ package Dyn::Load 0.03 {
     use XSLoader;
     XSLoader::load( __PACKAGE__, our $VERSION );
     use parent 'Exporter';
-    our %EXPORT_TAGS = (
-        lib => [
-            qw[ dlLoadLibrary dlFreeLibrary dlFindSymbol dlGetLibraryPath
-                dlSymsInit dlSymsCleanup dlSymsCount dlSymsName dlSymsNameFromValue
-            ]
-        ]
-    );
+    our %EXPORT_TAGS;
     @{ $EXPORT_TAGS{all} } = our @EXPORT_OK = map { @{ $EXPORT_TAGS{$_} } } keys %EXPORT_TAGS;
 };
 1;
@@ -64,8 +58,8 @@ C<dlFreeLibrary( ... )>|/C<dlFreeLibrary( ... )> >> and L<< C<dlFindSymbol( ...
 
 Passing C<undef> for the C<libpath> argument is valid, and returns a handle to
 the main executable of the calling code. Also, searching libraries in library
-paths (e.g. by just passing the library’s leaf name) should work, however,
-they are OS specific. Returns a C<undef> on error.
+paths (e.g. by just passing the library's leaf name) should work, however, they
+are OS specific. Returns a C<undef> on error.
 
 Expected parameters include:
 
@@ -127,7 +121,7 @@ Expected parameters include:
 =back
 
 The return value is the size of the buffer (in bytes) needed to hold the
-null-terminated string, or C<0> if it can’t be looked up. If C<< bufSize >=
+null-terminated string, or C<0> if it can't be looked up. If C<< bufSize >=
 return value >1 >>, a null-terminated string with the path to the library
 should be in sOut. If it returns C<0>, the library name wasn't able to be
 found. Please note that this might happen in some rare cases, so make sure to

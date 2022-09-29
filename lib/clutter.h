@@ -172,12 +172,10 @@ void export_function(const char *package, const char *what, const char *tag) {
     export_function__(get_hv(form("%s::EXPORT_TAGS", package), GV_ADD), what, tag);
 }
 
-void export_constant(const char *name, const char *_tag, double val) {
+void export_constant(const char *package, const char *name, const char *_tag, double val) {
     dTHX;
-    SV *value;
-    value = newSVnv(val);
-    register_constant("Dyn", name, value);
-    export_function("Dyn", name, _tag);
+    register_constant(package, name, newSVnv(val));
+    export_function(package, name, _tag);
 }
 
 #define DumpHex(addr, len)                                                                         \

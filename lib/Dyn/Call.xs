@@ -769,7 +769,110 @@ BOOT:
     // Error codes
     newCONSTSUB(stash, "DC_ERROR_NONE", newSViv(DC_ERROR_NONE));
     newCONSTSUB(stash, "DC_ERROR_UNSUPPORTED_MODE", newSViv(DC_ERROR_UNSUPPORTED_MODE));
-}
 
+    //void export_constant(const char * package, const char *name, const char *_tag, double val) {
+    export_function("Dyn::Call", "dcArgBool", "bin");
+    export_function("Dyn::Call", "dcArgChar", "bin");
+    export_function("Dyn::Call", "dcArgShort", "bin");
+    export_function("Dyn::Call", "dcArgInt", "bin");
+    export_function("Dyn::Call", "dcArgLong", "bin");
+    export_function("Dyn::Call", "dcArgLongLong", "bin");
+    export_function("Dyn::Call", "dcArgFloat", "bin");
+    export_function("Dyn::Call", "dcArgDouble", "bin");
+    export_function("Dyn::Call", "dcArgPointer", "bin");
+    export_function("Dyn::Call", "dcArgString", "bin");
+    export_function("Dyn::Call", "dcArgAggr", "bin");
+
+    export_function("Dyn::Call", "dcNewCallVM", "callvm");
+    export_function("Dyn::Call", "dcFree", "callvm");
+    export_function("Dyn::Call", "dcMode", "callvm");
+    export_function("Dyn::Call", "dcReset", "callvm");
+
+    export_function("Dyn::Call", "dcCallVoid", "call");
+    export_function("Dyn::Call", "dcCallChar", "call");
+    export_function("Dyn::Call", "dcCallInt", "call");
+    export_function("Dyn::Call", "dcCallPointer", "call");
+    export_function("Dyn::Call", "dcCallAggr", "call");
+    export_function("Dyn::Call", "dcCallString", "call");
+
+    export_function("Dyn::Call", "dcNewAggr", "aggregates");
+    export_function("Dyn::Call", "dcAggrField", "aggregates");
+    export_function("Dyn::Call", "dcCloseAggr", "aggregates");
+    export_function("Dyn::Call", "dcFreeAggr", "aggregates");
+    export_function("Dyn::Call", "dcBeginCallAggr", "aggregates");
+
+    export_function("Dyn::Call", "DC_CALL_C_DEFAULT", "vars");
+    export_function("Dyn::Call", "DC_CALL_C_ELLIPSIS", "vars");
+    export_function("Dyn::Call", "DC_CALL_C_ELLIPSIS_VARARGS", "vars");
+    export_function("Dyn::Call", "DC_CALL_C_X86_CDECL", "vars");
+    export_function("Dyn::Call", "DC_CALL_C_X86_WIN32_STD", "vars");
+    export_function("Dyn::Call", "DC_CALL_C_X86_WIN32_FAST_MS", "vars");
+    export_function("Dyn::Call", "DC_CALL_C_X86_WIN32_FAST_GNU", "vars");
+    export_function("Dyn::Call", "DC_CALL_C_X86_WIN32_THIS_MS", "vars");
+    export_function("Dyn::Call", "DC_CALL_C_X86_WIN32_THIS_GNU", "vars");
+    export_function("Dyn::Call", "DC_CALL_C_X64_WIN64", "vars");
+    export_function("Dyn::Call", "DC_CALL_C_X64_SYSV", "vars");
+    export_function("Dyn::Call", "DC_CALL_C_PPC32_DARWIN", "vars");
+    export_function("Dyn::Call", "DC_CALL_C_PPC32_OSX", "vars");
+    export_function("Dyn::Call", "DC_CALL_C_ARM_ARM_EABI", "vars");
+    export_function("Dyn::Call", "DC_CALL_C_ARM_THUMB_EABI", "vars");
+    export_function("Dyn::Call", "DC_CALL_C_ARM_ARMHF", "vars");
+    export_function("Dyn::Call", "DC_CALL_C_MIPS32_EABI", "vars");
+    export_function("Dyn::Call", "DC_CALL_C_MIPS32_PSPSDK", "vars");
+    export_function("Dyn::Call", "DC_CALL_C_PPC32_SYSV", "vars");
+    export_function("Dyn::Call", "DC_CALL_C_PPC32_LINUX", "vars");
+    export_function("Dyn::Call", "DC_CALL_C_ARM_ARM", "vars");
+    export_function("Dyn::Call", "DC_CALL_C_ARM_THUMB", "vars");
+    export_function("Dyn::Call", "DC_CALL_C_MIPS32_O32", "vars");
+    export_function("Dyn::Call", "DC_CALL_C_MIPS64_N32", "vars");
+    export_function("Dyn::Call", "DC_CALL_C_MIPS64_N64", "vars");
+    export_function("Dyn::Call", "DC_CALL_C_X86_PLAN9", "vars");
+    export_function("Dyn::Call", "DC_CALL_C_SPARC32", "vars");
+    export_function("Dyn::Call", "DC_CALL_C_SPARC64", "vars");
+    export_function("Dyn::Call", "DC_CALL_C_ARM64", "vars");
+    export_function("Dyn::Call", "DC_CALL_C_PPC64", "vars");
+    export_function("Dyn::Call", "DC_CALL_C_PPC64_LINUX", "vars");
+    export_function("Dyn::Call", "DC_CALL_SYS_DEFAULT", "vars");
+    export_function("Dyn::Call", "DC_CALL_SYS_X86_INT80H_LINUX", "vars");
+    export_function("Dyn::Call", "DC_CALL_SYS_X86_INT80H_BSD", "vars");
+    export_function("Dyn::Call", "DC_CALL_SYS_PPC32", "vars");
+    export_function("Dyn::Call", "DC_CALL_SYS_PPC64", "vars");
+
+    export_function("Dyn::Call", "DC_ERROR_NONE", "vars");
+    export_function("Dyn::Call", "DC_ERROR_UNSUPPORTED_MODE", "vars");
+
+    export_function("Dyn::Call", "DC_SIGCHAR_VOID", "vars");
+    export_function("Dyn::Call", "DC_SIGCHAR_BOOL", "vars");
+    export_function("Dyn::Call", "DC_SIGCHAR_CHAR", "vars");
+    export_function("Dyn::Call", "DC_SIGCHAR_UCHAR", "vars");
+    export_function("Dyn::Call", "DC_SIGCHAR_SHORT", "vars");
+    export_function("Dyn::Call", "DC_SIGCHAR_USHORT", "vars");
+    export_function("Dyn::Call", "DC_SIGCHAR_INT", "vars");
+    export_function("Dyn::Call", "DC_SIGCHAR_UINT", "vars");
+    export_function("Dyn::Call", "DC_SIGCHAR_LONG", "vars");
+    export_function("Dyn::Call", "DC_SIGCHAR_ULONG", "vars");
+    export_function("Dyn::Call", "DC_SIGCHAR_LONGLONG", "vars");
+    export_function("Dyn::Call", "DC_SIGCHAR_ULONGLONG", "vars");
+    export_function("Dyn::Call", "DC_SIGCHAR_FLOAT", "vars");
+    export_function("Dyn::Call", "DC_SIGCHAR_DOUBLE", "vars");
+    export_function("Dyn::Call", "DC_SIGCHAR_POINTER", "vars");
+    export_function("Dyn::Call", "DC_SIGCHAR_STRING", "vars");
+    export_function("Dyn::Call", "DC_SIGCHAR_STRUCT", "vars");
+    export_function("Dyn::Call", "DC_SIGCHAR_ENDARG", "vars");
+    export_function("Dyn::Call", "DC_SIGCHAR_CC_PREFIX", "vars");
+    export_function("Dyn::Call", "DC_SIGCHAR_CC_DEFAULT", "vars");
+    export_function("Dyn::Call", "DC_SIGCHAR_CC_ELLIPSIS", "vars");
+    export_function("Dyn::Call", "DC_SIGCHAR_CC_ELLIPSIS_VARARGS", "vars");
+    export_function("Dyn::Call", "DC_SIGCHAR_CC_CDECL", "vars");
+    export_function("Dyn::Call", "DC_SIGCHAR_CC_STDCALL", "vars");
+    export_function("Dyn::Call", "DC_SIGCHAR_CC_FASTCALL_MS", "vars");
+    export_function("Dyn::Call", "DC_SIGCHAR_CC_FASTCALL_GNU", "vars");
+    export_function("Dyn::Call", "DC_SIGCHAR_CC_THISCALL_MS", "vars");
+    export_function("Dyn::Call", "DC_SIGCHAR_CC_THISCALL_GNU", "vars");
+    export_function("Dyn::Call", "DC_SIGCHAR_CC_ARM_ARM", "vars");
+    export_function("Dyn::Call", "DC_SIGCHAR_CC_ARM_THUMB", "vars");
+    export_function("Dyn::Call", "DC_SIGCHAR_CC_SYSCALL", "vars");
+    export_function("Dyn::Call", "DEFAULT_ALIGNMENT", "vars");
+}
 
 INCLUDE: Call/Value.xsh

@@ -82,7 +82,7 @@ C<$target> is returned.
 For C++ non-trivial aggrs, C<$target> is ignored, and a pointer to the
 aggregate is returned.
 
-=head2 C<dcbArgStr( $args )>
+=head2 C<dcbArgString( $args )>
 
 Returns the next value on the stack and assumes it is a string (C<const char
 *>).

@@ -112,7 +112,7 @@ subtest 'const char * cb( int, const char * )' => sub {
         sub {
             my ( $cb, $args, $result, $userdata ) = @_;
             is dcbArgInt($args), 100, 'int arg correct';
-            my $name = dcbArgStr($args);
+            my $name = dcbArgString($args);
             is $name,     'John', 'string arg is correct';
             is $userdata, 5,      'userdata is correct';
             $result->Z( 'Hello, ' . $name );
