@@ -76,7 +76,7 @@ T_PTROBJ_SPECIAL
         $ntt=~s[^DC][Call::];
         $ntt=~s[^DL][Load::];
         \$ntt
-        }}\");
+        }\");
 
 T_PTROBJ_AGGREGATE
   // $Package | $type | $ntype

@@ -1,4 +1,4 @@
-MODULE = Dyn::Call   PACKAGE = Dyn::Call::Value
+MODULE = Dyn::Callback   PACKAGE = Dyn::Callback::Value
 
 SV *
 new(const char * package)
@@ -32,12 +32,12 @@ ALIAS:
     Z = DC_SIGCHAR_STRING
 CODE:
     DCValue * value;
-    if (sv_derived_from(ST(0), "Dyn::Call::Value")) {
+    if (sv_derived_from(ST(0), "Dyn::Callback::Value")) {
         IV tmp = SvIV((SV*)SvRV(ST(0)));
         value = INT2PTR(DCValue *, tmp);
     }
     else
-        croak("value is not of type Dyn::Call::Value");
+        croak("value is not of type Dyn::Callback::Value");
     switch(ix) {
         case DC_SIGCHAR_BOOL:
             if(new_value) value->B = (bool) SvTRUE(new_value);
@@ -131,7 +131,7 @@ CODE:
             }
             break;
       default:
-          croak("Dyn::Call::Value has no field %c", ix);
+          croak("Dyn::Callback::Value has no field %c", ix);
             break;
     }
 OUTPUT:
@@ -141,12 +141,12 @@ void
 DESTROY(SV * me)
 CODE:
     DCValue * value;
-    if (sv_derived_from(me, "Dyn::Call::Value")) {
+    if (sv_derived_from(me, "Dyn::Callback::Value")) {
         IV tmp = SvIV(MUTABLE_SV(SvRV(me)));
         value = INT2PTR(DCValue *, tmp);
     }
     else
-        croak("value is not of type Dyn::Call::Value");
+        croak("value is not of type Dyn::Callback::Value");
     if(value) { // No double free!
         value = NULL;
         safefree(value);

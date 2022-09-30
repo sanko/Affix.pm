@@ -2,11 +2,11 @@ use strict;
 use Test::More 0.98;
 BEGIN { chdir '../' if !-d 't'; }
 use lib '../lib', '../blib/arch', '../blib/lib', 'blib/arch', 'blib/lib', '../../', '.';
-use Dyn::Call;
+use Dyn::Callback;
 $|++;
 #
-my $v = Dyn::Call::Value->new();
-isa_ok $v, 'Dyn::Call::Value';
+my $v = Dyn::Callback::Value->new();
+isa_ok $v, 'Dyn::Callback::Value';
 #
 can_ok $v, $_ for qw[B c C s S i I j J l L f d p Z];
 #

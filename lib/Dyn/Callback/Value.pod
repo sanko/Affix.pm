@@ -4,7 +4,7 @@
 
 =head1 NAME
 
-Dyn::Call::Value - dyncall value variant
+Dyn::Callback::Value - dyncall value variant
 
 =head1 DESCRIPTION
 
@@ -16,9 +16,9 @@ This package is object oriented and brings along the following methods...
 
 =head2 C<new( )>
 
-    my $value = Dyn::Call::Value->new();
+    my $value = Dyn::Callback::Value->new();
 
-Generates a new Dyn::Call::Value object.
+Generates a new Dyn::Callback::Value object.
 
 =head2 C<B( [...] )>
 

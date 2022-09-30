@@ -38,12 +38,12 @@ ALIAS:
     dcbArgPointer   = DC_SIGCHAR_POINTER
 CODE:
     DCArgs * args;
-    if (sv_derived_from(ST(0), "Dyn::Call::Args")) {
+    if (sv_derived_from(ST(0), "Dyn::Callback::Args")) {
         IV tmp = SvIV((SV*)SvRV(ST(0)));
         args = INT2PTR(DCArgs *, tmp);
     }
     else
-        croak("value is not of type Dyn::Call::Value");
+        croak("value is not of type Dyn::Callback::Value");
     switch(ix) {
         case DC_SIGCHAR_BOOL:
             RETVAL = boolSV((bool)dcbArgBool(args));

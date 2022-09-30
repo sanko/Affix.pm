@@ -8,11 +8,9 @@ typedef struct
     char mode;
     SV *userdata;
     DCCallVM *cvm;
-    //SV * args;
-    //SV * ret;
 } Callback;
 
-static char callback_handler(DCCallback *cb, DCArgs *args, DCValue *result, void *userdata) {
+static char callback_handler(DCCallback * cb, DCArgs * args, DCValue * result, void * userdata) {
     dTHX;
 #ifdef USE_ITHREADS
     PERL_SET_CONTEXT(my_perl);
@@ -23,38 +21,21 @@ static char callback_handler(DCCallback *cb, DCArgs *args, DCValue *result, void
         int count;
 
         Callback *container = ((Callback *)userdata);
-        // int * ud = (int*) container->userdata;
-
         SV *cb_sv = container->cb;
-
         ENTER;
         SAVETMPS;
-        // warn("here at %s line %d.", __FILE__, __LINE__);
         PUSHMARK(SP);
 
-    {
         mXPUSHs(sv_setref_pv(newSV(0), "Dyn::Callback", (DCpointer)cb));
-        mXPUSHs(sv_setref_pv(newSV(0), "Dyn::Call::Args", (DCpointer)args));
-        mXPUSHs(sv_setref_pv(newSV(0), "Dyn::Call::Value", (DCpointer)result));
-
-        Callback * container = ((Callback*) userdata);
+        mXPUSHs(sv_setref_pv(newSV(0), "Dyn::Callback::Args", (DCpointer)args));
+        mXPUSHs(sv_setref_pv(newSV(0), "Dyn::Callback::Value", (DCpointer)result));
         if (SvOK(container->userdata))
             mXPUSHs(SvREFCNT_inc(SvRV(container->userdata)));
         else mXPUSHs(newSV(0));
-    }
 
         PUTBACK;
-
-        // warn("here at %s line %d.", __FILE__, __LINE__);
-        // SV ** signature = hv_fetch(container, "f_signature", 11, 0);
-        // warn("here at %s line %d.", __FILE__, __LINE__);
-        // warn("signature was %s", signature);
-
         count = call_sv(cb_sv, ret_type == DC_SIGCHAR_VOID ? G_VOID : G_SCALAR);
-
         SPAGAIN;
-
-        // warn("return type: %c at %s line %d.", ret_type, __FILE__, __LINE__);
 
         if(count != 1)
             croak("Expected a single return value to callback");
@@ -65,7 +46,6 @@ static char callback_handler(DCCallback *cb, DCArgs *args, DCValue *result, void
         FREETMPS;
         LEAVE;
     }
-
     return ret_type;
 }
 
@@ -77,23 +57,24 @@ BOOT:
 #endif
 
 DCCallback *
-dcbNewCallback(const char * signature, SV * funcptr, ...);
+dcbNewCallback(const char * signature, SV * funcptr, userdata);
 PREINIT:
-    dTHX;
-    Callback * container;
 #ifdef USE_ITHREADS
     PERL_SET_CONTEXT(my_perl);
 #endif
+    dTHX;
+INIT:
+    Callback * container;
 CODE:
     container = (Callback *) safemalloc(sizeof(Callback));
     if (!container) // OOM
         XSRETURN_UNDEF;
     container->cvm = dcNewCallVM(1024);
-    dcMode(container->cvm, 0); // TODO: Use correct value according to signature
+    dcMode(container->cvm, DC_CALL_C_DEFAULT); // TODO: Use correct value according to signature
     dcReset(container->cvm);
     container->signature = signature;
     container->cb = SvREFCNT_inc(funcptr);
-    container->userdata = items > 2 ? newRV_inc(ST(2)): &PL_sv_undef;
+    container->userdata = newRV_inc(items > 2 ? ST(2) : newSV(0));
     int i;
     for (i = 0; container->signature[i+1] != '\0'; ++i ) {
         //warn("here at %s line %d.", __FILE__, __LINE__);
@@ -103,12 +84,12 @@ CODE:
         }
     }
     //warn("signature: %s at %s line %d.", signature, __FILE__, __LINE__);
-    RETVAL = dcbNewCallback(signature, callback_handler, (void *) container);
+    RETVAL = dcbNewCallback(signature, callback_handler, (DCpointer) container);
 OUTPUT:
     RETVAL
 
 void
-dcbInitCallback(DCCallback * pcb, const char * signature, DCCallbackHandler * funcptr, ...);
+dcbInitCallback(DCCallback * pcb, const char * signature, DCCallbackHandler * funcptr, userdata);
 PREINIT:
     dTHX;
     Callback * container;
@@ -120,8 +101,7 @@ CODE:
     container->signature = signature;
     container->cb = SvREFCNT_inc((SV *) funcptr);
     container->userdata = items > 3 ? newRV_inc(ST(3)): &PL_sv_undef;
-    int i;
-    for (i = 0; container->signature[i+1] != '\0'; ++i ) {
+    for (int i = 0; container->signature[i+1] != '\0'; ++i ) {
         //warn("here at %s line %d.", __FILE__, __LINE__);
         if (container->signature[i] == ')') {
             container->ret_type = container->signature[i+1];
@@ -139,8 +119,11 @@ PREINIT:
 #endif
 CODE:
     Callback * container = ((Callback*) dcbGetUserData(pcb));
+    SvREFCNT_dec(container->cb);
+    SvREFCNT_dec(container->userdata);
     dcFree(container->cvm);
     dcbFreeCallback( pcb );
+    safefree(container);
     // TODO: Free SVs
 
 SV *
@@ -173,24 +156,23 @@ PREINIT:
 #ifdef USE_ITHREADS
     PERL_SET_CONTEXT(my_perl);
 #endif
-    //AV * args = newAV();
 CODE:
-    RETVAL = newSV(0);
     Callback * container = ((Callback*) dcbGetUserData(self));
     const char * signature = container->signature;
     //warn("Callback sig: %s", signature);
     int done = 0;
-    int i;
     dcReset(container->cvm); // Get it ready to call again
     int tally = 0;
     //warn("here at %s line %d.", __FILE__, __LINE__);
-    for (i = 1; signature[i] != '\0'; ++i) {
+    for (int i = 1; signature[i] != '\0'; ++i) {
         //warn ("i: %d vs items: %d", i, items);
         //if (i > items - 1) // TODO: Don't do this is signature is var_list, etc.
         //    croak("Incorrect number of arguments for callback. Expected %d but were handed %d.", i, items - 1);
         tally++;
         //warn("Checking char: %c", signature[i - 1]);
         //warn("DC_SIGCHAR_CHAR == %c", DC_SIGCHAR_INT);
+            //warn("here at %s line %d.", __FILE__, __LINE__);
+
         switch(signature[i - 1]) {
             case DC_SIGCHAR_VOID:
                 //dcArgVoid(container->cvm, self);
@@ -260,6 +242,7 @@ CODE:
         //warn("Done: %s", (done? "Yes": "No"));
         if (done) break;
     }
+
     //warn("Return type: %c at %s line %d.", container->ret_type, __FILE__, __LINE__);
     switch(container->ret_type) {
         case DC_SIGCHAR_VOID:
@@ -312,21 +295,6 @@ CODE:
 OUTPUT:
     RETVAL
 
-void
-Ximport( const char * package, ... )
-CODE:
-    const PERL_CONTEXT * cx_caller = caller_cx( 0, NULL );
-    char *caller = HvNAME((HV*) CopSTASH(cx_caller->blk_oldcop));
-
-    warn("Import from %s! items == %d", caller, items);
-
-    int item;
-    for (item = 1; item < items; ++item)
-        warn("  item %d: %s", item, SvPV_nolen(ST(item)));
-
-    //export_sub(ctx_stash, caller_stash, name);
-
-
 BOOT:
     export_function("Dyn::Callback", "dcbNewCallback", "default");
     export_function("Dyn::Callback", "dcbInitCallback", "default");
@@ -334,3 +302,5 @@ BOOT:
     export_function("Dyn::Callback", "dcbGetUserData", "default");
 
 INCLUDE: Callback/Args.xsh
+
+INCLUDE: Callback/Value.xsh
