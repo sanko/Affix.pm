@@ -78,13 +78,6 @@ CODE:
     SV* sv = (SV*) &PL_sv_undef;
     sv_setsv(ST(0), sv);
 
-void *
-dcAllocMem(size_t size)
-CODE:
-    dcAllocMem(RETVAL, size, int);
-OUTPUT:
-    RETVAL
-
 void
 dcReset(DCCallVM * vm);
 
@@ -510,26 +503,6 @@ CODE:
 OUTPUT:
     RETVAL
 
-MODULE = Dyn::Call  PACKAGE = Dyn::Call::Pointer
-
-void
-new(const char * package, size_t size = 1)
-PPCODE:
-    DCpointer * RETVAL;
-    Newx(RETVAL, size, DCpointer);
-    {
-        SV * RETVALSV;
-        RETVALSV = sv_newmortal();
-        sv_setref_pv(RETVALSV, package, (void*)RETVAL);
-        ST(0) = RETVALSV;
-    }
-    XSRETURN(1);
-
-void
-DESTROY(DCpointer * ptr)
-PPCODE:
-    //if (ptr != NULL) dcFree(ptr);
-
 MODULE = Dyn::Call   PACKAGE = Dyn::Call::Aggr
 
 BOOT:
@@ -874,3 +847,5 @@ BOOT:
     export_function("Dyn::Call", "DC_SIGCHAR_CC_SYSCALL", "vars");
     export_function("Dyn::Call", "DEFAULT_ALIGNMENT", "vars");
 }
+
+INCLUDE: Call/Pointer.xsh

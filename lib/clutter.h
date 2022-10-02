@@ -16,7 +16,7 @@ static PerlInterpreter *my_perl; /***    The Perl interpreter    ***/
 } /* extern "C" */
 #endif
 
-#define dcAllocMem Newxz
+#define dcAllocMem safemalloc
 #define dcFreeMem Safefree
 
 #include "ppport.h"

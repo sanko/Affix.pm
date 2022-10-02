@@ -1854,7 +1854,7 @@ XS_EUPXS(Dyn_DESTROY) {
         cv = newXSproto_portable(form("%s::new", package), Types, file, "$");                      \
         safefree(XSANY.any_ptr);                                                                   \
         XSANY.any_i32 = (int)SIGCHAR;                                                              \
-        export_function("Dyn", NAME, "types");                                                         \
+        export_function("Dyn", NAME, "types");                                                     \
         /* Int->sig == 'i'; Struct[Int, Float]->sig == '{if}' */                                   \
         cv = newXSproto_portable(form("%s::sig", package), Types_sig, file, "$");                  \
         XSANY.any_i32 = (int)SIGCHAR;                                                              \
