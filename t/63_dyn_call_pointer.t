@@ -69,5 +69,16 @@ subtest 'stringify' => sub {
     free $mem;
     is $mem, undef, 'freed $mem';
 };
+subtest 'offsets' => sub {
+    my $mem = calloc( 12, 1 );
+    isa_ok $mem, 'Dyn::Call::Pointer', '$mem = calloc( 12, 1 )';
+    is $mem->raw(10), "\0" x 10, 'new pointer is NULL filled';
+    diag 'memcpy( $mem, "1234567890", 10 );';
+    memcpy( $mem,     "1234567890", 10 );
+    memcpy( $mem + 4, "123",        3 );
+    is $mem, '1234123890', 'stringified version of offset modified pointer is 1234123890';
+    free $mem;
+    is $mem, undef, 'freed $mem';
+};
 #
 done_testing;

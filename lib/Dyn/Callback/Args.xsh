@@ -6,12 +6,12 @@ void
 DESTROY(SV * me)
 CODE:
     DCArgs * value;
-    if (sv_derived_from(me, "Dyn::Call::Args")) {
+    if (sv_derived_from(me, "Dyn::Callback::Args")) {
         IV tmp = SvIV(MUTABLE_SV(SvRV(me)));
         value = INT2PTR(DCArgs *, tmp);
     }
     else
-        croak("value is not of type Dyn::Call::Args");
+        croak("value is not of type Dyn::Callback::Args");
     if(value) { // No double free!
         value = NULL;
         safefree(value);
@@ -88,7 +88,7 @@ CODE:
             RETVAL = sv_bless(newRV_noinc(newSViv(PTR2IV((DCpointer)dcbArgPointer(args)))), gv_stashpv("Dyn::Call::Pointer", GV_ADD));
             break;
         default:
-            croak("Dyn::Call::Args has no field %c", ix);
+            croak("Dyn::Callback::Args has no field %c", ix);
             break;
     }
 OUTPUT:

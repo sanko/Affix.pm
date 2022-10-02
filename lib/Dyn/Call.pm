@@ -736,6 +736,11 @@ You may set the calling convention to use with L<< C<dcMode( ... )>|/C<dcMode(
 
 =back
 
+=head1 Memory Functions
+
+See Dyn::Call::Pointer for a list of direct memory manipulation functions which
+may be imported with the C<:memory> tag.
+
 =head1 Platform Support
 
 The dyncall library runs on many different platforms and operating systems

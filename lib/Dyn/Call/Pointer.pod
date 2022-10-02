@@ -9,7 +9,7 @@ Dyn::Call::Pointer - dyncall variant pointer
 =head1 SYNOPSIS
 
     use Dyn::Call qw[:memory];
-    my $ptr = malloc( 10 );
+    my $ptr = malloc( 10 ); # <--- This is a Dyn::Call::Pointer
     memmove( $ptr, 'Hello, world', 12 );
     free( $ptr );
 
