@@ -46,6 +46,9 @@ include(CheckCCompilerFlag)
 check_c_compiler_flag("-fPIC -Werror" COMPILER_HAS_FPIC)
 
 
+add_custom_target(show-compiler-predefs COMMAND ${CMAKE_C_COMPILER_PREDEFINES_COMMAND})
+
+
 # compile_asm(TARGET target ASM_FILES file1 [file2 ...] OUTPUT_OBJECTS [variableName])
 # CMake does not support the ARM or ARM64 assemblers on Windows when using the
 # MSBuild generator.

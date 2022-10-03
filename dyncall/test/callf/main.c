@@ -32,8 +32,10 @@
 #include "../common/platformInit.c" /* Impl. for functions only used in this translation unit */
 
 #include <stdarg.h>
-#if defined(DC_UNIX) && !defined(DC__OS_BeOS)
-#include <sys/syscall.h>
+#if defined(DC__Feature_Syscall)
+#  if defined(DC_UNIX) && !defined(DC__OS_BeOS) && !defined(DC__OS_Minix)
+#    include <sys/syscall.h>
+#  endif
 #endif
 
 

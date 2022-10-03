@@ -3,7 +3,7 @@ OBJS      = main.o
 SRCTOP    = ${VPATH}/../..
 BLDTOP    = ../..
 CFLAGS   += -I${SRCTOP}/dynload
-LDFLAGS  += -rdynamic
+LDFLAGS  += -Wl,--export-dynamic
 LDLIBS_D  = -L${BLDTOP}/dynload -ldynload_s 
 .PHONY: all clean install
 all: ${APP}

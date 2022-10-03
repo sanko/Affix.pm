@@ -16,6 +16,8 @@ dyncall:
   o added macros to feature test implementation for aggregate-by-value and syscall support
   o windows/x64/masm directives added to specify how stack unwinds (help for
     debuggers, exception handling, etc.; thanks Raphael Luba)
+  o fixed detection of native thiscall callconv for builds not using MSVC but using (or adhering to)
+    the MSVC runtime (e.g. ReactOS' MinGW based RosBE)
 dyncallback:
   o new, portable aggregate-by-value callback argument interface
   o aggregate-by-value (struct, union) support for x64 (win and sysv; thanks Raphael Luba!)

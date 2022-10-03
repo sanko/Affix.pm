@@ -82,7 +82,7 @@ main    ENDP
 
 
 
-; ---------- structs by value, struct in first call on reg arg boundary ---------->
+; ---------- structs by value, struct never in reg or on reg arg boundary ---------->
 ;
 ; struct A { int i, j; long long l; };
 ;
@@ -132,12 +132,12 @@ nonleaf_call PROC
         mov     DWORD PTR [rsp+8], ecx
         push    rsi
         push    rdi
-        sub     rsp, 312                      ; 00000138H
-        mov     BYTE PTR x$[rsp], 76                  ; 0000004cH
+        sub     rsp, 312
+        mov     BYTE PTR x$[rsp], 76
         lea     rax, QWORD PTR x$[rsp+1]
         mov     rdi, rax
         xor     eax, eax
-        mov     ecx, 219                      ; 000000dbH
+        mov     ecx, 219
         rep stosb
         lea     rax, QWORD PTR $T1[rsp]
         mov     rdi, rax
@@ -155,7 +155,7 @@ nonleaf_call PROC
         mov     edx, DWORD PTR c$[rsp]
         mov     ecx, DWORD PTR b$[rsp]
         call    leaf_call
-        add     rsp, 312                      ; 00000138H
+        add     rsp, 312
         pop     rdi
         pop     rsi
         ret     0
@@ -166,7 +166,7 @@ $T1 = 80
 main    PROC
         push    rsi
         push    rdi
-        sub     rsp, 104                      ; 00000068H
+        sub     rsp, 104
         mov     DWORD PTR a$[rsp], 5
         mov     DWORD PTR a$[rsp+4], 6
         mov     QWORD PTR a$[rsp+8], 7
@@ -187,7 +187,7 @@ main    PROC
         xor     ecx, ecx
         call    nonleaf_call
         xor     eax, eax
-        add     rsp, 104                      ; 00000068H
+        add     rsp, 104
         pop     rdi
         pop     rsi
         ret     0
@@ -581,6 +581,183 @@ $LN3:
         add     rsp, 56                 ; \ epilog
         ret     0                       ; |
 f       ENDP                             
+
+
+
+; ---------- structs by value, struct passed as vararg ---------->
+;
+; #include <stdlib.h>
+; #include <stdarg.h>
+;
+; struct A { int i, j; long long l; };
+;
+; void leaf_call(int b, int c, int d, int e, ...)
+; {
+; }
+;
+; void nonleaf_call(int a, int b, int c, ...)
+; {
+;     int d, e, g, h;
+;     struct A f;
+;     va_list ap;
+;     va_start(ap, c);
+;     d = va_arg(ap, int);
+;     e = va_arg(ap, int);
+;     f = va_arg(ap, struct A);
+;     g = va_arg(ap, int);
+;     h = va_arg(ap, int);
+;     /* use some local data */
+;     *(char*)alloca(220) = 'L';
+;     leaf_call(b, c, d, e, f, g, h);
+;     va_end(ap);
+; }
+;
+; int main()
+; {
+;     nonleaf_call(0, 1, 2, 3, 4, (struct A){5, 6, 7ll}, 8, 9);
+;     return 0;
+; }
+
+
+
+; output from godbolt compiler explorer w/ msvc 19.0
+
+leaf_call PROC
+        mov     DWORD PTR [rsp+32], r9d          ;
+        mov     DWORD PTR [rsp+24], r8d          ;
+        mov     DWORD PTR [rsp+16], edx          ;
+        mov     DWORD PTR [rsp+8], ecx           ;
+        ret     0                                ;
+leaf_call ENDP
+
+ap$ = 64
+h$ = 72
+g$ = 76
+e$ = 80
+d$ = 84
+$T1 = 96
+f$ = 112
+__$ArrayPad$ = 128
+b$ = 184
+c$ = 192
+nonleaf_call PROC
+$LN3:
+        mov     DWORD PTR [rsp+24], r8d          ;
+        mov     DWORD PTR [rsp+16], edx          ;
+        mov     DWORD PTR [rsp+8], ecx           ;
+        mov     QWORD PTR [rsp+32], r9           ;
+        push    rsi                              ;
+        push    rdi                              ;
+        sub     rsp, 152                         ;
+        mov     rax, QWORD PTR __security_cookie ;
+        xor     rax, rsp                         ;
+        mov     QWORD PTR __$ArrayPad$[rsp], rax ;
+        lea     rax, QWORD PTR c$[rsp+8]         ;
+        mov     QWORD PTR ap$[rsp], rax          ;
+        mov     rax, QWORD PTR ap$[rsp]          ;
+        add     rax, 8                           ;
+        mov     QWORD PTR ap$[rsp], rax          ;
+        mov     rax, QWORD PTR ap$[rsp]          ;
+        mov     eax, DWORD PTR [rax-8]           ;
+        mov     DWORD PTR d$[rsp], eax           ;
+        mov     rax, QWORD PTR ap$[rsp]          ;
+        add     rax, 8                           ;
+        mov     QWORD PTR ap$[rsp], rax          ;
+        mov     rax, QWORD PTR ap$[rsp]          ;
+        mov     eax, DWORD PTR [rax-8]           ;
+        mov     DWORD PTR e$[rsp], eax           ;
+        mov     rax, QWORD PTR ap$[rsp]          ;
+        add     rax, 8                           ;
+        mov     QWORD PTR ap$[rsp], rax          ;
+        mov     rax, QWORD PTR ap$[rsp]          ;
+        mov     rax, QWORD PTR [rax-8]           ;
+        lea     rcx, QWORD PTR f$[rsp]           ;
+        mov     rdi, rcx                         ;
+        mov     rsi, rax                         ;
+        mov     ecx, 16                          ;
+        rep movsb                                ;
+        mov     rax, QWORD PTR ap$[rsp]          ;
+        add     rax, 8                           ;
+        mov     QWORD PTR ap$[rsp], rax          ;
+        mov     rax, QWORD PTR ap$[rsp]          ;
+        mov     eax, DWORD PTR [rax-8]           ;
+        mov     DWORD PTR g$[rsp], eax           ;
+        mov     rax, QWORD PTR ap$[rsp]          ;
+        add     rax, 8                           ;
+        mov     QWORD PTR ap$[rsp], rax          ;
+        mov     rax, QWORD PTR ap$[rsp]          ;
+        mov     eax, DWORD PTR [rax-8]           ;
+        mov     DWORD PTR h$[rsp], eax           ;
+        mov     ecx, 220                         ;
+        call    alloca                           ;
+        cdqe                                     ;
+        mov     BYTE PTR [rax], 76               ;
+        lea     rax, QWORD PTR $T1[rsp]          ;
+        lea     rcx, QWORD PTR f$[rsp]           ;
+        mov     rdi, rax                         ;
+        mov     rsi, rcx                         ;
+        mov     ecx, 16                          ;
+        rep movsb                                ;
+        mov     eax, DWORD PTR h$[rsp]           ;
+        mov     DWORD PTR [rsp+48], eax          ;
+        mov     eax, DWORD PTR g$[rsp]           ;
+        mov     DWORD PTR [rsp+40], eax          ;
+        lea     rax, QWORD PTR $T1[rsp]          ;
+        mov     QWORD PTR [rsp+32], rax          ;
+        mov     r9d, DWORD PTR e$[rsp]           ;
+        mov     r8d, DWORD PTR d$[rsp]           ;
+        mov     edx, DWORD PTR c$[rsp]           ;
+        mov     ecx, DWORD PTR b$[rsp]           ;
+        call    leaf_call                        ;
+        mov     QWORD PTR ap$[rsp], 0            ;
+        mov     rcx, QWORD PTR __$ArrayPad$[rsp] ;
+        xor     rcx, rsp                         ;
+        call    __security_check_cookie          ;
+        add     rsp, 152                         ;
+        pop     rdi                              ;
+        pop     rsi                              ;
+        ret     0                                ;
+nonleaf_call ENDP
+
+$T1 = 64
+$S1$ = 80
+__$ArrayPad$ = 96
+main    PROC
+$LN3:
+        push    rsi                              ;
+        push    rdi                              ;
+        sub     rsp, 120                         ;
+        mov     rax, QWORD PTR __security_cookie ;
+        xor     rax, rsp                         ;
+        mov     QWORD PTR __$ArrayPad$[rsp], rax ;
+        mov     DWORD PTR $S1$[rsp], 5           ;
+        mov     DWORD PTR $S1$[rsp+4], 6         ;
+        mov     QWORD PTR $S1$[rsp+8], 7         ;
+        lea     rax, QWORD PTR $T1[rsp]          ;
+        lea     rcx, QWORD PTR $S1$[rsp]         ;
+        mov     rdi, rax                         ;
+        mov     rsi, rcx                         ;
+        mov     ecx, 16                          ;
+        rep movsb                                ;
+        mov     DWORD PTR [rsp+56], 9            ;
+        mov     DWORD PTR [rsp+48], 8            ;
+        lea     rax, QWORD PTR $T1[rsp]          ;
+        mov     QWORD PTR [rsp+40], rax          ;
+        mov     DWORD PTR [rsp+32], 4            ;
+        mov     r9d, 3                           ;
+        mov     r8d, 2                           ;
+        mov     edx, 1                           ;
+        xor     ecx, ecx                         ;
+        call    nonleaf_call                     ;
+        xor     eax, eax                         ;
+        mov     rcx, QWORD PTR __$ArrayPad$[rsp] ;
+        xor     rcx, rsp                         ;
+        call    __security_check_cookie          ;
+        add     rsp, 120                         ;
+        pop     rdi                              ;
+        pop     rsi                              ;
+        ret     0                                ;
+main    ENDP
 
 
 

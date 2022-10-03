@@ -12,7 +12,7 @@ all: ${TEST_C_LD} ${TEST_U8_SO}
 	# deduce path to default libc.so file, easier to do via shell than in code
 	# (see main() in dynload_plain.c); get from what ${TEST_C_LD} is linked
 	# against, then reinvoke make with actual build
-	export X=`((ldd ${TEST_C_LD} | awk '/libc\.so/{for(i=1;i<=NF;++i){if($$i~"^/"){print $$i;++r}}}END{exit !r}' || ls /lib*/libc.so* || ls /usr/lib/libc.so*) | grep -v '\.a$$' | (sort -V -r || sort -t . -n -k 2)) 2>/dev/null | head -1`; \
+	export X=`{ (ldd ${TEST_C_LD} | awk '/libc\.so/{for(i=1;i<=NF;++i){if($$i~"^/"){print $$i;++r}}}END{exit !r}' || ls /lib*/libc.so* || ls /usr/lib/libc.so*) | grep -v '\.a$$' | (sort -V -r || sort -t . -n -k 2) } 2>/dev/null | head -1`; \
 	${MAKE} DEF_C_DYLIB="$$X" ${APP}
 ${TEST_C_LD}:
 	# dummy bin built with same toolchain and flags to deduce default c lib this is linked with

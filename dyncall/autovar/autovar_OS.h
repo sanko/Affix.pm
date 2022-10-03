@@ -49,10 +49,6 @@
 #  define OS_DragonFlyBSD
 #elif defined(__sun__) || defined(__sun) || defined(sun)
 #  define OS_SunOS
-#elif defined(__CYGWIN__)
-#  define OS_Cygwin
-#elif defined(__MINGW__)
-#  define OS_MinGW
 #elif defined(__nds__)
 #  define OS_NDS
 #elif defined(__psp__) || defined(PSP)
@@ -67,6 +63,14 @@
 #  define OS_Minix
 #else
 #  define OS_Unknown
+#endif
+
+#if defined(DC__OS_Win32) || defined(DC__OS_Win64)
+#  if defined(__CYGWIN__)
+#    define OS_Cygwin
+#  elif defined(__MINGW32__) || defined(__MINGW64__)
+#    define OS_MinGW
+#  endif
 #endif
 
 /** Platforms. */

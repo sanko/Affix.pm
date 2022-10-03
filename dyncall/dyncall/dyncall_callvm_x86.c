@@ -607,7 +607,7 @@ void dc_callvm_mode_x86(DCCallVM* in_self, DCint mode)
 
   switch(mode) {
     case DC_CALL_C_DEFAULT:
-#if !defined(DC__C_MSVC)
+#if !defined(DC__C_MSVC) && !defined(DC__RT_MSVCRT)
     case DC_CALL_C_DEFAULT_THIS:
 #endif
     case DC_CALL_C_ELLIPSIS:
@@ -619,7 +619,7 @@ void dc_callvm_mode_x86(DCCallVM* in_self, DCint mode)
     case DC_CALL_C_X86_CDECL:          vt = &gVT_x86_cdecl;          break; /* also handles DC_CALL_C_X86_WIN32_THIS_GNU */
     case DC_CALL_C_X86_WIN32_STD:      vt = &gVT_x86_win32_std;      break;
     case DC_CALL_C_X86_WIN32_FAST_MS:  vt = &gVT_x86_win32_fast_ms;  break;
-#if defined(DC__C_MSVC)
+#if defined(DC__C_MSVC) || defined(DC__RT_MSVCRT)
     case DC_CALL_C_DEFAULT_THIS:
 #endif
     case DC_CALL_C_X86_WIN32_THIS_MS:  vt = &gVT_x86_win32_this_ms;  break;

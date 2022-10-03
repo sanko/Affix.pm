@@ -790,5 +790,59 @@ _main   ENDP
 
 
 
+; ---------- cdecl-declared (explicit) C++ thiscall w/ msvc ---------->
+;
+; class C {
+; public:
+;     float __cdecl m(int i) const { return float(i + 123); }
+; };
+;
+; extern "C" {
+;     float f()
+;     {
+;         C c;
+;         return c.m(27);
+;     }
+; }
+
+
+
+; output from godbolt compiler explorer w/ msvc 19.0
+
+tv68 = -8
+tv67 = -4
+_i$ = 12
+float C::m(int)const  PROC
+        push    ebp                      ;
+        mov     ebp, esp                 ;
+        sub     esp, 8                   ;
+        mov     eax, DWORD PTR _i$[ebp]  ;
+        add     eax, 123                 ; |
+        mov     DWORD PTR tv67[ebp], eax ; / in arg + 123, pushed onto stack
+        fild    DWORD PTR tv67[ebp]      ; \
+        fstp    DWORD PTR tv68[ebp]      ; | float cast and put return value in fp0
+        fld     DWORD PTR tv68[ebp]      ; |
+        mov     esp, ebp                 ;
+        pop     ebp                      ;
+        ret     0                        ;
+float C::m(int)const  ENDP
+
+_c$ = -1
+_f      PROC                             ;
+        push    ebp                      ;
+        mov     ebp, esp                 ;
+        push    ecx                      ;
+        push    27                       ; arg 1
+        lea     eax, DWORD PTR _c$[ebp]  ; |
+        push    eax                      ; | arg 0 (this ptr)
+        call    float C::m(int)const     ; call C::m()
+        add     esp, 8                   ;
+        mov     esp, ebp                 ;
+        pop     ebp                      ;
+        ret     0                        ;
+_f      ENDP
+
+
+
 ; vim: ft=asm
 
