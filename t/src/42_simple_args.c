@@ -10,7 +10,7 @@ DLLEXPORT int TakeTwoShorts(short x, short y) {
     return 0;
 }
 
-DLLEXPORT int AssortedIntArgs(int x, short y, char z) {
+DLLEXPORT long AssortedIntArgs(long x, short y, char z) {
     if (x == 101 && y == 102 && z == 103) return 3;
     return 0;
 }

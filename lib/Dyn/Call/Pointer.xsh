@@ -203,3 +203,10 @@ CODE:
     else
         croak("dest is not of type Dyn::Call::Pointer");
     DumpHex(ptr, size);
+
+HV *
+perl(DCpointer ptr, AV * fields)
+CODE:
+    RETVAL = ptr2perl(ptr, fields);
+OUTPUT:
+    RETVAL

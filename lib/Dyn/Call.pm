@@ -6,6 +6,7 @@ package Dyn::Call 0.03 {
     XSLoader::load( __PACKAGE__, our $VERSION );
     use parent 'Exporter';
     our %EXPORT_TAGS;
+    push @{ $EXPORT_TAGS{vars} }, @{ $EXPORT_TAGS{sigchar} };
     @{ $EXPORT_TAGS{all} } = our @EXPORT_OK = map { @{ $EXPORT_TAGS{$_} } } keys %EXPORT_TAGS;
 }
 1;

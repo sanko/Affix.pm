@@ -1524,10 +1524,10 @@ XS_EUPXS(Types_type_call) {
             dcArgBool(MY_CXT.cvm, SvTRUE(ST(i)));
             break; // Anything can bee a bool
         case DC_SIGCHAR_CHAR:
-            dcArgChar(MY_CXT.cvm, (char)SvIV(ST(i)));
+            dcArgChar(MY_CXT.cvm, (char)*SvPV_nolen(ST(i)));
             break;
         case DC_SIGCHAR_UCHAR:
-            dcArgChar(MY_CXT.cvm, (unsigned char)SvUV(ST(i)));
+            dcArgChar(MY_CXT.cvm, (unsigned char)*SvPV_nolen(ST(i)));
             break;
         case DC_SIGCHAR_SHORT:
             dcArgShort(MY_CXT.cvm, (short)SvIV(ST(i)));
@@ -1882,7 +1882,6 @@ BOOT :
 #endif
     {
         MY_CXT_INIT;
-        MY_CXT.count = 0;
         MY_CXT.cvm = dcNewCallVM(4096);
     }
     {
@@ -1893,7 +1892,6 @@ BOOT :
         (void)newXSproto_portable("Dyn::Type::Base::sizeof", Types_type_sizeof, file, "$");
         (void)newXSproto_portable("Dyn::Type::Base::aggregate", Types_type_aggregate, file, "$");
         (void)newXSproto_portable("Dyn::DESTROY", Dyn_DESTROY, file, "$");
-
 
         CV *cv;
         TYPE("Void", DC_SIGCHAR_VOID);

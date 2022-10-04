@@ -15,9 +15,9 @@ sub TakeInt : Native('t/42_simple_args') : Signature([Int]=>Int);
 sub TakeTwoShorts : Native('t/42_simple_args') : Signature([Short, Short] => Long);
 sub AssortedIntArgs : Native('t/42_simple_args') : Signature([Long, Short, Char]=>Long);
 #
-is TakeInt(42),                      1, 'passed int 42';
-is TakeTwoShorts( 10, 20 ),          2, 'passed two shorts';
-is AssortedIntArgs( 101, 102, 103 ), 3, 'passed an int32, int16 and int8';
+is TakeInt(42),                          1, 'passed int 42';
+is TakeTwoShorts( 10, 20 ),              2, 'passed two shorts';
+is AssortedIntArgs( 101, 102, chr 103 ), 3, 'passed an int32, int16 and int8';
 
 # Float related
 sub TakeADouble : Native('t/42_simple_args') : Signature([Double]=>Int);
@@ -68,7 +68,7 @@ SKIP: {
     # specified.  One can only assume this is some weird compiler issue (tested
     # on Apple LLVM version 6.1.0 (clang-602.0.49) (based on LLVM 3.6.0svn).
     #
-    is TakeUint8(0xFE), 10, 'passed uint8 0xFE';
+    is TakeUint8( chr 0xFE ), 10, 'passed uint8 0xFE';
 }
 
 # R#2124 https://github.com/rakudo/rakudo/issues/2124

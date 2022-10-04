@@ -80,12 +80,12 @@ T_PTROBJ_SPECIAL
 
 T_PTROBJ_AGGREGATE
   // $Package | $type | $ntype
-  if (sv_derived_from($arg, \"Dyn::Call::Aggr\")){
+  if (sv_derived_from($arg, \"Dyn::Call::Aggregate\")){
     IV tmp = SvIV((SV*)SvRV($arg));
     $var = INT2PTR($type, tmp);
   }
   else
-    croak(\"$var is not of type Dyn::Call::Aggr\");
+    croak(\"$var is not of type Dyn::Call::Aggregate\");
 
 T_DYN
   if (sv_derived_from($arg, \"Dyn\")) {
@@ -119,7 +119,7 @@ T_PTROBJ_SPECIAL
 
 T_PTROBJ_AGGREGATE
   // $Package | $type | $ntype
-  sv_setref_pv($arg, \"Dyn::Call::Aggr\", (void*)$var);
+  sv_setref_pv($arg, \"Dyn::Call::Aggregate\", (void*)$var);
 
 T_DYN
   sv_setref_pv($arg, \"Dyn\", (void*)$var);

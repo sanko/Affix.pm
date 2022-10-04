@@ -145,7 +145,7 @@ SKIP: {
         dcMode( $cvm, DC_CALL_C_DEFAULT );
         dcReset($cvm);
         my $s = dcNewAggr( 1, 1 );
-        isa_ok $s, 'Dyn::Call::Aggr';
+        isa_ok $s, 'Dyn::Call::Aggregate';
         dcAggrField( $s, DC_SIGCHAR_UCHAR, 0, 1 );
         dcCloseAggr($s);
         my @fields = $s->fields;
@@ -162,7 +162,6 @@ SKIP: {
         ok 'remove';
     };
     subtest 'aggregate builder [struct arg]' => sub {
-        our $TODO = 'aggregates are still unstable upstream';
         use Dyn qw[:all];    # Exports nothing by default
         my $lib = dlLoadLibrary($lib_file);
         my $ptr = dlFindSymbol( $lib, 'A2C' );
@@ -170,7 +169,7 @@ SKIP: {
         dcMode( $cvm, DC_CALL_C_DEFAULT );
         dcReset($cvm);
         my $s = dcNewAggr( 1, 1 );
-        isa_ok $s, 'Dyn::Call::Aggr';
+        isa_ok $s, 'Dyn::Call::Aggregate';
         dcAggrField( $s, DC_SIGCHAR_UCHAR, 0, 1 );
         dcCloseAggr($s);
         dcReset($cvm);
@@ -180,14 +179,13 @@ SKIP: {
         dcFreeAggr($s);
     };
     subtest 'aggregate builder [struct return [raw]]' => sub {
-        our $TODO = 'aggregates are still unstable upstream';
         use Dyn qw[:all];    # Exports nothing by default
         my $lib = dlLoadLibrary($lib_file);
         my $ptr = dlFindSymbol( $lib, 'C2A' );
         my $cvm = dcNewCallVM(1024);
         dcMode( $cvm, DC_CALL_C_DEFAULT );
         my $s = dcNewAggr( 1, 1 );
-        isa_ok $s, 'Dyn::Call::Aggr';
+        isa_ok $s, 'Dyn::Call::Aggregate';
         diag DC_SIGCHAR_UCHAR;
         dcAggrField( $s, DC_SIGCHAR_UCHAR, 0, 1 );
         dcCloseAggr($s);
@@ -197,14 +195,13 @@ SKIP: {
         diag $cvm;
         diag $ptr;
         diag $s;
-        my $ret = Dyn::Type::Pointer->new(1);
+        my $ret = malloc(1);
         diag $ret;
         isa_ok dcCallAggr( $cvm, $ptr, $s, $ret ), 'Dyn::Call::Pointer';
         diag $s;
         dcFreeAggr($s);
     };
     subtest 'aggregate builder [struct return [obj]]' => sub {
-        our $TODO = 'aggregates are still unstable upstream';
         use Dyn qw[:all];    # Exports nothing by default
         my $lib = dlLoadLibrary($lib_file);
         my $ptr = dlFindSymbol( $lib, 'C2A' );
@@ -212,36 +209,21 @@ SKIP: {
         dcMode( $cvm, DC_CALL_C_DEFAULT );
         dcReset($cvm);
         my $s = dcNewAggr( 1, 1 );
-        isa_ok $s, 'Dyn::Call::Aggr';
+        isa_ok $s, 'Dyn::Call::Aggregate';
         dcAggrField( $s, DC_SIGCHAR_UCHAR, 0, 1 );
-        diag 'here A';
         dcCloseAggr($s);
-        diag 'here A';
         dcReset($cvm);
-        diag 'here A';
         dcArgChar( $cvm, 'm' );
-        diag 'here G';
-        my $idk = Dyn::Type::Struct::add_fields 'Some::Class' => [ a => DC_SIGCHAR_UCHAR ];
-        diag 'here C';
-
-        #my $obj = Some::Class->new( { a => 3 } );
-        my $obj = Dyn::Type::Pointer->new(1);
-        diag 'here D';
-        diag $obj;
-        diag 'here A';
-        isa_ok dcCallAggr( $cvm, $ptr, $s, $obj ), 'Dyn::Call::Pointer';
-        diag 'here A';
-        my $struct = $obj->cast('Some::Class');
-        diag $struct;
-
-        #use Data::Dump;
-        #ddx $struct;
-        diag ord 'n';
-        is $struct->a, 'n', 'struct->a is now "n"';
+        #
+        my $obj = malloc(1);
+        my $ret = dcCallAggr( $cvm, $ptr, $s, $obj );
+        isa_ok $ret, 'Dyn::Call::Pointer', '$ret';
+        my $struct = $obj->perl( [ a => DC_SIGCHAR_UCHAR ] );
+        is_deeply $struct, { a => 'n' }, 'struct converted to perl hashref';
         dcFreeAggr($s);
+        free($ret);
     };
     subtest 'aggregate builder [struct arg and return]' => sub {
-        our $TODO = 'aggregates are still unstable upstream';
         use Dyn qw[:all];    # Exports nothing by default
         my $lib = dlLoadLibrary($lib_file);
         my $ptr = dlFindSymbol( $lib, 'A2A' );
@@ -249,74 +231,19 @@ SKIP: {
         dcMode( $cvm, DC_CALL_C_DEFAULT );
         dcReset($cvm);
         my $s = dcNewAggr( 1, 1 );
-        isa_ok $s, 'Dyn::Call::Aggr';
+        isa_ok $s, 'Dyn::Call::Aggregate';
         dcAggrField( $s, DC_SIGCHAR_UCHAR, 0, 1 );
         dcCloseAggr($s);
         dcReset($cvm);
         dcBeginCallAggr( $cvm, $s );
         dcArgChar( $cvm, 'Y' );
-
-        if (0) {
-
-            #b isa_ok dcCallAggr( $cvm, $ptr, $s ), 'Dyn::Call::Aggr';
-            #is dcCallChar( $cvm, $ptr ), 'Z', 'struct.a++ == Z';
-            #use Data::Dump;
-            my $idk = Dyn::Type::Struct::add_fields 'Some::Other::Class' =>
-                [ blah => bless( \[], 'Int' ), two => 'int8' ];
-            diag ref $idk;
-
-            #diag join ', ', keys %$idk;
-            for my $key ( keys %$idk ) {
-                diag '[' . $key . '] => ' . ref $idk->{$key};
-            }
-
-            #ddx $idk;
-            my $obj = Some::Class->new( { blah => 'reset' } );
-            dcFreeAggr($s);
-        }
-
-        #ddx $obj;
-        #diag $obj->blah;
-        #diag $obj->two;
+        my $obj = malloc(1);
+        my $ret = dcCallAggr( $cvm, $ptr, $s, $obj );
+        is_deeply $ret->perl( [ first => DC_SIGCHAR_UCHAR ] ), { first => 'Z' };
+        dcFreeAggr($s);
+        free($obj);
     };
     #
-
-=fdsa
-        #$cb->init();
-        {
-            my $cb = dcbNewCallback(
-                'i)v',
-                sub { warn 'Here!' }
-
-                    #$coderef
-                , 5
-            );
-            #
-            warn $cb;
-            #
-            my $result = $cb->call(12);    # Don't make these an array ref
-
-            #
-            warn $result;
-        }
-        {
-            my $cb = dcbNewCallback(
-                'iZ)Z',
-                sub {
-                    my ( $int, $name, $userdata ) = @_;
-
-                    #is $int, 100,    'int arg correct';
-                    #is $name, 'John', 'string arg is correct';
-                    ddx $userdata;
-                    return 'Hello, ' . $name;
-                },
-                [5]
-            );
-            my $result = $cb->call( 10, 'Bob' );
-            warn $result;
-        }
-=cut
-
     subtest 'Dyn::Load Part II' => sub {
         dlFreeLibrary($lib);
         is $lib, undef;
