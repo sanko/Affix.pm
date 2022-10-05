@@ -48,6 +48,7 @@ static PerlInterpreter *my_perl; /***    The Perl interpreter    ***/
 #define DC_SIGCHAR_STRUCT '{'  // 'A' but nicer
 #define DC_SIGCHAR_UNION '<'   // 'A' but nicer
 #define DC_SIGCHAR_BLESSED '$' // 'p' but an object or subclass of a given package
+#define DC_SIGCHAR_ANY '*'     // 'p' but it's really an SV/HV/AV
 // bring balance
 #define DC_SIGCHAR_ARRAY_END ']'
 #define DC_SIGCHAR_STRUCT_END '}'

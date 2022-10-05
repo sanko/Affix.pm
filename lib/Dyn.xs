@@ -67,19 +67,22 @@ char cbHandler(DCCallback *cb, DCArgs *args, DCValue *result, DCpointer userdata
             case DC_SIGCHAR_INT:
                 mPUSHi((IV)dcbArgInt(args));
                 break;
-
             case DC_SIGCHAR_POINTER: {
                 DCpointer ptr = dcbArgPointer(args);
-                if (SvOK((SV *)ptr))
-                    PUSHs((SV *)ptr);
-                else
-                    mPUSHs(sv_setref_pv(newSV(1), "Dyn::Call::Pointer", dcbArgPointer(args)));
+                mPUSHs(sv_setref_pv(newSV(1), "Dyn::Call::Pointer", dcbArgPointer(args)));
             } break;
             case DC_SIGCHAR_BLESSED: {
                 DCpointer ptr = dcbArgPointer(args);
                 HV *blessed = MUTABLE_HV(SvRV(*av_fetch(cbx->args, i, 0)));
                 SV **package = hv_fetchs(blessed, "package", 0);
                 mPUSHs(sv_setref_pv(newSV(1), SvPV_nolen(*package), ptr));
+            } break;
+            case DC_SIGCHAR_ANY: {
+                DCpointer ptr = dcbArgPointer(args);
+                if (SvOK((SV *)ptr))
+                    PUSHs((SV *)ptr);
+                else
+                    mPUSHs(&PL_sv_undef);
             } break;
             default:
                 croak("Oh, callbacks... push type: %c", cbx->sig[i]);
@@ -310,6 +313,8 @@ static size_t _sizeof(pTHX_ SV *type) {
     case DC_SIGCHAR_STRING:
     case DC_SIGCHAR_BLESSED:
         return PTRSIZE;
+    case DC_SIGCHAR_ANY:
+        return sizeof(SV);
     default:
         warn("&str == %s", str);
         croak("OH, NO!");
@@ -979,15 +984,16 @@ XS_EUPXS(Types) {
     } break;
     case DC_SIGCHAR_BLESSED: {
         AV *packages_in = MUTABLE_AV(SvRV(ST(1)));
-
         if (av_count(packages_in) != 1) croak("InstanceOf[...] expects a single package name");
-
         SV **package_ptr = av_fetch(packages_in, 0, 0);
         if (is_valid_class_name(*package_ptr))
             hv_stores(RETVAL_HV, "package", newSVsv(*package_ptr));
         else
             croak("%s is not a known type", SvPVbytex_nolen(*package_ptr));
     } break;
+    case DC_SIGCHAR_ANY: {
+        break;
+    }
     default:
         // warn("Unhandled...");
         break;
@@ -1608,6 +1614,9 @@ XS_EUPXS(Types_type_call) {
             dcArgPointer(MY_CXT.cvm, ptr);
             // pointers = true;
         } break;
+        case DC_SIGCHAR_ANY: {
+            dcArgPointer(MY_CXT.cvm, ST(i));
+        } break;
         case DC_SIGCHAR_STRING: {
             dcArgPointer(MY_CXT.cvm, SvPOK(ST(i)) ? SvPV_nolen(ST(i)) : NULL);
         } break;
@@ -1764,6 +1773,13 @@ XS_EUPXS(Types_type_call) {
             SV **package = hv_fetchs(MUTABLE_HV(SvRV(call->retval)), "package", 0);
             sv_setref_pv(retval, SvPVbytex_nolen(*package), ptr);
         } break;
+        case DC_SIGCHAR_ANY: {
+            DCpointer ptr = dcCallPointer(MY_CXT.cvm, call->fptr);
+            if (ptr && SvOK((SV *)ptr))
+                retval = (SV *)ptr;
+            else
+                sv_set_undef(retval);
+        } break;
         default:
             croak("Unhandled return type: %c", call->ret);
         }
@@ -1906,6 +1922,8 @@ BOOT:
     TYPE("Union", DC_SIGCHAR_UNION, DC_SIGCHAR_AGGREGATE);
     TYPE("CodeRef", DC_SIGCHAR_CODE, DC_SIGCHAR_AGGREGATE);
     TYPE("InstanceOf", DC_SIGCHAR_BLESSED, DC_SIGCHAR_POINTER);
+    TYPE("Any", DC_SIGCHAR_ANY, DC_SIGCHAR_POINTER);
+
     // Enum[]?
     export_function("Dyn", "typedef", "types");
     export_function("Dyn", "wrap", "sugar");

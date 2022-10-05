@@ -70,25 +70,27 @@ PREINIT:
 INIT:
     Callback * container;
 CODE:
-    // clang-format on
+// clang-format on
+{
     container = (Callback *)safemalloc(sizeof(Callback));
-if (!container) // OOM
-    XSRETURN_UNDEF;
-container->cvm = dcNewCallVM(1024);
-dcMode(container->cvm, DC_CALL_C_DEFAULT); // TODO: Use correct value according to signature
-dcReset(container->cvm);
-container->signature = signature;
-container->cb = SvREFCNT_inc(funcptr);
-container->userdata = newRV_inc(items > 2 ? ST(2) : newSV(0));
-for (int i = 0; container->signature[i + 1] != '\0'; ++i) {
-    // warn("here at %s line %d.", __FILE__, __LINE__);
-    if (container->signature[i] == ')') {
-        container->ret_type = container->signature[i + 1];
-        break;
+    if (!container) // OOM
+        XSRETURN_UNDEF;
+    container->cvm = dcNewCallVM(1024);
+    dcMode(container->cvm, DC_CALL_C_DEFAULT); // TODO: Use correct value according to signature
+    dcReset(container->cvm);
+    container->signature = signature;
+    container->cb = SvREFCNT_inc(funcptr);
+    container->userdata = newRV_inc(items > 2 ? ST(2) : newSV(0));
+    for (int i = 0; container->signature[i + 1] != '\0'; ++i) {
+        // warn("here at %s line %d.", __FILE__, __LINE__);
+        if (container->signature[i] == ')') {
+            container->ret_type = container->signature[i + 1];
+            break;
+        }
     }
+    // warn("signature: %s at %s line %d.", signature, __FILE__, __LINE__);
+    RETVAL = dcbNewCallback(signature, callback_handler, (DCpointer)container);
 }
-// warn("signature: %s at %s line %d.", signature, __FILE__, __LINE__);
-RETVAL = dcbNewCallback(signature, callback_handler, (DCpointer)container);
 // clang-format off
 OUTPUT:
     RETVAL
@@ -102,19 +104,21 @@ PREINIT:
     PERL_SET_CONTEXT(my_perl);
 #endif
 CODE:
-    // clang-format on
+// clang-format on
+{
     container = (Callback *)dcbGetUserData(pcb);
-container->signature = signature;
-container->cb = SvREFCNT_inc((SV *)funcptr);
-container->userdata = items > 3 ? newRV_inc(ST(3)) : &PL_sv_undef;
-for (int i = 0; container->signature[i + 1] != '\0'; ++i) {
-    // warn("here at %s line %d.", __FILE__, __LINE__);
-    if (container->signature[i] == ')') {
-        container->ret_type = container->signature[i + 1];
-        break;
+    container->signature = signature;
+    container->cb = SvREFCNT_inc((SV *)funcptr);
+    container->userdata = items > 3 ? newRV_inc(ST(3)) : &PL_sv_undef;
+    for (int i = 0; container->signature[i + 1] != '\0'; ++i) {
+        // warn("here at %s line %d.", __FILE__, __LINE__);
+        if (container->signature[i] == ')') {
+            container->ret_type = container->signature[i + 1];
+            break;
+        }
     }
+    dcbInitCallback(pcb, signature, callback_handler, (void *)container);
 }
-dcbInitCallback(pcb, signature, callback_handler, (void *)container);
 // clang-format off
 
 void
@@ -326,11 +330,13 @@ OUTPUT:
     RETVAL
 
 BOOT:
-    // clang-format on
+// clang-format on
+{
     export_function("Dyn::Callback", "dcbNewCallback", "default");
-export_function("Dyn::Callback", "dcbInitCallback", "default");
-export_function("Dyn::Callback", "dcbFreeCallback", "default");
-export_function("Dyn::Callback", "dcbGetUserData", "default");
+    export_function("Dyn::Callback", "dcbInitCallback", "default");
+    export_function("Dyn::Callback", "dcbFreeCallback", "default");
+    export_function("Dyn::Callback", "dcbGetUserData", "default");
+}
 // clang-format off
 
 INCLUDE: Callback/Args.xsh
