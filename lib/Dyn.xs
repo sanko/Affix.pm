@@ -35,53 +35,76 @@ typedef struct
     SV *retval;
 } Callback;
 
-char cbHandler(DCCallback* cb, DCArgs* args, DCValue* result, DCpointer userdata) {
+char cbHandler(DCCallback *cb, DCArgs *args, DCValue *result, DCpointer userdata) {
     dTHX;
 #ifdef USE_ITHREADS
     PERL_SET_CONTEXT(my_perl);
 #endif
 
-    Callback *cbx = (Callback*) userdata;
-    sv_dump(cbx->cv);
-    sv_dump(MUTABLE_SV(cbx->args));
-    result->i = 1244;
+    Callback *cbx = (Callback *)userdata;
+    // sv_dump(cbx->cv);
+    // sv_dump(MUTABLE_SV(cbx->args));
+    //  result->i = 1244;
 
-    warn("Bruh %c (%s [%d] return: %c) at %s line %d", cbx->ret, cbx->sig, cbx->sig_len, cbx->ret, __FILE__, __LINE__);
-
+    // warn("Bruh %c (%s [%d] return: %c) at %s line %d", cbx->ret, cbx->sig, cbx->sig_len,
+    // cbx->ret,
+    //      __FILE__, __LINE__);
 
     {
-  dSP;
-    int count;
+        dSP;
+        int count;
 
-	ENTER;
+        ENTER;
         SAVETMPS;
 
         PUSHMARK(SP);
         EXTEND(SP, cbx->sig_len);
-        for(int i = 0; i < cbx->sig_len; ++i) {
-            switch(cbx->sig[i]) {
-                case DC_SIGCHAR_INT:
-                    mPUSHi((IV)dcbArgInt(args));
-                    break;
-                default:
-                    croak("Oh, callbacks...");
-                    break;
+        for (int i = 0; i < cbx->sig_len; ++i) {
+            switch (cbx->sig[i]) {
+            case DC_SIGCHAR_VOID:
+                // mPUSHi((IV)dcbArgInt(args));
+                break;
+            case DC_SIGCHAR_INT:
+                mPUSHi((IV)dcbArgInt(args));
+                break;
+
+            case DC_SIGCHAR_POINTER: {
+                DCpointer ptr = dcbArgPointer(args);
+                if (SvOK((SV *)ptr))
+                    PUSHs((SV *)ptr);
+                else
+                    mPUSHs(sv_setref_pv(newSV(1), "Dyn::Call::Pointer", dcbArgPointer(args)));
+            } break;
+            case DC_SIGCHAR_BLESSED: {
+                DCpointer ptr = dcbArgPointer(args);
+                HV *blessed = MUTABLE_HV(SvRV(*av_fetch(cbx->args, i, 0)));
+                SV **package = hv_fetchs(blessed, "package", 0);
+                mPUSHs(sv_setref_pv(newSV(1), SvPV_nolen(*package), ptr));
+            } break;
+            default:
+                croak("Oh, callbacks... push type: %c", cbx->sig[i]);
+                break;
             }
         }
         PUTBACK;
 
-        if( cbx->ret == 'v' )
-            call_sv( cbx->cv, G_DISCARD );
+        if (cbx->ret == 'v')
+            call_sv(cbx->cv, G_DISCARD);
         else {
-            count = call_sv( cbx->cv, G_EVAL|G_SCALAR );
-             if (count != 1)
-                croak("Big trouble");
+            count = call_sv(cbx->cv, G_EVAL | G_SCALAR);
+            if (count != 1) croak("Big trouble");
             SPAGAIN;
-            switch(cbx->ret) {
-                case DC_SIGCHAR_DOUBLE:
-
-            warn ("double returned: %f", POPn);
+            switch (cbx->ret) {
+            case DC_SIGCHAR_VOID:
                 break;
+            case DC_SIGCHAR_FLOAT:
+                result->f = POPn;
+                break;
+            case DC_SIGCHAR_DOUBLE:
+                result->d = POPn;
+                break;
+            default:
+                croak("Unhandled return from callback");
             }
             PUTBACK;
         }
@@ -93,26 +116,23 @@ char cbHandler(DCCallback* cb, DCArgs* args, DCValue* result, DCpointer userdata
     return cbx->ret;
 }
 
-void cb_test(void * a, void * b){warn("Ping");}
- char XcbHandler(DCCallback* cb,
-                          DCArgs*     args,
-                          DCValue*    result,
-                          void*       userdata)
-           {
-               warn("Pong");
-             /*int* ud = (int*)userdata;
-             int       arg1 = dcbArgInt     (args);
-             float     arg2 = dcbArgFloat   (args);
-             short     arg3 = dcbArgShort   (args);
-             double    arg4 = dcbArgDouble  (args);
-             long long arg5 = dcbArgLongLong(args);*/
+void cb_test(void *a, void *b) {
+    warn("Ping");
+}
+char XcbHandler(DCCallback *cb, DCArgs *args, DCValue *result, void *userdata) {
+    warn("Pong");
+    /*int* ud = (int*)userdata;
+    int       arg1 = dcbArgInt     (args);
+    float     arg2 = dcbArgFloat   (args);
+    short     arg3 = dcbArgShort   (args);
+    double    arg4 = dcbArgDouble  (args);
+    long long arg5 = dcbArgLongLong(args);*/
 
-             // .. do something ..
+    // .. do something ..
 
-             result->s = 1244;
-             return 's';
-           }
-
+    result->s = 1244;
+    return 's';
+}
 
 /* TODO: This might be compatible further back than 5.10.0. */
 #if PERL_VERSION_GE(5, 10, 0) && PERL_VERSION_LE(5, 15, 1)
@@ -683,7 +703,6 @@ XS_EUPXS(Types_wrapper) {
     XSRETURN(1);
 }
 
-
 XS_EUPXS(Types); /* prototype to pass -Wmissing-prototypes */
 XS_EUPXS(Types) {
     dVAR;
@@ -731,20 +750,19 @@ XS_EUPXS(Types) {
         hv_stores(RETVAL_HV, "type", newSVsv(type));
     } break;
     case DC_SIGCHAR_CODE: {
-        AV * fields = newAV_mortal();
-       SV *retval = sv_newmortal();
+        AV *fields = newAV_mortal();
+        SV *retval = sv_newmortal();
 
         size_t field_count;
- {
-        if (items != 2)
-            croak("CodeRef[ [args] => return]");
+        {
+            if (items != 2) croak("CodeRef[ [args] => return]");
 
             AV *args = MUTABLE_AV(SvRV(ST(1)));
             if (av_count(args) != 2) croak("Expected a list of arguments and a return value");
             fields = MUTABLE_AV(SvRV(*av_fetch(args, 0, 0)));
             field_count = av_count(fields);
 
-                for (int i = i; i < field_count; ++i) {
+            for (int i = i; i < field_count; ++i) {
                 SV **type_ref = av_fetch(fields, i, 0);
                 if (!(sv_isobject(*type_ref) && sv_derived_from(*type_ref, "Dyn::Type::Base")))
                     croak("Given type for CodeRef %d is not a subclass of Dyn::Type::Base", i);
@@ -755,30 +773,30 @@ XS_EUPXS(Types) {
             if (!(sv_isobject(retval) && sv_derived_from(retval, "Dyn::Type::Base")))
                 croak("Given type for return value is not a subclass of Dyn::Type::Base");
 
-             hv_stores(RETVAL_HV, "args", SvREFCNT_inc(*av_fetch(args, 0, 0)));
+            hv_stores(RETVAL_HV, "args", SvREFCNT_inc(*av_fetch(args, 0, 0)));
 
-        hv_stores(RETVAL_HV, "return", SvREFCNT_inc(retval));
+            hv_stores(RETVAL_HV, "return", SvREFCNT_inc(retval));
 
-            Callback * cb;
+            Callback *cb;
             Newxz(cb, 1, Callback);
             cb->args = newAV();
             Newxz(cb->sig, field_count, char);
-//~ typedef struct
-//~ {
-    //~ char *sig;
-    //~ size_t sig_len;
-    //~ char ret;
-    //~ char *perl_sig;
-    //~ SV *cv;
-    //~ AV *args;
-    //~ SV *retval;
-//~ } Callback;
-        char signature[field_count+2];
-        for (int i = 0; i < field_count; i++) {
-            SV **type_ref = av_fetch(fields, i, 0);
-            char *str = SvPVbytex_nolen(*type_ref);
-            av_push(cb->args, SvREFCNT_inc(*type_ref));
-            switch (str[0]) {
+            //~ typedef struct
+            //~ {
+            //~ char *sig;
+            //~ size_t sig_len;
+            //~ char ret;
+            //~ char *perl_sig;
+            //~ SV *cv;
+            //~ AV *args;
+            //~ SV *retval;
+            //~ } Callback;
+            char signature[field_count + 2];
+            for (int i = 0; i < field_count; i++) {
+                SV **type_ref = av_fetch(fields, i, 0);
+                char *str = SvPVbytex_nolen(*type_ref);
+                av_push(cb->args, SvREFCNT_inc(*type_ref));
+                switch (str[0]) {
                 case DC_SIGCHAR_CODE:
                 case DC_SIGCHAR_ARRAY:
                     signature[i] = DC_SIGCHAR_POINTER;
@@ -790,16 +808,18 @@ XS_EUPXS(Types) {
                 default:
                     signature[i] = str[0];
                     break;
+                }
             }
-        }
-        Copy(signature, cb->sig, field_count, char);
-        cb->sig_len = field_count;
+            Copy(signature, cb->sig, field_count, char);
+            cb->sig_len = field_count;
 
-        signature[field_count] = ')';
-        {
-            {char *str = SvPVbytex_nolen(retval);
-            cb->ret = str[0];}
-            switch (cb->ret) {
+            signature[field_count] = ')';
+            {
+                {
+                    char *str = SvPVbytex_nolen(retval);
+                    cb->ret = str[0];
+                }
+                switch (cb->ret) {
                 case DC_SIGCHAR_CODE:
                 case DC_SIGCHAR_ARRAY:
                     signature[field_count + 1] = DC_SIGCHAR_POINTER;
@@ -811,14 +831,15 @@ XS_EUPXS(Types) {
                 default:
                     signature[field_count + 1] = cb->ret;
                     break;
+                }
             }
-        }
-        signature[field_count + 2] = (char)0;
-        hv_stores(RETVAL_HV, "signature", newSVpv(signature, field_count + 2));
+            signature[field_count + 2] = (char)0;
+            hv_stores(RETVAL_HV, "signature", newSVpv(signature, field_count + 2));
 
             DCCallback *dcb;
 
-            //TODO: I need to create a new struct that can hold the signature and the actual arg types
+            // TODO: I need to create a new struct that can hold the signature and the actual arg
+            // types
             /*_callback *container = (_callback *)safemalloc(sizeof(_callback));
             if (!container) // OOM
                 XSRETURN_UNDEF;
@@ -873,58 +894,58 @@ XS_EUPXS(Types) {
             croak("Struct[...]");
         hv_stores(RETVAL_HV, "packed", sv_2mortal(boolSV(false)));
     } break;
-    case DC_SIGCHAR_POINTER: {/*
-        warn("Pointer[...] w/ %d args at %s line %d.", items, __FILE__, __LINE__);
-        // sv_dump(ST(0));
-        // if (field_count % 2) croak("Expected an even sized list");
-        SV * inside;
-        if (items == 2) croak("Pointer[...] expected 1 type; found %d", items);
-        // warn("here at %s line %d.", __FILE__, __LINE__);
-        if (items == 1) {
-            SV *self = newRV_inc_mortal(MUTABLE_SV(newSV(0)));
-            inside = sv_bless(self, gv_stashpv("Dyn::Void", GV_ADD));
-            hv_stores(RETVAL_HV, "type", SvREFCNT_inc(inside));
-        }
-        else {
-            AV *fields = newAV_mortal();
+    case DC_SIGCHAR_POINTER: { /*
+         warn("Pointer[...] w/ %d args at %s line %d.", items, __FILE__, __LINE__);
+         // sv_dump(ST(0));
+         // if (field_count % 2) croak("Expected an even sized list");
+         SV * inside;
+         if (items == 2) croak("Pointer[...] expected 1 type; found %d", items);
+         // warn("here at %s line %d.", __FILE__, __LINE__);
+         if (items == 1) {
+             SV *self = newRV_inc_mortal(MUTABLE_SV(newSV(0)));
+             inside = sv_bless(self, gv_stashpv("Dyn::Void", GV_ADD));
+             hv_stores(RETVAL_HV, "type", SvREFCNT_inc(inside));
+         }
+         else {
+             AV *fields = newAV_mortal();
 
-            AV *types_in = MUTABLE_AV(SvRV(ST(1)));
-            // warn("here at %s line %d.", __FILE__, __LINE__);
-            size_t field_count = av_count(types_in);
-            // warn("%d at %s line %d.", field_count, __FILE__, __LINE__);
-            switch (field_count) {
-            case 0: {
-                // TODO: should we attempt to dereference this one properly?
-                //warn("One. ...known type pointer?");
-            } break;
-            case 1: { // warn("here at %s line %d.", __FILE__, __LINE__);
-                SV **type_ptr = av_fetch(types_in, 0, 0);
-                SV *type = sv_mortalcopy(*type_ptr);
-                if (!(sv_isobject(type) && sv_derived_from(type, "Dyn::Type::Base")))
-                    croak("Given type for pointer is not a subclass of Dyn::Type::Base");
-                hv_stores(RETVAL_HV, "type", SvREFCNT_inc(type));
+             AV *types_in = MUTABLE_AV(SvRV(ST(1)));
+             // warn("here at %s line %d.", __FILE__, __LINE__);
+             size_t field_count = av_count(types_in);
+             // warn("%d at %s line %d.", field_count, __FILE__, __LINE__);
+             switch (field_count) {
+             case 0: {
+                 // TODO: should we attempt to dereference this one properly?
+                 //warn("One. ...known type pointer?");
+             } break;
+             case 1: { // warn("here at %s line %d.", __FILE__, __LINE__);
+                 SV **type_ptr = av_fetch(types_in, 0, 0);
+                 SV *type = sv_mortalcopy(*type_ptr);
+                 if (!(sv_isobject(type) && sv_derived_from(type, "Dyn::Type::Base")))
+                     croak("Given type for pointer is not a subclass of Dyn::Type::Base");
+                 hv_stores(RETVAL_HV, "type", SvREFCNT_inc(type));
 
-            } break;
-            default: { // warn("here at %s line %d.", __FILE__, __LINE__);
-                croak("Pointer[] or Pointer[...]");
-            } break;
-            }
-        }
+             } break;
+             default: { // warn("here at %s line %d.", __FILE__, __LINE__);
+                 croak("Pointer[] or Pointer[...]");
+             } break;
+             }
+         }
 
-        /*
-                SV *type = *av_fetch(MUTABLE_AV(SvRV(ST(1))), 0, 0);// deref bug
-                warn("here at %s line %d.", __FILE__, __LINE__);
-                if (!(sv_isobject(type) && sv_derived_from(type, "Dyn::Type::Base")))
-                    croak("Given type for pointer is not a subclass of Dyn::Type::Base");
+         /*
+                 SV *type = *av_fetch(MUTABLE_AV(SvRV(ST(1))), 0, 0);// deref bug
                  warn("here at %s line %d.", __FILE__, __LINE__);
-                /*{
-                    SV *pointer_sv;
-                    DCpointer pointer;
-                    Newxz(pointer, 1, double); // TODO: correct type from type...
-                    pointer_sv = newSV(1);
-                    sv_setref_pv(pointer_sv, "Dyn::Call::Pointer", (DCpointer)pointer);
-                    hv_stores(RETVAL_HV, "pointer", pointer_sv);
-                }*/
+                 if (!(sv_isobject(type) && sv_derived_from(type, "Dyn::Type::Base")))
+                     croak("Given type for pointer is not a subclass of Dyn::Type::Base");
+                  warn("here at %s line %d.", __FILE__, __LINE__);
+                 /*{
+                     SV *pointer_sv;
+                     DCpointer pointer;
+                     Newxz(pointer, 1, double); // TODO: correct type from type...
+                     pointer_sv = newSV(1);
+                     sv_setref_pv(pointer_sv, "Dyn::Call::Pointer", (DCpointer)pointer);
+                     hv_stores(RETVAL_HV, "pointer", pointer_sv);
+                 }*/
     } break;
     case DC_SIGCHAR_UNION: {
         AV *fields_;
@@ -957,17 +978,16 @@ XS_EUPXS(Types) {
             hv_stores(RETVAL_HV, "types", newRV_noinc(MUTABLE_SV(newAV_mortal())));
     } break;
     case DC_SIGCHAR_BLESSED: {
-        AV * packages_in = MUTABLE_AV(SvRV(ST(1)));
+        AV *packages_in = MUTABLE_AV(SvRV(ST(1)));
 
-        if(av_count(packages_in)!=1)croak("InstanceOf[...] expects a single package name");
+        if (av_count(packages_in) != 1) croak("InstanceOf[...] expects a single package name");
 
-        SV ** package_ptr = av_fetch(packages_in, 0, 0);
+        SV **package_ptr = av_fetch(packages_in, 0, 0);
         if (is_valid_class_name(*package_ptr))
             hv_stores(RETVAL_HV, "package", newSVsv(*package_ptr));
         else
             croak("%s is not a known type", SvPVbytex_nolen(*package_ptr));
-    }
-    break;
+    } break;
     default:
         // warn("Unhandled...");
         break;
@@ -1448,9 +1468,6 @@ static DCpointer _sloppy_coerce(pTHX_ SV *type, SV *in, DCpointer data) {
     return data;
 }
 
-
-
-
 XS_EUPXS(Types_type_call); /* prototype to pass -Wmissing-prototypes */
 XS_EUPXS(Types_type_call) {
     dXSARGS;
@@ -1460,10 +1477,9 @@ XS_EUPXS(Types_type_call) {
 
     Call *call = (Call *)XSANY.any_ptr;
 
-
     dcReset(MY_CXT.cvm);
     bool pointers = false;
-     //warn("Calling at %s line %d", __FILE__, __LINE__);
+    // warn("Calling at %s line %d", __FILE__, __LINE__);
     /*
         if (2== items) {
             DCpointer ptr;
@@ -1515,7 +1531,8 @@ XS_EUPXS(Types_type_call) {
     }
 
     for (int i = 0; i < call->sig_len; ++i) {
-         //warn("Working on element %d of %d (type: %c) at %s line %d", i, call->sig_len-1, call->sig[i], __FILE__, __LINE__);
+        // warn("Working on element %d of %d (type: %c) at %s line %d", i, call->sig_len-1,
+        // call->sig[i], __FILE__, __LINE__);
 
         switch (call->sig[i]) {
         case DC_SIGCHAR_VOID:
@@ -1566,49 +1583,38 @@ XS_EUPXS(Types_type_call) {
                 ptr = INT2PTR(DCpointer, tmp);
             }
             else if (SvOK(ST(i)))
-                ptr = (DCpointer) ST(i);
-                //ptr = NULL;
+                ptr = (DCpointer)ST(i);
+            // ptr = NULL;
             else
                 croak("Type of arg %d must be scalar ref", i + 1);
             dcArgPointer(MY_CXT.cvm, ptr);
             pointers = true;
         } break;
-        case DC_SIGCHAR_BLESSED: { // Essentially the same as DC_SIGCHAR_POINTER
+        case DC_SIGCHAR_BLESSED: {                     // Essentially the same as DC_SIGCHAR_POINTER
             SV *package = *av_fetch(call->args, i, 0); // Make broad assumptions
-            sv_dump(package);
-                        warn("here at %s line %d", __FILE__, __LINE__);
-
             SV **package_ptr = hv_fetchs(MUTABLE_HV(SvRV(package)), "package", 0);
-                        warn("here at %s line %d", __FILE__, __LINE__);
-
             DCpointer ptr;
-            if (SvROK(ST(i)) && sv_derived_from((ST(i)), (const char *)SvPVbytex_nolen(*package_ptr))) {
+            if (SvROK(ST(i)) &&
+                sv_derived_from((ST(i)), (const char *)SvPVbytex_nolen(*package_ptr))) {
                 IV tmp = SvIV((SV *)SvRV(ST(i)));
                 ptr = INT2PTR(DCpointer, tmp);
             }
             else if (!SvOK(ST(i))) // Passed us an undef
                 ;                  // ptr = NULL;
             else
-                croak("Type of arg %d must be an instance or subclass of %s", i + 1, SvPVbytex_nolen(*package_ptr));
-            warn("here at %s line %d", __FILE__, __LINE__);
-
+                croak("Type of arg %d must be an instance or subclass of %s", i + 1,
+                      SvPVbytex_nolen(*package_ptr));
             // DCpointer ptr = deref_pointer(aTHX_ field, MUTABLE_SV(ST(i)), false);
             dcArgPointer(MY_CXT.cvm, ptr);
-            //pointers = true;
+            // pointers = true;
         } break;
         case DC_SIGCHAR_STRING: {
             dcArgPointer(MY_CXT.cvm, SvPOK(ST(i)) ? SvPV_nolen(ST(i)) : NULL);
         } break;
         case DC_SIGCHAR_CODE: {
             DCCallback *callback;
-
-             SV *field = *av_fetch(call->args, i, 0); // Make broad assumptions
-
-        sv_dump(field);
-                        warn("here at %s line %d", __FILE__, __LINE__);
-
+            SV *field = *av_fetch(call->args, i, 0); // Make broad assumptions
             SV **cb = hv_fetchs(MUTABLE_HV(SvRV(field)), "callback", 0);
-                        warn("here at %s line %d", __FILE__, __LINE__);
 
             if (SvROK(*cb) && sv_derived_from(*cb, "Dyn::Callback")) {
                 IV tmp = SvIV(SvRV(*cb));
@@ -1616,13 +1622,10 @@ XS_EUPXS(Types_type_call) {
             }
             else
                 croak("Malformed CodeRef type");
-            warn("here at %s line %d", __FILE__, __LINE__);
 
             Callback *container = (Callback *)dcbGetUserData(callback);
-                        warn("here at %s line %d", __FILE__, __LINE__);
 
             CV *coderef;
-                        warn("here at %s line %d", __FILE__, __LINE__);
 
             STMT_START {
                 HV *st;
@@ -1633,22 +1636,12 @@ XS_EUPXS(Types_type_call) {
                 if (!coderef) croak("Type of arg %d must be code ref", i + 1);
             }
             STMT_END;
-                        warn("here at %s line %d", __FILE__, __LINE__);
-
-            if(container->cv)
-                SvREFCNT_dec(container->cv);
-                        warn("here at %s line %d", __FILE__, __LINE__);
-
+            if (container->cv) SvREFCNT_dec(container->cv);
             container->cv = SvREFCNT_inc(MUTABLE_SV(coderef));
-            //container->userdata = newSV(0); // items > 2 ? newRV_inc(ST(2)) : &PL_sv_undef;
-            warn("here at %s line %d", __FILE__, __LINE__);
-
+            // container->userdata = newSV(0); // items > 2 ? newRV_inc(ST(2)) : &PL_sv_undef;
             dcArgPointer(MY_CXT.cvm, callback);
-            warn("here at %s line %d", __FILE__, __LINE__);
-
         } break;
         case DC_SIGCHAR_ARRAY: {
-
             SV *field = *av_fetch(call->args, i, 0); // Make broad assumptions
 
             if (!SvROK(ST(i)) || SvTYPE(SvRV(ST(i))) != SVt_PVAV)
@@ -1705,11 +1698,10 @@ XS_EUPXS(Types_type_call) {
 
         default:
             croak("--> Unfinished: [%c/%d]", call->sig[i], i);
-
         }
     }
 
-    //warn("Return type: %c at %s line %d", call->ret, __FILE__, __LINE__);
+    // warn("Return type: %c at %s line %d", call->ret, __FILE__, __LINE__);
 
     SV *retval;
     {
@@ -1769,7 +1761,7 @@ XS_EUPXS(Types_type_call) {
         case DC_SIGCHAR_BLESSED: {
             DCpointer ptr = dcCallPointer(MY_CXT.cvm, call->fptr);
             retval = newSV(0); // TODO: check if pointer can coerce when type is provided
-            SV ** package = hv_fetchs(MUTABLE_HV(SvRV(call->retval)), "package", 0);
+            SV **package = hv_fetchs(MUTABLE_HV(SvRV(call->retval)), "package", 0);
             sv_setref_pv(retval, SvPVbytex_nolen(*package), ptr);
         } break;
         default:
@@ -1790,8 +1782,7 @@ XS_EUPXS(Types_type_call) {
             }
         }
 
-        if(call->ret == DC_SIGCHAR_VOID)
-            XSRETURN_EMPTY;
+        if (call->ret == DC_SIGCHAR_VOID) XSRETURN_EMPTY;
         ST(0) = sv_2mortal(retval);
         XSRETURN(1);
     }
@@ -1839,9 +1830,6 @@ XS_EUPXS(Dyn_DESTROY) {
     XSRETURN_EMPTY;
 }
 
-
-
-
 #define PTYPE(NAME, SIGCHAR) CTYPE(NAME, SIGCHAR, SIGCHAR)
 #define GET_4TH_ARG(arg1, arg2, arg3, arg4, ...) arg4
 #define TYPE(...) GET_4TH_ARG(__VA_ARGS__, CTYPE, PTYPE)(__VA_ARGS__)
@@ -1873,56 +1861,59 @@ XS_EUPXS(Dyn_DESTROY) {
         (void)newXSproto_portable(form("%s::()", package), Types_sig, file, ";$");                 \
         set_isa(package, "Dyn::Type::Base");                                                       \
     }
+// clang-format off
 
 MODULE = Dyn PACKAGE = Dyn
 
-BOOT :
+BOOT:
+// clang-format on
 #ifdef USE_ITHREADS
     my_perl = (PerlInterpreter *)PERL_GET_CONTEXT;
 #endif
-    {
-        MY_CXT_INIT;
-        MY_CXT.cvm = dcNewCallVM(4096);
-    }
-    {
-        //(void)newXSproto_portable("Dyn::attach", XS_Dyn_attach, file, "$$@$");
-        (void)newXSproto_portable("Dyn::coerce", Dyn_coerce, file, "$$");
-        (void)newXSproto_portable("Dyn::typedef", Types_typedef, file, "$$");
-        (void)newXSproto_portable("Dyn::Type", Types_type, file, "$");
-        (void)newXSproto_portable("Dyn::Type::Base::sizeof", Types_type_sizeof, file, "$");
-        (void)newXSproto_portable("Dyn::Type::Base::aggregate", Types_type_aggregate, file, "$");
-        (void)newXSproto_portable("Dyn::DESTROY", Dyn_DESTROY, file, "$");
+{
+    MY_CXT_INIT;
+    MY_CXT.cvm = dcNewCallVM(4096);
+}
+{
+    //(void)newXSproto_portable("Dyn::attach", XS_Dyn_attach, file, "$$@$");
+    (void)newXSproto_portable("Dyn::coerce", Dyn_coerce, file, "$$");
+    (void)newXSproto_portable("Dyn::typedef", Types_typedef, file, "$$");
+    (void)newXSproto_portable("Dyn::Type", Types_type, file, "$");
+    (void)newXSproto_portable("Dyn::Type::Base::sizeof", Types_type_sizeof, file, "$");
+    (void)newXSproto_portable("Dyn::Type::Base::aggregate", Types_type_aggregate, file, "$");
+    (void)newXSproto_portable("Dyn::DESTROY", Dyn_DESTROY, file, "$");
 
-        CV *cv;
-        TYPE("Void", DC_SIGCHAR_VOID);
-        TYPE("Bool", DC_SIGCHAR_BOOL);
-        TYPE("Char", DC_SIGCHAR_CHAR);
-        TYPE("UChar", DC_SIGCHAR_UCHAR);
-        TYPE("Short", DC_SIGCHAR_SHORT);
-        TYPE("UShort", DC_SIGCHAR_USHORT);
-        TYPE("Int", DC_SIGCHAR_INT);
-        TYPE("UInt", DC_SIGCHAR_UINT);
-        TYPE("Long", DC_SIGCHAR_LONG);
-        TYPE("ULong", DC_SIGCHAR_ULONG);
-        TYPE("LongLong", DC_SIGCHAR_LONGLONG);
-        TYPE("ULongLong", DC_SIGCHAR_ULONGLONG);
-        TYPE("Float", DC_SIGCHAR_FLOAT);
-        TYPE("Double", DC_SIGCHAR_DOUBLE);
-        TYPE("Pointer", DC_SIGCHAR_POINTER);
-        TYPE("Str", DC_SIGCHAR_STRING);
-        TYPE("Aggregate", DC_SIGCHAR_AGGREGATE);
-        TYPE("Struct", DC_SIGCHAR_STRUCT, DC_SIGCHAR_AGGREGATE);
-        TYPE("ArrayRef", DC_SIGCHAR_ARRAY, DC_SIGCHAR_AGGREGATE);
-        TYPE("Union", DC_SIGCHAR_UNION, DC_SIGCHAR_AGGREGATE);
-        TYPE("CodeRef", DC_SIGCHAR_CODE, DC_SIGCHAR_AGGREGATE);
-        TYPE("InstanceOf", DC_SIGCHAR_BLESSED, DC_SIGCHAR_POINTER);
-        // Enum[]?
-        export_function("Dyn", "typedef", "types");
-        export_function("Dyn", "wrap", "sugar");
-        export_function("Dyn", "attach", "sugar");
-        export_function("Dyn", "MODIFY_CODE_ATTRIBUTES", "default");
-        export_function("Dyn", "AUTOLOAD", "default");
-    }
+    CV *cv;
+    TYPE("Void", DC_SIGCHAR_VOID);
+    TYPE("Bool", DC_SIGCHAR_BOOL);
+    TYPE("Char", DC_SIGCHAR_CHAR);
+    TYPE("UChar", DC_SIGCHAR_UCHAR);
+    TYPE("Short", DC_SIGCHAR_SHORT);
+    TYPE("UShort", DC_SIGCHAR_USHORT);
+    TYPE("Int", DC_SIGCHAR_INT);
+    TYPE("UInt", DC_SIGCHAR_UINT);
+    TYPE("Long", DC_SIGCHAR_LONG);
+    TYPE("ULong", DC_SIGCHAR_ULONG);
+    TYPE("LongLong", DC_SIGCHAR_LONGLONG);
+    TYPE("ULongLong", DC_SIGCHAR_ULONGLONG);
+    TYPE("Float", DC_SIGCHAR_FLOAT);
+    TYPE("Double", DC_SIGCHAR_DOUBLE);
+    TYPE("Pointer", DC_SIGCHAR_POINTER);
+    TYPE("Str", DC_SIGCHAR_STRING);
+    TYPE("Aggregate", DC_SIGCHAR_AGGREGATE);
+    TYPE("Struct", DC_SIGCHAR_STRUCT, DC_SIGCHAR_AGGREGATE);
+    TYPE("ArrayRef", DC_SIGCHAR_ARRAY, DC_SIGCHAR_AGGREGATE);
+    TYPE("Union", DC_SIGCHAR_UNION, DC_SIGCHAR_AGGREGATE);
+    TYPE("CodeRef", DC_SIGCHAR_CODE, DC_SIGCHAR_AGGREGATE);
+    TYPE("InstanceOf", DC_SIGCHAR_BLESSED, DC_SIGCHAR_POINTER);
+    // Enum[]?
+    export_function("Dyn", "typedef", "types");
+    export_function("Dyn", "wrap", "sugar");
+    export_function("Dyn", "attach", "sugar");
+    export_function("Dyn", "MODIFY_CODE_ATTRIBUTES", "default");
+    export_function("Dyn", "AUTOLOAD", "default");
+}
+// clang-format off
 
 SV *
 attach(lib, symbol, args, ret, mode = DC_SIGCHAR_CC_DEFAULT, func_name = NULL)
@@ -1931,10 +1922,11 @@ attach(lib, symbol, args, ret, mode = DC_SIGCHAR_CC_DEFAULT, func_name = NULL)
     SV * ret
     char mode
     const char * func_name
-PREINIT :
+PREINIT:
     dMY_CXT;
-INIT:
 CODE:
+// clang-format on
+{
     Call *call;
     DLLib *lib;
 
@@ -2033,6 +2025,8 @@ CODE:
     STMT_END;
     RETVAL = sv_bless((func_name == NULL ? newRV_noinc(MUTABLE_SV(cv)) : newRV_inc(MUTABLE_SV(cv))),
                       gv_stashpv("Dyn", GV_ADD));
+}
+// clang-format off
 OUTPUT:
     RETVAL
 
@@ -2051,16 +2045,19 @@ MODULE = Dyn PACKAGE = Dyn::CodeRef
 void
 DESTROY(HV * type)
 CODE:
-    SV** callback_ptr = hv_fetchs(type, "callback", 0);
-    if (callback_ptr != NULL && SvROK(*callback_ptr) && sv_derived_from(*callback_ptr, "Dyn::Callback")) {
-        IV tmp = SvIV((SV *)SvRV(*callback_ptr));
-        DCCallback * cb = INT2PTR(DCCallback *, tmp);
-        Callback * ud = (Callback *)dcbGetUserData(cb);
-        if(ud->args){
-            av_clear(ud->args);
-            sv_2mortal(MUTABLE_SV(ud->args));
-        }
-        safefree(ud->sig);
-        safefree(ud);
-        dcbFreeCallback(cb);
+    // clang-format on
+    SV **callback_ptr = hv_fetchs(type, "callback", 0);
+if (callback_ptr != NULL && SvROK(*callback_ptr) &&
+    sv_derived_from(*callback_ptr, "Dyn::Callback")) {
+    IV tmp = SvIV((SV *)SvRV(*callback_ptr));
+    DCCallback *cb = INT2PTR(DCCallback *, tmp);
+    Callback *ud = (Callback *)dcbGetUserData(cb);
+    if (ud->args) {
+        av_clear(ud->args);
+        sv_2mortal(MUTABLE_SV(ud->args));
     }
+    safefree(ud->sig);
+    safefree(ud);
+    dcbFreeCallback(cb);
+}
+// clang-format off

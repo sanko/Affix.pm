@@ -1,7 +1,7 @@
 #include "lib/clutter.h"
 
 void unroll_aggregate(void *ptr, DCaggr *ag, SV *obj) {
- warn("unroll_aggregate");
+    warn("unroll_aggregate");
     //*(int*)ptr = 42;
     char *base;
     size_t offset;
@@ -24,8 +24,8 @@ void unroll_aggregate(void *ptr, DCaggr *ag, SV *obj) {
             // Compute address of member_b
             b = (int *)(base + offset);
 
-            //warn(".a == %c", (unsigned char)b);
-            // av_store(obj, i,newSVuv((unsigned char) b));
+            // warn(".a == %c", (unsigned char)b);
+            //  av_store(obj, i,newSVuv((unsigned char) b));
             break;
         default:
             warn("fallthrough");
@@ -43,28 +43,30 @@ uiMultilineEntry *e;
 
 int sayTime(void *data)
 {
-	time_t t;
-	char *s;
+        time_t t;
+        char *s;
 
-	t = time(NULL);
-	s = ctime(&t);
+        t = time(NULL);
+        s = ctime(&t);
 
-	uiMultilineEntryAppend(e, s);
-	return 1;
+        uiMultilineEntryAppend(e, s);
+        return 1;
 }
 
 int onClosing(uiWindow *w, void *data)
 {
-	uiQuit();
-	return 1;
+        uiQuit();
+        return 1;
 }
 
 void saySomething(uiButton *b, void *data)
 {
-	uiMultilineEntryAppend(e, "Saying something\n");
+        uiMultilineEntryAppend(e, "Saying something\n");
 }
 
 */
+
+// clang-format off
 
 MODULE = Dyn::Call   PACKAGE = Dyn::Call
 
@@ -74,9 +76,11 @@ dcNewCallVM(DCsize size);
 void
 dcFree(DCCallVM * vm)
 CODE:
+    // clang-format on
     dcFree(vm);
-    SV* sv = (SV*) &PL_sv_undef;
-    sv_setsv(ST(0), sv);
+SV *sv = (SV *)&PL_sv_undef;
+sv_setsv(ST(0), sv);
+// clang-format off
 
 void
 dcReset(DCCallVM * vm);
@@ -114,18 +118,19 @@ dcArgDouble(DCCallVM * vm, DCdouble arg);
 void
 dcArgPointer(DCCallVM * vm, arg);
 CODE:
-    if (sv_derived_from(ST(1), "Dyn::Callback") ) {
-        IV tmp = SvIV((SV*)SvRV(ST(1)));
-        DCCallback * arg = INT2PTR(DCCallback *, tmp);
-        dcArgPointer(vm, arg);
-    }
-    else if (sv_derived_from(ST(1), "Dyn::Call::Pointer")){
-        IV tmp = SvIV((SV*)SvRV(ST(1)));
-        DCpointer arg = INT2PTR(DCpointer, tmp);
-        dcArgPointer(vm, arg);
-    }
-    else
-        croak("arg is not of type Dyn::Call::Pointer or Dyn::Callback");
+    // clang-format on
+    if (sv_derived_from(ST(1), "Dyn::Callback")) {
+    IV tmp = SvIV((SV *)SvRV(ST(1)));
+    DCCallback *arg = INT2PTR(DCCallback *, tmp);
+    dcArgPointer(vm, arg);
+}
+else if (sv_derived_from(ST(1), "Dyn::Call::Pointer")) {
+    IV tmp = SvIV((SV *)SvRV(ST(1)));
+    DCpointer arg = INT2PTR(DCpointer, tmp);
+    dcArgPointer(vm, arg);
+}
+else croak("arg is not of type Dyn::Call::Pointer or Dyn::Callback");
+// clang-format off
 
 void
 dcArgAggr(DCCallVM * vm, DCaggr * s, void * value);
@@ -204,43 +209,46 @@ dcGetError(DCCallVM* vm);
 
 =cut
 
-void letsgo(DCpointer * in)
-CODE:
-	uiInitOptions * o;
-    o = (uiInitOptions *) in;
-	uiWindow *w;
-	uiBox *b;
-	uiButton *btn;
+ // clang-format on
 
-	memset(o, 0, sizeof (uiInitOptions));
-	if (uiInit(o) != NULL)
-		abort();
+ void letsgo(DCpointer * in) CODE : uiInitOptions *
+                                    o;
+o = (uiInitOptions *)in;
+uiWindow *w;
+uiBox *b;
+uiButton *btn;
 
-	w = uiNewWindow("Hello", 320, 240, 0);
-	uiWindowSetMargined(w, 1);
+memset(o, 0, sizeof(uiInitOptions));
+if (uiInit(o) != NULL) abort();
 
-	b = uiNewVerticalBox();
-	uiBoxSetPadded(b, 1);
-	uiWindowSetChild(w, uiControl(b));
+w = uiNewWindow("Hello", 320, 240, 0);
+uiWindowSetMargined(w, 1);
 
-	e = uiNewMultilineEntry();
-	uiMultilineEntrySetReadOnly(e, 1);
+b = uiNewVerticalBox();
+uiBoxSetPadded(b, 1);
+uiWindowSetChild(w, uiControl(b));
 
-	btn = uiNewButton("Say Something");
-	uiButtonOnClicked(btn, saySomething, NULL);
-	uiBoxAppend(b, uiControl(btn), 0);
+e = uiNewMultilineEntry();
+uiMultilineEntrySetReadOnly(e, 1);
 
-	uiBoxAppend(b, uiControl(e), 1);
+btn = uiNewButton("Say Something");
+uiButtonOnClicked(btn, saySomething, NULL);
+uiBoxAppend(b, uiControl(btn), 0);
 
-	uiTimer(1000, sayTime, NULL);
+uiBoxAppend(b, uiControl(e), 1);
 
-	uiWindowOnClosing(w, onClosing, NULL);
-	uiControlShow(uiControl(w));
-	uiMain();
+uiTimer(1000, sayTime, NULL);
+
+uiWindowOnClosing(w, onClosing, NULL);
+uiControlShow(uiControl(w));
+uiMain();
+
+// clang-format off
 
 =cut
 
 BOOT:
+// clang-format on
 {
 
     HV *stash = gv_stashpv("Dyn::Call", 0);
@@ -283,45 +291,53 @@ BOOT:
     newCONSTSUB(stash, "DC_CALL_SYS_PPC64", newSViv(DC_CALL_SYS_PPC64));
 
     // Signature characters
-    newCONSTSUB(stash, "DC_SIGCHAR_VOID", newSVpv(form("%c",DC_SIGCHAR_VOID), 1));
-    newCONSTSUB(stash, "DC_SIGCHAR_BOOL", newSVpv(form("%c",DC_SIGCHAR_BOOL), 1));
-    newCONSTSUB(stash, "DC_SIGCHAR_CHAR", newSVpv(form("%c",DC_SIGCHAR_CHAR), 1));
-    newCONSTSUB(stash, "DC_SIGCHAR_UCHAR", newSVpv(form("%c",DC_SIGCHAR_UCHAR), 1));
-    newCONSTSUB(stash, "DC_SIGCHAR_SHORT", newSVpv(form("%c",DC_SIGCHAR_SHORT), 1));
-    newCONSTSUB(stash, "DC_SIGCHAR_USHORT", newSVpv(form("%c",DC_SIGCHAR_USHORT), 1));
-    newCONSTSUB(stash, "DC_SIGCHAR_INT", newSVpv(form("%c",DC_SIGCHAR_INT), 1));
-    newCONSTSUB(stash, "DC_SIGCHAR_UINT", newSVpv(form("%c",DC_SIGCHAR_UINT), 1));
-    newCONSTSUB(stash, "DC_SIGCHAR_LONG", newSVpv(form("%c",DC_SIGCHAR_LONG), 1));
-    newCONSTSUB(stash, "DC_SIGCHAR_ULONG", newSVpv(form("%c",DC_SIGCHAR_ULONG), 1));
-    newCONSTSUB(stash, "DC_SIGCHAR_LONGLONG", newSVpv(form("%c",DC_SIGCHAR_LONGLONG), 1));
-    newCONSTSUB(stash, "DC_SIGCHAR_ULONGLONG", newSVpv(form("%c",DC_SIGCHAR_ULONGLONG), 1));
-    newCONSTSUB(stash, "DC_SIGCHAR_FLOAT", newSVpv(form("%c",DC_SIGCHAR_FLOAT), 1));
-    newCONSTSUB(stash, "DC_SIGCHAR_DOUBLE", newSVpv(form("%c",DC_SIGCHAR_DOUBLE), 1));
-    newCONSTSUB(stash, "DC_SIGCHAR_POINTER", newSVpv(form("%c",DC_SIGCHAR_POINTER), 1));
-    newCONSTSUB(stash, "DC_SIGCHAR_STRING", newSVpv(form("%c",DC_SIGCHAR_STRING), 1));/* in theory same as 'p', but convenient to disambiguate */
-    newCONSTSUB(stash, "DC_SIGCHAR_AGGREGATE", newSVpv(form("%c",DC_SIGCHAR_AGGREGATE), 1));
-    newCONSTSUB(stash, "DC_SIGCHAR_ENDARG", newSVpv(form("%c",DC_SIGCHAR_ENDARG), 1));/* also works for end struct */
+    newCONSTSUB(stash, "DC_SIGCHAR_VOID", newSVpv(form("%c", DC_SIGCHAR_VOID), 1));
+    newCONSTSUB(stash, "DC_SIGCHAR_BOOL", newSVpv(form("%c", DC_SIGCHAR_BOOL), 1));
+    newCONSTSUB(stash, "DC_SIGCHAR_CHAR", newSVpv(form("%c", DC_SIGCHAR_CHAR), 1));
+    newCONSTSUB(stash, "DC_SIGCHAR_UCHAR", newSVpv(form("%c", DC_SIGCHAR_UCHAR), 1));
+    newCONSTSUB(stash, "DC_SIGCHAR_SHORT", newSVpv(form("%c", DC_SIGCHAR_SHORT), 1));
+    newCONSTSUB(stash, "DC_SIGCHAR_USHORT", newSVpv(form("%c", DC_SIGCHAR_USHORT), 1));
+    newCONSTSUB(stash, "DC_SIGCHAR_INT", newSVpv(form("%c", DC_SIGCHAR_INT), 1));
+    newCONSTSUB(stash, "DC_SIGCHAR_UINT", newSVpv(form("%c", DC_SIGCHAR_UINT), 1));
+    newCONSTSUB(stash, "DC_SIGCHAR_LONG", newSVpv(form("%c", DC_SIGCHAR_LONG), 1));
+    newCONSTSUB(stash, "DC_SIGCHAR_ULONG", newSVpv(form("%c", DC_SIGCHAR_ULONG), 1));
+    newCONSTSUB(stash, "DC_SIGCHAR_LONGLONG", newSVpv(form("%c", DC_SIGCHAR_LONGLONG), 1));
+    newCONSTSUB(stash, "DC_SIGCHAR_ULONGLONG", newSVpv(form("%c", DC_SIGCHAR_ULONGLONG), 1));
+    newCONSTSUB(stash, "DC_SIGCHAR_FLOAT", newSVpv(form("%c", DC_SIGCHAR_FLOAT), 1));
+    newCONSTSUB(stash, "DC_SIGCHAR_DOUBLE", newSVpv(form("%c", DC_SIGCHAR_DOUBLE), 1));
+    newCONSTSUB(stash, "DC_SIGCHAR_POINTER", newSVpv(form("%c", DC_SIGCHAR_POINTER), 1));
+    newCONSTSUB(stash, "DC_SIGCHAR_STRING",
+                newSVpv(form("%c", DC_SIGCHAR_STRING),
+                        1)); /* in theory same as 'p', but convenient to disambiguate */
+    newCONSTSUB(stash, "DC_SIGCHAR_AGGREGATE", newSVpv(form("%c", DC_SIGCHAR_AGGREGATE), 1));
+    newCONSTSUB(stash, "DC_SIGCHAR_ENDARG",
+                newSVpv(form("%c", DC_SIGCHAR_ENDARG), 1)); /* also works for end struct */
 
     /* calling convention / mode signatures */
-    newCONSTSUB(stash, "DC_SIGCHAR_CC_PREFIX", newSVpv(form("%c",DC_SIGCHAR_CC_PREFIX), 1));
-    newCONSTSUB(stash, "DC_SIGCHAR_CC_DEFAULT", newSVpv(form("%c",DC_SIGCHAR_CC_DEFAULT), 1));
-    newCONSTSUB(stash, "DC_SIGCHAR_CC_ELLIPSIS", newSVpv(form("%c",DC_SIGCHAR_CC_ELLIPSIS), 1));
-    newCONSTSUB(stash, "DC_SIGCHAR_CC_ELLIPSIS_VARARGS", newSVpv(form("%c",DC_SIGCHAR_CC_ELLIPSIS_VARARGS), 1));
-    newCONSTSUB(stash, "DC_SIGCHAR_CC_CDECL", newSVpv(form("%c",DC_SIGCHAR_CC_CDECL), 1));
-    newCONSTSUB(stash, "DC_SIGCHAR_CC_STDCALL", newSVpv(form("%c",DC_SIGCHAR_CC_STDCALL), 1));
-    newCONSTSUB(stash, "DC_SIGCHAR_CC_FASTCALL_MS", newSVpv(form("%c",DC_SIGCHAR_CC_FASTCALL_MS), 1));
-    newCONSTSUB(stash, "DC_SIGCHAR_CC_FASTCALL_GNU", newSVpv(form("%c",DC_SIGCHAR_CC_FASTCALL_GNU), 1));
-    newCONSTSUB(stash, "DC_SIGCHAR_CC_THISCALL_MS", newSVpv(form("%c",DC_SIGCHAR_CC_THISCALL_MS), 1));
-    newCONSTSUB(stash, "DC_SIGCHAR_CC_THISCALL_GNU", newSVpv(form("%c",DC_SIGCHAR_CC_THISCALL_GNU), 1));
-    newCONSTSUB(stash, "DC_SIGCHAR_CC_ARM_ARM", newSVpv(form("%c",DC_SIGCHAR_CC_ARM_ARM), 1));
-    newCONSTSUB(stash, "DC_SIGCHAR_CC_ARM_THUMB", newSVpv(form("%c",DC_SIGCHAR_CC_ARM_THUMB), 1));
-    newCONSTSUB(stash, "DC_SIGCHAR_CC_SYSCALL", newSVpv(form("%c",DC_SIGCHAR_CC_SYSCALL), 1));
+    newCONSTSUB(stash, "DC_SIGCHAR_CC_PREFIX", newSVpv(form("%c", DC_SIGCHAR_CC_PREFIX), 1));
+    newCONSTSUB(stash, "DC_SIGCHAR_CC_DEFAULT", newSVpv(form("%c", DC_SIGCHAR_CC_DEFAULT), 1));
+    newCONSTSUB(stash, "DC_SIGCHAR_CC_ELLIPSIS", newSVpv(form("%c", DC_SIGCHAR_CC_ELLIPSIS), 1));
+    newCONSTSUB(stash, "DC_SIGCHAR_CC_ELLIPSIS_VARARGS",
+                newSVpv(form("%c", DC_SIGCHAR_CC_ELLIPSIS_VARARGS), 1));
+    newCONSTSUB(stash, "DC_SIGCHAR_CC_CDECL", newSVpv(form("%c", DC_SIGCHAR_CC_CDECL), 1));
+    newCONSTSUB(stash, "DC_SIGCHAR_CC_STDCALL", newSVpv(form("%c", DC_SIGCHAR_CC_STDCALL), 1));
+    newCONSTSUB(stash, "DC_SIGCHAR_CC_FASTCALL_MS",
+                newSVpv(form("%c", DC_SIGCHAR_CC_FASTCALL_MS), 1));
+    newCONSTSUB(stash, "DC_SIGCHAR_CC_FASTCALL_GNU",
+                newSVpv(form("%c", DC_SIGCHAR_CC_FASTCALL_GNU), 1));
+    newCONSTSUB(stash, "DC_SIGCHAR_CC_THISCALL_MS",
+                newSVpv(form("%c", DC_SIGCHAR_CC_THISCALL_MS), 1));
+    newCONSTSUB(stash, "DC_SIGCHAR_CC_THISCALL_GNU",
+                newSVpv(form("%c", DC_SIGCHAR_CC_THISCALL_GNU), 1));
+    newCONSTSUB(stash, "DC_SIGCHAR_CC_ARM_ARM", newSVpv(form("%c", DC_SIGCHAR_CC_ARM_ARM), 1));
+    newCONSTSUB(stash, "DC_SIGCHAR_CC_ARM_THUMB", newSVpv(form("%c", DC_SIGCHAR_CC_ARM_THUMB), 1));
+    newCONSTSUB(stash, "DC_SIGCHAR_CC_SYSCALL", newSVpv(form("%c", DC_SIGCHAR_CC_SYSCALL), 1));
 
     // Error codes
     newCONSTSUB(stash, "DC_ERROR_NONE", newSViv(DC_ERROR_NONE));
     newCONSTSUB(stash, "DC_ERROR_UNSUPPORTED_MODE", newSViv(DC_ERROR_UNSUPPORTED_MODE));
 
-    //void export_constant(const char * package, const char *name, const char *_tag, double val) {
+    // void export_constant(const char * package, const char *name, const char *_tag, double val) {
     export_function("Dyn::Call", "dcArgBool", "bin");
     export_function("Dyn::Call", "dcArgChar", "bin");
     export_function("Dyn::Call", "dcArgShort", "bin");
@@ -345,7 +361,6 @@ BOOT:
     export_function("Dyn::Call", "dcCallPointer", "call");
     export_function("Dyn::Call", "dcCallAggr", "call");
     export_function("Dyn::Call", "dcCallString", "call");
-
 
     export_function("Dyn::Call", "dcBeginCallAggr", "aggregates");
 
@@ -422,6 +437,7 @@ BOOT:
     export_function("Dyn::Call", "DC_SIGCHAR_CC_SYSCALL", "sigchar");
     export_function("Dyn::Call", "DEFAULT_ALIGNMENT", "vars");
 }
+// clang-format off
 
 INCLUDE: Call/Aggregate.xsh
 

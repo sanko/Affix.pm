@@ -91,7 +91,7 @@ package Dyn 0.03 {
         #~ elsif ( my $code = $self->can('SUPER::AUTOLOAD') ) {
         #~ return goto &$code;
         #~ }
-        elsif ( $sub eq 'DESTROY' ) {
+        elsif ( $sub =~ /DESTROY$/ ) {
             return;
         }
         Carp::croak("No method $sub ...");
