@@ -1471,10 +1471,11 @@ XS_EUPXS(Types_type_call) {
             dcArgBool(MY_CXT.cvm, SvTRUE(value));
             break; // Anything can bee a bool
         case DC_SIGCHAR_CHAR:
-            dcArgChar(MY_CXT.cvm, (char)*SvPV_nolen(value));
+            dcArgChar(MY_CXT.cvm, SvIOK(value) ? (char)SvIV(value) : (char)*SvPV_nolen(value));
             break;
         case DC_SIGCHAR_UCHAR:
-            dcArgChar(MY_CXT.cvm, (unsigned char)*SvPV_nolen(value));
+            dcArgChar(MY_CXT.cvm, SvIOK(value) ? (unsigned char)SvUV(value)
+                                               : (unsigned char)*SvPV_nolen(value));
             break;
         case DC_SIGCHAR_SHORT:
             dcArgShort(MY_CXT.cvm, (short)SvIV(value));
@@ -1507,7 +1508,7 @@ XS_EUPXS(Types_type_call) {
             dcArgDouble(MY_CXT.cvm, (double)SvNV(value));
             break;
         case DC_SIGCHAR_POINTER: {
-            DCpointer ptr;
+            DCpointer ptr = NULL;
             if (SvROK(value)) {
                 IV tmp = SvIV((SV *)SvRV(value));
                 ptr = INT2PTR(DCpointer, tmp);
@@ -1515,8 +1516,8 @@ XS_EUPXS(Types_type_call) {
             else if (SvOK(value))
                 ptr = (DCpointer)value;
             // ptr = NULL;
-            else
-                croak("Type of arg %d must be scalar ref", i + 1);
+            // else
+            //   croak("Type of arg %d must be scalar ref", i + 1);
             dcArgPointer(MY_CXT.cvm, ptr);
             pointers = true;
         } break;
@@ -1549,8 +1550,7 @@ XS_EUPXS(Types_type_call) {
             if (SvOK(value)) {
                 DCCallback *cb = NULL;
                 {
-                    CoW *p;
-                    p = cow;
+                    CoW *p = cow;
                     while (p != NULL) {
                         if (p->cb) {
                             Callback *_cb = (Callback *)dcbGetUserData(p->cb);
@@ -1564,7 +1564,6 @@ XS_EUPXS(Types_type_call) {
                 }
 
                 if (!cb) {
-
                     HV *field =
                         MUTABLE_HV(SvRV(*av_fetch(call->args, i, 0))); // Make broad assumptions
                     SV **sig = hv_fetchs(field, "signature", 0);
@@ -2017,25 +2016,3 @@ void
 DUMP_IT(SV * sv)
 CODE :
     sv_dump(sv);
-
-MODULE = Dyn PACKAGE = Dyn::CodeRef
-
-void
-DESTROY(HV * type)
-CODE:
-    // clang-format on
-    SV **callback_ptr = hv_fetchs(type, "callback", 0);
-if (callback_ptr != NULL && SvROK(*callback_ptr) &&
-    sv_derived_from(*callback_ptr, "Dyn::Callback")) {
-    IV tmp = SvIV((SV *)SvRV(*callback_ptr));
-    DCCallback *cb = INT2PTR(DCCallback *, tmp);
-    Callback *ud = (Callback *)dcbGetUserData(cb);
-    if (ud->args) {
-        av_clear(ud->args);
-        sv_2mortal(MUTABLE_SV(ud->args));
-    }
-    safefree(ud->sig);
-    safefree(ud);
-    dcbFreeCallback(cb);
-}
-// clang-format off
