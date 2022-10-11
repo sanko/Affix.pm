@@ -268,7 +268,7 @@ static size_t _sizeof(pTHX_ SV *type) {
             SV **type_ptr = av_fetch(MUTABLE_AV(*av_fetch(idk_arr, i, 0)), 1, 0);
             size_t __sizeof = _sizeof(aTHX_ * type_ptr);
             if (!packed) size += padding_needed_for(size, __sizeof);
-            hv_store(MUTABLE_HV(SvRV(*type_ptr)), "offset", 6, newSViv(size), 0);
+            hv_stores(MUTABLE_HV(SvRV(*type_ptr)), "offset", newSViv(size));
             size += __sizeof;
         }
         hv_stores(MUTABLE_HV(SvRV(type)), "sizeof", newSViv(size));
@@ -280,7 +280,7 @@ static size_t _sizeof(pTHX_ SV *type) {
         SV **type_ptr = hv_fetchs(MUTABLE_HV(SvRV(type)), "type", 0);
         SV **size_ptr = hv_fetchs(MUTABLE_HV(SvRV(type)), "size", 0);
         size_t size = _sizeof(aTHX_ * type_ptr) * SvIV(*size_ptr);
-        hv_store(MUTABLE_HV(SvRV(type)), "sizeof", 6, newSViv(size), 0);
+        hv_stores(MUTABLE_HV(SvRV(type)), "sizeof", newSViv(size));
         return size;
     }
     case DC_SIGCHAR_UNION: {
@@ -294,7 +294,7 @@ static size_t _sizeof(pTHX_ SV *type) {
             this_size = _sizeof(aTHX_ * type_ptr);
             if (size < this_size) size = this_size;
         }
-        hv_store(MUTABLE_HV(SvRV(type)), "sizeof", 6, newSViv(size), 0);
+        hv_stores(MUTABLE_HV(SvRV(type)), "sizeof", newSViv(size));
         return size;
     }
     case DC_SIGCHAR_CODE: // automatically wrapped in a DCCallback pointer
@@ -410,7 +410,7 @@ static DCaggr *coerce(pTHX_ SV *type, SV *data, DCpointer ptr, bool packed, size
     // sv_dump(type);
 
     char *str = SvPVbytex_nolen(type);
-    // warn("*str == %s", str);
+    // warn("type: %s, offset: %d", str, pos);
     switch (str[0]) {
     case DC_SIGCHAR_CHAR: {
         char *value = SvPV_nolen(data);
@@ -527,16 +527,18 @@ static DCaggr *coerce(pTHX_ SV *type, SV *data, DCpointer ptr, bool packed, size
         SV **size_ptr = hv_fetchs(hv_ptr, "size", 0);
         // //sv_dump(*type_ptr);
         // //sv_dump(*size_ptr);
-
-        size_t av_len = SvIV(*size_ptr);
+        size_t av_len = av_count(elements);
+        if (SvOK(*size_ptr)) {
+            size_t tmp = SvIV(*size_ptr);
+            if (av_len != tmp) croak("Expected and array of %d elements; found %d", tmp, av_len);
+        }
         size_t el_len = _sizeof(aTHX_ * type_ptr);
-        size_t tmp = av_count(elements);
-        if (av_len != tmp) croak("Expected and array of %d elements; found %d", av_len, tmp);
 
-        for (int i = 0; i < av_len; ++i)
-
+        for (int i = 0; i < av_len; ++i) {
             coerce(aTHX_ * type_ptr, *(av_fetch(elements, i, 0)), ((DCpointer)(PTR2IV(ptr) + pos)),
                    packed, pos);
+            pos += (el_len);
+        }
 
         // return _sizeof(aTHX_ type);
     }
@@ -548,22 +550,12 @@ static DCaggr *coerce(pTHX_ SV *type, SV *data, DCpointer ptr, bool packed, size
         break;
     case DC_SIGCHAR_INT: {
         int value = SvIV(data);
-
-        // memcpy(ptr, &value, sizeof(int));
-
-        warn("int needs to go to    %p", ptr);
-        //*((double *)ptr) = (double)SvNV(data);
-        //((double*)(ptr))[0] = (double)SvNV(data);
-
-        char *ptr_ = (char *)(&value);
-        warn("int is %d", *ptr_);
-
-        Copy(ptr_, ptr, 1, int);
-        // &ptr=value;
-
-        // return INTSIZE;
-    }
-
+        Copy((char *)(&value), ptr, 1, int);
+    } break;
+    case DC_SIGCHAR_UINT: {
+        int value = SvUV(data);
+        Copy((char *)(&value), ptr, 1, unsigned int);
+    } break;
     case DC_SIGCHAR_FLOAT: {
         float value = SvNV(data);
         Copy((char *)(&value), ptr, 1, float);
@@ -630,26 +622,6 @@ static DCaggr *coerce(pTHX_ SV *type, SV *data, DCpointer ptr, bool packed, size
                  return MUTABLE_SV(newAV_mortal());
                  return (newSVpv((const char *)RETVAL, 1024)); // XXX: Use mock sizeof from elements
                  */
-}
-
-XS_EUPXS(Dyn_coerce); /* prototype to pass -Wmissing-prototypes */
-XS_EUPXS(Dyn_coerce) {
-    dVAR;
-    dXSARGS;
-    dXSI32;
-    size_t size = _sizeof(aTHX_ ST(0));
-    // //sv_dump(ST(0));
-    // warn("_sizeof(ST(0)) == %d", size);
-    DCpointer raw;
-    Newxz(raw, size, char);
-    DumpHex(raw, size);
-
-    coerce(aTHX_ ST(0), ST(1), raw, false, 0);
-
-    DumpHex(raw, size);
-    safefree(raw);
-    // raw = NULL;
-    XSRETURN(1);
 }
 
 XS_EUPXS(Types_wrapper); /* prototype to pass -Wmissing-prototypes */
@@ -719,26 +691,28 @@ XS_EUPXS(Types) {
     //
     //  warn("ix == %c", ix);
     switch (ix) {
-    case DC_SIGCHAR_ARRAY: {
+    case DC_SIGCHAR_ARRAY: { // ArrayRef[Int] or ArrayRef[Int, 5]
         // SV *packed = SvTRUE(false);
-        AV *type_size;
-        warn("items == %d", items);
-        if (items == 2)
-            type_size = MUTABLE_AV(SvRV(ST(1)));
-        else
-            croak("Expected a single type and array length");
+        AV *type_size = MUTABLE_AV(SvRV(ST(1)));
+        SV *type, *size = &PL_sv_undef;
 
-        if (av_count(type_size) != 2) croak("Expected a single type and array length");
+        switch (av_count(type_size)) {
+        case 2:
+            size = *av_fetch(type_size, 1, 0);
+            if (!SvIOK(size)) croak("Given size %d is not an integer", SvUV(size));
 
-        SV *type;
-        type = *av_fetch(type_size, 0, 0);
+        // no break; fallthrough
+        case 1:
+            type = *av_fetch(type_size, 0, 0);
 
-        if (!(sv_isobject(type) && sv_derived_from(type, "Dyn::Type::Base")))
-            croak("Given type for '%s' is not a subclass of Dyn::Type::Base", SvPV_nolen(type));
+            if (!(sv_isobject(type) && sv_derived_from(type, "Dyn::Type::Base")))
+                croak("Given type for '%s' is not a subclass of Dyn::Type::Base", SvPV_nolen(type));
 
-        SV *size = *av_fetch(type_size, 1, 0);
-        if (!SvIOK(size)) croak("Given size %d is not an integer", SvUV(size));
-
+            break;
+        default:
+            croak("Expected a single type and optional array length: ArrayRef[Int] or "
+                  "ArrayRef[Int, 5]");
+        }
         hv_stores(RETVAL_HV, "size", newSVsv(size));
         hv_stores(RETVAL_HV, "name", newSV(0));
         // hv_stores(RETVAL_HV, "packed", packed);
@@ -1407,6 +1381,7 @@ XS_EUPXS(Types_type_call) {
 
     dcReset(MY_CXT.cvm);
     bool pointers = false;
+
     // warn("Calling at %s line %d", __FILE__, __LINE__);
     /*
         if (2== items) {
@@ -1461,8 +1436,8 @@ XS_EUPXS(Types_type_call) {
 
     SV *value;
     for (int i = 0; i < call->sig_len; ++i) {
-        // warn("Working on element %d of %d (type: %c) at %s line %d", i, call->sig_len-1,
-        // call->sig[i], __FILE__, __LINE__);
+        // warn("Working on element %d of %d (type: %c) at %s line %d", i, call->sig_len - 1,
+        //     call->sig[i], __FILE__, __LINE__);
         value = ST(i);
         switch (call->sig[i]) {
         case DC_SIGCHAR_VOID:
@@ -1610,47 +1585,43 @@ XS_EUPXS(Types_type_call) {
         } break;
         case DC_SIGCHAR_ARRAY: {
             SV *field = *av_fetch(call->args, i, 0); // Make broad assumptions
-
             if (!SvROK(value) || SvTYPE(SvRV(value)) != SVt_PVAV)
                 croak("Type of arg %d must be an array ref", i + 1);
             AV *elements = MUTABLE_AV(SvRV(value));
-
-            SV *pointer;
             HV *hv_ptr = MUTABLE_HV(SvRV(field));
             SV **type_ptr = hv_fetchs(hv_ptr, "type", 0);
             SV **size_ptr = hv_fetchs(hv_ptr, "size", 0);
-            // sv_dump(*type_ptr);
-            // sv_dump(*size_ptr);
-            size_t av_len = SvIV(*size_ptr);
-
-            if (av_count(elements) != av_len)
-                croak("Expected an array of %d elements; found %d", av_len, av_count(elements));
-
-            intptr_t pos;
-            DCpointer ptr;
-            size_t size = _sizeof(aTHX_ field);
-            Newxz(ptr, size, char);
-
-            // double ptr[5] = {1, 2, 3, 17, 50};
-            // pos = (intptr_t)(*((void **)ptr));
-            warn("size == %d; sizeof(ptr) == %d", size, sizeof(ptr));
-
-            coerce(aTHX_ field, value, ptr, false, pos);
-            // static intptr_t coerce(pTHX_ SV *type, SV *data, intptr_t pos, bool packed) {
-
-            warn("sizeof(ptr) == %d", sizeof(ptr));
-
-            DumpHex(ptr, size);
-            // croak("I need to get this to load the elements into an array");
-            DCaggr *ag = dcNewAggr(1, sizeof(ptr));
-
-            // TODO: I need to set the correct type here
-            dcAggrField(ag, DC_SIGCHAR_INT, 0, av_len);
-
-            dcCloseAggr(ag);
-            DumpHex(ptr, sizeof(ptr));
-
-            dcArgPointer(MY_CXT.cvm, ptr);
+            SV **ptr_ptr = hv_fetchs(hv_ptr, "pointer", 0);
+            size_t av_len;
+            if (SvOK(*size_ptr)) {
+                av_len = SvIV(*size_ptr);
+                if (av_count(elements) != av_len)
+                    croak("Expected an array of %d elements; found %d", av_len, av_count(elements));
+            }
+            else
+                av_len = av_count(elements);
+            size_t size = _sizeof(aTHX_ * type_ptr);
+            // warn("av_len * size = %d * %d = %d", av_len, size, av_len * size);
+            DCpointer ptr = NULL;
+            if (1) {
+                if (ptr_ptr) {
+                    // warn("Reuse!");
+                    IV tmp = SvIV((SV *)SvRV(*ptr_ptr));
+                    ptr = saferealloc(INT2PTR(DCpointer, tmp), av_len * size);
+                }
+            }
+            if (ptr == NULL) {
+                // warn("Pointer was NULL!");
+                ptr = safemalloc(av_len * size);
+            }
+            if (1) {
+                SV *RETVALSV = newSV(0); // sv_newmortal();
+                sv_setref_pv(RETVALSV, "Dyn::Call::Pointer", ptr);
+                hv_stores(hv_ptr, "pointer", RETVALSV);
+            }
+            DCaggr *ag = coerce(aTHX_ field, value, ptr, false, 0);
+            // DumpHex(ptr, size * av_len);
+            dcArgAggr(MY_CXT.cvm, ag, ptr);
         } break;
         case DC_SIGCHAR_STRUCT: {
             if (!SvROK(value) || SvTYPE(SvRV(value)) != SVt_PVHV)
@@ -1850,8 +1821,7 @@ BOOT:
     MY_CXT.cvm = dcNewCallVM(4096);
 }
 {
-    //(void)newXSproto_portable("Dyn::attach", XS_Dyn_attach, file, "$$@$");
-    (void)newXSproto_portable("Dyn::coerce", Dyn_coerce, file, "$$");
+
     (void)newXSproto_portable("Dyn::typedef", Types_typedef, file, "$$");
     (void)newXSproto_portable("Dyn::Type", Types_type, file, "$");
     (void)newXSproto_portable("Dyn::Type::Base::sizeof", Types_type_sizeof, file, "$");
@@ -2016,3 +1986,29 @@ void
 DUMP_IT(SV * sv)
 CODE :
     sv_dump(sv);
+
+DCpointer
+coerce(SV * type, SV * data)
+CODE:
+    size_t size = _sizeof(aTHX_ type);
+    Newxz(RETVAL, size, char);
+    coerce(aTHX_ type, data, RETVAL, false, 0);
+OUTPUT:
+    RETVAL
+
+MODULE = Dyn PACKAGE = Dyn::ArrayRef
+
+void
+DESTROY(HV * me)
+CODE:
+// clang-format on
+{
+    SV **ptr_ptr = hv_fetchs(me, "pointer", 0);
+    if (!ptr_ptr) return;
+    DCpointer ptr;
+    IV tmp = SvIV((SV *)SvRV(*ptr_ptr));
+    ptr = INT2PTR(DCpointer, tmp);
+    if (ptr) safefree(ptr);
+    ptr = NULL;
+}
+// clang-format off
