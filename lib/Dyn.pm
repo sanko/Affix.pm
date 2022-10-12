@@ -184,6 +184,7 @@ package Dyn 0.03 {
         $version = $version ? qr[\.${version}] : qr/([\.\d]*)?/;
         if ( !defined $_lib_cache->{ $name . chr(0) . ( $version // '' ) } ) {
             if ( $OS eq 'MSWin32' ) {
+                $name =~ s[\.dll$][];
 
                 #return $name . '.dll'     if -f $name . '.dll';
                 return File::Spec->canonpath( File::Spec->rel2abs( $name . '.dll' ) )
@@ -191,18 +192,21 @@ package Dyn 0.03 {
                 require Win32;
 
 # https://docs.microsoft.com/en-us/windows/win32/dlls/dynamic-link-library-search-order#search-order-for-desktop-applications
-                my @dirs = (
+                my @dirs = grep {-d} (
                     dirname( File::Spec->rel2abs($^X) ),               # 1. exe dir
                     Win32::GetFolderPath( Win32::CSIDL_SYSTEM() ),     # 2. sys dir
                     Win32::GetFolderPath( Win32::CSIDL_WINDOWS() ),    # 4. win dir
                     File::Spec->rel2abs( File::Spec->curdir ),         # 5. cwd
-                    File::Spec->path()                                 # 6. $ENV{PATH}
+                    File::Spec->path(),                                # 6. $ENV{PATH}
+
+                    #'C:\Program Files'
                 );
+                warn $_ for sort { lc $a cmp lc $b } @dirs;
                 find(
                     {   wanted => sub {
                             $File::Find::prune = 1
                                 if !grep { $_ eq $File::Find::name } @dirs;    # no depth
-                            push @retval, $_ if /\/${name}(-${version})?\.dll$/;
+                            push @retval, $_ if m{[/\\]${name}(-${version})?\.dll$}i;
                         },
                         no_chdir => 1
                     },

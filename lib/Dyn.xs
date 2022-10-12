@@ -41,20 +41,17 @@ typedef struct
     SV *cv;
     AV *args;
     SV *retval;
+    dTHXfield(perl)
 } Callback;
 
 char cbHandler(DCCallback *cb, DCArgs *args, DCValue *result, DCpointer userdata) {
-    dTHX;
-#ifdef USE_ITHREADS
-    PERL_SET_CONTEXT(my_perl);
-#endif
     Callback *cbx = (Callback *)userdata;
-
     //  result->i = 1244;
 
     // warn("Bruh %c (%s [%d] return: %c) at %s line %d", cbx->ret, cbx->sig, cbx->sig_len,
     // cbx->ret,
     //     __FILE__, __LINE__);
+    dTHXa(cbx->perl);
 
     {
         dSP;
@@ -1580,6 +1577,7 @@ XS_EUPXS(Types_type_call) {
                     callback->cv = SvREFCNT_inc(MUTABLE_SV(coderef));*/
 
                     callback->cv = SvREFCNT_inc(value);
+                    storeTHX(callback->perl);
 
                     cb = dcbNewCallback(callback->sig, cbHandler, callback);
                     {

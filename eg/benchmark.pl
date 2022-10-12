@@ -20,18 +20,18 @@ our $libfile
         '/lib/x86_64-linux-gnu/libm.so.6' :
     '/lib/libm.so.6';
 #
-sub sin_ : Native('/lib64/libm.so.6') : Signature([Double]=>Double) : Symbol('sin');
-sub sin_var : Native('/lib64/libm.so.6') : Signature([Double]=>Double) : Symbol('sin') :
+sub sin_ : Native($main::libfile) : Signature([Double]=>Double) : Symbol('sin');
+sub sin_var : Native($main::libfile) : Signature([Double]=>Double) : Symbol('sin') :
     Mode(DC_SIGCHAR_CC_ELLIPSIS_VARARGS);
-sub sin_ell : Native('/lib64/libm.so.6') : Signature([Double]=>Double) : Symbol('sin') :
+sub sin_ell : Native($main::libfile) : Signature([Double]=>Double) : Symbol('sin') :
     Mode(DC_SIGCHAR_CC_ELLIPSIS);
-sub sin_cdecl : Native('/lib64/libm.so.6') : Signature([Double]=>Double) : Symbol('sin') :
+sub sin_cdecl : Native($main::libfile) : Signature([Double]=>Double) : Symbol('sin') :
     Mode(DC_SIGCHAR_CC_CDECL);
-sub sin_std : Native('/lib64/libm.so.6') : Signature([Double]=>Double) : Symbol('sin') :
+sub sin_std : Native($main::libfile) : Signature([Double]=>Double) : Symbol('sin') :
     Mode(DC_SIGCHAR_CC_STDCALL);
-sub sin_fc : Native('/lib64/libm.so.6') : Signature([Double]=>Double) : Symbol('sin') :
+sub sin_fc : Native($main::libfile) : Signature([Double]=>Double) : Symbol('sin') :
     Mode(DC_SIGCHAR_CC_FASTCALL_GNU);
-sub sin_tc : Native('/lib64/libm.so.6') : Signature([Double]=>Double) : Symbol('sin') :
+sub sin_tc : Native($main::libfile) : Signature([Double]=>Double) : Symbol('sin') :
     Mode(DC_SIGCHAR_CC_THISCALL_GNU);
 #
 my $sin_default  = Dyn::wrap( $libfile, 'sin', [Double] => Double );

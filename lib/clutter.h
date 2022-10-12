@@ -2,14 +2,18 @@
 extern "C" {
 #endif
 
-#define PERL_NO_GET_CONTEXT /* we want efficiency */
+#define PERL_NO_GET_CONTEXT 1 /* we want efficiency */
 #include <EXTERN.h>
 #include <perl.h>
 #define NO_XSLOCKS /* for exceptions */
 #include <XSUB.h>
 
-#ifdef USE_ITHREADS
-static PerlInterpreter *my_perl; /***    The Perl interpreter    ***/
+#ifdef MULTIPLICITY
+#define storeTHX(var) (var) = aTHX
+#define dTHXfield(var) tTHX var;
+#else
+#define storeTHX(var) dNOOP
+#define dTHXfield(var)
 #endif
 
 #ifdef __cplusplus
