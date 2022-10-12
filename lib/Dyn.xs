@@ -76,20 +76,20 @@ char cbHandler(DCCallback *cb, DCArgs *args, DCValue *result, DCpointer userdata
                 break;
             case DC_SIGCHAR_POINTER: {
                 DCpointer ptr = dcbArgPointer(args);
-                mPUSHs(sv_setref_pv(newSV(1), "Dyn::Call::Pointer", dcbArgPointer(args)));
+                PUSHs(sv_setref_pv(newSV(1), "Dyn::Call::Pointer", dcbArgPointer(args)));
             } break;
             case DC_SIGCHAR_BLESSED: {
                 DCpointer ptr = dcbArgPointer(args);
                 HV *blessed = MUTABLE_HV(SvRV(*av_fetch(cbx->args, i, 0)));
                 SV **package = hv_fetchs(blessed, "package", 0);
-                mPUSHs(sv_setref_pv(newSV(1), SvPV_nolen(*package), ptr));
+                PUSHs(sv_setref_pv(newSV(1), SvPV_nolen(*package), ptr));
             } break;
             case DC_SIGCHAR_ANY: {
                 DCpointer ptr = dcbArgPointer(args);
                 if (ptr && SvOK((SV *)ptr))
                     PUSHs((SV *)ptr);
                 else
-                    mPUSHs(&PL_sv_undef);
+                    PUSHs(&PL_sv_undef);
             } break;
             default:
                 croak("Oh, callbacks... push type: %c", cbx->sig[i]);
@@ -103,7 +103,7 @@ char cbHandler(DCCallback *cb, DCArgs *args, DCValue *result, DCpointer userdata
             call_sv(cbx->cv, G_DISCARD);
         else {
             count = call_sv(cbx->cv, G_EVAL | G_SCALAR);
-            if (count != 1) croak("Big trouble");
+            if (count != 1) croak("Big trouble: %d returned items", count);
             SPAGAIN;
             switch (cbx->ret) {
             case DC_SIGCHAR_VOID:
@@ -114,8 +114,20 @@ char cbHandler(DCCallback *cb, DCArgs *args, DCValue *result, DCpointer userdata
             case DC_SIGCHAR_DOUBLE:
                 result->d = POPn;
                 break;
+            case DC_SIGCHAR_POINTER: {
+                SV *sv_ptr = POPs;
+                if (SvOK(sv_ptr)) {
+                    if (sv_derived_from(sv_ptr, "Dyn::Call::Pointer")) {
+                        IV tmp = SvIV((SV *)SvRV(sv_ptr));
+                        result->p = INT2PTR(DCpointer, tmp);
+                    }
+                    croak("Returned value is not a Dyn::Call::Pointer or subclass");
+                }
+                else
+                    result->p = NULL; // ha.
+            } break;
             default:
-                croak("Unhandled return from callback");
+                croak("Unhandled return from callback: %c", cbx->ret);
             }
             PUTBACK;
         }
@@ -1603,7 +1615,7 @@ XS_EUPXS(Types_type_call) {
             size_t size = _sizeof(aTHX_ * type_ptr);
             // warn("av_len * size = %d * %d = %d", av_len, size, av_len * size);
             DCpointer ptr = NULL;
-            if (1) {
+            if (0) {
                 if (ptr_ptr) {
                     // warn("Reuse!");
                     IV tmp = SvIV((SV *)SvRV(*ptr_ptr));
@@ -1614,7 +1626,7 @@ XS_EUPXS(Types_type_call) {
                 // warn("Pointer was NULL!");
                 ptr = safemalloc(av_len * size);
             }
-            if (1) {
+            if (0) {
                 SV *RETVALSV = newSV(0); // sv_newmortal();
                 sv_setref_pv(RETVALSV, "Dyn::Call::Pointer", ptr);
                 hv_stores(hv_ptr, "pointer", RETVALSV);
@@ -1855,20 +1867,23 @@ BOOT:
 
     // Enum[]?
     export_function("Dyn", "typedef", "types");
-    export_function("Dyn", "wrap", "sugar");
-    export_function("Dyn", "attach", "sugar");
-    export_function("Dyn", "MODIFY_CODE_ATTRIBUTES", "default");
-    export_function("Dyn", "AUTOLOAD", "default");
+    export_function("Dyn", "wrap", "default");
+    export_function("Dyn", "attach", "default");
+    export_function("Dyn", "MODIFY_CODE_ATTRIBUTES", "sugar");
+    export_function("Dyn", "AUTOLOAD", "sugar");
 }
 // clang-format off
 
 SV *
-attach(lib, symbol, args, ret, mode = DC_SIGCHAR_CC_DEFAULT, func_name = NULL)
+attach(lib, symbol, args, ret, mode = DC_SIGCHAR_CC_DEFAULT, func_name = (ix == 1) ? NULL : symbol)
     const char * symbol
     AV * args
     SV * ret
     char mode
     const char * func_name
+ALIAS:
+    attach = 0
+    wrap   = 1
 PREINIT:
     dMY_CXT;
 CODE:
@@ -1882,7 +1897,32 @@ CODE:
         lib = INT2PTR(DLLib *, tmp);
     }
     else {
-        const char *lib_name = (const char *)SvPV_nolen(ST(0));
+        char *lib_name = (char *)SvPV_nolen(ST(0));
+
+        // Use perl to get the actual path to the library
+        {
+            dSP;
+            int count;
+
+            ENTER;
+            SAVETMPS;
+
+            PUSHMARK(SP);
+            EXTEND(SP, 1);
+            PUSHs(ST(0));
+            PUTBACK;
+
+            count = call_pv("Dyn::guess_library_name", G_SCALAR);
+
+            SPAGAIN;
+
+            if (count == 1) lib_name = SvPVx_nolen(POPs);
+
+            PUTBACK;
+            FREETMPS;
+            LEAVE;
+        }
+
         lib =
 #if defined(_WIN32) || defined(_WIN64)
             dlLoadLibrary(lib_name);
@@ -1956,6 +1996,7 @@ CODE:
     /* Create a new XSUB instance at runtime and set it's XSANY.any_ptr to contain the
      * necessary user data. name can be NULL => fully anonymous sub!
      **/
+
     CV *cv;
     STMT_START {
 

@@ -35,10 +35,6 @@ package Dyn 0.03 {
     #
     my %_delay;
 
-    sub wrap ( $lib, $symbol_name, $args, $return, $mode = DC_SIGCHAR_CC_DEFAULT ) {
-        attach( $lib, $symbol_name, $args, $return, $mode );
-    }
-
     sub go() {
 
         #warn "HOOOOOOOOOOOOOOOOOOOOOOOOOOOOOOOO";
@@ -174,50 +170,10 @@ package Dyn 0.03 {
         }
         return;
     }
-
-    sub _guess_library_name ( $lib = undef, $version = undef ) {
-        $lib // return;
-        return locate_lib( $lib, $version );
-        CORE::state %_lib_cache;
-        if ( !defined $_lib_cache{ $lib . chr(0) . ( $version // '' ) } ) {
-
-            #use Data::Dump;
-            #ddx \@_;
-            if ( $^O eq 'MSWin32' ) {
-
-                # .dll and no version info
-            }
-            else {
-                my ( $volume, $directories, $file ) = File::Spec->splitpath($lib);
-
-                #ddx [$volume, $directories, $file];
-                my $so = $Config{so};    # TODO: might be .dynlib or .bundle
-                $file = 'lib' . $file
-                    if $file !~ m[^lib.+$] &&
-                    $file !~ m[\.(?:${so}|bundle|dylib)$] &&
-                    !defined $directories;
-
-                #ddx [$volume, $directories, $file];
-                $file = $file . '.' . $so if $file !~ m[\.$so(\.[\d\.])?$];
-                $file .= '.' . $1 if defined $version && $^O !~ /bsd/ && $^O ne 'darwin' &&
-
-                    #!defined $Config{ignore_versioned_solibs} &&
-                    version->parse($version)->stringify =~ m[^v?(.+)$] && $1 > 0;
-                $lib = File::Spec->catpath( $volume, $directories, $file );
-
-                #ddx [$volume, $directories, $file];
-            }
-
-            #use Data::Dump;
-            #warn $ENV{LD_LIBRARY_PATH};
-            $_lib_cache{ $lib . chr(0) . ( $version // '' ) } = $lib;
-        }
-        warn $lib;
-        $_lib_cache{ $lib . chr(0) . ( $version // '' ) };
-    }
     our $OS = $^O;
 
     sub guess_library_name ( $name = (), $version = () ) {
+        ( $name, $version ) = @$name if ref $name eq 'ARRAY';
         $name // return ();    # NULL
         return $name if -f $name;
         CORE::state $_lib_cache;
