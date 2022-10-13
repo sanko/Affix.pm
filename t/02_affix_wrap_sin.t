@@ -1,10 +1,8 @@
 use strict;
 use warnings;
 use lib '../lib', '../blib/arch', '../blib/lib', 'blib/arch', 'blib/lib';
-use Dyn           qw[:all];
-use Dyn::Call     qw[:all];
-use Dyn::Callback qw[:all];
-use Dyn::Load     qw[:all];
+use Affix;
+use Dyn::Call qw[:sigchar];
 use Test::More;
 use Config;
 $|++;
@@ -30,16 +28,13 @@ SKIP: {
     skip 'Cannot find math lib: ' . $libfile, 8 if $^O ne 'MSWin32' && !-f $libfile;
     diag 'Loading ' . $libfile . ' ...';
     my %loaders = (
-        sin_default => Dyn::attach( $libfile, 'sin', [Double], Double, DC_SIGCHAR_CC_DEFAULT() ),
-        sin_vararg  =>
-            Dyn::attach( $libfile, 'sin', [Double], Double, DC_SIGCHAR_CC_ELLIPSIS_VARARGS() ),
-        sin_ellipsis => Dyn::attach( $libfile, 'sin', [Double], Double, DC_SIGCHAR_CC_ELLIPSIS() ),
-        sin_cdecl    => Dyn::attach( $libfile, 'sin', [Double], Double, DC_SIGCHAR_CC_CDECL() ),
-        sin_stdcall  => Dyn::attach( $libfile, 'sin', [Double], Double, DC_SIGCHAR_CC_STDCALL() ),
-        sin_fastcall =>
-            Dyn::attach( $libfile, 'sin', [Double], Double, DC_SIGCHAR_CC_FASTCALL_GNU() ),
-        sin_thiscall =>
-            Dyn::attach( $libfile, 'sin', [Double], Double, DC_SIGCHAR_CC_THISCALL_GNU() )
+        sin_default  => wrap( $libfile, 'sin', [Double], Double, DC_SIGCHAR_CC_DEFAULT() ),
+        sin_vararg   => wrap( $libfile, 'sin', [Double], Double, DC_SIGCHAR_CC_ELLIPSIS_VARARGS() ),
+        sin_ellipsis => wrap( $libfile, 'sin', [Double], Double, DC_SIGCHAR_CC_ELLIPSIS() ),
+        sin_cdecl    => wrap( $libfile, 'sin', [Double], Double, DC_SIGCHAR_CC_CDECL() ),
+        sin_stdcall  => wrap( $libfile, 'sin', [Double], Double, DC_SIGCHAR_CC_STDCALL() ),
+        sin_fastcall => wrap( $libfile, 'sin', [Double], Double, DC_SIGCHAR_CC_FASTCALL_GNU() ),
+        sin_thiscall => wrap( $libfile, 'sin', [Double], Double, DC_SIGCHAR_CC_THISCALL_GNU() )
     );
     my $correct = -0.988031624092862;    # The real value of sin(30);
     is sin(30), $correct, 'sin(30) [perl]';

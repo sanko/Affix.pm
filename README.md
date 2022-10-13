@@ -5,16 +5,12 @@ Dyn - dyncall Backed FFI
 
 # SYNOPSIS
 
-    use Dyn qw[:sugar];
-    sub pow
-        : Native( $^O eq 'MSWin32' ? 'ntdll.dll' : ('libm', v6) )
-        : Signature(Double, Double => Double);
-
-    print pow( 2, 10 );    # 1024
+    use Dyn qw[:dc :dl]; # Imports all of Dyn::Call's functions
 
 # DESCRIPTION
 
-Dyn is a wrapper around [dyncall](https://dyncall.org/).
+Dyn is a wrapper around [dyncall](https://dyncall.org/). It's here for the sake
+of convenience.
 
 This distribution includes...
 
@@ -37,65 +33,6 @@ This distribution includes...
     dynamic libraries and code modules.
 
     Functions can be imported with the `:dl` tag.
-
-Honestly, you should be using one of the above packages rather than this one as
-they provide clean wrappers of dyncall's C functions. This package contains the
-sugary API.
-
-# `:Native` CODE attribute
-
-While most of the upstream API is covered in the [Dyn::Call](https://metacpan.org/pod/Dyn%3A%3ACall),
-[Dyn::Callback](https://metacpan.org/pod/Dyn%3A%3ACallback), and [Dyn::Load](https://metacpan.org/pod/Dyn%3A%3ALoad) packages, all the sugar is right here in
-`Dyn`. The most simple use of `Dyn` would look something like this:
-
-    use Dyn ':sugar';
-    sub some_argless_function() : Native('somelib.so') : Signature('()v');
-    some_argless_function();
-
-Be aware that this will look a lot more like [NativeCall from
-Raku](https://docs.raku.org/language/nativecall) before v1.0!
-
-The second line above looks like a normal Perl sub declaration but includes the
-`:Native` attribute to specify that the sub is actually defined in a native
-library.
-
-To avoid banging your head on a built-in function, you may name your sub
-anything else and let Dyn know what symbol to attach:
-
-    sub my_abs : Native('my_lib.dll') : Signature('(d)d') : Symbol('abs');
-    CORE::say my_abs( -75 ); # Should print 75 if your abs is something that makes sense
-
-This is by far the fastest way to work with this distribution but it's not by
-any means the only way.
-
-All of the following methods may be imported by name or with the `:sugar` tag.
-
-Note that everything here is subject to change before v1.0.
-
-# Functions
-
-The less
-
-## `wrap( ... )`
-
-Creates a wrapper around a given symbol in a given library.
-
-    my $pow = Dyn::wrap( 'C:\Windows\System32\user32.dll', 'pow', 'dd)d' );
-    warn $pow->(5, 10); # 5**10
-
-Expected parameters include:
-
-- `lib` - pointer returned by [`dlLoadLibrary( ... )`](https://metacpan.org/pod/Dyn%3A%3ALoad#dlLoadLibrary) or the path of the library as a string
-- `symbol_name` - the name of the symbol to call
-- `signature` - signature defining argument types, return type, and optionally the calling convention used
-
-Returns a code reference.
-
-## `attach( ... )`
-
-Wraps a given symbol in a named perl sub.
-
-    Dyn::attach('C:\Windows\System32\user32.dll', 'pow', '(dd)d' );
 
 # Signatures
 

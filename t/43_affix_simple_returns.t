@@ -3,7 +3,7 @@ no warnings 'portable';
 use Test::More 0.98;
 BEGIN { chdir '../' if !-d 't'; }
 use lib '../lib', '../blib/arch', '../blib/lib', 'blib/arch', 'blib/lib', '../../', '.';
-use Dyn qw[:all];
+use Affix qw[:all];
 use File::Spec;
 use t::lib::nativecall;
 use experimental 'signatures';

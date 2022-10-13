@@ -2,7 +2,7 @@ use strict;
 use Test::More 0.98;
 BEGIN { chdir '../' if !-d 't'; }
 use lib '../lib', '../blib/arch', '../blib/lib', 'blib/arch', 'blib/lib', '../../', '.';
-use Dyn qw[:all];
+use Affix qw[:all];
 use Dyn::Call;
 use Dyn::Callback qw[dcbNewCallback dcbArgInt];
 use File::Spec;
@@ -12,7 +12,8 @@ $|++;
 #
 compile_test_lib('62_dyn_callback_args');
 #
-sub TakeCallback : Native('t/62_dyn_callback_args') : Signature([ Pointer ] => Int);
+sub TakeCallback : Native('t/62_dyn_callback_args') :
+    Signature([ InstanceOf['Dyn::Callback'] ] => Int);
 is TakeCallback(
     dcbNewCallback(
         'i)i',
@@ -27,7 +28,6 @@ is TakeCallback(
         [ 1, 5 ]
     )
     ),
-    5400,
-    'return value from callback is 5400';
+    5400, 'return value from callback is 5400';
 #
 done_testing;

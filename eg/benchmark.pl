@@ -1,7 +1,7 @@
 use strict;
 use warnings;
 use lib '../lib', '../blib/arch', '../blib/lib', 'blib/arch', 'blib/lib';
-use Dyn       qw[:all];
+use Affix     qw[:all];
 use Dyn::Load qw[:all];
 use Dyn::Call qw[:all];
 use FFI::Platypus 1.58;
@@ -34,24 +34,21 @@ sub sin_fc : Native($main::libfile) : Signature([Double]=>Double) : Symbol('sin'
 sub sin_tc : Native($main::libfile) : Signature([Double]=>Double) : Symbol('sin') :
     Mode(DC_SIGCHAR_CC_THISCALL_GNU);
 #
-my $sin_default  = Dyn::wrap( $libfile, 'sin', [Double] => Double );
-my $sin_vararg   = Dyn::wrap( $libfile, 'sin', [Double] => Double, DC_SIGCHAR_CC_ELLIPSIS_VARARGS );
-my $sin_ellipsis = Dyn::wrap( $libfile, 'sin', [Double] => Double, DC_SIGCHAR_CC_ELLIPSIS );
-my $sin_cdecl    = Dyn::wrap( $libfile, 'sin', [Double] => Double, DC_SIGCHAR_CC_CDECL );
-my $sin_stdcall  = Dyn::wrap( $libfile, 'sin', [Double] => Double, DC_SIGCHAR_CC_STDCALL );
-my $sin_fastcall = Dyn::wrap( $libfile, 'sin', [Double] => Double, DC_SIGCHAR_CC_FASTCALL_GNU );
-my $sin_thiscall = Dyn::wrap( $libfile, 'sin', [Double] => Double, DC_SIGCHAR_CC_THISCALL_GNU );
+my $sin_default  = wrap( $libfile, 'sin', [Double] => Double );
+my $sin_vararg   = wrap( $libfile, 'sin', [Double] => Double, DC_SIGCHAR_CC_ELLIPSIS_VARARGS );
+my $sin_ellipsis = wrap( $libfile, 'sin', [Double] => Double, DC_SIGCHAR_CC_ELLIPSIS );
+my $sin_cdecl    = wrap( $libfile, 'sin', [Double] => Double, DC_SIGCHAR_CC_CDECL );
+my $sin_stdcall  = wrap( $libfile, 'sin', [Double] => Double, DC_SIGCHAR_CC_STDCALL );
+my $sin_fastcall = wrap( $libfile, 'sin', [Double] => Double, DC_SIGCHAR_CC_FASTCALL_GNU );
+my $sin_thiscall = wrap( $libfile, 'sin', [Double] => Double, DC_SIGCHAR_CC_THISCALL_GNU );
 #
-Dyn::attach( $libfile, 'sin', [Double] => Double, DC_SIGCHAR_CC_DEFAULT, '_attach_sin_default' );
-Dyn::attach(
-    $libfile, 'sin', [Double] => Double,
-    DC_SIGCHAR_CC_ELLIPSIS_VARARGS, '_attach_sin_var'
-);
-Dyn::attach( $libfile, 'sin', [Double] => Double, DC_SIGCHAR_CC_ELLIPSIS, '_attach_sin_ellipse' );
-Dyn::attach( $libfile, 'sin', [Double] => Double, DC_SIGCHAR_CC_CDECL,    '_attach_sin_cdecl' );
-Dyn::attach( $libfile, 'sin', [Double] => Double, DC_SIGCHAR_CC_STDCALL,  '_attach_sin_std' );
-Dyn::attach( $libfile, 'sin', [Double] => Double, DC_SIGCHAR_CC_FASTCALL_GNU, '_attach_sin_fc' );
-Dyn::attach( $libfile, 'sin', [Double] => Double, DC_SIGCHAR_CC_THISCALL_GNU, '_attach_sin_tc' );
+attach( $libfile, 'sin', [Double] => Double, DC_SIGCHAR_CC_DEFAULT, '_attach_sin_default' );
+attach( $libfile, 'sin', [Double] => Double, DC_SIGCHAR_CC_ELLIPSIS_VARARGS, '_attach_sin_var' );
+attach( $libfile, 'sin', [Double] => Double, DC_SIGCHAR_CC_ELLIPSIS,     '_attach_sin_ellipse' );
+attach( $libfile, 'sin', [Double] => Double, DC_SIGCHAR_CC_CDECL,        '_attach_sin_cdecl' );
+attach( $libfile, 'sin', [Double] => Double, DC_SIGCHAR_CC_STDCALL,      '_attach_sin_std' );
+attach( $libfile, 'sin', [Double] => Double, DC_SIGCHAR_CC_FASTCALL_GNU, '_attach_sin_fc' );
+attach( $libfile, 'sin', [Double] => Double, DC_SIGCHAR_CC_THISCALL_GNU, '_attach_sin_tc' );
 #
 my $ffi = FFI::Platypus->new( api => 1 );
 $ffi->lib($libfile);
