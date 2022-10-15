@@ -337,32 +337,36 @@ BOOT:
     newCONSTSUB(stash, "DC_ERROR_NONE", newSViv(DC_ERROR_NONE));
     newCONSTSUB(stash, "DC_ERROR_UNSUPPORTED_MODE", newSViv(DC_ERROR_UNSUPPORTED_MODE));
 
-    // void export_constant(const char * package, const char *name, const char *_tag, double val) {
-    export_function("Dyn::Call", "dcArgBool", "bin");
-    export_function("Dyn::Call", "dcArgChar", "bin");
-    export_function("Dyn::Call", "dcArgShort", "bin");
-    export_function("Dyn::Call", "dcArgInt", "bin");
-    export_function("Dyn::Call", "dcArgLong", "bin");
-    export_function("Dyn::Call", "dcArgLongLong", "bin");
-    export_function("Dyn::Call", "dcArgFloat", "bin");
-    export_function("Dyn::Call", "dcArgDouble", "bin");
-    export_function("Dyn::Call", "dcArgPointer", "bin");
-    export_function("Dyn::Call", "dcArgString", "bin");
-    export_function("Dyn::Call", "dcArgAggr", "bin");
+    export_function("Dyn::Call", "dcNewCallVM", "call");
+    export_function("Dyn::Call", "dcFree", "call");
+    export_function("Dyn::Call", "dcMode", "call");
+    export_function("Dyn::Call", "dcReset", "call");
 
-    export_function("Dyn::Call", "dcNewCallVM", "callvm");
-    export_function("Dyn::Call", "dcFree", "callvm");
-    export_function("Dyn::Call", "dcMode", "callvm");
-    export_function("Dyn::Call", "dcReset", "callvm");
+    export_function("Dyn::Call", "dcArgBool", "call");
+    export_function("Dyn::Call", "dcArgChar", "call");
+    export_function("Dyn::Call", "dcArgShort", "call");
+    export_function("Dyn::Call", "dcArgInt", "call");
+    export_function("Dyn::Call", "dcArgLong", "call");
+    export_function("Dyn::Call", "dcArgLongLong", "call");
+    export_function("Dyn::Call", "dcArgFloat", "call");
+    export_function("Dyn::Call", "dcArgDouble", "call");
+    export_function("Dyn::Call", "dcArgPointer", "call");
+    export_function("Dyn::Call", "dcArgString", "call");
+    export_function("Dyn::Call", "dcArgAggr", "call");
 
     export_function("Dyn::Call", "dcCallVoid", "call");
+    export_function("Dyn::Call", "dcCallBool", "call");
     export_function("Dyn::Call", "dcCallChar", "call");
+    export_function("Dyn::Call", "dcCallShort", "call");
     export_function("Dyn::Call", "dcCallInt", "call");
+    export_function("Dyn::Call", "dcCallLong", "call");
+    export_function("Dyn::Call", "dcCallLongLong", "call");
+    export_function("Dyn::Call", "dcCallFloat", "call");
+    export_function("Dyn::Call", "dcCallDouble", "call");
     export_function("Dyn::Call", "dcCallPointer", "call");
-    export_function("Dyn::Call", "dcCallAggr", "call");
     export_function("Dyn::Call", "dcCallString", "call");
-
-    export_function("Dyn::Call", "dcBeginCallAggr", "aggregates");
+    export_function("Dyn::Call", "dcCallAggr", "call");
+    export_function("Dyn::Call", "dcBeginCallAggr", "call");
 
     export_function("Dyn::Call", "DC_CALL_C_DEFAULT", "vars");
     export_function("Dyn::Call", "DC_CALL_C_ELLIPSIS", "vars");

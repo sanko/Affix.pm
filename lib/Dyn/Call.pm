@@ -7,7 +7,8 @@ package Dyn::Call 0.03 {
     use parent 'Exporter';
     our %EXPORT_TAGS;
     push @{ $EXPORT_TAGS{vars} }, @{ $EXPORT_TAGS{sigchar} };
-    @{ $EXPORT_TAGS{all} } = our @EXPORT_OK = map { @{ $EXPORT_TAGS{$_} } } keys %EXPORT_TAGS;
+    push @{ $EXPORT_TAGS{default} }, @{ $EXPORT_TAGS{call} }, @{ $EXPORT_TAGS{vars} };
+    @{ $EXPORT_TAGS{all} } = our @EXPORT_OK = sort map { @{ $EXPORT_TAGS{$_} } } keys %EXPORT_TAGS;
 }
 1;
 __END__
