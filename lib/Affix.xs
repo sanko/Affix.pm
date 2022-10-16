@@ -860,6 +860,8 @@ XS_EUPXS(Types) {
         break;
     }
     default:
+        if (items > 1)
+            croak("Too many arguments for subroutine '%s' (got %d; expected 0)", package, items);
         // warn("Unhandled...");
         break;
     }
@@ -1355,34 +1357,34 @@ XS_EUPXS(Types_type_call) {
                                                : (unsigned char)*SvPV_nolen(value));
             break;
         case DC_SIGCHAR_SHORT:
-            dcArgShort(MY_CXT.cvm, SvOK(value) ? (short)SvIV(value) : 0);
+            dcArgShort(MY_CXT.cvm, (short)SvIV(value));
             break;
         case DC_SIGCHAR_USHORT:
-            dcArgShort(MY_CXT.cvm, SvOK(value) ? (unsigned short)SvUV(value) : 0);
+            dcArgShort(MY_CXT.cvm, (unsigned short)SvUV(value));
             break;
         case DC_SIGCHAR_INT:
-            dcArgInt(MY_CXT.cvm, SvOK(value) ? (int)SvIV(value) : 0);
+            dcArgInt(MY_CXT.cvm, (int)SvIV(value));
             break;
         case DC_SIGCHAR_UINT:
-            dcArgInt(MY_CXT.cvm, SvOK(value) ? (unsigned int)SvUV(value) : 0);
+            dcArgInt(MY_CXT.cvm, (unsigned int)SvUV(value));
             break;
         case DC_SIGCHAR_LONG:
-            dcArgLong(MY_CXT.cvm, SvOK(value) ? (long)SvNV(value) : 0);
+            dcArgLong(MY_CXT.cvm, (long)SvIV(value));
             break;
         case DC_SIGCHAR_ULONG:
-            dcArgLong(MY_CXT.cvm, SvOK(value) ? (unsigned long)SvNV(value) : 0);
+            dcArgLong(MY_CXT.cvm, (unsigned long)SvUV(value));
             break;
         case DC_SIGCHAR_LONGLONG:
-            dcArgLongLong(MY_CXT.cvm, SvOK(value) ? (long long)SvNV(value) : 0);
+            dcArgLongLong(MY_CXT.cvm, (long long)SvIV(value));
             break;
         case DC_SIGCHAR_ULONGLONG:
-            dcArgLongLong(MY_CXT.cvm, SvOK(value) ? (unsigned long long)SvNV(value) : 0);
+            dcArgLongLong(MY_CXT.cvm, (unsigned long long)SvUV(value));
             break;
         case DC_SIGCHAR_FLOAT:
-            dcArgFloat(MY_CXT.cvm, SvOK(value) ? (float)SvNV(value) : 0.0);
+            dcArgFloat(MY_CXT.cvm, (float)SvNV(value));
             break;
         case DC_SIGCHAR_DOUBLE:
-            dcArgDouble(MY_CXT.cvm, SvOK(value) ? (double)SvNV(value) : 0.0);
+            dcArgDouble(MY_CXT.cvm, (double)SvNV(value));
             break;
         case DC_SIGCHAR_POINTER: {
             DCpointer ptr;
@@ -1391,7 +1393,6 @@ XS_EUPXS(Types_type_call) {
             if (SvROK(value)) {
                 SV **ptr_ptr = hv_fetchs(type_hv, "pointer", 0);
                 if (ptr_ptr) {
-                    // warn("Reuse!");
                     IV tmp = SvIV((SV *)SvRV(*ptr_ptr));
                     ptr = INT2PTR(DCpointer, tmp);
                 }
@@ -1415,10 +1416,11 @@ XS_EUPXS(Types_type_call) {
             pointers = true;
 
             dcArgPointer(MY_CXT.cvm, ptr);
-
-            SV *RETVALSV = newSV(0); // sv_newmortal();
-            sv_setref_pv(RETVALSV, "Dyn::Call::Pointer", ptr);
-            hv_stores(type_hv, "pointer", RETVALSV);
+            if (ptr != NULL) {
+                SV *RETVALSV = newSV(0); // sv_newmortal();
+                sv_setref_pv(RETVALSV, "Dyn::Call::Pointer", ptr);
+                hv_stores(type_hv, "pointer", RETVALSV);
+            }
         } break;
         case DC_SIGCHAR_BLESSED: {                     // Essentially the same as DC_SIGCHAR_POINTER
             SV *package = *av_fetch(call->args, i, 0); // Make broad assumptions
@@ -1711,8 +1713,8 @@ XS_EUPXS(Affix_DESTROY) {
 #define TYPE(...) GET_4TH_ARG(__VA_ARGS__, CTYPE, PTYPE)(__VA_ARGS__)
 #define CTYPE(NAME, SIGCHAR, SIGCHAR_C)                                                            \
     {                                                                                              \
-        const char *package = form("Affix::%s", NAME);                                             \
-        cv = newXSproto_portable(package, Types_wrapper, file, ";$");                              \
+        const char *package = form("Affix::Type::%s", NAME);                                       \
+        cv = newXSproto_portable(form("Affix::%s", NAME), Types_wrapper, file, ";$");              \
         Newx(XSANY.any_ptr, strlen(package) + 1, char);                                            \
         Copy(package, XSANY.any_ptr, strlen(package) + 1, char);                                   \
         cv = newXSproto_portable(form("%s::new", package), Types, file, "$");                      \

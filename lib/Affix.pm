@@ -10,7 +10,7 @@ package Affix 0.03 {
     use Text::ParseWords;
     use Carp      qw[];
     use vars      qw[@EXPORT_OK @EXPORT %EXPORT_TAGS];
-    use Dyn::Call qw[DC_SIGCHAR_CC_DEFAULT];
+    use Dyn::Call qw[:sigchar];
 
     #use Attribute::Handlers;
     no warnings 'redefine';
@@ -111,19 +111,19 @@ package Affix 0.03 {
             }
             elsif ( $attribute =~ m[^Mode\(\s*(DC_SIGCHAR_CC_.+?)\s*\)$] ) {
                 $mode    # Don't wait for Dyn::Call::DC_SIGCHAR...
-                    = $1 eq 'DC_SIGCHAR_CC_DEFAULT'        ? ':' :
-                    $1 eq 'DC_SIGCHAR_CC_THISCALL'         ? '*' :
-                    $1 eq 'DC_SIGCHAR_CC_ELLIPSIS'         ? 'e' :
-                    $1 eq 'DC_SIGCHAR_CC_ELLIPSIS_VARARGS' ? '.' :
-                    $1 eq 'DC_SIGCHAR_CC_CDECL'            ? 'c' :
-                    $1 eq 'DC_SIGCHAR_CC_STDCALL'          ? 's' :
-                    $1 eq 'DC_SIGCHAR_CC_FASTCALL_MS'      ? 'F' :
-                    $1 eq 'DC_SIGCHAR_CC_FASTCALL_GNU'     ? 'f' :
-                    $1 eq 'DC_SIGCHAR_CC_THISCALL_MS'      ? '+' :
-                    $1 eq 'DC_SIGCHAR_CC_THISCALL_GNU'     ? '#' :
-                    $1 eq 'DC_SIGCHAR_CC_ARM_ARM'          ? 'A' :
-                    $1 eq 'DC_SIGCHAR_CC_ARM_THUMB'        ? 'a' :
-                    $1 eq 'DC_SIGCHAR_CC_SYSCALL'          ? '$' :
+                    = $1 eq 'DC_SIGCHAR_CC_DEFAULT'        ? DC_SIGCHAR_CC_DEFAULT :
+                    $1 eq 'DC_SIGCHAR_CC_THISCALL'         ? DC_SIGCHAR_CC_THISCALL :
+                    $1 eq 'DC_SIGCHAR_CC_ELLIPSIS'         ? DC_SIGCHAR_CC_ELLIPSIS :
+                    $1 eq 'DC_SIGCHAR_CC_ELLIPSIS_VARARGS' ? DC_SIGCHAR_CC_ELLIPSIS_VARARGS :
+                    $1 eq 'DC_SIGCHAR_CC_CDECL'            ? DC_SIGCHAR_CC_CDECL :
+                    $1 eq 'DC_SIGCHAR_CC_STDCALL'          ? DC_SIGCHAR_CC_STDCALL :
+                    $1 eq 'DC_SIGCHAR_CC_FASTCALL_MS'      ? DC_SIGCHAR_CC_FASTCALL_MS :
+                    $1 eq 'DC_SIGCHAR_CC_FASTCALL_GNU'     ? DC_SIGCHAR_CC_FASTCALL_GNU :
+                    $1 eq 'DC_SIGCHAR_CC_THISCALL_MS'      ? DC_SIGCHAR_CC_THISCALL_MS :
+                    $1 eq 'DC_SIGCHAR_CC_THISCALL_GNU'     ? DC_SIGCHAR_CC_THISCALL_GNU :
+                    $1 eq 'DC_SIGCHAR_CC_ARM_ARM'          ? DC_SIGCHAR_CC_ARM_ARM :
+                    $1 eq 'DC_SIGCHAR_CC_ARM_THUMB'        ? DC_SIGCHAR_CC_ARM_THUMB :
+                    $1 eq 'DC_SIGCHAR_CC_SYSCALL'          ? DC_SIGCHAR_CC_SYSCALL :
                     length($1) == 1                        ? $1 :
                     return $attribute;
                 $mode = ord $mode if $mode =~ /\D/;

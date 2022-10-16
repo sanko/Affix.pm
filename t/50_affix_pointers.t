@@ -1,6 +1,7 @@
 use strict;
 no warnings 'portable';
-use Affix qw[:all];
+use Affix     qw[:all];
+use Dyn::Call qw[malloc memmove free];
 use Test::More 0.98;
 BEGIN { chdir '../' if !-d 't'; }
 use lib '../lib', '../blib/arch', '../blib/lib', 'blib/arch', 'blib/lib', '../../', '.';
@@ -39,6 +40,25 @@ compile_test_lib('50_types_pointers');
         }
         ),
         -1, 'making call with an undef pointer passes a NULL';
+}
+{
+    my $data = pack 'd', 590343.12351;    # Test pumping raw, packed data into memory
+    my $ptr  = malloc length($data);
+    memmove $ptr, $data, length $data;
+    diag 'allocated ' . length($data) . ' bytes';
+    is pointer_test(
+        $ptr,
+        [ 1 .. 5 ],
+        5,
+        sub {
+            pass('our coderef was called');
+            is_deeply \@_, [ 4, 8 ], '... and given correct arguments';
+            50.25;
+        }
+        ),
+        18.33825, 'making call with Dyn::Call::Pointer object with packed data';
+    is unpack( 'd', $ptr ), 3.493, 'Dyn::Call::Pointer updated';
+    free $ptr;
 }
 #
 done_testing;

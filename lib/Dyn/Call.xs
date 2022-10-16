@@ -316,6 +316,7 @@ BOOT:
     /* calling convention / mode signatures */
     newCONSTSUB(stash, "DC_SIGCHAR_CC_PREFIX", newSVpv(form("%c", DC_SIGCHAR_CC_PREFIX), 1));
     newCONSTSUB(stash, "DC_SIGCHAR_CC_DEFAULT", newSVpv(form("%c", DC_SIGCHAR_CC_DEFAULT), 1));
+    newCONSTSUB(stash, "DC_SIGCHAR_CC_THISCALL", newSVpv(form("%c", DC_SIGCHAR_CC_THISCALL), 1));
     newCONSTSUB(stash, "DC_SIGCHAR_CC_ELLIPSIS", newSVpv(form("%c", DC_SIGCHAR_CC_ELLIPSIS), 1));
     newCONSTSUB(stash, "DC_SIGCHAR_CC_ELLIPSIS_VARARGS",
                 newSVpv(form("%c", DC_SIGCHAR_CC_ELLIPSIS_VARARGS), 1));
@@ -432,6 +433,7 @@ BOOT:
     export_function("Dyn::Call", "DC_SIGCHAR_CC_ELLIPSIS_VARARGS", "sigchar");
     export_function("Dyn::Call", "DC_SIGCHAR_CC_CDECL", "sigchar");
     export_function("Dyn::Call", "DC_SIGCHAR_CC_STDCALL", "sigchar");
+    export_function("Dyn::Call", "DC_SIGCHAR_CC_THISCALL", "sigchar");
     export_function("Dyn::Call", "DC_SIGCHAR_CC_FASTCALL_MS", "sigchar");
     export_function("Dyn::Call", "DC_SIGCHAR_CC_FASTCALL_GNU", "sigchar");
     export_function("Dyn::Call", "DC_SIGCHAR_CC_THISCALL_MS", "sigchar");
