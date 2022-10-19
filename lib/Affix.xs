@@ -1573,6 +1573,7 @@ XS_EUPXS(Types_type_call) {
             dcCallVoid(MY_CXT.cvm, call->fptr);
             break;
         case DC_SIGCHAR_BOOL:
+            RETVAL = newSV(0);
             sv_setbool_mg(RETVAL, (bool)dcCallBool(MY_CXT.cvm, call->fptr));
             break;
         case DC_SIGCHAR_CHAR:

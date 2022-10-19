@@ -1,5 +1,10 @@
 #include "std.h"
 
+DLLEXPORT bool ReturnBool(int in) {
+    if (in == 5) return true;
+    return false;
+}
+
 DLLEXPORT int ReturnInt() {
     return 101;
 }

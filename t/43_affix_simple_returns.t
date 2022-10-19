@@ -11,6 +11,10 @@ $|++;
 #
 compile_test_lib('43_simple_returns');
 #
+sub ReturnBool : Signature([Int]=>Bool) : Native('t/43_simple_returns');
+is ReturnBool(4), !1, 'returning bool works';
+is ReturnBool(5), !0, 'returning bool works';
+#
 sub ReturnInt : Signature([]=>Int) : Native('t/43_simple_returns');
 is ReturnInt(), 101, 'returning int works';
 is ReturnInt(), 101, 'returning int works';

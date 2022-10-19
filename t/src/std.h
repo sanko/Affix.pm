@@ -1,7 +1,7 @@
 #include <stdio.h>
 #include <string.h>
 #include <math.h>
-
+#include <stdbool.h>
 #include <stddef.h> // offsetof
 
 #define warn(FORMAT, ...)                                                                          \
