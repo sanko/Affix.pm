@@ -175,7 +175,7 @@ package Affix 0.03 {
     sub guess_library_name ( $name = (), $version = () ) {
         ( $name, $version ) = @$name if ref $name eq 'ARRAY';
         $name // return ();    # NULL
-        return $name if -f $name;
+        return $name if -e $name;
         CORE::state $_lib_cache;
         my @retval;
         ($version) = version->parse($version)->stringify =~ m[^v?(.+)$];
@@ -193,15 +193,16 @@ package Affix 0.03 {
 
 # https://docs.microsoft.com/en-us/windows/win32/dlls/dynamic-link-library-search-order#search-order-for-desktop-applications
                 my @dirs = grep {-d} (
-                    dirname( File::Spec->rel2abs($^X) ),               # 1. exe dir
-                    Win32::GetFolderPath( Win32::CSIDL_SYSTEM() ),     # 2. sys dir
-                    Win32::GetFolderPath( Win32::CSIDL_WINDOWS() ),    # 4. win dir
-                    File::Spec->rel2abs( File::Spec->curdir ),         # 5. cwd
-                    File::Spec->path(),                                # 6. $ENV{PATH}
-
-                    #'C:\Program Files'
+                    dirname( File::Spec->rel2abs($^X) ),                    # 1. exe dir
+                    Win32::GetFolderPath( Win32::CSIDL_SYSTEM() ),          # 2. sys dir
+                    Win32::GetFolderPath( Win32::CSIDL_WINDOWS() ),         # 4. win dir
+                    File::Spec->rel2abs( File::Spec->curdir ),              # 5. cwd
+                    File::Spec->path(),                                     # 6. $ENV{PATH}
+                    map { split /[:;]/, ( $ENV{$_} ) } grep { $ENV{$_} }    # X. User defined
+                        qw[LD_LIBRARY_PATH DYLD_LIBRARY_PATH DYLD_FALLBACK_LIBRARY_PATH]
                 );
-                warn $_ for sort { lc $a cmp lc $b } @dirs;
+
+                #warn $_ for sort { lc $a cmp lc $b } @dirs;
                 find(
                     {   wanted => sub {
                             $File::Find::prune = 1
@@ -227,12 +228,13 @@ package Affix 0.03 {
                     File::Spec->path(),                           # 0. $ENV{PATH}
                     map      { File::Spec->rel2abs($_) }
                         grep { -d $_ } qw[~/lib /usr/local/lib /usr/lib],
-                    map { $ENV{$_} // () }
+                    map      { split /[:;]/, ( $ENV{$_} ) }
+                        grep { $ENV{$_} }
                         qw[LD_LIBRARY_PATH DYLD_LIBRARY_PATH DYLD_FALLBACK_LIBRARY_PATH]
                 );
 
                 #use Test::More;
-                #diag join ', ', @dirs;
+                #warn join ', ', @dirs;
                 #warn;
                 find(
                     {   wanted => sub {
@@ -264,7 +266,8 @@ package Affix 0.03 {
                     File::Spec->path(),                           # 0. $ENV{PATH}
                     map      { File::Spec->rel2abs($_) }
                         grep { -d $_ } qw[~/lib /usr/local/lib /usr/lib],
-                    map { $ENV{$_} // () }
+                    map      { split /[:;]/, ( $ENV{$_} ) }
+                        grep { $ENV{$_} }
                         qw[LD_LIBRARY_PATH DYLD_LIBRARY_PATH DYLD_FALLBACK_LIBRARY_PATH]
                 );
 

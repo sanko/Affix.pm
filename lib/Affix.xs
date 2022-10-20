@@ -322,33 +322,33 @@ static size_t _sizeof(pTHX_ SV *type) {
 }
 
 static DCaggr *_aggregate(pTHX_ SV *type) {
-   //warn("here at %s line %d", __FILE__, __LINE__);
-    //sv_dump(type);
+    // warn("here at %s line %d", __FILE__, __LINE__);
+    // sv_dump(type);
 
     char *str = SvPVbytex_nolen(type); // stringify to sigchar; speed cheat vs sv_derived_from(...)
-   //warn("here at %s line %d", __FILE__, __LINE__);
+                                       // warn("here at %s line %d", __FILE__, __LINE__);
 
     size_t size = _sizeof(aTHX_ type);
-   //warn("here at %s line %d", __FILE__, __LINE__);
+    // warn("here at %s line %d", __FILE__, __LINE__);
 
     switch (str[0]) {
     case DC_SIGCHAR_STRUCT: {
-       //warn("here at %s line %d", __FILE__, __LINE__);
+        // warn("here at %s line %d", __FILE__, __LINE__);
 
         if (hv_exists(MUTABLE_HV(SvRV(type)), "aggregate", 9)) {
             SV *__type = *hv_fetchs(MUTABLE_HV(SvRV(type)), "aggregate", 0);
-           //warn("here at %s line %d", __FILE__, __LINE__);
-            //sv_dump(__type);
+            // warn("here at %s line %d", __FILE__, __LINE__);
+            // sv_dump(__type);
 
             // return SvIV(*hv_fetchs(MUTABLE_HV(SvRV(type)), "aggregate", 0));
             if (sv_derived_from(__type, "Dyn::Call::Aggregate")) {
-               //warn("here at %s line %d", __FILE__, __LINE__);
+                // warn("here at %s line %d", __FILE__, __LINE__);
 
                 HV *hv_ptr = MUTABLE_HV(__type);
-               //warn("here at %s line %d", __FILE__, __LINE__);
+                // warn("here at %s line %d", __FILE__, __LINE__);
 
                 IV tmp = SvIV((SV *)SvRV(__type));
-               //warn("here at %s line %d", __FILE__, __LINE__);
+                // warn("here at %s line %d", __FILE__, __LINE__);
 
                 return INT2PTR(DCaggr *, tmp);
             }
@@ -356,7 +356,7 @@ static DCaggr *_aggregate(pTHX_ SV *type) {
                 croak("Oh, no...");
         }
         else {
-           //warn("here at %s line %d", __FILE__, __LINE__);
+            // warn("here at %s line %d", __FILE__, __LINE__);
 
             SV **idk_wtf = hv_fetchs(MUTABLE_HV(SvRV(type)), "fields", 0);
             SV **sv_packed = hv_fetchs(MUTABLE_HV(SvRV(type)), "packed", 0);
@@ -383,7 +383,7 @@ static DCaggr *_aggregate(pTHX_ SV *type) {
                 } break;
                 }
             }
-           //warn("here at %s line %d", __FILE__, __LINE__);
+            // warn("here at %s line %d", __FILE__, __LINE__);
 
             // warn("dcCloseAggr(agg);");
             dcCloseAggr(agg);
@@ -451,7 +451,7 @@ static DCaggr *coerce(pTHX_ SV *type, SV *data, DCpointer ptr, bool packed, size
     case DC_SIGCHAR_STRUCT: {
         if (SvTYPE(SvRV(data)) != SVt_PVHV) croak("Expected a hash reference");
         size_t size = _sizeof(aTHX_ type);
-        //warn("STRUCT! size: %d", size);
+        // warn("STRUCT! size: %d", size);
 
         HV *hv_type = MUTABLE_HV(SvRV(type));
         HV *hv_data = MUTABLE_HV(SvRV(data));
@@ -465,26 +465,26 @@ static DCaggr *coerce(pTHX_ SV *type, SV *data, DCpointer ptr, bool packed, size
 
         // warn("field_count [%d]", field_count);
 
-        //warn("size [%d]", size);
+        // warn("size [%d]", size);
 
-        //DumpHex(ptr, size);
-       //warn("here at %s line %d", __FILE__, __LINE__);
+        // DumpHex(ptr, size);
+        // warn("here at %s line %d", __FILE__, __LINE__);
 
         DCaggr *retval = _aggregate(aTHX_ type);
-       //warn("here at %s line %d", __FILE__, __LINE__);
+        // warn("here at %s line %d", __FILE__, __LINE__);
         for (int i = 0; i < field_count; ++i) {
-           //warn("here at %s line %d", __FILE__, __LINE__);
+            // warn("here at %s line %d", __FILE__, __LINE__);
 
             SV **field = av_fetch(av_fields, i, 0);
 
             AV *key_value = MUTABLE_AV((*field));
             // //sv_dump( MUTABLE_SV((*field)));
-           //warn("here at %s line %d", __FILE__, __LINE__);
+            // warn("here at %s line %d", __FILE__, __LINE__);
 
             SV **name_ptr = av_fetch(key_value, 0, 0);
             SV **type_ptr = av_fetch(key_value, 1, 0);
             char *key = SvPVbytex_nolen(*name_ptr);
-           //warn("here at %s line %d", __FILE__, __LINE__);
+            // warn("here at %s line %d", __FILE__, __LINE__);
 
             // SV * type = *type_ptr;
             // warn("key[%d] %s", i, key);
@@ -493,7 +493,7 @@ static DCaggr *coerce(pTHX_ SV *type, SV *data, DCpointer ptr, bool packed, size
                 croak("Expected key %s does not exist in given data", key);
             SV **_data = hv_fetch(hv_data, key, strlen(key), 0);
             char *type = SvPVbytex_nolen(*type_ptr);
-           //warn("here at %s line %d", __FILE__, __LINE__);
+            // warn("here at %s line %d", __FILE__, __LINE__);
 
             warn("Added %c:'%s' in slot %d at %s line %d", type[0], key, pos, __FILE__, __LINE__);
 
@@ -520,7 +520,7 @@ static DCaggr *coerce(pTHX_ SV *type, SV *data, DCpointer ptr, bool packed, size
 
             // //sv_dump(*_data);
         }
-        //DumpHex(ptr, size);
+        // DumpHex(ptr, size);
 
         // DumpHex(ptr, pos);
         dcCloseAggr(retval);
@@ -1315,8 +1315,8 @@ static DCpointer _sloppy_coerce(pTHX_ SV *type, SV *in, DCpointer data) {
         //  sv_dump(*field_name_ptr);
     }
 
-    //warn("field_count == %d", field_count);
-    //DumpHex(data, _sizeof(type));
+    // warn("field_count == %d", field_count);
+    // DumpHex(data, _sizeof(aTHX_ type));
 
     return data;
 }
@@ -1604,20 +1604,20 @@ XS_EUPXS(Types_type_call) {
 
             SV *field = *av_fetch(call->args, i, 0); // Make broad assumptions
             // DCaggr *agg = _aggregate(aTHX_ field);
-            DCpointer ptr = safemalloc(_sizeof(field));
+            DCpointer ptr = safemalloc(_sizeof(aTHX_ field));
 
             // static DCaggr *coerce(pTHX_ SV *type, SV *data, DCpointer ptr, bool packed, size_t
             // pos) {
             DCaggr *agg = coerce(aTHX_ field, value, ptr, false, 0);
 
-            //sv_dump(field);
-            //sv_dump(value);
+            // sv_dump(field);
+            // sv_dump(value);
 
-            //DumpHex(ptr, 12);
-            //DumpHex(ptr, _sizeof(field));
+            // DumpHex(ptr, 12);
+            // DumpHex(ptr, _sizeof(aTHX_ field));
 
             dcArgAggr(MY_CXT.cvm, agg, ptr);
-           //warn("here at %s line %d", __FILE__, __LINE__);
+            // warn("here at %s line %d", __FILE__, __LINE__);
 
         } break;
 
@@ -1682,19 +1682,19 @@ XS_EUPXS(Types_type_call) {
             RETVAL = newSVpv((char *)dcCallPointer(MY_CXT.cvm, call->fptr), 0);
             break;
         case DC_SIGCHAR_BLESSED: {
-           //warn("here at %s line %d", __FILE__, __LINE__);
+            // warn("here at %s line %d", __FILE__, __LINE__);
 
             DCpointer ptr = dcCallPointer(MY_CXT.cvm, call->fptr);
-           //warn("here at %s line %d", __FILE__, __LINE__);
+            // warn("here at %s line %d", __FILE__, __LINE__);
 
             SV **package = hv_fetchs(MUTABLE_HV(SvRV(call->retval)), "package", 0);
-           //warn("here at %s line %d", __FILE__, __LINE__);
+            // warn("here at %s line %d", __FILE__, __LINE__);
 
             RETVAL = newSV(1);
-           //warn("here at %s line %d", __FILE__, __LINE__);
+            // warn("here at %s line %d", __FILE__, __LINE__);
 
             sv_setref_pv(RETVAL, SvPVbytex_nolen(*package), ptr);
-           //warn("here at %s line %d", __FILE__, __LINE__);
+            // warn("here at %s line %d", __FILE__, __LINE__);
 
         } break;
         case DC_SIGCHAR_ANY: {
@@ -1867,6 +1867,55 @@ BOOT:
 }
 // clang-format off
 
+DLLib *
+load_lib(const char * lib_name)
+CODE:
+{
+    // clang-format on
+    // Use perl to get the actual path to the library
+    {
+        dSP;
+        int count;
+
+        ENTER;
+        SAVETMPS;
+
+        PUSHMARK(SP);
+        EXTEND(SP, 1);
+        PUSHs(ST(0));
+        PUTBACK;
+
+        count = call_pv("Affix::guess_library_name", G_SCALAR);
+
+        SPAGAIN;
+
+        if (count == 1) lib_name = SvPVx_nolen(POPs);
+
+        PUTBACK;
+        FREETMPS;
+        LEAVE;
+    }
+    RETVAL =
+#if defined(_WIN32) || defined(_WIN64)
+        dlLoadLibrary(lib_name);
+#else
+        (DLLib *)dlopen(lib_name, RTLD_LAZY /* RTLD_NOW|RTLD_GLOBAL */);
+#endif
+    if (RETVAL == NULL) {
+#if defined(_WIN32) || defined(__WIN32__)
+        unsigned int err = GetLastError();
+        croak("Failed to load %s: %d", lib_name, err);
+#else
+        char *reason = dlerror();
+        croak("Failed to load %s: %s", lib_name, reason);
+#endif
+        XSRETURN_EMPTY;
+    }
+}
+// clang-format off
+OUTPUT:
+    RETVAL
+
 SV *
 attach(lib, symbol, args, ret, mode = DC_SIGCHAR_CC_DEFAULT, func_name = (ix == 1) ? NULL : symbol)
     const char * symbol
@@ -1916,6 +1965,8 @@ CODE:
             LEAVE;
         }
 
+        warn("lib_name == %s", lib_name);
+
         lib =
 #if defined(_WIN32) || defined(_WIN64)
             dlLoadLibrary(lib_name);
@@ -1928,11 +1979,11 @@ CODE:
             croak("Failed to load %s: %d", lib_name, err);
 #else
             char *reason = dlerror();
-            croak("Failed to load %s", reason);
+            croak("Failed to load %s: %s", lib_name, reason);
 #endif
+            XSRETURN_EMPTY;
         }
     }
-    if (lib == NULL) XSRETURN_EMPTY;
     Newx(call, 1, Call);
 
     // warn("_load(..., %s, '%c')", symbol, mode);
