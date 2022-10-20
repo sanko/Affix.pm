@@ -322,22 +322,42 @@ static size_t _sizeof(pTHX_ SV *type) {
 }
 
 static DCaggr *_aggregate(pTHX_ SV *type) {
+   //warn("here at %s line %d", __FILE__, __LINE__);
+    //sv_dump(type);
+
     char *str = SvPVbytex_nolen(type); // stringify to sigchar; speed cheat vs sv_derived_from(...)
+   //warn("here at %s line %d", __FILE__, __LINE__);
+
     size_t size = _sizeof(aTHX_ type);
+   //warn("here at %s line %d", __FILE__, __LINE__);
+
     switch (str[0]) {
     case DC_SIGCHAR_STRUCT: {
+       //warn("here at %s line %d", __FILE__, __LINE__);
+
         if (hv_exists(MUTABLE_HV(SvRV(type)), "aggregate", 9)) {
+            SV *__type = *hv_fetchs(MUTABLE_HV(SvRV(type)), "aggregate", 0);
+           //warn("here at %s line %d", __FILE__, __LINE__);
+            //sv_dump(__type);
+
             // return SvIV(*hv_fetchs(MUTABLE_HV(SvRV(type)), "aggregate", 0));
-            if (sv_derived_from(type, "Dyn::Call::Aggregate")) {
-                HV *hv_ptr = MUTABLE_HV(type);
-                SV **ptr_ptr = hv_fetchs(hv_ptr, "aggregate", 1);
-                IV tmp = SvIV((SV *)SvRV(*ptr_ptr));
+            if (sv_derived_from(__type, "Dyn::Call::Aggregate")) {
+               //warn("here at %s line %d", __FILE__, __LINE__);
+
+                HV *hv_ptr = MUTABLE_HV(__type);
+               //warn("here at %s line %d", __FILE__, __LINE__);
+
+                IV tmp = SvIV((SV *)SvRV(__type));
+               //warn("here at %s line %d", __FILE__, __LINE__);
+
                 return INT2PTR(DCaggr *, tmp);
             }
             else
                 croak("Oh, no...");
         }
         else {
+           //warn("here at %s line %d", __FILE__, __LINE__);
+
             SV **idk_wtf = hv_fetchs(MUTABLE_HV(SvRV(type)), "fields", 0);
             SV **sv_packed = hv_fetchs(MUTABLE_HV(SvRV(type)), "packed", 0);
             bool packed = SvTRUE(*sv_packed);
@@ -363,6 +383,8 @@ static DCaggr *_aggregate(pTHX_ SV *type) {
                 } break;
                 }
             }
+           //warn("here at %s line %d", __FILE__, __LINE__);
+
             // warn("dcCloseAggr(agg);");
             dcCloseAggr(agg);
             {
@@ -429,7 +451,7 @@ static DCaggr *coerce(pTHX_ SV *type, SV *data, DCpointer ptr, bool packed, size
     case DC_SIGCHAR_STRUCT: {
         if (SvTYPE(SvRV(data)) != SVt_PVHV) croak("Expected a hash reference");
         size_t size = _sizeof(aTHX_ type);
-        warn("STRUCT! size: %d", size);
+        //warn("STRUCT! size: %d", size);
 
         HV *hv_type = MUTABLE_HV(SvRV(type));
         HV *hv_data = MUTABLE_HV(SvRV(data));
@@ -443,19 +465,27 @@ static DCaggr *coerce(pTHX_ SV *type, SV *data, DCpointer ptr, bool packed, size
 
         // warn("field_count [%d]", field_count);
 
-        warn("size [%d]", size);
+        //warn("size [%d]", size);
 
-        DumpHex(ptr, size);
-        DCaggr *retval = _aggregate(aTHX_ SvRV(type));
+        //DumpHex(ptr, size);
+       //warn("here at %s line %d", __FILE__, __LINE__);
 
+        DCaggr *retval = _aggregate(aTHX_ type);
+       //warn("here at %s line %d", __FILE__, __LINE__);
         for (int i = 0; i < field_count; ++i) {
+           //warn("here at %s line %d", __FILE__, __LINE__);
+
             SV **field = av_fetch(av_fields, i, 0);
+
             AV *key_value = MUTABLE_AV((*field));
             // //sv_dump( MUTABLE_SV((*field)));
+           //warn("here at %s line %d", __FILE__, __LINE__);
 
             SV **name_ptr = av_fetch(key_value, 0, 0);
             SV **type_ptr = av_fetch(key_value, 1, 0);
             char *key = SvPVbytex_nolen(*name_ptr);
+           //warn("here at %s line %d", __FILE__, __LINE__);
+
             // SV * type = *type_ptr;
             // warn("key[%d] %s", i, key);
             // warn("val[%d] %s", i, SvPVbytex_nolen(val));
@@ -463,17 +493,34 @@ static DCaggr *coerce(pTHX_ SV *type, SV *data, DCpointer ptr, bool packed, size
                 croak("Expected key %s does not exist in given data", key);
             SV **_data = hv_fetch(hv_data, key, strlen(key), 0);
             char *type = SvPVbytex_nolen(*type_ptr);
+           //warn("here at %s line %d", __FILE__, __LINE__);
 
-            if (!packed) pos += padding_needed_for(pos, _sizeof(aTHX_ * type_ptr));
-            warn("Added %c:'%s' at slot %d", type[0], key, pos);
+            warn("Added %c:'%s' in slot %d at %s line %d", type[0], key, pos, __FILE__, __LINE__);
+
+            size_t el_len = _sizeof(aTHX_ * type_ptr);
+
             coerce(aTHX_ * type_ptr, *(hv_fetch(hv_data, key, strlen(key), 0)),
-                   ((DCpointer)(PTR2IV(ptr) + pos)), packed, 0);
+                   ((DCpointer)(PTR2IV(ptr) + pos)), packed, pos);
+
+            warn("padding needed: %d for size of %d at %s line %d",
+                 padding_needed_for(PTR2IV(ptr), _sizeof(aTHX_ * type_ptr)),
+                 _sizeof(aTHX_ * type_ptr), __FILE__, __LINE__);
+            pos += el_len;
+
+            /*
+            if (!packed)
+                pos += padding_needed_for(pos, _sizeof(aTHX_ * type_ptr));
+            else
+                pos += _sizeof(aTHX_ * type_ptr);*/
+
+            warn("value of pos is %d at %s line %d", pos, __FILE__, __LINE__);
 
             // warn("dcAggrField(*agg, DC_SIGCHAR_INT, %d, 1);", pos);
             // dcAggrField(retval, DC_SIGCHAR_INT, 0, 1);
 
             // //sv_dump(*_data);
         }
+        //DumpHex(ptr, size);
 
         // DumpHex(ptr, pos);
         dcCloseAggr(retval);
@@ -1268,7 +1315,8 @@ static DCpointer _sloppy_coerce(pTHX_ SV *type, SV *in, DCpointer data) {
         //  sv_dump(*field_name_ptr);
     }
 
-    warn("field_count == %d", field_count);
+    //warn("field_count == %d", field_count);
+    //DumpHex(data, _sizeof(type));
 
     return data;
 }
@@ -1555,10 +1603,22 @@ XS_EUPXS(Types_type_call) {
                 croak("Type of arg %d must be a hash ref", i + 1);
 
             SV *field = *av_fetch(call->args, i, 0); // Make broad assumptions
-            DCaggr *agg = _aggregate(aTHX_ field);
-            DCpointer ptr = sloppy_coerce(field, SvRV(value));
+            // DCaggr *agg = _aggregate(aTHX_ field);
+            DCpointer ptr = safemalloc(_sizeof(field));
+
+            // static DCaggr *coerce(pTHX_ SV *type, SV *data, DCpointer ptr, bool packed, size_t
+            // pos) {
+            DCaggr *agg = coerce(aTHX_ field, value, ptr, false, 0);
+
+            //sv_dump(field);
+            //sv_dump(value);
+
+            //DumpHex(ptr, 12);
+            //DumpHex(ptr, _sizeof(field));
 
             dcArgAggr(MY_CXT.cvm, agg, ptr);
+           //warn("here at %s line %d", __FILE__, __LINE__);
+
         } break;
 
         default:
@@ -1622,10 +1682,20 @@ XS_EUPXS(Types_type_call) {
             RETVAL = newSVpv((char *)dcCallPointer(MY_CXT.cvm, call->fptr), 0);
             break;
         case DC_SIGCHAR_BLESSED: {
+           //warn("here at %s line %d", __FILE__, __LINE__);
+
             DCpointer ptr = dcCallPointer(MY_CXT.cvm, call->fptr);
+           //warn("here at %s line %d", __FILE__, __LINE__);
+
             SV **package = hv_fetchs(MUTABLE_HV(SvRV(call->retval)), "package", 0);
+           //warn("here at %s line %d", __FILE__, __LINE__);
+
             RETVAL = newSV(1);
+           //warn("here at %s line %d", __FILE__, __LINE__);
+
             sv_setref_pv(RETVAL, SvPVbytex_nolen(*package), ptr);
+           //warn("here at %s line %d", __FILE__, __LINE__);
+
         } break;
         case DC_SIGCHAR_ANY: {
             DCpointer ptr = dcCallPointer(MY_CXT.cvm, call->fptr);
@@ -1639,6 +1709,7 @@ XS_EUPXS(Types_type_call) {
         }
 
         if (pointers) {
+            // warn("pointers! at %s line %d", __FILE__, __LINE__);
             for (int i = 0; i < call->sig_len; ++i) {
                 switch (call->sig[i]) {
                 case DC_SIGCHAR_POINTER: {
@@ -1659,7 +1730,6 @@ XS_EUPXS(Types_type_call) {
             }
         }
         if (call->ret == DC_SIGCHAR_VOID) XSRETURN_EMPTY;
-
         RETVAL = sv_2mortal(RETVAL);
         ST(0) = RETVAL;
 
