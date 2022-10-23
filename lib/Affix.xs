@@ -495,7 +495,7 @@ static DCaggr *coerce(pTHX_ SV *type, SV *data, DCpointer ptr, bool packed, size
             char *type = SvPVbytex_nolen(*type_ptr);
             // warn("here at %s line %d", __FILE__, __LINE__);
 
-            warn("Added %c:'%s' in slot %d at %s line %d", type[0], key, pos, __FILE__, __LINE__);
+            warn("Added %c:'%s' in slot %lu at %s line %d", type[0], key, pos, __FILE__, __LINE__);
 
             size_t el_len = _sizeof(aTHX_ * type_ptr);
 
@@ -1062,7 +1062,7 @@ XS_EUPXS(Types_typedef) {
 
     const char *name = SvPV_nolen(ST(0));
     {
-        CV *cv = newXSproto_portable(name, Types_return_typedef, __FILE__, ";$");
+        CV *cv = newXSproto_portable(name, Types_return_typedef, __FILE__, "");
         SV *sv = newSV(0);
         XSANY.any_sv = SvREFCNT_inc(ST(1));
     }
@@ -1606,7 +1606,8 @@ XS_EUPXS(Types_type_call) {
             if (SvOK(*size_ptr)) {
                 av_len = SvIV(*size_ptr);
                 if (av_count(elements) != av_len)
-                    croak("Expected an array of %d elements; found %d", av_len, av_count(elements));
+                    croak("Expected an array of %lu elements; found %d", av_len,
+                          av_count(elements));
             }
             else
                 av_len = av_count(elements);

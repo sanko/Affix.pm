@@ -195,12 +195,12 @@ void _DumpHex(const void *addr, size_t len, const char *file, int line) {
     unsigned char buff[perLine + 1];
     const unsigned char *pc = (const unsigned char *)addr;
 
-    printf("Dumping %d bytes from %p at %s line %d\n", len, addr, file, line);
+    printf("Dumping %lu bytes from %p at %s line %d\n", len, addr, file, line);
 
     // Length checks.
     if (len == 0) croak("ZERO LENGTH");
 
-    if (len < 0) croak("NEGATIVE LENGTH: %d", len);
+    if (len < 0) croak("NEGATIVE LENGTH: %lu", len);
 
     for (i = 0; i < len; i++) {
         if ((i % perLine) == 0) { // Only print previous-line ASCII buffer for
@@ -234,7 +234,7 @@ void _DumpHex(const void *addr, size_t len, const char *file, int line) {
 
 const char *ordinal(int n) {
     static const char suffixes[][3] = {"th", "st", "nd", "rd"};
-    auto ord = n % 100;
+    int ord = n % 100;
     if (ord / 10 == 1) { ord = 0; }
     ord = ord % 10;
     if (ord > 3) { ord = 0; }

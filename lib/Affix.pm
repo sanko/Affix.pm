@@ -35,38 +35,6 @@ package Affix 0.03 {
     #
     my %_delay;
 
-    sub go() {
-
-        #warn "HOOOOOOOOOOOOOOOOOOOOOOOOOOOOOOOO";
-        #use Data::Dump;
-        #ddx \%_delay;
-        for my $sub ( keys %_delay ) {
-            if ( defined $_delay{$sub} ) {
-
-                #use Data::Dump;
-                #ddx \%_delay;
-                #warn $_delay{$sub}[3];
-                my $line
-                    = sprintf( 'package %s{sub{sub{Affix::guess_library_name(%s,%s)}}->()->();};',
-                    $_delay{$sub}[0], $_delay{$sub}[1], $_delay{$sub}[2] );
-
-                #warn $line;
-                #warn eval $line;
-                #warn $main::lib_file;
-                my $cv = attach( guess_library_name( eval( $_delay{$sub}[1] ), $_delay{$sub}[2] ),
-                    $_delay{$sub}[3], $_delay{$sub}[4], $_delay{$sub}[5], $_delay{$sub}[6] );
-
-                #{
-                #    no strict 'refs';
-                #    *{$sub} = $cv;
-                # }
-                #*{$full_name} = $cv
-                delete $_delay{$sub};
-                return goto &$cv;
-            }
-        }
-    }
-
     sub AUTOLOAD {
         my $self = $_[0];           # Not shift, using goto.
         my $sub  = our $AUTOLOAD;
@@ -75,11 +43,13 @@ package Affix 0.03 {
             #warn 'Wrapping ' . $sub;
             #use Data::Dump;
             #ddx $_delay{$sub};
-            my $cv = attach(
-                guess_library_name( eval( $_delay{$sub}[1] ), $_delay{$sub}[2] ),
-                $_delay{$sub}[3], $_delay{$sub}[4], $_delay{$sub}[5],
-                $_delay{$sub}[6], $_delay{$sub}[7]
-            );
+            my $sig = eval sprintf qq'package %s; %s;', $_delay{$sub}[0], $_delay{$sub}[4];
+            my $ret = eval sprintf qq'package %s; %s;', $_delay{$sub}[0], $_delay{$sub}[5];
+
+            #ddx [ guess_library_name( eval( $_delay{$sub}[1] ), $_delay{$sub}[2] ),
+            #    $_delay{$sub}[3], $sig, $ret, $_delay{$sub}[6], $_delay{$sub}[7] ];
+            my $cv = attach( guess_library_name( eval( $_delay{$sub}[1] ), $_delay{$sub}[2] ),
+                $_delay{$sub}[3], $sig, $ret, $_delay{$sub}[6], $_delay{$sub}[7] );
             delete $_delay{$sub};
             return goto &$cv;
         }
@@ -131,22 +101,14 @@ package Affix 0.03 {
 
            #elsif ( $attribute =~ m[^Signature\s*?\(\s*(.+?)?(?:\s*=>\s*(\w+)?)?\s*\)$] ) { # pretty
             elsif ( $attribute =~ m[^Signature\(\s*(\[.*\])\s*=>\s*(.*)\)$] ) {    # pretty
-                my $args = $1;
-                my $ret  = $2;
-
-                #my ($ret, $args) = $1 =~ m[^(\w+)(?:\s*=>\s*(.+))?$];
-                $ret //= 'Void';
-
-                #warn $args;
-                #warn $ret;
-                $signature = eval($args);
-                $return    = eval($ret);
+                $signature = $1;
+                $return    = $2;
             }
             else { return $attribute }
         }
         $mode      //= DC_SIGCHAR_CC_DEFAULT();
-        $signature //= [];
-        $return    //= Void();
+        $signature //= '[]';
+        $return    //= 'Void';
         $full_name = subname $code;
         if ( !grep { !defined } $library, $library_version, $full_name ) {
             if ( !defined $symbol ) {
@@ -160,6 +122,7 @@ package Affix 0.03 {
             #    $signature, $return,  $mode,            $full_name
             #];
             if ( defined &{$full_name} ) {    #no strict 'refs';
+                ...;
                 return attach( guess_library_name( eval($library), $library_version ),
                     $symbol, $signature, $return, $mode, $full_name );
             }
