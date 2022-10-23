@@ -73,28 +73,33 @@ compile_test_lib('55_affix_enum');
         ok !$char_enum->value('omega'), 'enum does not have an value with id "omega"';
     }
 }
-{
-    sub TakeEnum : Native('t/55_affix_enum') : Signature([Enum[['FOX'=> 11], ['NBC'=> 32]]]=>Int);
-    is TakeEnum(11), -11, 'FOX';
-    is TakeEnum(15), -1,  'ESPN';
-}
 subtest 'typedef' => sub {
     use Affix::Enum;
     typedef TV => Affix::Enum [
-        [ FOX  => 11 ],
-        [ CNN  => 25 ],
-        [ ESPN => 15 ],
-        [ HBO  => 22 ],
-        [ MAX  => 30 ],
-        [ NBC  => 32 ]
+        [ FOX   => 11 ],
+        [ CNN   => 25 ],
+        [ ESPN  => 15 ],
+        [ HBO   => 22 ],
+        [ MAX   => 30 ],
+        [ NBC   => 32 ],
+        [ MSN   => 45 ],
+        [ MSNBC => 'MSN + NBC' ]
     ];
+
+    # TODO: Signature() should accept typedef'ed args
+    sub TakeEnum : Native('t/55_affix_enum') : Signature([TV]=>Int);
+    is TakeEnum(11), -11, 'FOX';
+    is TakeEnum(15), -1,  'ESPN';
     my $cv = wrap 't/55_affix_enum', 'TakeEnum', [ TV() ], TV();
     isa_ok TV(), 'Affix::Type::Enum', 'typedef TV';
-    is TV::FOX(),          'FOX',      'typedef Enum results in dualvars [string]';
-    is TV::FOX() + 0,      11,         'typedef Enum results in dualvars [numeric]';
-    is TakeEnum(11),       -11,        'FOX';
-    is TakeEnum(15),       -1,         'ESPN';
-    is $cv->( TV::FOX() ), -TV::FOX(), 'TV::FOX() used in call';
-    is $cv->( TV::CNN() ), -1,         'TV::CNN() used in call';
+    is TV::FOX(),       'FOX',                 'typedef Enum results in dualvars [FOX string]';
+    is TV::FOX() + 0,   11,                    'typedef Enum results in dualvars [FOX numeric]';
+    is TV::MSNBC(),     'MSNBC',               'typedef Enum results in dualvars [MSNBC string]';
+    is TV::MSNBC() + 0, TV::NBC() + TV::MSN(), 'typedef Enum results in dualvars [MSNBC numeric]';
+    is TakeEnum(11),    -11,                   'FOX used in attached function';
+    is TakeEnum(15),    -1,                    'ESPN used in attached function';
+    is $cv->( TV::FOX() ),   -TV::FOX(),       'TV::FOX() used in wrapped function';
+    is $cv->( TV::CNN() ),   -1,               'TV::CNN() used in wrapped function';
+    is $cv->( TV::MSNBC() ), -1,               'TV::MSNBC() used in wrapped function';
 };
 done_testing;
