@@ -85,13 +85,11 @@ subtest 'typedef' => sub {
         [ MSN   => 45 ],
         [ MSNBC => 'MSN + NBC' ]
     ];
-
-    # TODO: Signature() should accept typedef'ed args
     sub TakeEnum : Native('t/55_affix_enum') : Signature([TV]=>Int);
-    is TakeEnum(11), -11, 'FOX';
-    is TakeEnum(15), -1,  'ESPN';
+    is TakeEnum( TV::FOX() ),  -11, 'FOX';
+    is TakeEnum( TV::ESPN() ), -1,  'ESPN';
     my $cv = wrap 't/55_affix_enum', 'TakeEnum', [ TV() ], TV();
-    isa_ok TV(), 'Affix::Type::Enum', 'typedef TV';
+    isa_ok( TV(), 'Affix::Type::Enum', 'typedef TV' );
     is TV::FOX(),       'FOX',                 'typedef Enum results in dualvars [FOX string]';
     is TV::FOX() + 0,   11,                    'typedef Enum results in dualvars [FOX numeric]';
     is TV::MSNBC(),     'MSNBC',               'typedef Enum results in dualvars [MSNBC string]';

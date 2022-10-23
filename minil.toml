@@ -10,3 +10,6 @@ requires_external_bin=["perl');\nuse lib '.';use builder::Dyn; builder::Dyn::Bui
 hook=[
     'tidyall -a'
 ]
+
+[Metadata]
+X_No_Archive = 'Yes'

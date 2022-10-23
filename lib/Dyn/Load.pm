@@ -1,4 +1,4 @@
-package Dyn::Load 0.03 {
+package Dyn::Load 0.04 {
     use strict;
     use warnings;
     use 5.030;

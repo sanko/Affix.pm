@@ -1,4 +1,4 @@
-package Affix 0.03 {
+package Affix 0.04 {
     use strict;
     use warnings;
     no warnings 'redefine';
@@ -254,6 +254,52 @@ package Affix 0.03 {
         # TODO: Make a test with a bad lib name
         $_lib_cache->{ $name . chr(0) . ( $version // '' ) }
             // Carp::croak( 'Cannot locate symbol: ' . $name );
+    }
+
+    # define packages that are otherwise XS-only so PAUSE will find them in META.json
+    {
+
+        package Affix::Type::Base 0.04;
+
+        package Affix::Type::Void 0.04;
+
+        package Affix::Type::Bool 0.04;
+
+        package Affix::Type::Char 0.04;
+
+        package Affix::Type::UChar 0.04;
+
+        package Affix::Type::Short 0.04;
+
+        package Affix::Type::UShort 0.04;
+
+        package Affix::Type::Int 0.04;
+
+        package Affix::Type::UInt 0.04;
+
+        package Affix::Type::Long 0.04;
+
+        package Affix::Type::ULong 0.04;
+
+        package Affix::Type::LongLong 0.04;
+
+        package Affix::Type::ULongLong 0.04;
+
+        package Affix::Type::Float 0.04;
+
+        package Affix::Type::Double 0.04;
+
+        package Affix::Type::Pointer 0.04;
+
+        package Affix::Type::Str 0.04;
+
+        package Affix::Type::CodeRef 0.04;
+
+        package Affix::Type::InstanceOf 0.04;
+
+        package Affix::Type::Any 0.04;
+
+        package Affix::Type::Enum 0.04;
     }
 };
 1;
