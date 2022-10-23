@@ -1044,6 +1044,15 @@ XS_EUPXS(Types_sig) {
     XSRETURN(1);
 }
 
+XS_EUPXS(Types_return_typedef); /* prototype to pass -Wmissing-prototypes */
+XS_EUPXS(Types_return_typedef) {
+    dXSARGS;
+    dXSI32;
+    dXSTARG;
+    ST(0) = XSANY.any_sv;
+    XSRETURN(1);
+}
+
 XS_EUPXS(Types_typedef); /* prototype to pass -Wmissing-prototypes */
 XS_EUPXS(Types_typedef) {
     dXSARGS;
@@ -1051,14 +1060,40 @@ XS_EUPXS(Types_typedef) {
     dXSTARG;
     XSprePUSH;
 
-    HV *type_registry = get_hv("Affix::Type::_reg", GV_ADD);
-    if (hv_exists_ent(type_registry, ST(0), 0))
-        croak("Type named '%s' is already defined", SvPV_nolen(ST(0)));
     const char *name = SvPV_nolen(ST(0));
-    if (!(sv_isobject(ST(1)) && sv_derived_from(ST(1), "Affix::Type::Base")))
-        croak("Given type for '%s' is not a subclass of Affix::Type::Base", name);
-    ST(0) = *hv_store(type_registry, name, strlen(name), newRV_inc(ST(1)), 0);
-    XSRETURN(1);
+    {
+        CV *cv = newXSproto_portable(name, Types_return_typedef, __FILE__, ";$");
+        SV *sv = newSV(0);
+        XSANY.any_sv = SvREFCNT_inc(ST(1));
+    }
+
+    if (sv_isobject(ST(1)) && sv_derived_from(ST(1), "Affix::Type::Enum")) {
+        HV *href = MUTABLE_HV(SvRV(ST(1)));
+        SV **values_ref = hv_fetch(href, "values", 6, 0);
+        SV **type_ref = hv_fetch(href, "type", 4, 0);
+        AV *values = MUTABLE_AV(SvRV(*values_ref));
+        HV *_stash = gv_stashpv(name, TRUE);
+        for (int i = 0; i < av_count(values); i++) {
+            SV **value = av_fetch(MUTABLE_AV(values), i, 0);
+            SV *value_name = *av_fetch(MUTABLE_AV(SvRV(*value)), 0, 0);
+            SV *value_value = *av_fetch(MUTABLE_AV(SvRV(*value)), 1, 0);
+            char *pkg_func = form("%s::%s", name, SvPV_nolen(value_name));
+            SV *targ = newSV(1);
+            (void)SvUPGRADE(targ, SVt_PVNV);
+            sv_copypv(targ, value_name);
+            if (SvNOK(value_value) || SvPOK(value_value) || SvMAGICAL(value_value)) {
+                SvNV_set(targ, SvNV(value_value));
+                SvNOK_on(targ);
+            }
+            else {
+                SvIV_set(targ, SvIV(value_value));
+                SvIOK_on(targ);
+            }
+            if (PL_tainting && (SvTAINTED(value_value) || SvTAINTED(value_name)))
+                SvTAINTED_on(targ);
+            newCONSTSUB(_stash, (char *)SvPV_nolen(value_name), targ);
+        }
+    }
 }
 
 XS_EUPXS(Types_type); /* prototype to pass -Wmissing-prototypes */
@@ -1622,7 +1657,7 @@ XS_EUPXS(Types_type_call) {
         } break;
 
         default:
-            croak("--> Unfinished: [%c/%d]", call->sig[i], i);
+            croak("--> Unfinished: [%c/%d]%s", call->sig[i], i, call->sig);
         }
     }
     // warn("Return type: %c at %s line %d", call->ret, __FILE__, __LINE__);
@@ -1856,6 +1891,8 @@ BOOT:
     TYPE("InstanceOf", DC_SIGCHAR_BLESSED, DC_SIGCHAR_POINTER);
     TYPE("Any", DC_SIGCHAR_ANY, DC_SIGCHAR_POINTER);
 
+    // TYPE("Enum::Int", DC_SIGCHAR_ANY, DC_SIGCHAR_INT);
+
     // Enum[]?
     export_function("Affix", "typedef", "types");
     export_function("Affix", "wrap", "default");
@@ -1965,7 +2002,7 @@ CODE:
             LEAVE;
         }
 
-        warn("lib_name == %s", lib_name);
+        // warn("lib_name == %s", lib_name);
 
         lib =
 #if defined(_WIN32) || defined(_WIN64)
