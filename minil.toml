@@ -1,4 +1,4 @@
-name = "Dyn"
+name = "Affix"
 badges = ["github-actions/linux.yaml", "github-actions/windows.yaml", "github-actions/osx.yaml", "github-actions/freebsd.yaml", "metacpan"]
 authority = "cpan:SANKO"
 module_maker = "ModuleBuildTiny"

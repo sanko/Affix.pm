@@ -1,5 +1,5 @@
 {
-   "abstract" : "dyncall Backed FFI",
+   "abstract" : "'FFI' is my middle name!",
    "author" : [
       "Sanko Robinson <sanko@cpan.org>"
    ],
@@ -12,7 +12,7 @@
       "url" : "http://search.cpan.org/perldoc?CPAN::Meta::Spec",
       "version" : 2
    },
-   "name" : "Dyn",
+   "name" : "Affix",
    "no_index" : {
       "directory" : [
          "t",

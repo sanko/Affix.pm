@@ -1,117 +1,81 @@
-[![Actions Status](https://github.com/sanko/Dyn.pm/actions/workflows/linux.yaml/badge.svg)](https://github.com/sanko/Dyn.pm/actions) [![Actions Status](https://github.com/sanko/Dyn.pm/actions/workflows/windows.yaml/badge.svg)](https://github.com/sanko/Dyn.pm/actions) [![Actions Status](https://github.com/sanko/Dyn.pm/actions/workflows/osx.yaml/badge.svg)](https://github.com/sanko/Dyn.pm/actions) [![Actions Status](https://github.com/sanko/Dyn.pm/actions/workflows/freebsd.yaml/badge.svg)](https://github.com/sanko/Dyn.pm/actions) [![MetaCPAN Release](https://badge.fury.io/pl/Dyn.svg)](https://metacpan.org/release/Dyn)
+[![Actions Status](https://github.com/sanko/Dyn.pm/actions/workflows/linux.yaml/badge.svg)](https://github.com/sanko/Dyn.pm/actions) [![Actions Status](https://github.com/sanko/Dyn.pm/actions/workflows/windows.yaml/badge.svg)](https://github.com/sanko/Dyn.pm/actions) [![Actions Status](https://github.com/sanko/Dyn.pm/actions/workflows/osx.yaml/badge.svg)](https://github.com/sanko/Dyn.pm/actions) [![Actions Status](https://github.com/sanko/Dyn.pm/actions/workflows/freebsd.yaml/badge.svg)](https://github.com/sanko/Dyn.pm/actions) [![MetaCPAN Release](https://badge.fury.io/pl/Affix.svg)](https://metacpan.org/release/Affix)
 # NAME
 
-Dyn - dyncall Backed FFI
+Affix - 'FFI' is my middle name!
 
 # SYNOPSIS
 
-    use Dyn qw[:dc :dl]; # Imports all of Dyn::Call's functions
+    use Affix;
+    attach( ( $^O eq 'MSWin32' ? 'ntdll' : 'libm' ), 'pow', [ Double, Double ] => Double );
+    print pow( 2, 10 );    # 1024
 
 # DESCRIPTION
 
-Dyn is a wrapper around [dyncall](https://dyncall.org/). It's here for the sake
-of convenience.
+Dyn is a wrapper around [dyncall](https://dyncall.org/). If you're looking to
+design your own low level wrapper, see [Dyn.pm](https://metacpan.org/pod/Dyn).
 
-This distribution includes...
+# `:Native` CODE attribute
 
-- [Dyn::Call](https://metacpan.org/pod/Dyn%3A%3ACall)
+While most of the upstream API is covered in the [Dyn::Call](https://metacpan.org/pod/Dyn%3A%3ACall),
+[Dyn::Callback](https://metacpan.org/pod/Dyn%3A%3ACallback), and [Dyn::Load](https://metacpan.org/pod/Dyn%3A%3ALoad) packages, all the sugar is right here in
+`Affix`. The most simple use of `Affix` would look something like this:
 
-    An encapsulation of architecture-, OS- and compiler-specific function call
-    semantics.
+    use Affix ':all';
+    sub some_argless_function() : Native('somelib.so') : Signature([]=>Void);
+    some_argless_function();
 
-    Functions can be imported with the `:dc` tag.
+Be aware that this will look a lot more like [NativeCall from
+Raku](https://docs.raku.org/language/nativecall) before v1.0!
 
-- [Dyn::Callback](https://metacpan.org/pod/Dyn%3A%3ACallback)
+The second line above looks like a normal Perl sub declaration but includes the
+`:Native` attribute to specify that the sub is actually defined in a native
+library.
 
-    Callback interface of `dyncall` located in `dyncallback`.
+To avoid banging your head on a built-in function, you may name your sub
+anything else and let Dyn know what symbol to attach:
 
-    Functions can be imported with the `:dcb` tag.
+    sub my_abs : Native('my_lib.dll') : Signature([Double]=>Double) : Symbol('abs');
+    CORE::say my_abs( -75 ); # Should print 75 if your abs is something that makes sense
 
-- [Dyn::Load](https://metacpan.org/pod/Dyn%3A%3ALoad)
+This is by far the fastest way to work with this distribution but it's not by
+any means the only way.
 
-    Facilitates portable library symbol loading and access to functions in foreign
-    dynamic libraries and code modules.
+All of the following methods may be imported by name or with the `:sugar` tag.
 
-    Functions can be imported with the `:dl` tag.
+Note that everything here is subject to change before v1.0.
+
+# Functions
+
+The less
+
+## `wrap( ... )`
+
+Creates a wrapper around a given symbol in a given library.
+
+    my $pow = Dyn::wrap( 'C:\Windows\System32\user32.dll', 'pow', [Double, Double]=>Double );
+    warn $pow->(5, 10); # 5**10
+
+Expected parameters include:
+
+- `lib` - pointer returned by [`dlLoadLibrary( ... )`](https://metacpan.org/pod/Dyn%3A%3ALoad#dlLoadLibrary) or the path of the library as a string
+- `symbol_name` - the name of the symbol to call
+- `signature` - signature defining argument types, return type, and optionally the calling convention used
+
+Returns a code reference.
+
+## `attach( ... )`
+
+Wraps a given symbol in a named perl sub.
+
+    Dyn::attach('C:\Windows\System32\user32.dll', 'pow', [Double, Double] => Double );
 
 # Signatures
 
-`dyncall` uses an almost `pack`-like syntax to define signatures. A signature
-is a character string that represents a function's arguments and return value
-types. This is an essential part of mapping the more flexible and often
-abstract data types provided in scripting languages to the strict machine-level
-data types used by C-libraries.
+`dyncall` uses an almost `pack`-like syntax to define signatures. Affix is
+inspired by [Type::Standard](https://metacpan.org/pod/Type%3A%3AStandard):
 
-Here are some signature examples along with their equivalent C function
-prototypes:
-
-    dyncall signature    C function prototype
-    --------------------------------------------
-    )v                   void      f1 ( )
-    ii)i                 int       f2 ( int, int )
-    p)L                  long long f3 ( void * )
-    p)v                  void      f4 ( int ** )
-    iBcdZ)d              double    f5 ( int, bool, char, double, const char * )
-    _esl_.di)v           void      f6 ( short a, long long b, ... ) (for (promoted) varargs: double, int)
-    (Zi)i                int       f7 ( const char *, int )
-    (iiid)v              void      f8 ( int, int, int, double )
-
-The following types are supported:
-
-    Signature character     C/C++ data type
-    ----------------------------------------------------
-    v                       void
-    B                       _Bool, bool
-    c                       char
-    C                       unsigned char
-    s                       short
-    S                       unsigned short
-    i                       int
-    I                       unsigned int
-    j                       long
-    J                       unsigned long
-    l                       long long, int64_t
-    L                       unsigned long long, uint64_t
-    f                       float
-    d                       double
-    p                       void *
-    Z                       const char * (pointer to a C string)
-
-Please note that using a `(` at the beginning of a signature string is
-possible, although not required. The character doesn't have any meaning and
-will simply be ignored. However, using it prevents annoying syntax highlighting
-problems with some code editors.
-
-Calling convention modes can be switched using the signature string, as well.
-An `_` in the signature string is followed by a character specifying what
-calling convention to use, as this effects how arguments are passed. This makes
-only sense if there are multiple co-existing calling conventions on a single
-platform. Usually, this is done at the beginning of the string, except in
-special cases, like specifying where the varargs part of a variadic function
-begins. The following signature characters exist:
-
-    Signature character   Calling Convention
-    ------------------------------------------------------
-    :                     platform's default calling convention
-    e                     vararg function
-    .                     vararg function's variadic/ellipsis part (...), to be specified before first vararg
-    c                     only on x86: cdecl
-    s                     only on x86: stdcall
-    F                     only on x86: fastcall (MS)
-    f                     only on x86: fastcall (GNU)
-    +                     only on x86: thiscall (MS)
-    #                     only on x86: thiscall (GNU)
-    A                     only on ARM: ARM mode
-    a                     only on ARM: THUMB mode
-    $                     syscall
-
-# Platform Support
-
-The dyncall library runs on many different platforms and operating systems
-(including Windows, Linux, OpenBSD, FreeBSD, macOS, DragonFlyBSD, NetBSD,
-Plan9, iOS, Haiku, Nintendo DS, Playstation Portable, Solaris, Minix, Raspberry
-Pi, ReactOS, etc.) and processors (x86, x64, arm (arm & thumb mode), arm64,
-mips, mips64, ppc32, ppc64, sparc, sparc64, etc.).
+- `Void`
+- `Int`
 
 # See Also
 
