@@ -16,6 +16,8 @@ jobs:
         perl: [ '5.32' ]
     steps:
     - uses: actions/checkout@v2
+      with:
+        submodules: 'recursive'
     - name: Test in FreeBSD
       id: test
       uses: vmactions/freebsd-vm@v0.2.9
