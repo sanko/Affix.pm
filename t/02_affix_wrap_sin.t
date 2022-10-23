@@ -8,14 +8,14 @@ use Config;
 $|++;
 #
 my $libfile
-    = $^O eq 'MSWin32' ? 'msvcrt.dll' :
-    $^O eq 'darwin'    ? '/usr/lib/libm.dylib' :
-    $^O eq 'bsd'       ? '/usr/lib/libm.so' :
-    $Config{archname} =~ /64/ ?
-    -e '/lib64/libm.so.6' ?
-    '/lib64/libm.so.6' :
-        '/lib/x86_64-linux-gnu/libm.so.6' :
-    '/lib/libm.so.6';
+    = Affix::guess_library_name( $^O eq 'MSWin32' ? 'msvcrt' :
+        $^O eq 'darwin' ? '/usr/lib/libm.dylib' :
+        $^O eq 'bsd'    ? '/usr/lib/libm.so' :
+        $Config{archname} =~ /64/ ?
+        -e '/lib64/libm.so.6' ?
+        '/lib64/libm.so.6' :
+            '/lib/x86_64-linux-gnu/libm.so.6' :
+        '/lib/libm.so.6' );
 
 #  "/usr/lib/system/libsystem_c.dylib", /* macos - note: not on fs w/ macos >= 11.0.1 */
 #    "/usr/lib/libc.dylib",

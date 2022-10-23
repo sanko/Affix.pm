@@ -10,8 +10,7 @@ use Dyn qw[:all];
 use t::lib::nativecall;
 #
 compile_test_lib('65_dyn_call_aggregate');
-
-# {ifdcj}
+#
 sub offset : Native('t/65_dyn_call_aggregate') : Signature([Char]=>Int);
 #
 subtest 'simple' => sub {

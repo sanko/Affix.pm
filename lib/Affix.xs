@@ -502,7 +502,7 @@ static DCaggr *coerce(pTHX_ SV *type, SV *data, DCpointer ptr, bool packed, size
             coerce(aTHX_ * type_ptr, *(hv_fetch(hv_data, key, strlen(key), 0)),
                    ((DCpointer)(PTR2IV(ptr) + pos)), packed, pos);
 
-            warn("padding needed: %d for size of %d at %s line %d",
+            warn("padding needed: %ul for size of %d at %s line %d",
                  padding_needed_for(PTR2IV(ptr), _sizeof(aTHX_ * type_ptr)),
                  _sizeof(aTHX_ * type_ptr), __FILE__, __LINE__);
             pos += el_len;
@@ -586,7 +586,7 @@ static DCaggr *coerce(pTHX_ SV *type, SV *data, DCpointer ptr, bool packed, size
         size_t av_len = av_count(elements);
         if (SvOK(*size_ptr)) {
             size_t tmp = SvIV(*size_ptr);
-            if (av_len != tmp) croak("Expected and array of %d elements; found %d", tmp, av_len);
+            if (av_len != tmp) croak("Expected and array of %ul elements; found %d", tmp, av_len);
         }
         size_t el_len = _sizeof(aTHX_ * type_ptr);
 

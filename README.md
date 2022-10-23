@@ -6,7 +6,13 @@ Affix - 'FFI' is my middle name!
 # SYNOPSIS
 
     use Affix;
-    attach( ( $^O eq 'MSWin32' ? 'ntdll' : 'libm' ), 'pow', [ Double, Double ] => Double );
+    my $lib
+        = $^O eq 'MSWin32'    ? 'ntdll' :
+        $^O eq 'darwin'       ? '/usr/lib/libm.dylib' :
+        $^O eq 'bsd'          ? '/usr/lib/libm.so' :
+        -e '/lib64/libm.so.6' ? '/lib64/libm.so.6' :
+        '/lib/x86_64-linux-gnu/libm.so.6';
+    attach( $lib, 'pow', [ Double, Double ] => Double );
     print pow( 2, 10 );    # 1024
 
 # DESCRIPTION
@@ -76,6 +82,14 @@ inspired by [Type::Standard](https://metacpan.org/pod/Type%3A%3AStandard):
 
 - `Void`
 - `Int`
+
+# Library paths and names
+
+The `Native` attribute accepts the library name, the full path, or a
+subroutine returning either of the two. When using the library name, the name
+is assumed to be prepended with lib and appended with `.so` (or just appended
+with `.dll` on Windows), and will be searched for in the paths in the
+`LD_LIBRARY_PATH` (`PATH` on Windows) environment variable.
 
 # See Also
 

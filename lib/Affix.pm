@@ -3,8 +3,9 @@ package Affix 0.04 {
     use warnings;
     no warnings 'redefine';
     use File::Spec;
-    use File::Basename qw[dirname];
-    use File::Find     qw[find];
+    use File::Spec::Functions qw[rel2abs];
+    use File::Basename        qw[dirname];
+    use File::Find            qw[find];
     use Config;
     use Sub::Util qw[subname];
     use Text::ParseWords;
@@ -48,7 +49,7 @@ package Affix 0.04 {
 
             #ddx [ guess_library_name( eval( $_delay{$sub}[1] ), $_delay{$sub}[2] ),
             #    $_delay{$sub}[3], $sig, $ret, $_delay{$sub}[6], $_delay{$sub}[7] ];
-            my $cv = attach( guess_library_name( eval( $_delay{$sub}[1] ), $_delay{$sub}[2] ),
+            my $cv = attach( guess_library_name( $_delay{$sub}[1], $_delay{$sub}[2] ),
                 $_delay{$sub}[3], $sig, $ret, $_delay{$sub}[6], $_delay{$sub}[7] );
             delete $_delay{$sub};
             return goto &$cv;
@@ -60,7 +61,7 @@ package Affix 0.04 {
         elsif ( $sub =~ /DESTROY$/ ) {
             return;
         }
-        Carp::croak("No method $sub ...");
+        Carp::croak("Undefined subroutine &$sub called");
     }
     #
     sub MODIFY_CODE_ATTRIBUTES ( $package, $code, @attributes ) {
@@ -123,7 +124,7 @@ package Affix 0.04 {
             #];
             if ( defined &{$full_name} ) {    #no strict 'refs';
                 ...;
-                return attach( guess_library_name( eval($library), $library_version ),
+                return attach( guess_library_name( $library, $library_version ),
                     $symbol, $signature, $return, $mode, $full_name );
             }
             $_delay{$full_name} = [
@@ -136,10 +137,21 @@ package Affix 0.04 {
     our $OS = $^O;
 
     sub guess_library_name ( $name = (), $version = () ) {
+        CORE::state $_lib_cache;
         ( $name, $version ) = @$name if ref $name eq 'ARRAY';
         $name // return ();    # NULL
         return $name if -e $name;
-        CORE::state $_lib_cache;
+        {
+            my $i   = -1;
+            my $pkg = __PACKAGE__;
+            ($pkg) = caller( ++$i ) while $pkg eq __PACKAGE__;    # Dig out of the hole first
+            my $ok = $pkg->can($name);
+            $name = $ok->() if $ok;
+        }
+
+        #$name = eval $name;
+        $name =~ s[['"]][]g;
+        #
         my @retval;
         ($version) = version->parse($version)->stringify =~ m[^v?(.+)$];
 
@@ -150,7 +162,8 @@ package Affix 0.04 {
                 $name =~ s[\.dll$][];
 
                 #return $name . '.dll'     if -f $name . '.dll';
-                return File::Spec->canonpath( File::Spec->rel2abs( $name . '.dll' ) )
+                return $_lib_cache->{ $name . chr(0) . ( $version // '' ) }
+                    = File::Spec->canonpath( File::Spec->rel2abs( $name . '.dll' ) )
                     if -e $name . '.dll';
                 require Win32;
 
@@ -209,12 +222,15 @@ package Affix 0.04 {
                     },
                     @dirs
                 );
+                $_lib_cache->{ $name . chr(0) . ( $version // '' ) } = rel2abs pop @retval;
 
                 #diag join ', ', @retval;
             }
             else {
-                return $name . '.so' if -f $name . '.so';
-                return $name         if -f $name;
+                return $_lib_cache->{ $name . chr(0) . ( $version // '' ) } = rel2abs $name
+                    if -f $name;
+                return $_lib_cache->{ $name . chr(0) . ( $version // '' ) } = rel2abs $name . '.so'
+                    if -f $name . '.so';
                 my $ext = $Config{so};
                 my @libs;
 
@@ -223,19 +239,16 @@ package Affix 0.04 {
                #my @lines = map { [/^\t(.+)\s\((.+)\)\s+=>\s+(.+)$/] }
                #    grep {/\b(?:lib)?${name}(?:-[\d\.]+)?\.${ext}(?:\.${version})?$/} `ldconfig -p`;
                #push @retval, map { $_->[2] } grep { -f $_->[2] } @lines;
-                my @dirs = (
+                my @dirs = grep { -d $_ } (
                     dirname( File::Spec->rel2abs($^X) ),          # 0. exe dir
                     File::Spec->rel2abs( File::Spec->curdir ),    # 0. cwd
                     File::Spec->path(),                           # 0. $ENV{PATH}
-                    map      { File::Spec->rel2abs($_) }
-                        grep { -d $_ } qw[~/lib /usr/local/lib /usr/lib],
+                    map { File::Spec->rel2abs($_) }
+                        qw[. ./lib/ ~/lib /usr/local/lib /usr/lib /lib64/ /lib/],
                     map      { split /[:;]/, ( $ENV{$_} ) }
                         grep { $ENV{$_} }
                         qw[LD_LIBRARY_PATH DYLD_LIBRARY_PATH DYLD_FALLBACK_LIBRARY_PATH]
                 );
-
-                #use Data::Dump;
-                #ddx \@dirs;
                 find(
                     {   wanted => sub {
                             $File::Find::prune = 1
@@ -248,7 +261,7 @@ package Affix 0.04 {
                     @dirs
                 );
             }
-            $_lib_cache->{ $name . chr(0) . ( $version // '' ) } = pop @retval;
+            $_lib_cache->{ $name . chr(0) . ( $version // '' ) } = rel2abs pop @retval;
         }
 
         # TODO: Make a test with a bad lib name
@@ -314,7 +327,13 @@ Affix - 'FFI' is my middle name!
 =head1 SYNOPSIS
 
     use Affix;
-    attach( ( $^O eq 'MSWin32' ? 'ntdll' : 'libm' ), 'pow', [ Double, Double ] => Double );
+    my $lib
+        = $^O eq 'MSWin32'    ? 'ntdll' :
+        $^O eq 'darwin'       ? '/usr/lib/libm.dylib' :
+        $^O eq 'bsd'          ? '/usr/lib/libm.so' :
+        -e '/lib64/libm.so.6' ? '/lib64/libm.so.6' :
+        '/lib/x86_64-linux-gnu/libm.so.6';
+    attach( $lib, 'pow', [ Double, Double ] => Double );
     print pow( 2, 10 );    # 1024
 
 =head1 DESCRIPTION
@@ -397,6 +416,16 @@ inspired by L<Type::Standard>:
 
 
 =back
+
+=head1 Library paths and names
+
+The C<Native> attribute accepts the library name, the full path, or a
+subroutine returning either of the two. When using the library name, the name
+is assumed to be prepended with lib and appended with C<.so> (or just appended
+with C<.dll> on Windows), and will be searched for in the paths in the
+C<LD_LIBRARY_PATH> (C<PATH> on Windows) environment variable.
+
+
 
 =head1 See Also
 
