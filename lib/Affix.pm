@@ -47,10 +47,30 @@ package Affix 0.04 {
             my $sig = eval sprintf qq'package %s; %s;', $_delay{$sub}[0], $_delay{$sub}[4];
             my $ret = eval sprintf qq'package %s; %s;', $_delay{$sub}[0], $_delay{$sub}[5];
 
-            #ddx [ guess_library_name( eval( $_delay{$sub}[1] ), $_delay{$sub}[2] ),
-            #    $_delay{$sub}[3], $sig, $ret, $_delay{$sub}[6], $_delay{$sub}[7] ];
-            my $cv = attach( guess_library_name( $_delay{$sub}[1], $_delay{$sub}[2] ),
-                $_delay{$sub}[3], $sig, $ret, $_delay{$sub}[6], $_delay{$sub}[7] );
+            #~ use Data::Dump;
+            #~ ddx [
+            #~ (
+            #~ defined $_delay{$sub}[1] ?
+            #~ guess_library_name( $_delay{$sub}[1], $_delay{$sub}[2] ) :
+            #~ undef
+            #~ ),
+            #~ $_delay{$sub}[3],
+            #~ $sig, $ret,
+            #~ $_delay{$sub}[6],
+            #~ $_delay{$sub}[7]
+            #~ ];
+            #~ ddx guess_library_name( $_delay{$sub}[1], $_delay{$sub}[2] );
+            my $cv = attach(
+                (
+                    defined $_delay{$sub}[1] ?
+                        guess_library_name( $_delay{$sub}[1], $_delay{$sub}[2] ) :
+                        undef
+                ),
+                $_delay{$sub}[3],
+                $sig, $ret,
+                $_delay{$sub}[6],
+                $_delay{$sub}[7]
+            );
             delete $_delay{$sub};
             return goto &$cv;
         }
@@ -349,18 +369,15 @@ L<Dyn::Callback>, and L<Dyn::Load> packages, all the sugar is right here in
 C<Affix>. The most simple use of C<Affix> would look something like this:
 
     use Affix ':all';
-    sub some_argless_function() : Native('somelib.so') : Signature([]=>Void);
+    sub some_argless_function : Native('somelib.so') : Signature([]=>Void);
     some_argless_function();
 
-Be aware that this will look a lot more like L<NativeCall from
-Raku|https://docs.raku.org/language/nativecall> before v1.0!
-
 The second line above looks like a normal Perl sub declaration but includes the
-C<:Native> attribute to specify that the sub is actually defined in a native
-library.
+C<:Native> CODE attribute which specifies that the sub is actually defined in a
+native library.
 
 To avoid banging your head on a built-in function, you may name your sub
-anything else and let Dyn know what symbol to attach:
+anything else and let Affix know what symbol to attach:
 
     sub my_abs : Native('my_lib.dll') : Signature([Double]=>Double) : Symbol('abs');
     CORE::say my_abs( -75 ); # Should print 75 if your abs is something that makes sense
@@ -372,11 +389,13 @@ All of the following methods may be imported by name or with the C<:sugar> tag.
 
 Note that everything here is subject to change before v1.0.
 
-=head1 Functions
+=head1 C<attach( ... )>
 
-The less
+Wraps a given symbol in a named perl sub.
 
-=head2 C<wrap( ... )>
+    Dyn::attach('C:\Windows\System32\user32.dll', 'pow', [Double, Double] => Double );
+
+=head1 C<wrap( ... )>
 
 Creates a wrapper around a given symbol in a given library.
 
@@ -397,12 +416,6 @@ Expected parameters include:
 
 Returns a code reference.
 
-=head2 C<attach( ... )>
-
-Wraps a given symbol in a named perl sub.
-
-    Dyn::attach('C:\Windows\System32\user32.dll', 'pow', [Double, Double] => Double );
-
 =head1 Signatures
 
 C<dyncall> uses an almost C<pack>-like syntax to define signatures. Affix is
@@ -412,21 +425,129 @@ inspired by L<Type::Standard>:
 
 =item C<Void>
 
-=item C<Int>
+=item C<Bool> - typical boolean value
 
+=item C<Char> - signed 8-bit integer
 
+=item C<UChar> - unsigned 8-bit integer
+
+=item C<Short> 16-bit integer
+
+=item C<UShort> - unsigned 16-bit integer
+
+=item C<Int> - 32-bit integer
+
+=item C<UInt>
+
+=item C<Long> - 32-bit integer
+
+=item C<ULong>
+
+=item C<LongLong> - 64-bit integer
+
+=item C<ULongLong>
+
+=item C<Float> - single precision floating-point number
+
+=item C<Double> - double precision floating-point number
+
+=item C<Pointer[...]>
+
+=item C<Str> - a C<NULL> terminated string pointer (think C<char *> in C)
+
+=item C<ArrayRef[...]>
+
+=item C<InstanceOf[...]>
+
+=item C<Struct[...]>
+
+=item C<CodeRef[...]>
+
+=item C<Any>
 
 =back
 
 =head1 Library paths and names
 
-The C<Native> attribute accepts the library name, the full path, or a
-subroutine returning either of the two. When using the library name, the name
-is assumed to be prepended with lib and appended with C<.so> (or just appended
-with C<.dll> on Windows), and will be searched for in the paths in the
-C<LD_LIBRARY_PATH> (C<PATH> on Windows) environment variable.
+The C<Native> attribute, C<attach( ... )>, and C<wrap( ... )> all accept the
+library name, the full path, or a subroutine returning either of the two. When
+using the library name, the name is assumed to be prepended with lib and
+appended with C<.so> (or just appended with C<.dll> on Windows), and will be
+searched for in the paths in the C<LD_LIBRARY_PATH> (C<PATH> on Windows)
+environment variable.
 
+    use Affix;
+    use constant LIBMYSQL => 'mysqlclient';
+    use constant LIBFOO   => '/usr/lib/libfoo.so.1';
+    sub LIBBAR {
+        my $opt = $^O =~ /bsd/ ? 'r' : 'p';
+        my ($path) = qx[ldconfig -$opt | grep libbar];
+        return $1;
+    }
+    # and later
+    sub mysql_affected_rows :Native(LIBMYSQL);
+    sub bar :Native(LIBFOO);
+    sub baz :Native(LIBBAR);
 
+You can also put an incomplete path like C<'./foo'> and Affix will
+automatically put the right extension according to the platform specification.
+If you wish to suppress this expansion, simply pass the string as the body of a
+block.
+
+###### TODO: disable expansion with a block!
+
+    sub bar :Native({ './lib/Non Standard Naming Scheme' });
+
+B<BE CAREFUL>: the C<:Native> attribute and constant are evaluated at compile
+time. Don't write a constant that depends on a dynamic variable like:
+
+    # WRONG:
+    use constant LIBMYSQL => $ENV{LIB_MYSQLCLIENT} // 'mysqlclient';
+
+=head2 ABI/API version
+
+If you write C<:Native('foo')>, Affix will search C<libfoo.so> under Unix like
+system (C<libfoo.dynlib> on macOS, C<foo.dll> on Windows). In most modern
+system it will require you or the user of your module to install the
+development package because it's recommended to always provide an API/ABI
+version to a shared library, so C<libfoo.so> ends often being a symbolic link
+provided only by a development package.
+
+To avoid that, the native trait allows you to specify the API/ABI version. It
+can be a full version or just a part of it. (Try to stick to Major version,
+some BSD code does not care for Minor.)
+
+    use Affix;
+    sub foo1 :Native('foo', v1); # Will try to load libfoo.so.1
+    sub foo2 :Native('foo', v1.2.3); # Will try to load libfoo.so.1.2.3
+
+    my $lib = ['foo', 'v1'];
+    sub foo3 :Native($lib);
+
+=head2 Calling into the standard library
+
+If you want to call a C function that's already loaded, either from the
+standard library or from your own program, you can omit the value, so is
+native.
+
+For example on a UNIX-like operating system, you could use the following code
+to print the home directory of the current user:
+
+    use Affix;
+
+    typedef PwStruct => Struct[
+        name => Str,
+        pass => Str,
+        uuid => UInt,
+        guid => UInt,
+        gecos => Str,
+        dir   => Str,
+        shell => Str
+    ];
+
+    sub getuid:Native :Signature([]=>UInt);
+    sub getuid:Native :Signature([UInt]=>PwStruct);
+    CORE::say getpwuid(getuid())->{pw_dir};
 
 =head1 See Also
 

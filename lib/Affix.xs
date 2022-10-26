@@ -276,8 +276,8 @@ static size_t _sizeof(pTHX_ SV *type) {
         for (int i = 0; i < field_count; ++i) {
             SV **type_ptr = av_fetch(MUTABLE_AV(*av_fetch(idk_arr, i, 0)), 1, 0);
             size_t __sizeof = _sizeof(aTHX_ * type_ptr);
-            if (!packed) size += padding_needed_for(size, __sizeof);
             hv_stores(MUTABLE_HV(SvRV(*type_ptr)), "offset", newSViv(size));
+            if (!packed) size += padding_needed_for(size, __sizeof);
             size += __sizeof;
         }
         hv_stores(MUTABLE_HV(SvRV(type)), "sizeof", newSViv(size));
@@ -333,12 +333,12 @@ static DCaggr *_aggregate(pTHX_ SV *type) {
 
     switch (str[0]) {
     case DC_SIGCHAR_STRUCT: {
-        // warn("here at %s line %d", __FILE__, __LINE__);
+        warn("here at %s line %d", __FILE__, __LINE__);
 
         if (hv_exists(MUTABLE_HV(SvRV(type)), "aggregate", 9)) {
             SV *__type = *hv_fetchs(MUTABLE_HV(SvRV(type)), "aggregate", 0);
             // warn("here at %s line %d", __FILE__, __LINE__);
-            // sv_dump(__type);
+            sv_dump(__type);
 
             // return SvIV(*hv_fetchs(MUTABLE_HV(SvRV(type)), "aggregate", 0));
             if (sv_derived_from(__type, "Dyn::Call::Aggregate")) {
@@ -356,14 +356,15 @@ static DCaggr *_aggregate(pTHX_ SV *type) {
                 croak("Oh, no...");
         }
         else {
-            // warn("here at %s line %d", __FILE__, __LINE__);
+            warn("here at %s line %d", __FILE__, __LINE__);
 
             SV **idk_wtf = hv_fetchs(MUTABLE_HV(SvRV(type)), "fields", 0);
             SV **sv_packed = hv_fetchs(MUTABLE_HV(SvRV(type)), "packed", 0);
             bool packed = SvTRUE(*sv_packed);
             AV *idk_arr = MUTABLE_AV(SvRV(*idk_wtf));
             int field_count = av_count(idk_arr);
-            // warn("DCaggr *main = dcNewAggr(%d, %d);", field_count, size);
+            warn("DCaggr *main = dcNewAggr(%d, %d); at %s line %d", field_count, size, __FILE__,
+                 __LINE__);
             DCaggr *agg = dcNewAggr(field_count, size);
             for (int i = 0; i < field_count; ++i) {
                 SV **type_ptr = av_fetch(MUTABLE_AV(*av_fetch(idk_arr, i, 0)), 1, 0);
@@ -373,19 +374,32 @@ static DCaggr *_aggregate(pTHX_ SV *type) {
                 switch (str[0]) {
                 case DC_SIGCHAR_STRUCT: {
                     DCaggr *child = _aggregate(aTHX_ * type_ptr);
-                    dcAggrField(agg, DC_SIGCHAR_AGGREGATE, offset, 1, child);
-                    // warn("dcAggrField(agg, DC_SIGCHAR_AGGREGATE, %d, 1, child);", offset);
-                    //  warn("kid!");
+
+                    dcAggrField(agg, str[0], offset, 1, child);
+
+                    // dcAggrField(agg, DC_SIGCHAR_AGGREGATE, offset, 1, child);
+                    warn("dcAggrField(agg, DC_SIGCHAR_AGGREGATE, %d, 1, child); at %s line %d",
+                         offset, __FILE__, __LINE__);
+                } break;
+                case DC_SIGCHAR_ARRAY: {
+                    sv_dump(*type_ptr);
+                    SV *type = *hv_fetchs(MUTABLE_HV(SvRV(*type_ptr)), "type", 0);
+                    int array_len = SvIV(*hv_fetchs(MUTABLE_HV(SvRV(*type_ptr)), "size", 0));
+                    char *str = SvPVbytex_nolen(type);
+                    dcAggrField(agg, str[0], offset, array_len);
+                    warn("dcAggrField(agg, %c, %d, 1); at %s line %d", str[0], offset, __FILE__,
+                         __LINE__);
                 } break;
                 default: {
                     dcAggrField(agg, str[0], offset, 1);
-                    // warn("dcAggrField(agg, %c, %d, 1);", str[0], offset);
+                    warn("dcAggrField(agg, %c, %d, 1); at %s line %d", str[0], offset, __FILE__,
+                         __LINE__);
                 } break;
                 }
             }
             // warn("here at %s line %d", __FILE__, __LINE__);
 
-            // warn("dcCloseAggr(agg);");
+            warn("dcCloseAggr(agg); at %s line %d", __FILE__, __LINE__);
             dcCloseAggr(agg);
             {
                 SV *RETVALSV;
@@ -756,18 +770,13 @@ XS_EUPXS(Types) {
         case 2:
             size = *av_fetch(type_size, 1, 0);
             if (!SvIOK(size)) croak("Given size %d is not an integer", SvUV(size));
-
-        // no break; fallthrough
-        case 1:
             type = *av_fetch(type_size, 0, 0);
-
             if (!(sv_isobject(type) && sv_derived_from(type, "Affix::Type::Base")))
                 croak("Given type for '%s' is not a subclass of Affix::Type::Base",
                       SvPV_nolen(type));
-
             break;
         default:
-            croak("Expected a single type and optional array length: ArrayRef[Int] or "
+            croak("Expected a single type and optional array length: "
                   "ArrayRef[Int, 5]");
         }
         hv_stores(RETVAL_HV, "size", newSVsv(size));
@@ -1228,19 +1237,6 @@ static DCpointer deref_pointer(pTHX_ SV *type, SV *value, bool set) {
     return RETVAL;
 }
 
-static DCaggr *coerce_aggregate(pTHX_ void *in, SV *type, void *out) {
-    DCaggr *RETVAL;
-    /*
-                size_t size, current_offset = 0;
-                for (int i = 0; i < av_len; ++i) {
-                    //if (!packed)
-                        current_offset += padding_needed_for(current_offset, size * av_len);
-                    //dcAggrField(ag, *type_ptr, current_offset, array_len);
-                    current_offset += size * array_len; // * ( $field->{list} // 1 );
-                }*/
-    return RETVAL;
-}
-
 #define sloppy_coerce(type, in) _sloppy_coerce(aTHX_ type, in, NULL)
 
 static DCpointer _sloppy_coerce(pTHX_ SV *type, SV *in, DCpointer data) {
@@ -1420,6 +1416,20 @@ XS_EUPXS(Types_type_call) {
         if (call->sig_len > items) croak("Not enough arguments");
     }
     // warn("ping at %s line %d", __FILE__, __LINE__);
+
+    DCaggr *agg = NULL;
+    switch (call->ret) {
+    case DC_SIGCHAR_AGGREGATE:
+    case DC_SIGCHAR_ARRAY:
+    case DC_SIGCHAR_STRUCT: {
+        agg = _aggregate(aTHX_ call->retval);
+        dcBeginCallAggr(MY_CXT.cvm, agg);
+    } break;
+    default:
+        break;
+    }
+    // dcArgPointer(pc, &o); // this ptr
+    // dcCallAggr(pc, vtbl[VTBI_BASE+1], s, &returned);
 
     SV *value;
     for (int i = 0; i < call->sig_len; ++i) {
@@ -1740,6 +1750,34 @@ XS_EUPXS(Types_type_call) {
             else
                 sv_set_undef(RETVAL);
         } break;
+        case DC_SIGCHAR_STRUCT: {
+            // sv_dump(call->retval);
+            size_t si = _sizeof(call->retval);
+            DCpointer ret_ptr = safemalloc(si);
+            // DumpHex(ret_ptr, si);
+            DCpointer out = dcCallAggr(MY_CXT.cvm, call->fptr, agg, ret_ptr);
+            // DumpHex(ret_ptr, si);
+            // DumpHex(out, si);
+            //  DC_API DCpointer  dcCallAggr (DCCallVM* vm, DCpointer funcptr,
+            //  const DCaggr* ag, DCpointer ret); /* retval is written to *ret, returns ret */
+            // warn("struct is %lu bytes", si);
+
+            // SV *struct_ = pointer2sv(aTHX_ call->retval, agg, size);
+
+            // static SV * agg2perl(DCaggr * agg, DCpointer data, size_t size) {
+
+            RETVAL = agg2perl(agg, SvRV(call->retval), out, si);
+
+            // sv_dump(RETVAL);
+
+            /*
+    SV **type_ref = hv_fetch(type_hv, "type", 4, 0);
+    ptr = deref_pointer(aTHX_ * type_ref, value, true);
+    static DCpointer deref_pointer(pTHX_ SV *type, SV *value, bool set) {
+            */
+            // croak("Unhandled return type: %c", call->ret);
+
+        } break;
         default:
             croak("Unhandled return type: %c", call->ret);
         }
@@ -1972,7 +2010,9 @@ CODE:
     Call *call;
     DLLib *lib;
 
-    if (SvROK(ST(0)) && sv_derived_from(ST(0), "Dyn::Load::Lib")) {
+    if (!SvOK(ST(0)))
+        lib = NULL;
+    else if (SvROK(ST(0)) && sv_derived_from(ST(0), "Dyn::Load::Lib")) {
         IV tmp = SvIV((SV *)SvRV(ST(0)));
         lib = INT2PTR(DLLib *, tmp);
     }

@@ -27,18 +27,15 @@ While most of the upstream API is covered in the [Dyn::Call](https://metacpan.or
 `Affix`. The most simple use of `Affix` would look something like this:
 
     use Affix ':all';
-    sub some_argless_function() : Native('somelib.so') : Signature([]=>Void);
+    sub some_argless_function : Native('somelib.so') : Signature([]=>Void);
     some_argless_function();
 
-Be aware that this will look a lot more like [NativeCall from
-Raku](https://docs.raku.org/language/nativecall) before v1.0!
-
 The second line above looks like a normal Perl sub declaration but includes the
-`:Native` attribute to specify that the sub is actually defined in a native
-library.
+`:Native` CODE attribute which specifies that the sub is actually defined in a
+native library.
 
 To avoid banging your head on a built-in function, you may name your sub
-anything else and let Dyn know what symbol to attach:
+anything else and let Affix know what symbol to attach:
 
     sub my_abs : Native('my_lib.dll') : Signature([Double]=>Double) : Symbol('abs');
     CORE::say my_abs( -75 ); # Should print 75 if your abs is something that makes sense
@@ -50,11 +47,13 @@ All of the following methods may be imported by name or with the `:sugar` tag.
 
 Note that everything here is subject to change before v1.0.
 
-# Functions
+# `attach( ... )`
 
-The less
+Wraps a given symbol in a named perl sub.
 
-## `wrap( ... )`
+    Dyn::attach('C:\Windows\System32\user32.dll', 'pow', [Double, Double] => Double );
+
+# `wrap( ... )`
 
 Creates a wrapper around a given symbol in a given library.
 
@@ -69,27 +68,114 @@ Expected parameters include:
 
 Returns a code reference.
 
-## `attach( ... )`
-
-Wraps a given symbol in a named perl sub.
-
-    Dyn::attach('C:\Windows\System32\user32.dll', 'pow', [Double, Double] => Double );
-
 # Signatures
 
 `dyncall` uses an almost `pack`-like syntax to define signatures. Affix is
 inspired by [Type::Standard](https://metacpan.org/pod/Type%3A%3AStandard):
 
 - `Void`
-- `Int`
+- `Bool` - typical boolean value
+- `Char` - signed 8-bit integer
+- `UChar` - unsigned 8-bit integer
+- `Short` 16-bit integer
+- `UShort` - unsigned 16-bit integer
+- `Int` - 32-bit integer
+- `UInt`
+- `Long` - 32-bit integer
+- `ULong`
+- `LongLong` - 64-bit integer
+- `ULongLong`
+- `Float` - single precision floating-point number
+- `Double` - double precision floating-point number
+- `Pointer[...]`
+- `Str` - a `NULL` terminated string pointer (think `char *` in C)
+- `ArrayRef[...]`
+- `InstanceOf[...]`
+- `Struct[...]`
+- `CodeRef[...]`
+- `Any`
 
 # Library paths and names
 
-The `Native` attribute accepts the library name, the full path, or a
-subroutine returning either of the two. When using the library name, the name
-is assumed to be prepended with lib and appended with `.so` (or just appended
-with `.dll` on Windows), and will be searched for in the paths in the
-`LD_LIBRARY_PATH` (`PATH` on Windows) environment variable.
+The `Native` attribute, `attach( ... )`, and `wrap( ... )` all accept the
+library name, the full path, or a subroutine returning either of the two. When
+using the library name, the name is assumed to be prepended with lib and
+appended with `.so` (or just appended with `.dll` on Windows), and will be
+searched for in the paths in the `LD_LIBRARY_PATH` (`PATH` on Windows)
+environment variable.
+
+    use Affix;
+    use constant LIBMYSQL => 'mysqlclient';
+    use constant LIBFOO   => '/usr/lib/libfoo.so.1';
+    sub LIBBAR {
+        my $opt = $^O =~ /bsd/ ? 'r' : 'p';
+        my ($path) = qx[ldconfig -$opt | grep libbar];
+        return $1;
+    }
+    # and later
+    sub mysql_affected_rows :Native(LIBMYSQL);
+    sub bar :Native(LIBFOO);
+    sub baz :Native(LIBBAR);
+
+You can also put an incomplete path like `'./foo'` and Affix will
+automatically put the right extension according to the platform specification.
+If you wish to suppress this expansion, simply pass the string as the body of a
+block.
+
+\###### TODO: disable expansion with a block!
+
+    sub bar :Native({ './lib/Non Standard Naming Scheme' });
+
+**BE CAREFUL**: the `:Native` attribute and constant are evaluated at compile
+time. Don't write a constant that depends on a dynamic variable like:
+
+    # WRONG:
+    use constant LIBMYSQL => $ENV{LIB_MYSQLCLIENT} // 'mysqlclient';
+
+## ABI/API version
+
+If you write `:Native('foo')`, Affix will search `libfoo.so` under Unix like
+system (`libfoo.dynlib` on macOS, `foo.dll` on Windows). In most modern
+system it will require you or the user of your module to install the
+development package because it's recommended to always provide an API/ABI
+version to a shared library, so `libfoo.so` ends often being a symbolic link
+provided only by a development package.
+
+To avoid that, the native trait allows you to specify the API/ABI version. It
+can be a full version or just a part of it. (Try to stick to Major version,
+some BSD code does not care for Minor.)
+
+    use Affix;
+    sub foo1 :Native('foo', v1); # Will try to load libfoo.so.1
+    sub foo2 :Native('foo', v1.2.3); # Will try to load libfoo.so.1.2.3
+
+    my $lib = ['foo', 'v1'];
+    sub foo3 :Native($lib);
+
+## Calling into the standard library
+
+If you want to call a C function that's already loaded, either from the
+standard library or from your own program, you can omit the value, so is
+native.
+
+For example on a UNIX-like operating system, you could use the following code
+to print the home directory of the current user:
+
+    use Affix;
+
+    typedef PwStruct => Struct[
+        name => Str,
+        pass => Str,
+        uuid => UInt,
+        guid => UInt,
+        gecos => Str,
+        dir   => Str,
+        shell => Str
+    ];
+
+    sub getuid:Native :Signature([]=>UInt);
+    sub getuid:Native :Signature([UInt]=>PwStruct);
+    CORE::say getpwuid(getuid())->{pw_dir};
 
 # See Also
 

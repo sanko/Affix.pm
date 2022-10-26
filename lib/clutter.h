@@ -322,3 +322,77 @@ static HV *ptr2perl(DCpointer ptr, AV *fields) {
     }
     return RETVAL;
 }
+
+static SV *agg2perl(DCaggr *agg, SV *sv, DCpointer data, size_t size, intptr_t = 0) {
+    dTHX;
+    // sv_dump(sv);
+    // sv_dump(SvRV(*hv_fetch(MUTABLE_HV(sv), "fields", 6, 0)));
+
+    AV *fields = MUTABLE_AV(SvRV(*hv_fetch(MUTABLE_HV(sv), "fields", 6, 0)));
+
+    HV *RETVAL = newHV();
+
+    warn("agg2perl");
+    //*(int*)ptr = 42;
+    size_t offset;
+    DCsize i = agg->n_fields;
+    warn("agg->n_fields == %d", i);
+    DCpointer me = safemalloc(0);
+    for (int i = 0; i < agg->n_fields; ++i) {
+        warn("i==%d type==%c", i, agg->fields[i].type);
+        SV **field = av_fetch(fields, i, 0);
+        SV **name_ptr = av_fetch(MUTABLE_AV(*field), 0, 0);
+        // sv_dump(*name_ptr);
+        offset = PTR2IV(data) + agg->fields[i].offset;
+        //
+        warn("field offset: %ld", agg->fields[i].offset);
+        warn("field size: %ld", agg->fields[i].size);
+        warn("field alignment: %ld", agg->fields[i].alignment);
+        warn("field array_len: %ld", agg->fields[i].array_len);
+        warn("field type: %c", agg->fields[i].type);
+
+        // 	DCsize offset, size, alignment, array_len;
+        me = saferealloc(me, agg->fields[i].size * agg->fields[i].array_len);
+
+        // sv_dump(*field);
+        switch (agg->fields[i].type) {
+        case DC_SIGCHAR_BOOL:
+            warn("bool!!!!!");
+            break;
+        case DC_SIGCHAR_CHAR:
+            Copy(offset, me, agg->fields[i].array_len, char);
+            if (agg->fields[i].array_len == 1)
+                hv_store_ent(RETVAL, *name_ptr, newSViv(*(char *)me), 0);
+            else
+                hv_store_ent(RETVAL, *name_ptr, newSVpv((char *)me, agg->fields[i].array_len), 0);
+            break;
+        case DC_SIGCHAR_UCHAR:
+            Copy(offset, me, agg->fields[i].array_len, unsigned char);
+            hv_store_ent(RETVAL, *name_ptr, newSViv(*(unsigned char *)me), 0);
+            break;
+        case DC_SIGCHAR_INT:
+            Copy(offset, me, agg->fields[i].array_len, int);
+            hv_store_ent(RETVAL, *name_ptr, newSViv(*(int *)me), 0);
+            break;
+        case DC_SIGCHAR_FLOAT:
+            Copy(offset, me, agg->fields[i].array_len, float);
+            hv_store_ent(RETVAL, *name_ptr, newSVnv(*(float *)me), 0);
+            break;
+        default:
+            warn("TODO: %c", agg->fields[i].type);
+            hv_store_ent(RETVAL, *name_ptr, newSV(1), 0);
+            break;
+        }
+    }
+
+    //            _sloppy_coerce(aTHX_ * field_type_ptr, SvRV(*value_ptr), ((DCpointer)(offset)));
+
+    safefree(me);
+
+    {
+        SV *RETVALSV;
+        RETVALSV = newRV((SV *)RETVAL);
+        // RETVALSV = sv_2mortal(RETVALSV);
+        return RETVALSV;
+    }
+}
