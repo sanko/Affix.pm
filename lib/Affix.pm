@@ -70,8 +70,9 @@ package Affix 0.04 {
         #ddx \@_;
         my ( $library, $library_version, $signature, $return, $symbol, $full_name, $mode );
         for my $attribute (@attributes) {
-            if ( $attribute =~ m[^Native\(\s*(.+)\s*\)\s*$] ) {
+            if ( $attribute =~ m[^Native(?:\(\s*(.+)\s*\)\s*)?$] ) {
                 ( $library, $library_version ) = Text::ParseWords::parse_line( '\s*,\s*', 1, $1 );
+                $library //= ();
 
                 #warn $library;
                 #warn $library_version;
@@ -110,8 +111,8 @@ package Affix 0.04 {
         $mode      //= DC_SIGCHAR_CC_DEFAULT();
         $signature //= '[]';
         $return    //= 'Void';
-        $full_name = subname $code;
-        if ( !grep { !defined } $library, $library_version, $full_name ) {
+        $full_name = subname $code;    #$library, $library_version,
+        if ( !grep { !defined } $full_name ) {
             if ( !defined $symbol ) {
                 $full_name =~ m[::(.*?)$];
                 $symbol = $1;
