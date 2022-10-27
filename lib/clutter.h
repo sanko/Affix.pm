@@ -323,7 +323,7 @@ static HV *ptr2perl(DCpointer ptr, AV *fields) {
     return RETVAL;
 }
 
-static SV *agg2perl(DCaggr *agg, SV *sv, DCpointer data, size_t size, intptr_t = 0) {
+static SV *agg2perl(DCaggr *agg, SV *sv, DCpointer data, size_t size) {
     dTHX;
     // sv_dump(sv);
     // sv_dump(SvRV(*hv_fetch(MUTABLE_HV(sv), "fields", 6, 0)));
@@ -389,8 +389,11 @@ static SV *agg2perl(DCaggr *agg, SV *sv, DCpointer data, size_t size, intptr_t =
             break;
         case DC_SIGCHAR_STRING: {
             Copy(offset, me, agg->fields[i].array_len, char **);
-            warn("%s / %s", me, *(char **)me);
             hv_store_ent(RETVAL, *name_ptr, newSVpv(*(char **)me, 0), 0);
+        } break;
+        case DC_SIGCHAR_UNION: {
+            Copy(offset, me, agg->fields[i].array_len, char);
+            hv_store_ent(RETVAL, *name_ptr, newSVpv((char *)me, agg->fields[i].array_len), 0);
         } break;
         default:
             warn("TODO: %c", agg->fields[i].type);

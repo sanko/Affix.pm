@@ -390,6 +390,11 @@ static DCaggr *_aggregate(pTHX_ SV *type) {
                     warn("dcAggrField(agg, %c, %d, 1); at %s line %d", str[0], offset, __FILE__,
                          __LINE__);
                 } break;
+                case DC_SIGCHAR_UNION: {
+                    DCaggr *child = _aggregate(aTHX_ * type_ptr);
+
+                    dcAggrField(agg, str[0], offset, 1, child);
+                } break;
                 default: {
                     dcAggrField(agg, str[0], offset, 1);
                     warn("dcAggrField(agg, %c, %d, 1); at %s line %d", str[0], offset, __FILE__,
@@ -410,8 +415,17 @@ static DCaggr *_aggregate(pTHX_ SV *type) {
             return agg;
         }
     } break;
+    case DC_SIGCHAR_UNION: {
+
+
+
+
+
+        croak("unsupported aggregate at %s line %d",str[0], __FILE__, __LINE__);
+
+    } break;
     default: {
-        warn("fallback");
+        croak("unsupported aggregate at %s line %d", __FILE__, __LINE__);
         break;
     }
     }
@@ -874,34 +888,21 @@ XS_EUPXS(Types) {
             croak("Pointer[...] expects a single type. e.g. Pointer[Int]");
     } break;
     case DC_SIGCHAR_UNION: {
-        AV *fields_;
-        SV *aggregate = newSV(0), *packed = newSV(0);
-
-        sv_set_undef(aggregate);
         if (items == 2) {
-            fields_ = MUTABLE_AV(SvRV(ST(1)));
-            sv_set_undef(packed);
+            AV *fields = newAV_mortal();
+            AV *fields_in = MUTABLE_AV(SvRV(ST(1)));
+            size_t field_count = av_count(fields_in);
+            for (int i = 0; i < field_count; i++) {
+                SV **value_ptr = av_fetch(fields_in, i, 0);
+                SV *value = newSVsv(*value_ptr);
+                sv_dump(value);
+                if (!(sv_isobject(value) && sv_derived_from(value, "Affix::Type::Base")))
+                    croak("Given type for Union[...] is not a subclass of Affix::Type::Base");
+            }
+            hv_stores(RETVAL_HV, "types", newRV_inc(SvRV(ST(1))));
         }
         else
             croak("Union[...]");
-        size_t field_count = av_count(fields_);
-        AV *args;
-
-        if (field_count) {
-            DCaggr *aggr = dcNewAggr(field_count - 1, 1);
-            AV *fields = newAV_mortal();
-            for (int i = 0; i < field_count; i++) {
-                AV *eh = newAV();
-                SV **type_ref = av_fetch(fields_, i, 0);
-                SV *type = *type_ref;
-                if (!(sv_isobject(type) && sv_derived_from(type, "Affix::Type::Base")))
-                    croak("%d%s is not a subclass of Affix::Type::Base", i, ordinal(i));
-                av_push(fields, newSVsv(type));
-            }
-            hv_stores(RETVAL_HV, "types", newRV_noinc(MUTABLE_SV(fields)));
-        }
-        else
-            hv_stores(RETVAL_HV, "types", newRV_noinc(MUTABLE_SV(newAV_mortal())));
     } break;
     case DC_SIGCHAR_BLESSED: {
         AV *packages_in = MUTABLE_AV(SvRV(ST(1)));
@@ -1728,7 +1729,7 @@ XS_EUPXS(Types_type_call) {
                 RETVAL = RETVALSV;
             }
             else {
-                size_t si = _sizeof(call->retval);
+                size_t si = _sizeof(aTHX_ call->retval);
                 DCpointer ret_ptr = safemalloc(si);
                 DCpointer out = dcCallAggr(MY_CXT.cvm, call->fptr, agg, ret_ptr);
                 RETVAL = agg2perl(agg, SvRV(call->retval), out, si);
@@ -1761,7 +1762,7 @@ XS_EUPXS(Types_type_call) {
                 sv_set_undef(RETVAL);
         } break;
         case DC_SIGCHAR_STRUCT: {
-            size_t si = _sizeof(call->retval);
+            size_t si = _sizeof(aTHX_ call->retval);
             DCpointer ret_ptr = safemalloc(si);
             DCpointer out = dcCallAggr(MY_CXT.cvm, call->fptr, agg, ret_ptr);
             RETVAL = agg2perl(agg, SvRV(call->retval), out, si);
@@ -2151,7 +2152,7 @@ SV *
 pointer2struct(DCpointer ptr, SV * type)
 CODE:
     DCaggr *   agg = _aggregate(aTHX_ type);
-    size_t si = _sizeof(type);
+    size_t si = _sizeof(aTHX_ type);
     RETVAL = agg2perl(agg, SvRV(type), ptr, si);
 OUTPUT:
     RETVAL
