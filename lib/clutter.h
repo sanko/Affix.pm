@@ -327,14 +327,14 @@ static SV *agg2perl(DCaggr *agg, SV *sv, DCpointer data, size_t size, intptr_t =
     dTHX;
     // sv_dump(sv);
     // sv_dump(SvRV(*hv_fetch(MUTABLE_HV(sv), "fields", 6, 0)));
-
+    DumpHex(data, size);
     AV *fields = MUTABLE_AV(SvRV(*hv_fetch(MUTABLE_HV(sv), "fields", 6, 0)));
 
     HV *RETVAL = newHV();
 
     warn("agg2perl");
     //*(int*)ptr = 42;
-    size_t offset;
+    intptr_t offset;
     DCsize i = agg->n_fields;
     warn("agg->n_fields == %d", i);
     DCpointer me = safemalloc(0);
@@ -357,7 +357,8 @@ static SV *agg2perl(DCaggr *agg, SV *sv, DCpointer data, size_t size, intptr_t =
         // sv_dump(*field);
         switch (agg->fields[i].type) {
         case DC_SIGCHAR_BOOL:
-            warn("bool!!!!!");
+            Copy(offset, me, agg->fields[i].array_len, bool);
+            hv_store_ent(RETVAL, *name_ptr, boolSV(*(bool *)me), 0);
             break;
         case DC_SIGCHAR_CHAR:
             Copy(offset, me, agg->fields[i].array_len, char);
@@ -368,9 +369,17 @@ static SV *agg2perl(DCaggr *agg, SV *sv, DCpointer data, size_t size, intptr_t =
             break;
         case DC_SIGCHAR_UCHAR:
             Copy(offset, me, agg->fields[i].array_len, unsigned char);
-            hv_store_ent(RETVAL, *name_ptr, newSViv(*(unsigned char *)me), 0);
+            if (agg->fields[i].array_len == 1)
+                hv_store_ent(RETVAL, *name_ptr, newSVuv(*(unsigned char *)me), 0);
+            else
+                hv_store_ent(RETVAL, *name_ptr,
+                             newSVpv((char *)(unsigned char *)me, agg->fields[i].array_len), 0);
             break;
         case DC_SIGCHAR_INT:
+            Copy(offset, me, agg->fields[i].array_len, int);
+            hv_store_ent(RETVAL, *name_ptr, newSViv(*(int *)me), 0);
+            break;
+        case DC_SIGCHAR_UINT:
             Copy(offset, me, agg->fields[i].array_len, int);
             hv_store_ent(RETVAL, *name_ptr, newSViv(*(int *)me), 0);
             break;
@@ -378,9 +387,17 @@ static SV *agg2perl(DCaggr *agg, SV *sv, DCpointer data, size_t size, intptr_t =
             Copy(offset, me, agg->fields[i].array_len, float);
             hv_store_ent(RETVAL, *name_ptr, newSVnv(*(float *)me), 0);
             break;
+        case DC_SIGCHAR_STRING: {
+            Copy(offset, me, agg->fields[i].array_len, char **);
+            warn("%s / %s", me, *(char **)me);
+            hv_store_ent(RETVAL, *name_ptr, newSVpv(*(char **)me, 0), 0);
+        } break;
         default:
             warn("TODO: %c", agg->fields[i].type);
-            hv_store_ent(RETVAL, *name_ptr, newSV(1), 0);
+
+            hv_store_ent(RETVAL, *name_ptr,
+                         // newSV(1),
+                         newSVpv(form("Unhandled type: %c", agg->fields[i].type), 0), 0);
             break;
         }
     }

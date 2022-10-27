@@ -1719,10 +1719,20 @@ XS_EUPXS(Types_type_call) {
             RETVAL = newSVnv((double)dcCallDouble(MY_CXT.cvm, call->fptr));
             break;
         case DC_SIGCHAR_POINTER: {
-            SV *RETVALSV;
-            RETVALSV = newSV(1);
-            sv_setref_pv(RETVALSV, "Dyn::Call::Pointer", dcCallPointer(MY_CXT.cvm, call->fptr));
-            RETVAL = RETVALSV;
+            sv_dump(call->retval);
+
+            if (1) {
+                SV *RETVALSV;
+                RETVALSV = newSV(1);
+                sv_setref_pv(RETVALSV, "Dyn::Call::Pointer", dcCallPointer(MY_CXT.cvm, call->fptr));
+                RETVAL = RETVALSV;
+            }
+            else {
+                size_t si = _sizeof(call->retval);
+                DCpointer ret_ptr = safemalloc(si);
+                DCpointer out = dcCallAggr(MY_CXT.cvm, call->fptr, agg, ret_ptr);
+                RETVAL = agg2perl(agg, SvRV(call->retval), out, si);
+            }
         } break;
         case DC_SIGCHAR_STRING:
             RETVAL = newSVpv((char *)dcCallPointer(MY_CXT.cvm, call->fptr), 0);
@@ -1751,32 +1761,10 @@ XS_EUPXS(Types_type_call) {
                 sv_set_undef(RETVAL);
         } break;
         case DC_SIGCHAR_STRUCT: {
-            // sv_dump(call->retval);
             size_t si = _sizeof(call->retval);
             DCpointer ret_ptr = safemalloc(si);
-            // DumpHex(ret_ptr, si);
             DCpointer out = dcCallAggr(MY_CXT.cvm, call->fptr, agg, ret_ptr);
-            // DumpHex(ret_ptr, si);
-            // DumpHex(out, si);
-            //  DC_API DCpointer  dcCallAggr (DCCallVM* vm, DCpointer funcptr,
-            //  const DCaggr* ag, DCpointer ret); /* retval is written to *ret, returns ret */
-            // warn("struct is %lu bytes", si);
-
-            // SV *struct_ = pointer2sv(aTHX_ call->retval, agg, size);
-
-            // static SV * agg2perl(DCaggr * agg, DCpointer data, size_t size) {
-
             RETVAL = agg2perl(agg, SvRV(call->retval), out, si);
-
-            // sv_dump(RETVAL);
-
-            /*
-    SV **type_ref = hv_fetch(type_hv, "type", 4, 0);
-    ptr = deref_pointer(aTHX_ * type_ref, value, true);
-    static DCpointer deref_pointer(pTHX_ SV *type, SV *value, bool set) {
-            */
-            // croak("Unhandled return type: %c", call->ret);
-
         } break;
         default:
             croak("Unhandled return type: %c", call->ret);
@@ -1859,6 +1847,7 @@ XS_EUPXS(Affix_DESTROY) {
 #define CTYPE(NAME, SIGCHAR, SIGCHAR_C)                                                            \
     {                                                                                              \
         const char *package = form("Affix::Type::%s", NAME);                                       \
+        set_isa(package, "Affix::Type::Base");                                                     \
         cv = newXSproto_portable(form("Affix::%s", NAME), Types_wrapper, file, ";$");              \
         Newx(XSANY.any_ptr, strlen(package) + 1, char);                                            \
         Copy(package, XSANY.any_ptr, strlen(package) + 1, char);                                   \
@@ -1882,7 +1871,6 @@ XS_EUPXS(Affix_DESTROY) {
         /* to be findable via fetchmethod(), and causes */                                         \
         /* overload::Overloaded("Affix::Call::Aggregate") to return true. */                       \
         (void)newXSproto_portable(form("%s::()", package), Types_sig, file, ";$");                 \
-        set_isa(package, "Affix::Type::Base");                                                     \
     }
 // clang-format off
 
@@ -2158,6 +2146,22 @@ CODE:
     coerce(aTHX_ type, data, RETVAL, false, 0);
 OUTPUT:
     RETVAL
+
+SV *
+pointer2struct(DCpointer ptr, SV * type)
+CODE:
+    DCaggr *   agg = _aggregate(aTHX_ type);
+    size_t si = _sizeof(type);
+    RETVAL = agg2perl(agg, SvRV(type), ptr, si);
+OUTPUT:
+    RETVAL
+
+
+MODULE = Affix PACKAGE = Affix::ArrayRef
+
+
+
+
 
 MODULE = Affix PACKAGE = Affix::ArrayRef
 
