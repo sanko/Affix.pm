@@ -5,6 +5,7 @@ package.path = '../common/?.lua;' .. package.path
 require"mk-cases"
 
 
+
 -- returns: generated case str, num args; accumulates unique idx => aggr-sig in
 -- aggrs (sequentially) and aggr-sig => {body,name} in seen_aggrs (depth first
 -- for nested aggrs, so sub-aggrs conveniently precede parents)
@@ -44,7 +45,7 @@ function mkcase(id, sig, aggrs, seen_aggrs)
         if seen_aggrs[aggr_sig[n_nest]] == nil then
           aggrs[#aggrs+1] = aggr_sig[n_nest]
           if ch == '}' then ch = 'struct ' else ch = 'union ' end
-		  ch = ch..'A'..#aggrs
+          ch = ch..'A'..#aggrs
           seen_aggrs[aggr_sig[n_nest]] = { aggr[n_nest], ch }
         end
         ch = seen_aggrs[aggr_sig[n_nest]][2]
@@ -109,7 +110,7 @@ function mkall()
 
   for line in io.lines() do
     local sig = trim(line)
-	local c, n = mkcase(lineno, sig, aggrs, seen_aggrs)
+    local c, n = mkcase(lineno, sig, aggrs, seen_aggrs)
     cases = cases..c
     max_numargs = math.max(max_numargs, n)
     sigtab[#sigtab+1] = sig

@@ -29,6 +29,7 @@
 #include "../../dyncall/dyncall_signature.h"
 #include "../../dyncall/dyncall_aggregate.h"
 #include <stdio.h>
+#include <stdarg.h>
 
 
 #if defined(DC__Feature_AggrByVal)
@@ -138,7 +139,7 @@ int testAggrReturns()
 
 		dcFreeAggr(s);
 
-		printf("r:{C}  (cdecl): %d\n", (returned.a == expected.a));
+		printf("C){C}  (cdecl): %d\n", (returned.a == expected.a));
 		ret = returned.a == expected.a && ret;
 	}
 	{
@@ -159,7 +160,7 @@ int testAggrReturns()
 
 		dcFreeAggr(s);
 
-		printf("r:{Cd}  (cdecl): %d\n", (returned.a == expected.a && returned.b == expected.b));
+		printf("Cd){Cd}  (cdecl): %d\n", (returned.a == expected.a && returned.b == expected.b));
 		ret = returned.a == expected.a && returned.b == expected.b && ret;
 	}
 	{
@@ -180,7 +181,7 @@ int testAggrReturns()
 
 		dcFreeAggr(s);
 
-		printf("r:{dC}  (cdecl): %d\n", (returned.a == expected.a && returned.b == expected.b));
+		printf("dC){dC}  (cdecl): %d\n", (returned.a == expected.a && returned.b == expected.b));
 		ret = returned.a == expected.a && returned.b == expected.b && ret;
 	}
 	{
@@ -206,7 +207,7 @@ int testAggrReturns()
 		dcFreeAggr(s_);
 		dcFreeAggr(s);
 
-		printf("r:{i{f}}  (cdecl): %d\n", (returned.a == expected.a && returned.b.f == expected.b.f));
+		printf("if){i{f}}  (cdecl): %d\n", (returned.a == expected.a && returned.b.f == expected.b.f));
 		ret = returned.a == expected.a && returned.b.f == expected.b.f && ret;
 	}
 	{
@@ -232,7 +233,7 @@ int testAggrReturns()
 		dcFreeAggr(s_);
 		dcFreeAggr(s);
 
-		printf("r:{i{d}}  (cdecl): %d\n", (returned.a == expected.a && returned.b.f == expected.b.f));
+		printf("id){i{d}}  (cdecl): %d\n", (returned.a == expected.a && returned.b.f == expected.b.f));
 		ret = returned.a == expected.a && returned.b.f == expected.b.f && ret;
 	}
 	{
@@ -255,7 +256,7 @@ int testAggrReturns()
 
 		dcFreeAggr(s);
 
-		printf("r:{ddd}  (cdecl): %d\n", (returned.a == expected.a && returned.b == expected.b && returned.c == expected.c));
+		printf("ddd){ddd}  (cdecl): %d\n", (returned.a == expected.a && returned.b == expected.b && returned.c == expected.c));
 		ret = returned.a == expected.a && returned.b == expected.b && returned.c == expected.c && ret;
 	}
 
@@ -274,6 +275,9 @@ static double __cdecl fun_take_three_double(Three_Double s)                     
 static double __cdecl fun_take_mixed_fp(double a, float b, float c, int d, float e, double f, float g, Three_Double s) { return a + 2.*b + 3.*c + 4.*d + 5.*e + 6.*f + 7.*g + 8.*s.a + 9.*s.b + 10.*s.c; }
 static int    __cdecl fun_take_iiiii_il(int a, int b, int c, int d, int e, Int_LongLong f)                             { return a + b + c + d + e + f.a + (int)f.b; }
 static double __cdecl fun_take_more_than_regs(More_Than_Regs s)                                                        { return s.a + s.b + s.c + s.d + s.e + s.f + s.g + s.h + s.i + s.j + s.k + s.l + s.m + s.n + s.o + s.p + s.q + s.r; }
+static double __cdecl fun_take_mixed_fp_vararg(double a, float b, float c, int d, ...)                                 { double r = a + 2.*b + 3.*c + 4.*d; Three_Double s; va_list v; va_start(v,d); r += 5.*va_arg(v,double); r += 6.*va_arg(v,double); r += 7.*va_arg(v,double); s = va_arg(v,Three_Double); va_end(v); return r + 8.*s.a + 9.*s.b + 10.*s.c; }
+static int    __cdecl fun_take_iiiii_il_vararg(int a, int b, int c, int d, int e, ...)                                 { int r = a + b + c + d + e; Int_LongLong f; va_list v; va_start(v,e); f = va_arg(v,Int_LongLong); va_end(v); return r + f.a + (int)f.b; }
+static double __cdecl fun_take_aggrs_vararg(Int_NestedDouble a, ...)                                                   { double r = a.a + a.b.f; Int_NestedFloat b; va_list v; va_start(v,a); b = va_arg(v,Int_NestedFloat); va_end(v); return r + b.a + b.b.f; }
 
 
 int testAggrParameters()
@@ -296,7 +300,7 @@ int testAggrParameters()
 
 		dcFreeAggr(s);
 
-		printf("{C}  (cdecl): %d\n", returned == t.a);
+		printf("{C})d  (cdecl): %d\n", returned == t.a);
 		ret = returned == t.a && ret;
 	}
 	{
@@ -314,7 +318,7 @@ int testAggrParameters()
 
 		dcFreeAggr(s);
 
-		printf("{Cd}  (cdecl): %d\n", returned == t.a + t.b);
+		printf("{Cd})d  (cdecl): %d\n", returned == t.a + t.b);
 		ret = returned == t.a + t.b && ret;
 	}
 	{
@@ -332,7 +336,7 @@ int testAggrParameters()
 
 		dcFreeAggr(s);
 
-		printf("{ff}  (cdecl): %d\n", returned == t.a + t.b);
+		printf("{ff})d  (cdecl): %d\n", returned == t.a + t.b);
 		ret = returned == t.a + t.b && ret;
 	}
 	{
@@ -350,7 +354,7 @@ int testAggrParameters()
 
 		dcFreeAggr(s);
 
-		printf("{dC}  (cdecl): %d\n", returned == t.a + t.b);
+		printf("{dC})d  (cdecl): %d\n", returned == t.a + t.b);
 		ret = returned == t.a + t.b && ret;
 	}
 	{
@@ -374,7 +378,7 @@ int testAggrParameters()
 		dcFreeAggr(s_);
 		dcFreeAggr(s);
 
-		printf("{i{f}}  (cdecl): %d\n", returned == t.a + t.b.f);
+		printf("{i{f}})d  (cdecl): %d\n", returned == t.a + t.b.f);
 		ret = returned == t.a + t.b.f && ret;
 	}
 	{
@@ -398,7 +402,7 @@ int testAggrParameters()
 		dcFreeAggr(s_);
 		dcFreeAggr(s);
 
-		printf("{i{d}}  (cdecl): %d\n", returned == t.a + t.b.f);
+		printf("{i{d}})d  (cdecl): %d\n", returned == t.a + t.b.f);
 		ret = returned == t.a + t.b.f && ret;
 	}
 	{
@@ -417,7 +421,7 @@ int testAggrParameters()
 
 		dcFreeAggr(s);
 
-		printf("{fff}  (cdecl): %d\n", returned == t.a + t.b + t.c);
+		printf("{fff})d  (cdecl): %d\n", returned == t.a + t.b + t.c);
 		ret = returned == t.a + t.b + t.c && ret;
 	}
 	{
@@ -446,7 +450,7 @@ int testAggrParameters()
 
 		dcFreeAggr(s);
 
-		printf("dffifdf{fff}  (cdecl): %d\n", returned < .00001);
+		printf("dffifdf{fff})d  (cdecl): %d\n", returned < .00001);
 		ret = returned < .00001 && ret;
 	}
 	{
@@ -469,7 +473,7 @@ int testAggrParameters()
 
 		dcFreeAggr(s);
 
-		printf("iiiii{il}  (cdecl): %d\n", returned == -18528);
+		printf("iiiii{il})i  (cdecl): %d\n", returned == -18528);
 		ret = returned == -18528 && ret;
 	}
 	{
@@ -503,8 +507,103 @@ int testAggrParameters()
 
 		dcFreeAggr(s);
 
-		printf("{dddlccdddfifdsjiIl}  (cdecl): %d\n", returned == 171.);
+		printf("{dddlccdddfifdsjiIl})d  (cdecl): %d\n", returned == 171.);
 		ret = returned == 171. && ret;
+	}
+	{
+		/* w/ some prev params, so not fitting into float regs anymore (on win and sysv) */
+		Three_Double t = { 1.4, 3.6, 4.7 };
+		double returned;
+
+		DCaggr *s = dcNewAggr(3, sizeof(t));
+		dcAggrField(s, DC_SIGCHAR_DOUBLE, offsetof(Three_Double, a), 1);
+		dcAggrField(s, DC_SIGCHAR_DOUBLE, offsetof(Three_Double, b), 1);
+		dcAggrField(s, DC_SIGCHAR_DOUBLE, offsetof(Three_Double, c), 1);
+		dcCloseAggr(s);
+
+		dcReset(vm);
+		dcMode(vm,DC_CALL_C_ELLIPSIS);
+		dcArgDouble(vm, 234.6);
+		dcArgFloat(vm, 29.4f);
+		dcArgFloat(vm, 5.0f);
+		dcArgInt(vm, -11);
+		dcMode(vm,DC_CALL_C_ELLIPSIS_VARARGS);
+		dcArgDouble(vm, -83.9f);
+		dcArgDouble(vm, -.9);
+		dcArgDouble(vm, .6f);
+		dcArgAggr(vm, s, &t);
+		returned = dcCallDouble(vm, (DCpointer) &fun_take_mixed_fp_vararg) + 65.7;
+		if(returned < 0.)
+			returned = -returned;
+
+		dcFreeAggr(s);
+
+		printf("dffi.fdf{fff})d  (cdecl): %d\n", returned < .00001);
+		ret = returned < .00001 && ret;
+	}
+	{
+		Int_LongLong t = { 71, -1177LL };
+		int returned;
+
+		DCaggr *s = dcNewAggr(2, sizeof(t));
+		dcAggrField(s, DC_SIGCHAR_INT,      offsetof(Int_LongLong, a), 1);
+		dcAggrField(s, DC_SIGCHAR_LONGLONG, offsetof(Int_LongLong, b), 1);
+		dcCloseAggr(s);
+
+		dcReset(vm);
+		dcMode(vm,DC_CALL_C_ELLIPSIS);
+		dcArgInt(vm, 31);
+		dcArgInt(vm, -123);
+		dcArgInt(vm, 108);
+		dcArgInt(vm, 133);
+		dcArgInt(vm, -17933);
+		dcMode(vm,DC_CALL_C_ELLIPSIS_VARARGS);
+		dcArgAggr(vm, s, &t);
+		returned = dcCallInt(vm, (DCpointer) &fun_take_iiiii_il_vararg);
+
+		dcFreeAggr(s);
+
+		printf("iiiii.{il})i  (cdecl): %d\n", returned == -18890);
+		ret = returned == -18890 && ret;
+	}
+	{
+		Int_NestedDouble t0 = { -64, { -6.6} };
+		Int_NestedFloat t1 = { 112, { 7.5f } };
+		int returned;
+		DCaggr *s0, *s0_, *s1, *s1_;
+
+		s0_ = dcNewAggr(1, sizeof(NestedDouble));
+		dcAggrField(s0_, DC_SIGCHAR_DOUBLE, offsetof(NestedDouble, f), 1);
+		dcCloseAggr(s0_);
+
+		s0 = dcNewAggr(2, sizeof(t0));
+		dcAggrField(s0, DC_SIGCHAR_INT, offsetof(Int_NestedDouble, a), 1);
+		dcAggrField(s0, DC_SIGCHAR_AGGREGATE, offsetof(Int_NestedDouble, b), 1, s0_);
+		dcCloseAggr(s0);
+
+		s1_ = dcNewAggr(1, sizeof(NestedFloat));
+		dcAggrField(s1_, DC_SIGCHAR_FLOAT, offsetof(NestedFloat, f), 1);
+		dcCloseAggr(s1_);
+
+		s1 = dcNewAggr(2, sizeof(t1));
+		dcAggrField(s1, DC_SIGCHAR_INT, offsetof(Int_NestedFloat, a), 1);
+		dcAggrField(s1, DC_SIGCHAR_AGGREGATE, offsetof(Int_NestedFloat, b), 1, s1_);
+		dcCloseAggr(s1);
+
+		dcReset(vm);
+		dcMode(vm,DC_CALL_C_ELLIPSIS);
+		dcArgAggr(vm, s0, &t0);
+		dcMode(vm,DC_CALL_C_ELLIPSIS_VARARGS);
+		dcArgAggr(vm, s1, &t1);
+		returned = dcCallDouble(vm, (DCpointer) &fun_take_aggrs_vararg) - 48.9;
+
+		dcFreeAggr(s0_);
+		dcFreeAggr(s0);
+		dcFreeAggr(s1_);
+		dcFreeAggr(s1);
+
+		printf("{i{d}}.{i{f}})d  (cdecl): %d\n", returned < .00001);
+		ret = returned < .00001 && ret;
 	}
 
 	dcFree(vm);

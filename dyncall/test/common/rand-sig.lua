@@ -9,6 +9,7 @@
 
 -- optional:
 -- rtypes (if not set, it'll be 'v'..types)
+-- ellipsis
 
 -- optional (when including aggregate generation):
 -- minaggrfields
@@ -57,7 +58,7 @@ function mkaggr(n_nest, maxdepth, o, c)
       until t ~= c or nfields >= minaggrfields
     end
 
-    s_ = mktype(t, n_nest, maxdepth, o)
+    s_ = mktype(t, n_nest, maxdepth, o) or ''
     if(#s_ > 0) then
       nfields = nfields + 1
     end
@@ -87,7 +88,7 @@ function mktype(t, n_nest, maxdepth, aggr_open)
     if n_nest < maxdepth then
       return mkaggr(n_nest + 1, maxdepth, pairs_op[aggr_i], pairs_cl[aggr_i])
     else
-      return ''
+      return nil
     end
   end
 
@@ -101,7 +102,7 @@ function mktype(t, n_nest, maxdepth, aggr_open)
 
   -- if closing char, without any open, ignore
   if aggr_i ~= 0 and (aggr_open == nil or pairs_op[aggr_i] ~= aggr_open) then
-    return ''
+    return nil
   end
 
   return t
@@ -117,17 +118,22 @@ for i = 1, ncases do
   local l = ''
   repeat
     local nargs = math.random(minargs,maxargs)
+    local varargstart = (ellipsis and nargs > 0 and math.random(0,ellipsis) == 0) and math.random(0,nargs-1) or nargs -- generate vararg sigs?
     local sig = { }
     for j = 1, nargs do
       id = math.random(#types)
       sig[#sig+1] = mktype(types:sub(id,id), 0, math.random(maxaggrdepth), nil) -- random depth avoids excessive nesting
+      -- start vararg part?
+      if j > varargstart and #sig > 0 then
+        sig[#sig+1] = "."
+        varargstart = nargs
+      end
     end
-	r = ''
-	repeat
+    repeat
       id = math.random(#rtypes)
-	  r = mktype(rtypes:sub(id,id), 0, math.random(maxaggrdepth), nil) -- random depth avoids excessive nesting
-	until r ~= ''
-	sig[#sig+1] = ')'..r
+      r = mktype(rtypes:sub(id,id), 0, math.random(maxaggrdepth), nil) -- random depth avoids excessive nesting
+    until r
+    sig[#sig+1] = ')'..r
     l = table.concat(sig)
     -- reject dupes, sigs without any aggregate (as this is about aggrs after all), and empty ones (if not wanted)
   until (reqaggrinsig ~= true or string.match(l, aggr_op_pattern) ~= nil) and uniq_sigs[l] == nil

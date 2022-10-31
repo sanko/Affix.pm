@@ -15,7 +15,7 @@ dyncall:
     anymore, which was unflexible (breaking change)
   o added macros to feature test implementation for aggregate-by-value and syscall support
   o windows/x64/masm directives added to specify how stack unwinds (help for
-    debuggers, exception handling, etc.; thanks Raphael Luba)
+    debuggers, exception handling, etc.; thanks Raphael Luba!)
   o fixed detection of native thiscall callconv for builds not using MSVC but using (or adhering to)
     the MSVC runtime (e.g. ReactOS' MinGW based RosBE)
 dyncallback:
@@ -34,6 +34,7 @@ tests:
   o call_suite_aggrs: new test suite for calls with aggregate arguments and
     return types (structs, unions and arrays as aggregate members)
   o callback_suite_aggrs: new test suite, like call_suite_aggrs but for callbacks
+  o plain: added some aggregate-as-vararg-by-value tests
   o plain_c++: added non-trivial C++ aggregate tests
   o callback_plain_c++: new test, focusing on methods and non-trivial C++ aggregates
   o simplifications and major refactoring to share more code (especially

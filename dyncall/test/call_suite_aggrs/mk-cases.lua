@@ -1,5 +1,4 @@
 require"config"
-require"math"
 
 -- use shared helpers to generate cases
 package.path = '../common/?.lua;' .. package.path
