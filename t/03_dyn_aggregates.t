@@ -1,6 +1,7 @@
 use strict;
 use Test::More 0.98;
-use lib '../lib', '../blib/arch', '../blib/lib', 'blib/arch', 'blib/lib';
+BEGIN { chdir '../' if !-d 't'; }
+use lib '../lib', 'lib', '../blib/arch', '../blib/lib', 'blib/arch', 'blib/lib', '../../', '.';
 use Dyn qw[:all];
 use File::Spec;
 $|++;
@@ -156,7 +157,7 @@ SKIP: {
             is $fields[0]->sub_aggr,  undef,            'field->sub_aggr == undef';
         };
         dcFreeAggr($s);
-        ok 'remove';
+        pass 'remove';
     };
     subtest 'aggregate builder [struct arg]' => sub {
         use Dyn qw[:all];    # Exports nothing by default
@@ -170,10 +171,12 @@ SKIP: {
         dcAggrField( $s, DC_SIGCHAR_UCHAR, 0, 1 );
         dcCloseAggr($s);
         dcReset($cvm);
-        dcBeginCallAggr( $cvm, $s );
-        dcArgChar( $cvm, 'Y' );
+        my $mem = malloc(1);
+        memcpy( $mem, 'Y', 1 );
+        dcArgAggr( $cvm, $s, $mem );
         is dcCallChar( $cvm, $ptr ), 'Z', 'struct.a++ == Z';
         dcFreeAggr($s);
+        free($mem);
     };
     subtest 'aggregate builder [struct return [raw]]' => sub {
         use Dyn qw[:all];    # Exports nothing by default
@@ -189,13 +192,9 @@ SKIP: {
         dcReset($cvm);
         dcBeginCallAggr( $cvm, $s );
         dcArgChar( $cvm, 'm' );
-        diag $cvm;
-        diag $ptr;
-        diag $s;
         my $ret = malloc(1);
-        diag $ret;
         isa_ok dcCallAggr( $cvm, $ptr, $s, $ret ), 'Dyn::Call::Pointer';
-        diag $s;
+        is $ret->raw(1), 'n', 'struct.a++ == n';
         dcFreeAggr($s);
     };
     subtest 'aggregate builder [struct return [obj]]' => sub {
@@ -211,7 +210,6 @@ SKIP: {
         dcCloseAggr($s);
         dcReset($cvm);
         dcArgChar( $cvm, 'm' );
-        #
         my $obj = malloc(1);
         my $ret = dcCallAggr( $cvm, $ptr, $s, $obj );
         isa_ok $ret, 'Dyn::Call::Pointer', '$ret';
@@ -236,7 +234,8 @@ SKIP: {
         dcArgChar( $cvm, 'Y' );
         my $obj = malloc(1);
         my $ret = dcCallAggr( $cvm, $ptr, $s, $obj );
-        is_deeply $ret->perl( [ first => DC_SIGCHAR_UCHAR ] ), { first => 'Z' };
+        is_deeply $ret->perl( [ first => DC_SIGCHAR_UCHAR ] ), { first => 'Z' },
+            'parsing aggr into a simple hashref';
         dcFreeAggr($s);
         free($obj);
     };

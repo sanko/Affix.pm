@@ -133,7 +133,7 @@ else croak("arg is not of type Dyn::Call::Pointer or Dyn::Callback");
 // clang-format off
 
 void
-dcArgAggr(DCCallVM * vm, DCaggr * s, void * value);
+dcArgAggr(DCCallVM * vm, DCaggr * s, DCpointer value);
 
 void
 dcArgString(DCCallVM * vm, char * arg);
@@ -209,40 +209,41 @@ dcGetError(DCCallVM* vm);
 
 =cut
 
- // clang-format on
+void letsgo(DCpointer * in)
+CODE:
+// clang-format on
+{
+    uiInitOptions *o;
+    o = (uiInitOptions *)in;
+    uiWindow *w;
+    uiBox *b;
+    uiButton *btn;
 
- void letsgo(DCpointer * in) CODE : uiInitOptions *
-                                    o;
-o = (uiInitOptions *)in;
-uiWindow *w;
-uiBox *b;
-uiButton *btn;
+    memset(o, 0, sizeof(uiInitOptions));
+    if (uiInit(o) != NULL) abort();
 
-memset(o, 0, sizeof(uiInitOptions));
-if (uiInit(o) != NULL) abort();
+    w = uiNewWindow("Hello", 320, 240, 0);
+    uiWindowSetMargined(w, 1);
 
-w = uiNewWindow("Hello", 320, 240, 0);
-uiWindowSetMargined(w, 1);
+    b = uiNewVerticalBox();
+    uiBoxSetPadded(b, 1);
+    uiWindowSetChild(w, uiControl(b));
 
-b = uiNewVerticalBox();
-uiBoxSetPadded(b, 1);
-uiWindowSetChild(w, uiControl(b));
+    e = uiNewMultilineEntry();
+    uiMultilineEntrySetReadOnly(e, 1);
 
-e = uiNewMultilineEntry();
-uiMultilineEntrySetReadOnly(e, 1);
+    btn = uiNewButton("Say Something");
+    uiButtonOnClicked(btn, saySomething, NULL);
+    uiBoxAppend(b, uiControl(btn), 0);
 
-btn = uiNewButton("Say Something");
-uiButtonOnClicked(btn, saySomething, NULL);
-uiBoxAppend(b, uiControl(btn), 0);
+    uiBoxAppend(b, uiControl(e), 1);
 
-uiBoxAppend(b, uiControl(e), 1);
+    uiTimer(1000, sayTime, NULL);
 
-uiTimer(1000, sayTime, NULL);
-
-uiWindowOnClosing(w, onClosing, NULL);
-uiControlShow(uiControl(w));
-uiMain();
-
+    uiWindowOnClosing(w, onClosing, NULL);
+    uiControlShow(uiControl(w));
+    uiMain();
+}
 // clang-format off
 
 =cut
