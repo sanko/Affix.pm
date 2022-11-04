@@ -824,7 +824,8 @@ XS_EUPXS(Types) {
                                 Copy(line, (DCpointer)(PTR2IV(eval) + pos), strlen(line) + 1, char);
                                 pos += strlen(line);
                             }
-                            current_value = eval_pv(form("{no warnings qw'redefine reserved';%s%s}",
+                            current_value = eval_pv(form("package Affix::Enum::eval{no warnings "
+                                                         "qw'redefine reserved';%s%s}",
                                                          eval, SvPV_nolen(current_value)),
                                                     1);
                             safefree(eval);
@@ -1131,7 +1132,7 @@ XS_EUPXS(Types_return_typedef) {
     dXSARGS;
     dXSI32;
     dXSTARG;
-    ST(0) = XSANY.any_sv;
+    ST(0) = sv_2mortal(newSVsv(XSANY.any_sv));
     XSRETURN(1);
 }
 
@@ -1160,7 +1161,7 @@ XS_EUPXS(Types_typedef) {
                 SV **value = av_fetch(MUTABLE_AV(values), i, 0);
                 register_constant(name, SvPV_nolen(*value), *value);
             }
-            register_constant(name, name, ST(1));
+            // register_constant(name, name, SvREFCNT_inc(ST(1)));
         }
     }
 }

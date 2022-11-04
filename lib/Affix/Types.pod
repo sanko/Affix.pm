@@ -117,11 +117,12 @@ enumeration. The value of the first enumerator (if it is not defined) is zero.
     # two   = b
     # three = a
 
-Additionally, if you C<typedef> the enum into the ordinary namespace, you may
-refer to elements by name:
+Additionally, if you C<typedef> the enum into a given namespace, you may refer
+to elements by name:
 
     typedef color => Enum[ 'RED', 'GREEN', 'BLUE' ];
-    print color::RED;
+    print color::RED();     # RED
+    print int color::RED(); # 0
 
 =head2 InstanceOf
 
