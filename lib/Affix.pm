@@ -44,33 +44,23 @@ package Affix 0.04 {
             #warn 'Wrapping ' . $sub;
             #use Data::Dump;
             #ddx $_delay{$sub};
-            my $sig = eval sprintf qq'package %s; %s;', $_delay{$sub}[0], $_delay{$sub}[4];
-            my $ret = eval sprintf qq'package %s; %s;', $_delay{$sub}[0], $_delay{$sub}[5];
+            my $template = qq'package %s {use Affix qw[:types]; sub{%s}->(); }';
+            my $sig      = eval sprintf $template, $_delay{$sub}[0], $_delay{$sub}[4];
+            Carp::croak $@ if $@;
+            my $ret = eval sprintf $template, $_delay{$sub}[0], $_delay{$sub}[5];
+            Carp::croak $@ if $@;
 
-            #~ use Data::Dump;
-            #~ ddx [
-            #~ (
-            #~ defined $_delay{$sub}[1] ?
-            #~ guess_library_name( $_delay{$sub}[1], $_delay{$sub}[2] ) :
-            #~ undef
-            #~ ),
-            #~ $_delay{$sub}[3],
-            #~ $sig, $ret,
-            #~ $_delay{$sub}[6],
-            #~ $_delay{$sub}[7]
-            #~ ];
-            #~ ddx guess_library_name( $_delay{$sub}[1], $_delay{$sub}[2] );
-            my $cv = attach(
-                (
-                    defined $_delay{$sub}[1] ?
-                        guess_library_name( $_delay{$sub}[1], $_delay{$sub}[2] ) :
-                        undef
-                ),
-                $_delay{$sub}[3],
-                $sig, $ret,
-                $_delay{$sub}[6],
-                $_delay{$sub}[7]
-            );
+            #use Data::Dump;
+            #ddx $_delay{$sub};
+            #~ ddx locate_lib( $_delay{$sub}[1], $_delay{$sub}[2] );
+            my $lib
+                = defined $_delay{$sub}[1] ?
+                scalar locate_lib( $_delay{$sub}[1], $_delay{$sub}[2] ) :
+                undef;
+
+            #ddx [ $lib, $_delay{$sub}[3], $sig, $ret, $_delay{$sub}[6], $_delay{$sub}[7] ];
+            my $cv
+                = attach( $lib, $_delay{$sub}[3], $sig, $ret, $_delay{$sub}[6], $_delay{$sub}[7] );
             delete $_delay{$sub};
             return goto &$cv;
         }
@@ -145,7 +135,7 @@ package Affix 0.04 {
             #];
             if ( defined &{$full_name} ) {    #no strict 'refs';
                 ...;
-                return attach( guess_library_name( $library, $library_version ),
+                return attach( locate_lib( $library, $library_version ),
                     $symbol, $signature, $return, $mode, $full_name );
             }
             $_delay{$full_name} = [
@@ -157,7 +147,7 @@ package Affix 0.04 {
     }
     our $OS = $^O;
 
-    sub guess_library_name ( $name = (), $version = () ) {
+    sub locate_lib ( $name = (), $version = () ) {
         CORE::state $_lib_cache;
         ( $name, $version ) = @$name if ref $name eq 'ARRAY';
         $name // return ();    # NULL
@@ -418,54 +408,9 @@ Returns a code reference.
 
 =head1 Signatures
 
-C<dyncall> uses an almost C<pack>-like syntax to define signatures. Affix is
-inspired by L<Type::Standard>:
-
-=over
-
-=item C<Void>
-
-=item C<Bool> - typical boolean value
-
-=item C<Char> - signed 8-bit integer
-
-=item C<UChar> - unsigned 8-bit integer
-
-=item C<Short> 16-bit integer
-
-=item C<UShort> - unsigned 16-bit integer
-
-=item C<Int> - 32-bit integer
-
-=item C<UInt>
-
-=item C<Long> - 32-bit integer
-
-=item C<ULong>
-
-=item C<LongLong> - 64-bit integer
-
-=item C<ULongLong>
-
-=item C<Float> - single precision floating-point number
-
-=item C<Double> - double precision floating-point number
-
-=item C<Pointer[...]>
-
-=item C<Str> - a C<NULL> terminated string pointer (think C<char *> in C)
-
-=item C<ArrayRef[...]>
-
-=item C<InstanceOf[...]>
-
-=item C<Struct[...]>
-
-=item C<CodeRef[...]>
-
-=item C<Any>
-
-=back
+C<dyncall> uses an almost C<pack>-like syntax to define signatures which is
+simple and powerful but Affix is inspired by L<Type::Standard>. See
+L<Affix::Types> for more.
 
 =head1 Library paths and names
 

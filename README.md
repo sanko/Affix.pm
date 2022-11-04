@@ -70,30 +70,9 @@ Returns a code reference.
 
 # Signatures
 
-`dyncall` uses an almost `pack`-like syntax to define signatures. Affix is
-inspired by [Type::Standard](https://metacpan.org/pod/Type%3A%3AStandard):
-
-- `Void`
-- `Bool` - typical boolean value
-- `Char` - signed 8-bit integer
-- `UChar` - unsigned 8-bit integer
-- `Short` 16-bit integer
-- `UShort` - unsigned 16-bit integer
-- `Int` - 32-bit integer
-- `UInt`
-- `Long` - 32-bit integer
-- `ULong`
-- `LongLong` - 64-bit integer
-- `ULongLong`
-- `Float` - single precision floating-point number
-- `Double` - double precision floating-point number
-- `Pointer[...]`
-- `Str` - a `NULL` terminated string pointer (think `char *` in C)
-- `ArrayRef[...]`
-- `InstanceOf[...]`
-- `Struct[...]`
-- `CodeRef[...]`
-- `Any`
+`dyncall` uses an almost `pack`-like syntax to define signatures which is
+simple and powerful but Affix is inspired by [Type::Standard](https://metacpan.org/pod/Type%3A%3AStandard). See
+[Affix::Types](https://metacpan.org/pod/Affix%3A%3ATypes) for more.
 
 # Library paths and names
 

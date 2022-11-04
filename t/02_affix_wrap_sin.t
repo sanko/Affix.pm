@@ -8,7 +8,7 @@ use Config;
 $|++;
 #
 my $libfile
-    = Affix::guess_library_name( $^O eq 'MSWin32' ? 'msvcrt' :
+    = Affix::locate_lib( $^O eq 'MSWin32' ? 'msvcrt' :
         $^O eq 'darwin' ? '/usr/lib/libm.dylib' :
         $^O eq 'bsd'    ? '/usr/lib/libm.so' :
         $Config{archname} =~ /64/ ?

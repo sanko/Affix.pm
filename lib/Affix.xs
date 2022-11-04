@@ -296,11 +296,13 @@ static size_t _sizeof(pTHX_ SV *type) {
         if (hv_exists(MUTABLE_HV(SvRV(type)), "sizeof", 6))
             return SvIV(*hv_fetchs(MUTABLE_HV(SvRV(type)), "sizeof", 0));
         size_t size = 0, this_size;
-        SV **idk_wtf = hv_fetchs(MUTABLE_HV(SvRV(type)), "types", 0);
+        SV **idk_wtf = hv_fetchs(MUTABLE_HV(SvRV(type)), "fields", 0);
         AV *idk_arr = MUTABLE_AV(SvRV(*idk_wtf));
         for (int i = 0; i < av_count(idk_arr); ++i) {
-            SV **type_ptr = av_fetch(idk_arr, i, 0);
+            SV **type_ptr = av_fetch(MUTABLE_AV(*av_fetch(idk_arr, i, 0)), 1, 0);
+            hv_stores(MUTABLE_HV(SvRV(*type_ptr)), "offset", newSViv(0));
             this_size = _sizeof(aTHX_ * type_ptr);
+            hv_stores(MUTABLE_HV(SvRV(type)), "sizeof", newSViv(this_size));
             if (size < this_size) size = this_size;
         }
         hv_stores(MUTABLE_HV(SvRV(type)), "sizeof", newSViv(size));
@@ -332,7 +334,8 @@ static DCaggr *_aggregate(pTHX_ SV *type) {
     // warn("here at %s line %d", __FILE__, __LINE__);
 
     switch (str[0]) {
-    case DC_SIGCHAR_STRUCT: {
+    case DC_SIGCHAR_STRUCT:
+    case DC_SIGCHAR_UNION: {
         warn("here at %s line %d", __FILE__, __LINE__);
 
         if (hv_exists(MUTABLE_HV(SvRV(type)), "aggregate", 9)) {
@@ -357,13 +360,15 @@ static DCaggr *_aggregate(pTHX_ SV *type) {
         }
         else {
             warn("here at %s line %d", __FILE__, __LINE__);
-
             SV **idk_wtf = hv_fetchs(MUTABLE_HV(SvRV(type)), "fields", 0);
-            SV **sv_packed = hv_fetchs(MUTABLE_HV(SvRV(type)), "packed", 0);
-            bool packed = SvTRUE(*sv_packed);
+            bool packed = false;
+            if (str[0] == DC_SIGCHAR_STRUCT) {
+                SV **sv_packed = hv_fetchs(MUTABLE_HV(SvRV(type)), "packed", 0);
+                packed = SvTRUE(*sv_packed);
+            }
             AV *idk_arr = MUTABLE_AV(SvRV(*idk_wtf));
             int field_count = av_count(idk_arr);
-            warn("DCaggr *main = dcNewAggr(%d, %d); at %s line %d", field_count, size, __FILE__,
+            warn("DCaggr *agg = dcNewAggr(%d, %d); at %s line %d", field_count, size, __FILE__,
                  __LINE__);
             DCaggr *agg = dcNewAggr(field_count, size);
             for (int i = 0; i < field_count; ++i) {
@@ -372,12 +377,16 @@ static DCaggr *_aggregate(pTHX_ SV *type) {
                 size_t offset = SvIV(*hv_fetchs(MUTABLE_HV(SvRV(*type_ptr)), "offset", 0));
                 char *str = SvPVbytex_nolen(*type_ptr);
                 switch (str[0]) {
-                case DC_SIGCHAR_STRUCT: {
+                case DC_SIGCHAR_AGGREGATE:
+                case DC_SIGCHAR_STRUCT:
+                case DC_SIGCHAR_UNION: {
+
                     DCaggr *child = _aggregate(aTHX_ * type_ptr);
 
-                    dcAggrField(agg, str[0], offset, 1, child);
-
-                    // dcAggrField(agg, DC_SIGCHAR_AGGREGATE, offset, 1, child);
+                    dcAggrField(agg, DC_SIGCHAR_AGGREGATE, offset, 1, child);
+                    // void dcAggrField(DCaggr* ag, DCsigchar type, DCint offset, DCsize array_len,
+                    // ...)
+                    //  dcAggrField(agg, DC_SIGCHAR_AGGREGATE, offset, 1, child);
                     warn("dcAggrField(agg, DC_SIGCHAR_AGGREGATE, %d, 1, child); at %s line %d",
                          offset, __FILE__, __LINE__);
                 } break;
@@ -387,13 +396,8 @@ static DCaggr *_aggregate(pTHX_ SV *type) {
                     int array_len = SvIV(*hv_fetchs(MUTABLE_HV(SvRV(*type_ptr)), "size", 0));
                     char *str = SvPVbytex_nolen(type);
                     dcAggrField(agg, str[0], offset, array_len);
-                    warn("dcAggrField(agg, %c, %d, 1); at %s line %d", str[0], offset, __FILE__,
-                         __LINE__);
-                } break;
-                case DC_SIGCHAR_UNION: {
-                    DCaggr *child = _aggregate(aTHX_ * type_ptr);
-
-                    dcAggrField(agg, str[0], offset, 1, child);
+                    warn("dcAggrField(agg, %c, %d, %d); at %s line %d", str[0], offset, array_len,
+                         __FILE__, __LINE__);
                 } break;
                 default: {
                     dcAggrField(agg, str[0], offset, 1);
@@ -415,15 +419,7 @@ static DCaggr *_aggregate(pTHX_ SV *type) {
             return agg;
         }
     } break;
-    case DC_SIGCHAR_UNION: {
 
-
-
-
-
-        croak("unsupported aggregate at %s line %d",str[0], __FILE__, __LINE__);
-
-    } break;
     default: {
         croak("unsupported aggregate at %s line %d", __FILE__, __LINE__);
         break;
@@ -529,10 +525,10 @@ static DCaggr *coerce(pTHX_ SV *type, SV *data, DCpointer ptr, bool packed, size
 
             coerce(aTHX_ * type_ptr, *(hv_fetch(hv_data, key, strlen(key), 0)),
                    ((DCpointer)(PTR2IV(ptr) + pos)), packed, pos);
-
-            warn("padding needed: %ul for size of %d at %s line %d",
-                 padding_needed_for(PTR2IV(ptr), _sizeof(aTHX_ * type_ptr)),
-                 _sizeof(aTHX_ * type_ptr), __FILE__, __LINE__);
+            /*
+                        warn("padding needed: %l for size of %d at %s line %d",
+                             padding_needed_for(PTR2IV(ptr), _sizeof(aTHX_ * type_ptr)),
+                             _sizeof(aTHX_ * type_ptr), __FILE__, __LINE__);*/
             pos += el_len;
 
             /*
@@ -637,8 +633,24 @@ static DCaggr *coerce(pTHX_ SV *type, SV *data, DCpointer ptr, bool packed, size
         Copy((char *)(&value), ptr, 1, int);
     } break;
     case DC_SIGCHAR_UINT: {
-        int value = SvUV(data);
+        unsigned int value = SvUV(data);
         Copy((char *)(&value), ptr, 1, unsigned int);
+    } break;
+    case DC_SIGCHAR_LONG: {
+        long value = SvIV(data);
+        Copy((char *)(&value), ptr, 1, long);
+    } break;
+    case DC_SIGCHAR_ULONG: {
+        unsigned long value = SvUV(data);
+        Copy((char *)(&value), ptr, 1, unsigned long);
+    } break;
+    case DC_SIGCHAR_LONGLONG: {
+        long long value = SvUV(data);
+        Copy((char *)(&value), ptr, 1, long long);
+    } break;
+    case DC_SIGCHAR_ULONGLONG: {
+        unsigned long long value = SvUV(data);
+        Copy((char *)(&value), ptr, 1, unsigned long long);
     } break;
     case DC_SIGCHAR_FLOAT: {
         float value = SvNV(data);
@@ -656,7 +668,8 @@ static DCaggr *coerce(pTHX_ SV *type, SV *data, DCpointer ptr, bool packed, size
         // return PTRSIZE;
     } break;
     default: {
-        croak("OTHER");
+        // croak("OTHER");
+        sv_dump(type);
         char *str = SvPVbytex_nolen(type);
         warn("char *str = SvPVbytex_nolen(type) == %s", str);
         size_t size;
@@ -669,7 +682,6 @@ static DCaggr *coerce(pTHX_ SV *type, SV *data, DCpointer ptr, bool packed, size
         case DC_SIGCHAR_CHAR:
             size = I8SIZE;
             break;
-
         case DC_SIGCHAR_FLOAT:
             size = FLOATSIZE;
             break;
@@ -775,6 +787,83 @@ XS_EUPXS(Types) {
     //
     //  warn("ix == %c", ix);
     switch (ix) {
+    case DC_SIGCHAR_ENUM: {
+        AV *vals = MUTABLE_AV(SvRV(ST(1)));
+        AV *values = newAV_mortal();
+        SV *current_value = newSViv(0);
+        for (int i = 0; i < av_count(vals); ++i) {
+            SV *name = newSV(0);
+            SV **item = av_fetch(vals, i, 0);
+            if (SvROK(*item)) {
+                if (SvTYPE(SvRV(*item)) == SVt_PVAV) {
+                    AV *cast = MUTABLE_AV(SvRV(*item));
+                    if (av_count(cast) == 2) {
+                        name = *av_fetch(cast, 0, 0);
+                        current_value = *av_fetch(cast, 1, 0);
+                        if (!SvIOK(current_value)) { // C-like enum math like: enum { a, b, c = a+b}
+                            char *eval = NULL;
+                            size_t pos = 0;
+                            size_t size = 1024;
+                            Newxz(eval, size, char);
+                            for (int i = 0; i < av_count(values); i++) {
+                                SV *e = *av_fetch(values, i, 0);
+                                char *str = SvPV_nolen(e);
+                                char *line;
+                                if (SvIOK(e)) {
+                                    int num = SvIV(e);
+                                    line = form("sub %s(){%d}", str, num);
+                                }
+                                else {
+                                    char *chr = SvPV_nolen(e);
+                                    line = form("sub %s(){'%s'}", str, chr);
+                                }
+                                // size_t size = pos + strlen(line);
+                                size = (strlen(eval) > (size + strlen(line))) ? size + strlen(line)
+                                                                              : size;
+                                Renewc(eval, size, char, char);
+                                Copy(line, (DCpointer)(PTR2IV(eval) + pos), strlen(line) + 1, char);
+                                pos += strlen(line);
+                            }
+                            current_value = eval_pv(form("{no warnings qw'redefine reserved';%s%s}",
+                                                         eval, SvPV_nolen(current_value)),
+                                                    1);
+                            safefree(eval);
+                        }
+                    }
+                }
+                else { croak("Enum element must be a [key => value] pair"); }
+            }
+            else
+                sv_setsv(name, *item);
+            {
+                SV *TARGET = newSV(1);
+                { // Let's make enum values dualvars just 'cause; snagged from Scalar::Util
+                    SV *num = newSVsv(current_value);
+                    (void)SvUPGRADE(TARGET, SVt_PVNV);
+                    sv_copypv(TARGET, name);
+                    if (SvNOK(num) || SvPOK(num) || SvMAGICAL(num)) {
+                        SvNV_set(TARGET, SvNV(num));
+                        SvNOK_on(TARGET);
+                    }
+#ifdef SVf_IVisUV
+                    else if (SvUOK(num)) {
+                        SvUV_set(TARGET, SvUV(num));
+                        SvIOK_on(TARGET);
+                        SvIsUV_on(TARGET);
+                    }
+#endif
+                    else {
+                        SvIV_set(TARGET, SvIV(num));
+                        SvIOK_on(TARGET);
+                    }
+                    if (PL_tainting && (SvTAINTED(num) || SvTAINTED(name))) SvTAINTED_on(TARGET);
+                }
+                av_push(values, newSVsv(TARGET));
+            }
+            sv_inc(current_value);
+        }
+        hv_stores(RETVAL_HV, "values", newRV_inc(MUTABLE_SV(values)));
+    }; break;
     case DC_SIGCHAR_ARRAY: { // ArrayRef[Int] or ArrayRef[Int, 5]
         // SV *packed = SvTRUE(false);
         AV *type_size = MUTABLE_AV(SvRV(ST(1)));
@@ -848,7 +937,8 @@ XS_EUPXS(Types) {
             hv_stores(RETVAL_HV, "signature", newSVpv(signature, field_count));
         }
     } break;
-    case DC_SIGCHAR_STRUCT: {
+    case DC_SIGCHAR_STRUCT:
+    case DC_SIGCHAR_UNION: {
         if (items == 2) {
             AV *fields = newAV_mortal();
             AV *fields_in = MUTABLE_AV(SvRV(ST(1)));
@@ -871,8 +961,8 @@ XS_EUPXS(Types) {
             hv_stores(RETVAL_HV, "fields", newRV_inc(MUTABLE_SV(fields)));
         }
         else
-            croak("Struct[...]");
-        hv_stores(RETVAL_HV, "packed", sv_2mortal(boolSV(false)));
+            croak(ix == DC_SIGCHAR_STRUCT ? "Struct[...]" : "Union[...]");
+        if (ix == DC_SIGCHAR_STRUCT) hv_stores(RETVAL_HV, "packed", sv_2mortal(boolSV(false)));
     } break;
     case DC_SIGCHAR_POINTER: {
         AV *fields = MUTABLE_AV(SvRV(ST(1)));
@@ -887,23 +977,6 @@ XS_EUPXS(Types) {
         else
             croak("Pointer[...] expects a single type. e.g. Pointer[Int]");
     } break;
-    case DC_SIGCHAR_UNION: {
-        if (items == 2) {
-            AV *fields = newAV_mortal();
-            AV *fields_in = MUTABLE_AV(SvRV(ST(1)));
-            size_t field_count = av_count(fields_in);
-            for (int i = 0; i < field_count; i++) {
-                SV **value_ptr = av_fetch(fields_in, i, 0);
-                SV *value = newSVsv(*value_ptr);
-                sv_dump(value);
-                if (!(sv_isobject(value) && sv_derived_from(value, "Affix::Type::Base")))
-                    croak("Given type for Union[...] is not a subclass of Affix::Type::Base");
-            }
-            hv_stores(RETVAL_HV, "types", newRV_inc(SvRV(ST(1))));
-        }
-        else
-            croak("Union[...]");
-    } break;
     case DC_SIGCHAR_BLESSED: {
         AV *packages_in = MUTABLE_AV(SvRV(ST(1)));
         if (av_count(packages_in) != 1) croak("InstanceOf[...] expects a single package name");
@@ -915,7 +988,7 @@ XS_EUPXS(Types) {
     } break;
     case DC_SIGCHAR_ANY: {
         break;
-    }
+    } break;
     default:
         if (items > 1)
             croak("Too many arguments for subroutine '%s' (got %d; expected 0)", package, items);
@@ -991,7 +1064,6 @@ XS_EUPXS(Types_csig) {
         Safefree(idk);
     } break;
     case DC_SIGCHAR_STRUCT: {
-
         AV *s;
 
         STMT_START {
@@ -1077,31 +1149,18 @@ XS_EUPXS(Types_typedef) {
         XSANY.any_sv = SvREFCNT_inc(ST(1));
     }
 
-    if (sv_isobject(ST(1)) && sv_derived_from(ST(1), "Affix::Type::Enum")) {
-        HV *href = MUTABLE_HV(SvRV(ST(1)));
-        SV **values_ref = hv_fetch(href, "values", 6, 0);
-        SV **type_ref = hv_fetch(href, "type", 4, 0);
-        AV *values = MUTABLE_AV(SvRV(*values_ref));
-        HV *_stash = gv_stashpv(name, TRUE);
-        for (int i = 0; i < av_count(values); i++) {
-            SV **value = av_fetch(MUTABLE_AV(values), i, 0);
-            SV *value_name = *av_fetch(MUTABLE_AV(SvRV(*value)), 0, 0);
-            SV *value_value = *av_fetch(MUTABLE_AV(SvRV(*value)), 1, 0);
-            char *pkg_func = form("%s::%s", name, SvPV_nolen(value_name));
-            SV *targ = newSV(1);
-            (void)SvUPGRADE(targ, SVt_PVNV);
-            sv_copypv(targ, value_name);
-            if (SvNOK(value_value) || SvPOK(value_value) || SvMAGICAL(value_value)) {
-                SvNV_set(targ, SvNV(value_value));
-                SvNOK_on(targ);
+    if (sv_isobject(ST(1))) {
+        if (sv_derived_from(ST(1), "Affix::Type::Struct")) { croak("Typedef a struct..."); }
+        else if (sv_derived_from(ST(1), "Affix::Type::Enum")) {
+            HV *href = MUTABLE_HV(SvRV(ST(1)));
+            SV **values_ref = hv_fetch(href, "values", 6, 0);
+            AV *values = MUTABLE_AV(SvRV(*values_ref));
+            HV *_stash = gv_stashpv(name, TRUE);
+            for (int i = 0; i < av_count(values); i++) {
+                SV **value = av_fetch(MUTABLE_AV(values), i, 0);
+                register_constant(name, SvPV_nolen(*value), *value);
             }
-            else {
-                SvIV_set(targ, SvIV(value_value));
-                SvIOK_on(targ);
-            }
-            if (PL_tainting && (SvTAINTED(value_value) || SvTAINTED(value_name)))
-                SvTAINTED_on(targ);
-            newCONSTSUB(_stash, (char *)SvPV_nolen(value_name), targ);
+            register_constant(name, name, ST(1));
         }
     }
 }
@@ -1418,9 +1477,10 @@ XS_EUPXS(Types_type_call) {
     }
     // warn("ping at %s line %d", __FILE__, __LINE__);
 
-    DCaggr *agg = NULL;
+    DCaggr *agg;
     switch (call->ret) {
     case DC_SIGCHAR_AGGREGATE:
+    case DC_SIGCHAR_UNION:
     case DC_SIGCHAR_ARRAY:
     case DC_SIGCHAR_STRUCT: {
         agg = _aggregate(aTHX_ call->retval);
@@ -1667,6 +1727,9 @@ XS_EUPXS(Types_type_call) {
             // warn("here at %s line %d", __FILE__, __LINE__);
 
         } break;
+        case DC_SIGCHAR_ENUM: {
+            dcArgInt(MY_CXT.cvm, (int)SvIV(value));
+        } break;
 
         default:
             croak("--> Unfinished: [%c/%d]%s", call->sig[i], i, call->sig);
@@ -1761,11 +1824,24 @@ XS_EUPXS(Types_type_call) {
             else
                 sv_set_undef(RETVAL);
         } break;
-        case DC_SIGCHAR_STRUCT: {
+        case DC_SIGCHAR_AGGREGATE:
+        case DC_SIGCHAR_STRUCT:
+        case DC_SIGCHAR_UNION: {
+            warn("here at %s line %d", __FILE__, __LINE__);
             size_t si = _sizeof(aTHX_ call->retval);
+            warn("here at %s line %d", __FILE__, __LINE__);
             DCpointer ret_ptr = safemalloc(si);
+            warn("agg.size == %d at %s line %d", agg->size, __FILE__, __LINE__);
+            warn("agg.n_fields == %d at %s line %d", agg->n_fields, __FILE__, __LINE__);
+            DumpHex(agg, 16);
             DCpointer out = dcCallAggr(MY_CXT.cvm, call->fptr, agg, ret_ptr);
+            warn("here at %s line %d", __FILE__, __LINE__);
             RETVAL = agg2perl(agg, SvRV(call->retval), out, si);
+            warn("here at %s line %d", __FILE__, __LINE__);
+        } break;
+        case DC_SIGCHAR_ENUM: {
+            // TODO: get dualvar from Enum[]
+            RETVAL = newSViv((int)dcCallInt(MY_CXT.cvm, call->fptr));
         } break;
         default:
             croak("Unhandled return type: %c", call->ret);
@@ -1887,7 +1963,6 @@ BOOT:
     MY_CXT.cvm = dcNewCallVM(4096);
 }
 {
-
     (void)newXSproto_portable("Affix::typedef", Types_typedef, file, "$$");
     (void)newXSproto_portable("Affix::Type", Types_type, file, "$");
     (void)newXSproto_portable("Affix::Type::Base::sizeof", Types_type_sizeof, file, "$");
@@ -1918,8 +1993,16 @@ BOOT:
     TYPE("CodeRef", DC_SIGCHAR_CODE, DC_SIGCHAR_AGGREGATE);
     TYPE("InstanceOf", DC_SIGCHAR_BLESSED, DC_SIGCHAR_POINTER);
     TYPE("Any", DC_SIGCHAR_ANY, DC_SIGCHAR_POINTER);
+    TYPE("Ssize_t", DC_SIGCHAR_LONG);
+    TYPE("Size_t", DC_SIGCHAR_ULONG);
 
-    // TYPE("Enum::Int", DC_SIGCHAR_ANY, DC_SIGCHAR_INT);
+    TYPE("Enum", DC_SIGCHAR_ENUM, DC_SIGCHAR_INT);
+
+    TYPE("Enum::Int", DC_SIGCHAR_ENUM, DC_SIGCHAR_INT);
+    set_isa("Affix::Type::Enum::Int", "Affix::Type::Enum");
+
+    TYPE("Enum::Char", DC_SIGCHAR_ENUM, DC_SIGCHAR_CHAR);
+    set_isa("Affix::Type::Enum::Char", "Affix::Type::Enum");
 
     // Enum[]?
     export_function("Affix", "typedef", "types");
@@ -1950,7 +2033,7 @@ CODE:
         PUSHs(ST(0));
         PUTBACK;
 
-        count = call_pv("Affix::guess_library_name", G_SCALAR);
+        count = call_pv("Affix::locate_lib", G_SCALAR);
 
         SPAGAIN;
 
@@ -2021,7 +2104,7 @@ CODE:
             PUSHs(ST(0));
             PUTBACK;
 
-            count = call_pv("Affix::guess_library_name", G_SCALAR);
+            count = call_pv("Affix::locate_lib", G_SCALAR);
 
             SPAGAIN;
 

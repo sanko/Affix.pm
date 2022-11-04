@@ -53,6 +53,7 @@ extern "C" {
 #define DC_SIGCHAR_UNION '<'   // 'A' but nicer
 #define DC_SIGCHAR_BLESSED '$' // 'p' but an object or subclass of a given package
 #define DC_SIGCHAR_ANY '*'     // 'p' but it's really an SV/HV/AV
+#define DC_SIGCHAR_ENUM 'e'    // 'i' but with multiple options
 // bring balance
 #define DC_SIGCHAR_ARRAY_END ']'
 #define DC_SIGCHAR_STRUCT_END '}'
@@ -390,10 +391,15 @@ static SV *agg2perl(DCaggr *agg, SV *sv, DCpointer data, size_t size) {
         case DC_SIGCHAR_STRING: {
             Copy(offset, me, agg->fields[i].array_len, char **);
             hv_store_ent(RETVAL, *name_ptr, newSVpv(*(char **)me, 0), 0);
+            if (me != NULL) hv_store_ent(RETVAL, *name_ptr, newSVpv(*(char **)me, 0), 0);
         } break;
-        case DC_SIGCHAR_UNION: {
-            Copy(offset, me, agg->fields[i].array_len, char);
-            hv_store_ent(RETVAL, *name_ptr, newSVpv((char *)me, agg->fields[i].array_len), 0);
+        case DC_SIGCHAR_AGGREGATE: {
+            SV **type_ptr = av_fetch(MUTABLE_AV(*field), 1, 0);
+            Copy(offset, me, agg->fields[i].size * agg->fields[i].array_len, char);
+
+            SV *kid = agg2perl((DCaggr *)agg->fields[i].sub_aggr, SvRV(*type_ptr), me,
+                               agg->fields[i].size * agg->fields[i].array_len);
+            hv_store_ent(RETVAL, *name_ptr, kid, 0);
         } break;
         default:
             warn("TODO: %c", agg->fields[i].type);
