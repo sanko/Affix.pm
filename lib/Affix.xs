@@ -105,6 +105,12 @@ char cbHandler(DCCallback *cb, DCArgs *args, DCValue *result, DCpointer userdata
             switch (cbx->ret) {
             case DC_SIGCHAR_VOID:
                 break;
+            case DC_SIGCHAR_INT:
+                result->i = POPi;
+                break;
+            case DC_SIGCHAR_UINT:
+                result->I = POPu;
+                break;
             case DC_SIGCHAR_FLOAT:
                 result->f = POPn;
                 break;
@@ -1136,6 +1142,53 @@ XS_EUPXS(Types_return_typedef) {
     XSRETURN(1);
 }
 
+XS_EUPXS(Types_struct_new);
+XS_EUPXS(Types_struct_new) {
+    dXSARGS;
+    dXSI32;
+    dXSTARG;
+    char *package = SvPV_nolen(ST(0));
+    warn("%s->new(...)", package);
+    HV *params = MUTABLE_HV(SvRV(ST(1)));
+    sv_dump(ST(1));
+    sv_dump(XSANY.any_sv);
+    sv_dump(SvRV(XSANY.any_sv));
+
+    AV *fields_av = MUTABLE_AV(SvRV(*hv_fetch(MUTABLE_HV(SvRV(XSANY.any_sv)), "fields", 6, 0)));
+    sv_dump(MUTABLE_SV(fields_av));
+    // croak("here: %d", av_count(fields_av));
+
+    HV *RETVAL_HV = newHV_mortal();
+    // SV * fields = *hv_fetch(MUTABLE_HV());
+
+    for (SSize_t i = 0; i < av_count(fields_av); ++i) {
+        AV *field = MUTABLE_AV(*av_fetch(fields_av, i, 0));
+        SV *key = *av_fetch(field, 0, 0);
+        warn("A");
+        char *_key = SvPV_nolen(key);
+        // SV * type = *av_fetch(field, 1, 0);
+        SV **value = hv_fetch(params, _key, strlen(_key), 0);
+        SV *set = NULL;
+        warn("Af");
+
+        if (value == NULL)
+            sv_set_undef(set);
+        else
+            set = *value;
+
+        warn("Ada");
+        sv_dump(set);
+
+        (void)hv_store(RETVAL_HV, _key, strlen(_key), SvREFCNT_inc(MUTABLE_SV(set)), 0);
+        warn("ewA");
+    }
+
+    SV *self = newRV_inc_mortal(MUTABLE_SV(RETVAL_HV));
+    ST(0) = sv_bless(self, gv_stashpv(package, GV_ADD));
+
+    XSRETURN(1);
+}
+
 XS_EUPXS(Types_typedef); /* prototype to pass -Wmissing-prototypes */
 XS_EUPXS(Types_typedef) {
     dXSARGS;
@@ -1151,7 +1204,28 @@ XS_EUPXS(Types_typedef) {
     }
 
     if (sv_isobject(ST(1))) {
-        if (sv_derived_from(ST(1), "Affix::Type::Struct")) { croak("Typedef a struct..."); }
+        if (sv_derived_from(ST(1), "Affix::Type::Struct")) {
+
+            {
+                CV *cv =
+                    newXSproto_portable(form("%s::new", name), Types_struct_new, __FILE__, "%");
+                SV *sv = newSV(0);
+                XSANY.any_sv = SvREFCNT_inc(ST(1));
+            }
+
+            warn("Typedef a struct as %s... TODO: install subs to get/set values", name);
+            /*
+            HV *href = MUTABLE_HV(SvRV(ST(1)));
+            SV **values_ref = hv_fetch(href, "values", 6, 0);
+            AV *values = MUTABLE_AV(SvRV(*values_ref));
+            HV *_stash = gv_stashpv(name, TRUE);
+            for (int i = 0; i < av_count(values); i++) {
+                SV **value = av_fetch(MUTABLE_AV(values), i, 0);
+                register_constant(name, SvPV_nolen(*value), *value);
+            }
+            // register_constant(name, name, SvREFCNT_inc(ST(1)));
+            */
+        }
         else if (sv_derived_from(ST(1), "Affix::Type::Enum")) {
             HV *href = MUTABLE_HV(SvRV(ST(1)));
             SV **values_ref = hv_fetch(href, "values", 6, 0);
@@ -1291,6 +1365,7 @@ static DCpointer deref_pointer(pTHX_ SV *type, SV *value, bool set) {
                 sv_setnv(value, *(double *)RETVAL);
         } break;
         case DC_SIGCHAR_POINTER:
+            break;
         default:
             croak("Unknown or unsupported pointer type: %c", type);
         };
@@ -1557,7 +1632,23 @@ XS_EUPXS(Types_type_call) {
                 }
                 else if (SvOK(ST(i))) {
                     SV **type_ref = hv_fetch(type_hv, "type", 4, 0);
-                    ptr = deref_pointer(aTHX_ * type_ref, value, true);
+
+                    char *subtype = SvPV_nolen(*type_ref);
+                    if (subtype[0] == DC_SIGCHAR_STRUCT) {
+                        SV *field = *av_fetch(call->args, i, 0); // Make broad assumptions
+                        // DCaggr *agg = _aggregate(aTHX_ field);
+                        ptr = safemalloc(_sizeof(aTHX_ * type_ref));
+                        Size_t len = _sizeof(aTHX_ * type_ref);
+                        DumpHex(ptr, len);
+
+                        DCaggr *agg = coerce(aTHX_ * type_ref, value, ptr, false, 0);
+                        warn("len %d", len);
+                        DumpHex(ptr, len);
+                    }
+                    else {
+                        ptr = deref_pointer(aTHX_ * type_ref, value, true);
+                        pointers = true;
+                    }
                 }
                 else
                     ptr = NULL;
@@ -1567,8 +1658,6 @@ XS_EUPXS(Types_type_call) {
             else
                 croak("%d%s parameter must be a scalar ref or Dyn::Call::Pointer object", i + 1,
                       ordinal(i + 1));
-
-            pointers = true;
 
             dcArgPointer(MY_CXT.cvm, ptr);
             if (ptr != NULL) {
@@ -2150,38 +2239,35 @@ CODE:
 
     call->retval = SvREFCNT_inc(ret);
 
-    char perl_sig[call->sig_len];
+    Newxz(call->sig, call->sig_len, char);
+    Newxz(call->perl_sig, call->sig_len, char);
     char c_sig[call->sig_len];
     call->args = newAV();
-
+    int pos = 0;
     for (int i = 0; i < call->sig_len; ++i) {
         SV **type_ref = av_fetch(args, i, 0);
         if (!(sv_isobject(*type_ref) && sv_derived_from(*type_ref, "Affix::Type::Base")))
             croak("Given type for arg %d is not a subclass of Affix::Type::Base", i);
         av_push(call->args, SvREFCNT_inc(*type_ref));
         char *str = SvPVbytex_nolen(*type_ref);
-        c_sig[i] = str[0];
+        call->sig[i] = str[0];
         switch (str[0]) {
         case DC_SIGCHAR_CODE:
-            perl_sig[i] = '&';
+            call->perl_sig[pos] = '&';
             break;
         case DC_SIGCHAR_ARRAY:
-            perl_sig[i] = '@';
+            call->perl_sig[pos] = '@';
             break;
         case DC_SIGCHAR_STRUCT:
-            perl_sig[i] = '%';
+            call->perl_sig[pos] = '%';
             break;
         default:
-            perl_sig[i] = '$';
+            call->perl_sig[pos] = '$';
             break;
         }
+        ++pos;
     }
 
-    Newxz(call->perl_sig, call->sig_len, char);
-    Newxz(call->sig, call->sig_len, char);
-
-    Copy(perl_sig, call->perl_sig, strlen(perl_sig), char);
-    Copy(c_sig, call->sig, strlen(c_sig), char);
     {
         char *str = SvPVbytex_nolen(ret);
         call->ret = str[0];
