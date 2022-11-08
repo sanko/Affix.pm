@@ -324,12 +324,12 @@ static HV *ptr2perl(DCpointer ptr, AV *fields) {
     return RETVAL;
 }
 
-static SV *agg2perl(DCaggr *agg, SV *sv, DCpointer data, size_t size) {
+static SV *agg2perl(DCaggr *agg, SV *type, DCpointer data, size_t size) {
     dTHX;
     // sv_dump(sv);
     // sv_dump(SvRV(*hv_fetch(MUTABLE_HV(sv), "fields", 6, 0)));
     DumpHex(data, size);
-    AV *fields = MUTABLE_AV(SvRV(*hv_fetch(MUTABLE_HV(sv), "fields", 6, 0)));
+    AV *fields = MUTABLE_AV(SvRV(*hv_fetch(MUTABLE_HV(type), "fields", 6, 0)));
 
     HV *RETVAL = newHV();
 
@@ -376,6 +376,14 @@ static SV *agg2perl(DCaggr *agg, SV *sv, DCpointer data, size_t size) {
                 hv_store_ent(RETVAL, *name_ptr,
                              newSVpv((char *)(unsigned char *)me, agg->fields[i].array_len), 0);
             break;
+        case DC_SIGCHAR_SHORT:
+            Copy(offset, me, agg->fields[i].array_len, short);
+            hv_store_ent(RETVAL, *name_ptr, newSViv(*(short *)me), 0);
+            break;
+        case DC_SIGCHAR_USHORT:
+            Copy(offset, me, agg->fields[i].array_len, unsigned short);
+            hv_store_ent(RETVAL, *name_ptr, newSViv(*(unsigned short *)me), 0);
+            break;
         case DC_SIGCHAR_INT:
             Copy(offset, me, agg->fields[i].array_len, int);
             hv_store_ent(RETVAL, *name_ptr, newSViv(*(int *)me), 0);
@@ -384,10 +392,33 @@ static SV *agg2perl(DCaggr *agg, SV *sv, DCpointer data, size_t size) {
             Copy(offset, me, agg->fields[i].array_len, int);
             hv_store_ent(RETVAL, *name_ptr, newSViv(*(int *)me), 0);
             break;
+        case DC_SIGCHAR_LONG:
+            Copy(offset, me, agg->fields[i].array_len, long);
+            hv_store_ent(RETVAL, *name_ptr, newSViv(*(long *)me), 0);
+            break;
+        case DC_SIGCHAR_ULONG:
+            Copy(offset, me, agg->fields[i].array_len, unsigned long);
+            hv_store_ent(RETVAL, *name_ptr, newSViv(*(unsigned long *)me), 0);
+            break;
+        case DC_SIGCHAR_LONGLONG:
+            Copy(offset, me, agg->fields[i].array_len, long long);
+            hv_store_ent(RETVAL, *name_ptr, newSViv(*(long long *)me), 0);
+            break;
+        case DC_SIGCHAR_ULONGLONG:
+            Copy(offset, me, agg->fields[i].array_len, unsigned long long);
+            hv_store_ent(RETVAL, *name_ptr, newSViv(*(unsigned long long *)me), 0);
+            break;
         case DC_SIGCHAR_FLOAT:
             Copy(offset, me, agg->fields[i].array_len, float);
             hv_store_ent(RETVAL, *name_ptr, newSVnv(*(float *)me), 0);
             break;
+        case DC_SIGCHAR_DOUBLE:
+            Copy(offset, me, agg->fields[i].array_len, double);
+            hv_store_ent(RETVAL, *name_ptr, newSVnv(*(double *)me), 0);
+            break;
+            /*case DC_SIGCHAR_POINTER:
+            {}
+            break;*/
         case DC_SIGCHAR_STRING: {
             Copy(offset, me, agg->fields[i].array_len, char **);
             hv_store_ent(RETVAL, *name_ptr, newSVpv(*(char **)me, 0), 0);
@@ -396,16 +427,13 @@ static SV *agg2perl(DCaggr *agg, SV *sv, DCpointer data, size_t size) {
         case DC_SIGCHAR_AGGREGATE: {
             SV **type_ptr = av_fetch(MUTABLE_AV(*field), 1, 0);
             Copy(offset, me, agg->fields[i].size * agg->fields[i].array_len, char);
-
             SV *kid = agg2perl((DCaggr *)agg->fields[i].sub_aggr, SvRV(*type_ptr), me,
                                agg->fields[i].size * agg->fields[i].array_len);
             hv_store_ent(RETVAL, *name_ptr, kid, 0);
         } break;
         default:
             warn("TODO: %c", agg->fields[i].type);
-
             hv_store_ent(RETVAL, *name_ptr,
-                         // newSV(1),
                          newSVpv(form("Unhandled type: %c", agg->fields[i].type), 0), 0);
             break;
         }

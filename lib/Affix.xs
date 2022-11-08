@@ -460,7 +460,7 @@ XS_EUPXS(Types_type_aggregate) {
         XSRETURN_UNDEF;
 }
 
-static DCaggr *coerce(pTHX_ SV *type, SV *data, DCpointer ptr, bool packed, size_t pos) {
+static DCaggr *perl2ptr(pTHX_ SV *type, SV *data, DCpointer ptr, bool packed, size_t pos) {
     // void *RETVAL;
     // Newxz(RETVAL, 1024, char);
 
@@ -529,8 +529,8 @@ static DCaggr *coerce(pTHX_ SV *type, SV *data, DCpointer ptr, bool packed, size
 
             size_t el_len = _sizeof(aTHX_ * type_ptr);
 
-            coerce(aTHX_ * type_ptr, *(hv_fetch(hv_data, key, strlen(key), 0)),
-                   ((DCpointer)(PTR2IV(ptr) + pos)), packed, pos);
+            perl2ptr(aTHX_ * type_ptr, *(hv_fetch(hv_data, key, strlen(key), 0)),
+                     ((DCpointer)(PTR2IV(ptr) + pos)), packed, pos);
             /*
                         warn("padding needed: %l for size of %d at %s line %d",
                              padding_needed_for(PTR2IV(ptr), _sizeof(aTHX_ * type_ptr)),
@@ -571,7 +571,7 @@ static DCaggr *coerce(pTHX_ SV *type, SV *data, DCpointer ptr, bool packed, size
                     SV **type_ptr = av_fetch(field, 1, 0);
                     //sv_dump(*type_ptr);
                     // HeVAL(hv_fetch_ent(MUTABLE_HV(data), *name_ptr, 0, 0)) =
-                    // MUTABLE_SV(newAV_mortal());//coerce(*type_ptr, data);
+                    // MUTABLE_SV(newAV_mortal());//perl2ptr(*type_ptr, data);
                     // //sv_dump(data);
                     warn("HERE");
                     //sv_dump(*name_ptr);
@@ -585,16 +585,16 @@ static DCaggr *coerce(pTHX_ SV *type, SV *data, DCpointer ptr, bool packed, size
 
                     //sv_dump(*idk_wtf);
 
-                    // SV * value = coerce(*type_ptr,
+                    // SV * value = perl2ptr(*type_ptr,
 
                     // const char * _type = SvPVbytex_nolen(type);
                     // SV ** target = hv_fetch(hash, _type, 0, 0);
                     // //sv_dump(*target);
 
-                    pos = coerce(*type_ptr, *idk_wtf, ptr, packed);
+                    pos = perl2ptr(*type_ptr, *idk_wtf, ptr, packed);
 
                     // //sv_dump(SvRV(field));
-                    //  SV * in = coerce((field), data);
+                    //  SV * in = perl2ptr((field), data);
                 }
                 // IV tmp = SvIV((SV*)SvRV(ST(0)));
                 // ptr = INT2PTR(DCpointer *, tmp);
@@ -621,8 +621,8 @@ static DCaggr *coerce(pTHX_ SV *type, SV *data, DCpointer ptr, bool packed, size
         size_t el_len = _sizeof(aTHX_ * type_ptr);
 
         for (int i = 0; i < av_len; ++i) {
-            coerce(aTHX_ * type_ptr, *(av_fetch(elements, i, 0)), ((DCpointer)(PTR2IV(ptr) + pos)),
-                   packed, pos);
+            perl2ptr(aTHX_ * type_ptr, *(av_fetch(elements, i, 0)),
+                     ((DCpointer)(PTR2IV(ptr) + pos)), packed, pos);
             pos += (el_len);
         }
 
@@ -950,7 +950,8 @@ XS_EUPXS(Types) {
             AV *fields = newAV_mortal();
             AV *fields_in = MUTABLE_AV(SvRV(ST(1)));
             size_t field_count = av_count(fields_in);
-            if (field_count % 2) croak("Expected an even sized list");
+            if (field_count && field_count % 2) croak("Expected an even sized list");
+
             for (int i = 0; i < field_count; i += 2) {
                 AV *field = newAV();
                 SV **key_ptr = av_fetch(fields_in, i, 0);
@@ -968,7 +969,7 @@ XS_EUPXS(Types) {
             hv_stores(RETVAL_HV, "fields", newRV_inc(MUTABLE_SV(fields)));
         }
         else
-            croak(ix == DC_SIGCHAR_STRUCT ? "Struct[...]" : "Union[...]");
+            warn(ix == DC_SIGCHAR_STRUCT ? "Struct[...]" : "Union[...]");
         if (ix == DC_SIGCHAR_STRUCT) hv_stores(RETVAL_HV, "packed", sv_2mortal(boolSV(false)));
     } break;
     case DC_SIGCHAR_POINTER: {
@@ -1171,10 +1172,15 @@ XS_EUPXS(Types_struct_new) {
         SV *set = NULL;
         warn("Af");
 
-        if (value == NULL)
-            sv_set_undef(set);
-        else
+        if (value == NULL) {
+            warn("NULL");
+            set = newSV(0);
+            // sv_set_undef(set);
+        }
+        else {
+            warn("Not NULL");
             set = *value;
+        }
 
         warn("Ada");
         sv_dump(set);
@@ -1182,9 +1188,13 @@ XS_EUPXS(Types_struct_new) {
         (void)hv_store(RETVAL_HV, _key, strlen(_key), SvREFCNT_inc(MUTABLE_SV(set)), 0);
         warn("ewA");
     }
+    warn("after");
 
     SV *self = newRV_inc_mortal(MUTABLE_SV(RETVAL_HV));
+    warn("mid");
+
     ST(0) = sv_bless(self, gv_stashpv(package, GV_ADD));
+    warn("returning");
 
     XSRETURN(1);
 }
@@ -1199,8 +1209,7 @@ XS_EUPXS(Types_typedef) {
     const char *name = SvPV_nolen(ST(0));
     {
         CV *cv = newXSproto_portable(name, Types_return_typedef, __FILE__, "");
-        SV *sv = newSV(0);
-        XSANY.any_sv = SvREFCNT_inc(ST(1));
+        XSANY.any_sv = SvREFCNT_inc(newSVsv(ST(1)));
     }
 
     if (sv_isobject(ST(1))) {
@@ -1208,9 +1217,8 @@ XS_EUPXS(Types_typedef) {
 
             {
                 CV *cv =
-                    newXSproto_portable(form("%s::new", name), Types_struct_new, __FILE__, "%");
-                SV *sv = newSV(0);
-                XSANY.any_sv = SvREFCNT_inc(ST(1));
+                    newXSproto_portable(form("%s::new", name), Types_struct_new, __FILE__, "$$");
+                XSANY.any_sv = SvREFCNT_inc(newSVsv(ST(1)));
             }
 
             warn("Typedef a struct as %s... TODO: install subs to get/set values", name);
@@ -1372,11 +1380,11 @@ static DCpointer deref_pointer(pTHX_ SV *type, SV *value, bool set) {
     }
     return RETVAL;
 }
+/*
+#define sloppy_perl2ptr(type, in) _sloppy_perl2ptr(aTHX_ type, in, NULL)
 
-#define sloppy_coerce(type, in) _sloppy_coerce(aTHX_ type, in, NULL)
-
-static DCpointer _sloppy_coerce(pTHX_ SV *type, SV *in, DCpointer data) {
-    size_t size = _sizeof(aTHX_ type);
+static DCpointer _sloppy_perl2ptr(pTHX_ SV *type, SV *in, DCpointer data) {
+    size_t size = _sizeof(aTHX_ type);3
     if (data == NULL) data = safecalloc(size, 1);
     // DumpHex(data, size);
 
@@ -1471,13 +1479,11 @@ static DCpointer _sloppy_coerce(pTHX_ SV *type, SV *in, DCpointer data) {
         case DC_SIGCHAR_STRUCT:
         case DC_SIGCHAR_UNION:
         case DC_SIGCHAR_ARRAY: {
-            _sloppy_coerce(aTHX_ * field_type_ptr, SvRV(*value_ptr), ((DCpointer)(offset)));
-        } break;
-        default:
-            sv_dump((*value_ptr));
+            _sloppy_perl2ptr(aTHX_ * field_type_ptr, SvRV(*value_ptr),
+((DCpointer)(offset))); } break; default: sv_dump((*value_ptr));
         }
         // SV ** field_data = hv_fetch(SvPV_nolen());
-        //_sloppy_coerce(aTHX_ SvRV(*field_type_ptr), MUTABLE_SV(newHV_mortal()), ptr);
+        //_sloppy_perl2ptr(aTHX_ SvRV(*field_type_ptr), MUTABLE_SV(newHV_mortal()), ptr);
 
         //  sv_dump(*field_name_ptr);
     }
@@ -1486,7 +1492,7 @@ static DCpointer _sloppy_coerce(pTHX_ SV *type, SV *in, DCpointer data) {
     // DumpHex(data, _sizeof(aTHX_ type));
 
     return data;
-}
+}*/
 
 XS_EUPXS(Types_type_call); /* prototype to pass -Wmissing-prototypes */
 XS_EUPXS(Types_type_call) {
@@ -1618,37 +1624,80 @@ XS_EUPXS(Types_type_call) {
             break;
         case DC_SIGCHAR_POINTER: {
             DCpointer ptr;
+
+            warn("here at %s line %d", __FILE__, __LINE__);
             SV *package = *av_fetch(call->args, i, 0); // Make broad assumptions
+
+            // static DCaggr *perl2ptr(pTHX_ SV *type, SV *data, DCpointer ptr, bool packed,
+            // size_t pos) {
+
+            // croak("here at %s line %d", __FILE__, __LINE__);
+
             HV *type_hv = MUTABLE_HV(SvRV(package));
+            warn("here at %s line %d", __FILE__, __LINE__);
+
             if (SvROK(value)) {
+                warn("here at %s line %d", __FILE__, __LINE__);
+
                 SV **ptr_ptr = hv_fetchs(type_hv, "pointer", 0);
                 if (ptr_ptr) {
+                    warn("here at %s line %d", __FILE__, __LINE__);
+
                     IV tmp = SvIV((SV *)SvRV(*ptr_ptr));
                     ptr = INT2PTR(DCpointer, tmp);
                 }
                 if (sv_derived_from(ST(i), "Dyn::Call::Pointer")) {
+                    warn("here at %s line %d", __FILE__, __LINE__);
+
                     IV tmp = SvIV((SV *)SvRV(ST(i)));
                     ptr = INT2PTR(DCpointer, tmp);
                 }
                 else if (SvOK(ST(i))) {
-                    SV **type_ref = hv_fetch(type_hv, "type", 4, 0);
+                    warn("here at %s line %d", __FILE__, __LINE__);
 
+                    // HV *type_hv = MUTABLE_HV(SvRV(package));
+
+                    SV **type_ptr = hv_fetchs(type_hv, "type", 0);
+                    SV *type = *type_ptr;
+
+                    Newxz(ptr, _sizeof(type), char);
+                    (void)perl2ptr(aTHX_ type, ST(i), ptr, false, 0);
+
+                    DumpHex(ptr, _sizeof(type));
+                    pointers = true;
+                    {
+                        SV *RETVALSV = newSV(0); // sv_newmortal();
+                        sv_setref_pv(RETVALSV, "Dyn::Call::Pointer", ptr);
+                        hv_stores(type_hv, "pointer", RETVALSV);
+                    }
+                    /*
                     char *subtype = SvPV_nolen(*type_ref);
                     if (subtype[0] == DC_SIGCHAR_STRUCT) {
-                        SV *field = *av_fetch(call->args, i, 0); // Make broad assumptions
+
+                        //
+
+                        SV *field = *av_fetch(call->args, i, 0); // Make broad
+                        assumptions sv_dump(field);
+                        warn("here at %s line %d", __FILE__, __LINE__);
                         // DCaggr *agg = _aggregate(aTHX_ field);
                         ptr = safemalloc(_sizeof(aTHX_ * type_ref));
                         Size_t len = _sizeof(aTHX_ * type_ref);
                         DumpHex(ptr, len);
 
-                        DCaggr *agg = coerce(aTHX_ * type_ref, value, ptr, false, 0);
+                        DCaggr *agg = perl2ptr(aTHX_ * type_ref, value, ptr, false, 0);
                         warn("len %d", len);
                         DumpHex(ptr, len);
+                        {
+                            SV *RETVALSV = newSV(0); // sv_newmortal();
+                            sv_setref_pv(RETVALSV, "Dyn::Call::Pointer", ptr);
+                            hv_stores(type_hv, "pointer", RETVALSV);
+                        }
+                        pointers = true;
                     }
                     else {
                         ptr = deref_pointer(aTHX_ * type_ref, value, true);
                         pointers = true;
-                    }
+                    }*/
                 }
                 else
                     ptr = NULL;
@@ -1665,6 +1714,7 @@ XS_EUPXS(Types_type_call) {
                 sv_setref_pv(RETVALSV, "Dyn::Call::Pointer", ptr);
                 hv_stores(type_hv, "pointer", RETVALSV);
             }
+
         } break;
         case DC_SIGCHAR_BLESSED: {                     // Essentially the same as DC_SIGCHAR_POINTER
             SV *package = *av_fetch(call->args, i, 0); // Make broad assumptions
@@ -1791,7 +1841,7 @@ XS_EUPXS(Types_type_call) {
                 sv_setref_pv(RETVALSV, "Dyn::Call::Pointer", ptr);
                 hv_stores(hv_ptr, "pointer", RETVALSV);
             }
-            DCaggr *ag = coerce(aTHX_ field, value, ptr, false, 0);
+            DCaggr *ag = perl2ptr(aTHX_ field, value, ptr, false, 0);
             // DumpHex(ptr, size * av_len);
             dcArgAggr(MY_CXT.cvm, ag, ptr);
         } break;
@@ -1803,9 +1853,9 @@ XS_EUPXS(Types_type_call) {
             // DCaggr *agg = _aggregate(aTHX_ field);
             DCpointer ptr = safemalloc(_sizeof(aTHX_ field));
 
-            // static DCaggr *coerce(pTHX_ SV *type, SV *data, DCpointer ptr, bool packed, size_t
-            // pos) {
-            DCaggr *agg = coerce(aTHX_ field, value, ptr, false, 0);
+            // static DCaggr *perl2ptr(pTHX_ SV *type, SV *data, DCpointer ptr, bool packed,
+            // size_t pos) {
+            DCaggr *agg = perl2ptr(aTHX_ field, value, ptr, false, 0);
 
             // sv_dump(field);
             // sv_dump(value);
@@ -1917,17 +1967,13 @@ XS_EUPXS(Types_type_call) {
         case DC_SIGCHAR_AGGREGATE:
         case DC_SIGCHAR_STRUCT:
         case DC_SIGCHAR_UNION: {
-            warn("here at %s line %d", __FILE__, __LINE__);
             size_t si = _sizeof(aTHX_ call->retval);
-            warn("here at %s line %d", __FILE__, __LINE__);
             DCpointer ret_ptr = safemalloc(si);
             warn("agg.size == %d at %s line %d", agg->size, __FILE__, __LINE__);
             warn("agg.n_fields == %d at %s line %d", agg->n_fields, __FILE__, __LINE__);
             DumpHex(agg, 16);
             DCpointer out = dcCallAggr(MY_CXT.cvm, call->fptr, agg, ret_ptr);
-            warn("here at %s line %d", __FILE__, __LINE__);
             RETVAL = agg2perl(agg, SvRV(call->retval), out, si);
-            warn("here at %s line %d", __FILE__, __LINE__);
         } break;
         case DC_SIGCHAR_ENUM: {
             // TODO: get dualvar from Enum[]
@@ -1942,14 +1988,30 @@ XS_EUPXS(Types_type_call) {
             for (int i = 0; i < call->sig_len; ++i) {
                 switch (call->sig[i]) {
                 case DC_SIGCHAR_POINTER: {
+                    SV *package = *av_fetch(call->args, i, 0); // Make broad assumptions
+
                     if (sv_derived_from(ST(i), "Dyn::Call::Pointer")) {
                         // IV tmp = SvIV((SV *)SvRV(ST(i)));
                         // ptr = INT2PTR(DCpointer, tmp);
                     }
-                    else if (SvROK(ST(i))) {
-                        SV *field = *av_fetch(call->args, i, 0);
-                        deref_pointer(aTHX_ field, SvRV(ST(i)), false);
-                        SvSETMAGIC(SvRV(ST(i)));
+                    else // if (SvROK(ST(i)))
+                    {
+                        HV *type_hv = MUTABLE_HV(SvRV(package));
+                        SV **ptr_ptr = hv_fetchs(type_hv, "pointer", 0);
+                        SV **type_ptr = hv_fetchs(type_hv, "type", 0);
+
+                        DCpointer ptr;
+                        {
+                            IV tmp = SvIV((SV *)SvRV(*ptr_ptr));
+                            ptr = INT2PTR(DCpointer, tmp);
+                        }
+                        {
+                            SV *type = *type_ptr;
+                            DCaggr *agg = _aggregate(aTHX_ type);
+                            size_t si = _sizeof(aTHX_ type);
+                            SvSetMagicSV(ST(i), agg2perl(agg, SvRV(type), ptr, si));
+                        }
+                        safefree(ptr);
                     }
                     break;
                 }
@@ -2314,7 +2376,7 @@ coerce(SV * type, SV * data)
 CODE:
     size_t size = _sizeof(aTHX_ type);
     Newxz(RETVAL, size, char);
-    coerce(aTHX_ type, data, RETVAL, false, 0);
+    perl2ptr(aTHX_ type, data, RETVAL, false, 0);
 OUTPUT:
     RETVAL
 
@@ -2326,13 +2388,6 @@ CODE:
     RETVAL = agg2perl(agg, SvRV(type), ptr, si);
 OUTPUT:
     RETVAL
-
-
-MODULE = Affix PACKAGE = Affix::ArrayRef
-
-
-
-
 
 MODULE = Affix PACKAGE = Affix::ArrayRef
 
