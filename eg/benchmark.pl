@@ -20,6 +20,10 @@ our $libfile
         '/lib/x86_64-linux-gnu/libm.so.6' :
     '/lib/libm.so.6';
 
+sub libfile {
+    $libfile;
+}
+
 package FFI {
     use strictures 2;
     use feature 'signatures';
@@ -202,18 +206,19 @@ package FFI {
 }
 my $hand_rolled = FFI->obj( FFI::func( FFI::load($libfile), 'sin' ), 'd)d' );
 #
-sub sin_ : Native($main::libfile) : Signature([Double]=>Double) : Symbol('sin');
-sub sin_var : Native($main::libfile) : Signature([Double]=>Double) : Symbol('sin') :
+warn;
+sub sin_ : Native(libfile) : Signature([Double]=>Double) : Symbol('sin');
+sub sin_var : Native(libfile) : Signature([Double]=>Double) : Symbol('sin') :
     Mode(DC_SIGCHAR_CC_ELLIPSIS_VARARGS);
-sub sin_ell : Native($main::libfile) : Signature([Double]=>Double) : Symbol('sin') :
+sub sin_ell : Native(libfile) : Signature([Double]=>Double) : Symbol('sin') :
     Mode(DC_SIGCHAR_CC_ELLIPSIS);
-sub sin_cdecl : Native($main::libfile) : Signature([Double]=>Double) : Symbol('sin') :
+sub sin_cdecl : Native(libfile) : Signature([Double]=>Double) : Symbol('sin') :
     Mode(DC_SIGCHAR_CC_CDECL);
-sub sin_std : Native($main::libfile) : Signature([Double]=>Double) : Symbol('sin') :
+sub sin_std : Native(libfile) : Signature([Double]=>Double) : Symbol('sin') :
     Mode(DC_SIGCHAR_CC_STDCALL);
-sub sin_fc : Native($main::libfile) : Signature([Double]=>Double) : Symbol('sin') :
+sub sin_fc : Native(libfile) : Signature([Double]=>Double) : Symbol('sin') :
     Mode(DC_SIGCHAR_CC_FASTCALL_GNU);
-sub sin_tc : Native($main::libfile) : Signature([Double]=>Double) : Symbol('sin') :
+sub sin_tc : Native(libfile) : Signature([Double]=>Double) : Symbol('sin') :
     Mode(DC_SIGCHAR_CC_THISCALL_GNU);
 #
 my $sin_default  = wrap( $libfile, 'sin', [Double] => Double );
