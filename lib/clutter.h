@@ -324,7 +324,53 @@ static HV *ptr2perl(DCpointer ptr, AV *fields) {
     return RETVAL;
 }
 
-static SV *agg2perl(DCaggr *agg, SV *type, DCpointer data, size_t size) {
+static SV *ptr2sv(pTHX_ DCpointer ptr, SV *type) {
+    SV *RETVAL = newSV(0);
+    char *_type = SvPV_nolen(type);
+    switch (_type[0]) {
+    case DC_SIGCHAR_BOOL:
+        sv_setbool_mg(RETVAL, (bool)*(bool *)ptr);
+        break;
+    case DC_SIGCHAR_CHAR:
+        sv_setiv(RETVAL, (IV) * (char *)ptr);
+        break;
+    case DC_SIGCHAR_UCHAR:
+        sv_setuv(RETVAL, (UV) * (unsigned char *)ptr);
+        break;
+    case DC_SIGCHAR_SHORT:
+        sv_setiv(RETVAL, *(short *)ptr);
+        break;
+    case DC_SIGCHAR_USHORT:
+        sv_setuv(RETVAL, *(unsigned short *)ptr);
+        break;
+    case DC_SIGCHAR_INT:
+        sv_setiv(RETVAL, *(int *)ptr);
+        break;
+    case DC_SIGCHAR_UINT:
+        sv_setuv(RETVAL, *(unsigned int *)ptr);
+        break;
+    case DC_SIGCHAR_LONG:
+        sv_setiv(RETVAL, *(long *)ptr);
+        break;
+    case DC_SIGCHAR_ULONG:
+        sv_setuv(RETVAL, *(unsigned long *)ptr);
+        break;
+    case DC_SIGCHAR_LONGLONG:
+        sv_setiv(RETVAL, *(long long *)ptr);
+        break;
+    case DC_SIGCHAR_ULONGLONG:
+        sv_setuv(RETVAL, *(unsigned long long *)ptr);
+        break;
+    case DC_SIGCHAR_FLOAT:
+        sv_setnv(RETVAL, *(float *)ptr);
+        break;
+    case DC_SIGCHAR_DOUBLE:
+        sv_setnv(RETVAL, *(double *)ptr);
+        break;
+    }
+    return RETVAL;
+}
+static SV *agg2sv(DCaggr *agg, SV *type, DCpointer data, size_t size) {
     dTHX;
     // sv_dump(sv);
     // sv_dump(SvRV(*hv_fetch(MUTABLE_HV(sv), "fields", 6, 0)));
@@ -333,24 +379,23 @@ static SV *agg2perl(DCaggr *agg, SV *type, DCpointer data, size_t size) {
 
     HV *RETVAL = newHV();
 
-    warn("agg2perl");
     //*(int*)ptr = 42;
     intptr_t offset;
     DCsize i = agg->n_fields;
-    warn("agg->n_fields == %d", i);
+    // warn("agg->n_fields == %d", i);
     DCpointer me = safemalloc(0);
     for (int i = 0; i < agg->n_fields; ++i) {
-        warn("i==%d type==%c", i, agg->fields[i].type);
+        // warn("i==%d type==%c", i, agg->fields[i].type);
         SV **field = av_fetch(fields, i, 0);
         SV **name_ptr = av_fetch(MUTABLE_AV(*field), 0, 0);
         // sv_dump(*name_ptr);
         offset = PTR2IV(data) + agg->fields[i].offset;
         //
-        warn("field offset: %ld", agg->fields[i].offset);
+        /*warn("field offset: %ld", agg->fields[i].offset);
         warn("field size: %ld", agg->fields[i].size);
         warn("field alignment: %ld", agg->fields[i].alignment);
         warn("field array_len: %ld", agg->fields[i].array_len);
-        warn("field type: %c", agg->fields[i].type);
+        warn("field type: %c", agg->fields[i].type);*/
 
         // 	DCsize offset, size, alignment, array_len;
         me = saferealloc(me, agg->fields[i].size * agg->fields[i].array_len);
@@ -416,9 +461,12 @@ static SV *agg2perl(DCaggr *agg, SV *type, DCpointer data, size_t size) {
             Copy(offset, me, agg->fields[i].array_len, double);
             hv_store_ent(RETVAL, *name_ptr, newSVnv(*(double *)me), 0);
             break;
-            /*case DC_SIGCHAR_POINTER:
-            {}
-            break;*/
+        case DC_SIGCHAR_POINTER: {
+            Copy(offset, me, agg->fields[i].array_len, void *);
+            SV *RETVALSV = newSV(0); // sv_newmortal();
+            sv_setref_pv(RETVALSV, "Dyn::Call::Pointer", me);
+            hv_store_ent(RETVAL, *name_ptr, RETVALSV, 0);
+        } break;
         case DC_SIGCHAR_STRING: {
             Copy(offset, me, agg->fields[i].array_len, char **);
             hv_store_ent(RETVAL, *name_ptr, newSVpv(*(char **)me, 0), 0);
@@ -427,8 +475,8 @@ static SV *agg2perl(DCaggr *agg, SV *type, DCpointer data, size_t size) {
         case DC_SIGCHAR_AGGREGATE: {
             SV **type_ptr = av_fetch(MUTABLE_AV(*field), 1, 0);
             Copy(offset, me, agg->fields[i].size * agg->fields[i].array_len, char);
-            SV *kid = agg2perl((DCaggr *)agg->fields[i].sub_aggr, SvRV(*type_ptr), me,
-                               agg->fields[i].size * agg->fields[i].array_len);
+            SV *kid = agg2sv((DCaggr *)agg->fields[i].sub_aggr, SvRV(*type_ptr), me,
+                             agg->fields[i].size * agg->fields[i].array_len);
             hv_store_ent(RETVAL, *name_ptr, kid, 0);
         } break;
         default:

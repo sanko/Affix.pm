@@ -10,9 +10,9 @@ use t::lib::nativecall;
 use experimental 'signatures';
 $|++;
 #
-compile_test_lib('50_types_pointers');
+compile_test_lib('50_affix_pointers');
 {
-    sub pointer_test : Native('t/50_types_pointers') :
+    sub pointer_test : Native('t/50_affix_pointers') :
         Signature([Pointer[Double], ArrayRef [ Int, 5 ], Int, CodeRef [ [ Int, Int ] => Double ] ] => Double);
     my $ptr = 99;
     is 900, pointer_test(

@@ -315,7 +315,6 @@ static size_t _sizeof(pTHX_ SV *type) {
         return size;
     }
     case DC_SIGCHAR_CODE: // automatically wrapped in a DCCallback pointer
-        return PTRSIZE;
     case DC_SIGCHAR_POINTER:
     case DC_SIGCHAR_STRING:
     case DC_SIGCHAR_BLESSED:
@@ -427,7 +426,7 @@ static DCaggr *_aggregate(pTHX_ SV *type) {
     } break;
 
     default: {
-        croak("unsupported aggregate at %s line %d", __FILE__, __LINE__);
+        croak("unsupported aggregate: %s at %s line %d", str, __FILE__, __LINE__);
         break;
     }
     }
@@ -1270,7 +1269,9 @@ XS_EUPXS(Types_type) {
 }
 
 static DCpointer deref_pointer(pTHX_ SV *type, SV *value, bool set) {
+    if (set) croak("Use ptr2sv");
     DCpointer RETVAL;
+
     if (set)
         RETVAL = safemalloc(_sizeof(aTHX_ type));
     else {
@@ -1283,6 +1284,7 @@ static DCpointer deref_pointer(pTHX_ SV *type, SV *value, bool set) {
             RETVAL = (void *)INT2PTR(char *, tmp);
         }
     }
+    warn("here at %s line %d", __FILE__, __LINE__);
 
     {
         char *type_ = SvPV_nolen(type);
@@ -1367,10 +1369,14 @@ static DCpointer deref_pointer(pTHX_ SV *type, SV *value, bool set) {
                 sv_setnv(value, *(float *)RETVAL);
         } break;
         case DC_SIGCHAR_DOUBLE: {
+            warn("here at %s line %d", __FILE__, __LINE__);
+
             if (set)
                 *((double *)RETVAL) = SvNV(SvRV(value));
             else
                 sv_setnv(value, *(double *)RETVAL);
+            warn("here at %s line %d", __FILE__, __LINE__);
+
         } break;
         case DC_SIGCHAR_POINTER:
             break;
@@ -1625,7 +1631,6 @@ XS_EUPXS(Types_type_call) {
         case DC_SIGCHAR_POINTER: {
             DCpointer ptr;
 
-            warn("here at %s line %d", __FILE__, __LINE__);
             SV *package = *av_fetch(call->args, i, 0); // Make broad assumptions
 
             // static DCaggr *perl2ptr(pTHX_ SV *type, SV *data, DCpointer ptr, bool packed,
@@ -1634,41 +1639,43 @@ XS_EUPXS(Types_type_call) {
             // croak("here at %s line %d", __FILE__, __LINE__);
 
             HV *type_hv = MUTABLE_HV(SvRV(package));
-            warn("here at %s line %d", __FILE__, __LINE__);
 
             if (SvROK(value)) {
-                warn("here at %s line %d", __FILE__, __LINE__);
 
                 SV **ptr_ptr = hv_fetchs(type_hv, "pointer", 0);
                 if (ptr_ptr) {
-                    warn("here at %s line %d", __FILE__, __LINE__);
 
                     IV tmp = SvIV((SV *)SvRV(*ptr_ptr));
                     ptr = INT2PTR(DCpointer, tmp);
                 }
                 if (sv_derived_from(ST(i), "Dyn::Call::Pointer")) {
-                    warn("here at %s line %d", __FILE__, __LINE__);
-
                     IV tmp = SvIV((SV *)SvRV(ST(i)));
                     ptr = INT2PTR(DCpointer, tmp);
                 }
                 else if (SvOK(ST(i))) {
-                    warn("here at %s line %d", __FILE__, __LINE__);
-
-                    // HV *type_hv = MUTABLE_HV(SvRV(package));
-
                     SV **type_ptr = hv_fetchs(type_hv, "type", 0);
                     SV *type = *type_ptr;
+                    char *subtype = SvPV_nolen(type);
+                    Newxz(ptr, _sizeof(aTHX_ type), char);
+                    if (subtype[0] == DC_SIGCHAR_STRUCT) {
+                        (void)perl2ptr(aTHX_ type, ST(i), ptr, false, 0);
+                        pointers = true;
+                        {
+                            SV *RETVALSV = newSV(0); // sv_newmortal();
+                            sv_setref_pv(RETVALSV, "Dyn::Call::Pointer", ptr);
+                            hv_stores(type_hv, "pointer", RETVALSV);
+                        }
+                    }
+                    else {
+                        (void)perl2ptr(aTHX_ type, SvRV(ST(i)), ptr, false, 0);
+                        pointers = true;
+                        {
+                            SV *RETVALSV = newSV(0); // sv_newmortal();
+                            sv_setref_pv(RETVALSV, "Dyn::Call::Pointer", ptr);
+                            hv_stores(type_hv, "pointer", RETVALSV);
+                        }
 
-                    Newxz(ptr, _sizeof(type), char);
-                    (void)perl2ptr(aTHX_ type, ST(i), ptr, false, 0);
-
-                    DumpHex(ptr, _sizeof(type));
-                    pointers = true;
-                    {
-                        SV *RETVALSV = newSV(0); // sv_newmortal();
-                        sv_setref_pv(RETVALSV, "Dyn::Call::Pointer", ptr);
-                        hv_stores(type_hv, "pointer", RETVALSV);
+                        // croak("Parse out random bits here for type: %c", subtype[0]);
                     }
                     /*
                     char *subtype = SvPV_nolen(*type_ref);
@@ -1699,15 +1706,24 @@ XS_EUPXS(Types_type_call) {
                         pointers = true;
                     }*/
                 }
-                else
-                    ptr = NULL;
+                else {
+                    warn("here at %s line %d", __FILE__, __LINE__);
+                    SV **type_ptr = hv_fetchs(type_hv, "type", 0);
+                    SV *type = *type_ptr;
+                    Newxz(ptr, _sizeof(aTHX_ type), char);
+                }
             }
-            else if (!SvOK(value))
+            else if (!SvOK(value)) {
                 ptr = NULL;
+                /*SV **type_ptr = hv_fetchs(type_hv, "type", 0);
+                SV *type = *type_ptr;
+                Newxz(ptr, _sizeof(type), char);
+                warn("here at %s line %d", __FILE__, __LINE__);*/
+            }
             else
                 croak("%d%s parameter must be a scalar ref or Dyn::Call::Pointer object", i + 1,
                       ordinal(i + 1));
-
+            pointers = true;
             dcArgPointer(MY_CXT.cvm, ptr);
             if (ptr != NULL) {
                 SV *RETVALSV = newSV(0); // sv_newmortal();
@@ -1726,13 +1742,12 @@ XS_EUPXS(Types_type_call) {
                 ptr = INT2PTR(DCpointer, tmp);
             }
             else if (!SvOK(value)) // Passed us an undef
-                ;                  // ptr = NULL;
+                ptr = NULL;
             else
                 croak("Type of arg %d must be an instance or subclass of %s", i + 1,
                       SvPVbytex_nolen(*package_ptr));
             // DCpointer ptr = deref_pointer(aTHX_ field, MUTABLE_SV(value), false);
             dcArgPointer(MY_CXT.cvm, ptr);
-
             // pointers = true;
         } break;
         case DC_SIGCHAR_ANY: {
@@ -1923,8 +1938,6 @@ XS_EUPXS(Types_type_call) {
             RETVAL = newSVnv((double)dcCallDouble(MY_CXT.cvm, call->fptr));
             break;
         case DC_SIGCHAR_POINTER: {
-            sv_dump(call->retval);
-
             if (1) {
                 SV *RETVALSV;
                 RETVALSV = newSV(1);
@@ -1935,7 +1948,7 @@ XS_EUPXS(Types_type_call) {
                 size_t si = _sizeof(aTHX_ call->retval);
                 DCpointer ret_ptr = safemalloc(si);
                 DCpointer out = dcCallAggr(MY_CXT.cvm, call->fptr, agg, ret_ptr);
-                RETVAL = agg2perl(agg, SvRV(call->retval), out, si);
+                RETVAL = agg2sv(agg, SvRV(call->retval), out, si);
             }
         } break;
         case DC_SIGCHAR_STRING:
@@ -1973,7 +1986,7 @@ XS_EUPXS(Types_type_call) {
             warn("agg.n_fields == %d at %s line %d", agg->n_fields, __FILE__, __LINE__);
             DumpHex(agg, 16);
             DCpointer out = dcCallAggr(MY_CXT.cvm, call->fptr, agg, ret_ptr);
-            RETVAL = agg2perl(agg, SvRV(call->retval), out, si);
+            RETVAL = agg2sv(agg, SvRV(call->retval), out, si);
         } break;
         case DC_SIGCHAR_ENUM: {
             // TODO: get dualvar from Enum[]
@@ -1988,42 +2001,57 @@ XS_EUPXS(Types_type_call) {
             for (int i = 0; i < call->sig_len; ++i) {
                 switch (call->sig[i]) {
                 case DC_SIGCHAR_POINTER: {
+                    DCpointer ptr = NULL;
                     SV *package = *av_fetch(call->args, i, 0); // Make broad assumptions
-
                     if (sv_derived_from(ST(i), "Dyn::Call::Pointer")) {
-                        // IV tmp = SvIV((SV *)SvRV(ST(i)));
-                        // ptr = INT2PTR(DCpointer, tmp);
+                        IV tmp = SvIV((SV *)SvRV(ST(i)));
+                        ptr = INT2PTR(DCpointer, tmp);
                     }
-                    else // if (SvROK(ST(i)))
-                    {
+                    else {
                         HV *type_hv = MUTABLE_HV(SvRV(package));
                         SV **ptr_ptr = hv_fetchs(type_hv, "pointer", 0);
-                        SV **type_ptr = hv_fetchs(type_hv, "type", 0);
-
-                        DCpointer ptr;
                         {
                             IV tmp = SvIV((SV *)SvRV(*ptr_ptr));
                             ptr = INT2PTR(DCpointer, tmp);
                         }
-                        {
-                            SV *type = *type_ptr;
+
+                        // DumpHex(ptr, 16);
+                        SV **type_ptr = hv_fetchs(type_hv, "type", 0);
+                        SV *type = *type_ptr;
+
+                        char *_type = SvPV_nolen(type);
+                        switch (_type[0]) {
+                        case DC_SIGCHAR_VOID:
+                            // let it pass through as a Dyn::Call::Pointer
+                            break;
+                        case DC_SIGCHAR_AGGREGATE: {
                             DCaggr *agg = _aggregate(aTHX_ type);
                             size_t si = _sizeof(aTHX_ type);
-                            SvSetMagicSV(ST(i), agg2perl(agg, SvRV(type), ptr, si));
+                            SvSetMagicSV(ST(i), agg2sv(agg, SvRV(type), ptr, si));
+                        } break;
+                        default: {
+                            SV *sv = ptr2sv(aTHX_ ptr, *type_ptr);
+                            if (SvROK(ST(i)))
+                                // sv_setsv(SvRV(ST(i)), sv);
+                                SvSetMagicSV(SvRV(ST(i)), sv);
+                            else if (SvOK(ST(i)))
+                                // sv_setsv(ST(i), sv);
+                                SvSetMagicSV(ST(i), sv);
+                            // else ... guess they passed undef rather than an undef scalar
                         }
-                        safefree(ptr);
+                        }
                     }
-                    break;
-                }
+                } break;
+
                 default:
                     break;
                 }
             }
         }
+
         if (call->ret == DC_SIGCHAR_VOID) XSRETURN_EMPTY;
         RETVAL = sv_2mortal(RETVAL);
         ST(0) = RETVAL;
-
         XSRETURN(1);
     }
 }
@@ -2385,7 +2413,7 @@ pointer2struct(DCpointer ptr, SV * type)
 CODE:
     DCaggr *   agg = _aggregate(aTHX_ type);
     size_t si = _sizeof(aTHX_ type);
-    RETVAL = agg2perl(agg, SvRV(type), ptr, si);
+    RETVAL = agg2sv(agg, SvRV(type), ptr, si);
 OUTPUT:
     RETVAL
 
