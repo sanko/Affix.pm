@@ -18,6 +18,7 @@ dyncall:
     debuggers, exception handling, etc.; thanks Raphael Luba!)
   o fixed detection of native thiscall callconv for builds not using MSVC but using (or adhering to)
     the MSVC runtime (e.g. ReactOS' MinGW based RosBE)
+  o BSD syscall segfault fix
 dyncallback:
   o new, portable aggregate-by-value callback argument interface
   o aggregate-by-value (struct, union) support for x64 (win and sysv; thanks Raphael Luba!)

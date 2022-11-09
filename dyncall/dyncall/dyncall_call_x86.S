@@ -231,6 +231,7 @@ BEGIN_PROC(dcCall_x86_syscall_int80h_bsd)
 	REP(MOVSB)
 	MOVL(DWORD(EBP,8),EAX)      /* load system call id. */
 	CALL(_do_int)
+	ADDL(DWORD(EBP,16),ESP)
 	POP(EDI)                    /* restore preserved. */
 	POP(ESI)
 	MOVL(EBP,ESP)               /* epilog. */
