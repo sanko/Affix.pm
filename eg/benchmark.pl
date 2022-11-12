@@ -206,7 +206,6 @@ package FFI {
 }
 my $hand_rolled = FFI->obj( FFI::func( FFI::load($libfile), 'sin' ), 'd)d' );
 #
-warn;
 sub sin_ : Native(libfile) : Signature([Double]=>Double) : Symbol('sin');
 sub sin_var : Native(libfile) : Signature([Double]=>Double) : Symbol('sin') :
     Mode(DC_SIGCHAR_CC_ELLIPSIS_VARARGS);

@@ -54,6 +54,7 @@ extern "C" {
 #define DC_SIGCHAR_BLESSED '$' // 'p' but an object or subclass of a given package
 #define DC_SIGCHAR_ANY '*'     // 'p' but it's really an SV/HV/AV
 #define DC_SIGCHAR_ENUM 'e'    // 'i' but with multiple options
+#define DC_SIGCHAR_MAYBE '?'   // optional praam multiple options
 // bring balance
 #define DC_SIGCHAR_ARRAY_END ']'
 #define DC_SIGCHAR_STRUCT_END '}'
@@ -367,18 +368,18 @@ static SV *ptr2sv(pTHX_ DCpointer ptr, SV *type) {
     case DC_SIGCHAR_DOUBLE:
         sv_setnv(RETVAL, *(double *)ptr);
         break;
+    default:
+        croak("Oh, this is unexpected [%c]", _type[0]);
     }
     return RETVAL;
 }
+
 static SV *agg2sv(DCaggr *agg, SV *type, DCpointer data, size_t size) {
     dTHX;
-    // sv_dump(sv);
-    // sv_dump(SvRV(*hv_fetch(MUTABLE_HV(sv), "fields", 6, 0)));
-    DumpHex(data, size);
+    // sv_dump(aTHX_ sv);
+    // sv_dump(aTHX_ SvRV(*hv_fetch(MUTABLE_HV(sv), "fields", 6, 0)));
     AV *fields = MUTABLE_AV(SvRV(*hv_fetch(MUTABLE_HV(type), "fields", 6, 0)));
-
     HV *RETVAL = newHV();
-
     //*(int*)ptr = 42;
     intptr_t offset;
     DCsize i = agg->n_fields;
@@ -486,8 +487,6 @@ static SV *agg2sv(DCaggr *agg, SV *type, DCpointer data, size_t size) {
             break;
         }
     }
-
-    //            _sloppy_coerce(aTHX_ * field_type_ptr, SvRV(*value_ptr), ((DCpointer)(offset)));
 
     safefree(me);
 

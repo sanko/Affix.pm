@@ -103,7 +103,7 @@ Copies C<$count> characters from the object pointed to by C<$src> to the object
 pointed to by C<$dest>. Both objects are interpreted as arrays of C<unsigned
 char>.
 
-Returns a copy of C<dest>.
+Returns a copy of C<$dest>.
 
 =head2 C<memmove( $dest, $src, $count )>
 

@@ -110,7 +110,7 @@ PPCODE:
     else if (SvPOK(ST(1))) { src = (DCpointer)(unsigned char *)SvPV_nolen(ST(1)); }
     else
         croak("dest is not of type Dyn::Call::Pointer");
-    Copy(src, dest, nitems, char);
+    CopyD(src, dest, nitems, char);
 }
 // clang-format off
 
@@ -196,7 +196,7 @@ OUTPUT:
     RETVAL
 
 SV *
-raw(ptr, size_t size)
+raw(ptr, size_t size, bool utf8 = false)
 CODE:
 // clang-format on
 {
@@ -211,7 +211,7 @@ CODE:
     }
     else
         croak("dest is not of type Dyn::Call::Pointer");
-    RETVAL = newSVpvn_utf8((const char *)ptr, size, 1);
+    RETVAL = newSVpvn_utf8((const char *)ptr, size, utf8 ? 1 : 0);
 }
 // clang-format off
 OUTPUT:
@@ -233,7 +233,6 @@ CODE:
     }
     else
         croak("dest is not of type Dyn::Call::Pointer");
-    DumpHex(ptr, size);
 }
 // clang-format off
 
