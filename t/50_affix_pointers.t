@@ -18,7 +18,7 @@ sub pointer_test : Native('t/50_affix_pointers') :
 sub dbl_ptr : Native('t/50_affix_pointers') : Signature([Pointer[Double]] => Str);
 subtest 'scalar ref' => sub {
     my $ptr = 100;
-    is dbl_ptr($ptr), 'one hundred', 'dbl_ptr(\$ptr) where $ptr == 100';
+    is dbl_ptr($ptr), 'one hundred', 'dbl_ptr($ptr) where $ptr == 100';
     is $ptr,          1000,          '$ptr was changed to 1000';
 };
 subtest 'undefined scalar ref' => sub {

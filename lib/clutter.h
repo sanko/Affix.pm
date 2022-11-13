@@ -54,7 +54,6 @@ extern "C" {
 #define DC_SIGCHAR_BLESSED '$' // 'p' but an object or subclass of a given package
 #define DC_SIGCHAR_ANY '*'     // 'p' but it's really an SV/HV/AV
 #define DC_SIGCHAR_ENUM 'e'    // 'i' but with multiple options
-#define DC_SIGCHAR_MAYBE '?'   // optional praam multiple options
 // bring balance
 #define DC_SIGCHAR_ARRAY_END ']'
 #define DC_SIGCHAR_STRUCT_END '}'
