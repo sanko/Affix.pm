@@ -10,19 +10,19 @@ typedef struct intintstruct
 } IntIntStruct;
 
 DLLEXPORT int TakeIntStruct(IntStruct x) {
-    warn("x.i!, %d", x.i);
+    warn("# x.i!, %d", x.i);
 
-    warn("IntStruct.i == %lu", offsetof(IntStruct, i));
-    warn("IntIntStruct.i == %lu", offsetof(IntIntStruct, i));
-    warn("IntIntStruct.j == %lu", offsetof(IntIntStruct, j));
+    warn("# IntStruct.i == %lu", offsetof(IntStruct, i));
+    warn("# IntIntStruct.i == %lu", offsetof(IntIntStruct, i));
+    warn("# IntIntStruct.j == %lu", offsetof(IntIntStruct, j));
 
     if (x.i == 42) return 1;
     return 0;
 }
 
 DLLEXPORT int TakeIntIntStruct(IntIntStruct x) {
-    warn("x.i!, %d", x.i);
-    warn("x.j, %d", x.j);
+    warn("# x.i!, %d", x.i);
+    warn("# x.j, %d", x.j);
 
     return x.i + x.j;
 }

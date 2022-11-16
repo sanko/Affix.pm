@@ -371,7 +371,6 @@ static DCaggr *_aggregate(pTHX_ SV *type) {
                 croak("Oh, no...");
         }
         else {
-            warn("here at %s line %d", __FILE__, __LINE__);
             SV **idk_wtf = hv_fetchs(MUTABLE_HV(SvRV(type)), "fields", 0);
             bool packed = false;
             if (str[0] == DC_SIGCHAR_STRUCT) {
@@ -1193,7 +1192,6 @@ XS_EUPXS(Types_struct_new) {
     for (SSize_t i = 0; i < av_count(fields_av); ++i) {
         AV *field = MUTABLE_AV(*av_fetch(fields_av, i, 0));
         SV *key = *av_fetch(field, 0, 0);
-        warn("A");
         char *_key = SvPV_nolen(key);
         // SV * type = *av_fetch(field, 1, 0);
         SV **value = hv_fetch(params, _key, strlen(_key), 0);
@@ -1248,19 +1246,6 @@ XS_EUPXS(Types_typedef) {
                     newXSproto_portable(form("%s::new", name), Types_struct_new, __FILE__, "$$");
                 XSANY.any_sv = SvREFCNT_inc(newSVsv(ST(1)));
             }
-
-            warn("Typedef a struct as %s... TODO: install subs to get/set values", name);
-            /*
-            HV *href = MUTABLE_HV(SvRV(ST(1)));
-            SV **values_ref = hv_fetch(href, "values", 6, 0);
-            AV *values = MUTABLE_AV(SvRV(*values_ref));
-            HV *_stash = gv_stashpv(name, TRUE);
-            for (int i = 0; i < av_count(values); i++) {
-                SV **value = av_fetch(MUTABLE_AV(values), i, 0);
-                register_constant(name, SvPV_nolen(*value), *value);
-            }
-            // register_constant(name, name, SvREFCNT_inc(ST(1)));
-            */
         }
         else if (sv_derived_from(ST(1), "Affix::Type::Enum")) {
             HV *href = MUTABLE_HV(SvRV(ST(1)));
@@ -1271,7 +1256,6 @@ XS_EUPXS(Types_typedef) {
                 SV **value = av_fetch(MUTABLE_AV(values), i, 0);
                 register_constant(name, SvPV_nolen(*value), *value);
             }
-            // register_constant(name, name, SvREFCNT_inc(ST(1)));
         }
     }
 }
@@ -1431,7 +1415,8 @@ XS_EUPXS(Affix_call) {
 
     /*warn("Calling at %s line %d", __FILE__, __LINE__);
     warn("%d items at %s line %d", items, __FILE__, __LINE__);
-    warn("max: %d at %s line %d", call->sig_len, __FILE__, __LINE__);*/
+    warn("sig_len: %d at %s line %d", call->sig_len, __FILE__, __LINE__);
+    warn("sig: %s at %s line %d", call->sig, __FILE__, __LINE__);*/
 
     if (call->sig_len != items) {
         if (call->sig_len < items) croak("Too many arguments");
@@ -1445,8 +1430,7 @@ XS_EUPXS(Affix_call) {
     case DC_SIGCHAR_UNION:
     case DC_SIGCHAR_ARRAY:
     case DC_SIGCHAR_STRUCT: {
-        warn("here at %s line %d", __FILE__, __LINE__);
-
+        // warn("here at %s line %d", __FILE__, __LINE__);
         agg = _aggregate(aTHX_ call->retval);
         dcBeginCallAggr(MY_CXT.cvm, agg);
     } break;
@@ -1463,11 +1447,14 @@ XS_EUPXS(Affix_call) {
     bool l_pointer[call->sig_len];
 
     for (int i = 0; i < items; ++i) {
-        // warn("Working on element %d of %d (type: %c) at %s line %d", i, call->sig_len - 1,
-        //     call->sig[i], __FILE__, __LINE__);
+        /*warn("Working on element %d of %d (type: %c) at %s line %d", i + 1, call->sig_len,
+             call->sig[i], __FILE__, __LINE__);*/
         value = ST(i);
-        _type = call->sig[i];
         type = *av_fetch(call->args, i, 0); // Make broad assexumptions
+        {
+            char *tmp = SvPV_nolen(type);
+            _type = tmp[0];
+        }
         switch (_type) {
         case DC_SIGCHAR_VOID:
             break;
@@ -1496,14 +1483,12 @@ XS_EUPXS(Affix_call) {
             dcArgLong(MY_CXT.cvm, (long)(SvIV(value)));
             break;
         case DC_SIGCHAR_ULONG:
-
             dcArgLong(MY_CXT.cvm, (unsigned long)(SvUV(value)));
             break;
         case DC_SIGCHAR_LONGLONG:
             dcArgLongLong(MY_CXT.cvm, (long long)(SvIV(value)));
             break;
         case DC_SIGCHAR_ULONGLONG:
-
             dcArgLongLong(MY_CXT.cvm, (unsigned long long)(SvUV(value)));
             break;
         case DC_SIGCHAR_FLOAT:
@@ -1513,7 +1498,6 @@ XS_EUPXS(Affix_call) {
             dcArgDouble(MY_CXT.cvm, (double)SvNV(value));
             break;
         case DC_SIGCHAR_POINTER: {
-            // sv_dump(type);
             SV **subtype_ptr = hv_fetchs(MUTABLE_HV(SvRV(type)), "type", 0);
             if (sv_derived_from(value, "Dyn::Call::Pointer")) {
                 IV tmp = SvIV((SV *)SvRV(value));
@@ -1549,122 +1533,6 @@ XS_EUPXS(Affix_call) {
                       "object",
                       i + 1, ordinal(i + 1));
             dcArgPointer(MY_CXT.cvm, pointer[i]);
-
-            // static DCaggr *perl2ptr(pTHX_ SV *type, SV *data, DCpointer ptr, bool packed,
-            // size_t pos) {
-
-            // croak("killing over at %s line %d", __FILE__, __LINE__);
-            if (0) {
-                DCpointer ptr;
-                SV *package = type;
-                HV *type_hv = MUTABLE_HV(SvRV(package));
-                warn("here at %s line %d", __FILE__, __LINE__);
-
-                if (SvROK(value)) {
-                    warn("here at %s line %d", __FILE__, __LINE__);
-
-                    SV **ptr_ptr = hv_fetchs(type_hv, "pointer", 0);
-                    if (ptr_ptr) {
-                        warn("here at %s line %d", __FILE__, __LINE__);
-
-                        IV tmp = SvIV((SV *)SvRV(*ptr_ptr));
-                        ptr = INT2PTR(DCpointer, tmp);
-                    }
-                    if (sv_derived_from(ST(i), "Dyn::Call::Pointer")) {
-                        warn("here at %s line %d", __FILE__, __LINE__);
-
-                        IV tmp = SvIV((SV *)SvRV(ST(i)));
-                        ptr = INT2PTR(DCpointer, tmp);
-                    }
-                    else if (SvOK(ST(i))) {
-                        warn("here at %s line %d", __FILE__, __LINE__);
-
-                        SV **type_ptr = hv_fetchs(type_hv, "type", 0);
-                        SV *type = *type_ptr;
-                        char *subtype = SvPV_nolen(type);
-                        Newxz(ptr, _sizeof(aTHX_ type), char);
-                        if (subtype[0] == DC_SIGCHAR_STRUCT) {
-                            warn("here at %s line %d", __FILE__, __LINE__);
-
-                            (void)perl2ptr(aTHX_ type, ST(i), ptr, false, 0);
-                            pointers = true;
-                            {
-                                SV *RETVALSV = newSV(0); // sv_newmortal();
-                                sv_setref_pv(RETVALSV, "Dyn::Call::Pointer", ptr);
-                                hv_stores(type_hv, "pointer", RETVALSV);
-                            }
-                        }
-                        else {
-                            warn("here at %s line %d", __FILE__, __LINE__);
-
-                            (void)perl2ptr(aTHX_ type, ST(i), ptr, false, 0);
-                            pointers = true;
-                            {
-                                SV *RETVALSV = newSV(0); // sv_newmortal();
-                                sv_setref_pv(RETVALSV, "Dyn::Call::Pointer", ptr);
-                                hv_stores(type_hv, "pointer", RETVALSV);
-                            }
-
-                            // croak("Parse out random bits here for type: %c", subtype[0]);
-                        }
-                        /*
-                        char *subtype = SvPV_nolen(*type_ref);
-                        if (subtype[0] == DC_SIGCHAR_STRUCT) {
-
-                            //
-
-                            SV *field = *av_fetch(call->args, i, 0); // Make broad
-                            assumptions sv_dump(field);
-                            warn("here at %s line %d", __FILE__, __LINE__);
-                            // DCaggr *agg = _aggregate(aTHX_ field);
-                            ptr = safemalloc(_sizeof(aTHX_ * type_ref));
-                            Size_t len = _sizeof(aTHX_ * type_ref);
-                            DumpHex(ptr, len);
-
-                            DCaggr *agg = perl2ptr(aTHX_ * type_ref, value, ptr, false, 0);
-                            warn("len %d", len);
-                            DumpHex(ptr, len);
-                            {
-                                SV *RETVALSV = newSV(0); // sv_newmortal();
-                                sv_setref_pv(RETVALSV, "Dyn::Call::Pointer", ptr);
-                                hv_stores(type_hv, "pointer", RETVALSV);
-                            }
-                            pointers = true;
-                        }
-                        else {
-                            ptr = deref_pointer(aTHX_ * type_ref, value, true);
-                            pointers = true;
-                        }*/
-                    }
-                    else {
-                        warn("here at %s line %d", __FILE__, __LINE__);
-                        SV **type_ptr = hv_fetchs(type_hv, "type", 0);
-                        SV *type = *type_ptr;
-                        Newxz(ptr, _sizeof(aTHX_ type), char);
-                    }
-                }
-                else if (!SvOK(value)) {
-                    warn("here at %s line %d", __FILE__, __LINE__);
-
-                    // ptr = NULL;
-                    SV **type_ptr = hv_fetchs(type_hv, "type", 0);
-                    SV *type = *type_ptr;
-                    Newxz(ptr, _sizeof(aTHX_ type), char);
-                    warn("here at %s line %d", __FILE__, __LINE__);
-                }
-                else
-                    ptr = NULL; //
-                // croak("%d%s parameter must be a scalar ref or Dyn::Call::Pointer object", i +
-                // 1,
-                //      ordinal(i + 1));
-                pointers = true;
-                dcArgPointer(MY_CXT.cvm, ptr);
-                if (ptr != NULL) {
-                    SV *RETVALSV = newSV(0); // sv_newmortal();
-                    sv_setref_pv(RETVALSV, "Dyn::Call::Pointer", ptr);
-                    hv_stores(type_hv, "pointer", RETVALSV);
-                }
-            }
         } break;
         case DC_SIGCHAR_BLESSED: {                     // Essentially the same as DC_SIGCHAR_POINTER
             SV *package = *av_fetch(call->args, i, 0); // Make broad assumptions
@@ -1687,7 +1555,7 @@ XS_EUPXS(Affix_call) {
         case DC_SIGCHAR_ANY: {
             if (!SvOK(value)) sv_set_undef(value);
             // sv_dump(value);
-            //  croak("here");
+            //   croak("here");
             dcArgPointer(MY_CXT.cvm, SvREFCNT_inc(value));
         } break;
         case DC_SIGCHAR_STRING: {
@@ -2284,6 +2152,7 @@ CODE:
 
     Newxz(call->sig, call->sig_len, char);
     Newxz(call->perl_sig, call->sig_len, char);
+
     char c_sig[call->sig_len];
     call->args = newAV();
     int pos = 0;
