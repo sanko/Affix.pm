@@ -1499,39 +1499,36 @@ XS_EUPXS(Affix_call) {
             break;
         case DC_SIGCHAR_POINTER: {
             SV **subtype_ptr = hv_fetchs(MUTABLE_HV(SvRV(type)), "type", 0);
-            if (sv_derived_from(value, "Dyn::Call::Pointer")) {
-                IV tmp = SvIV((SV *)SvRV(value));
-                pointer[i] = INT2PTR(DCpointer, tmp);
-                l_pointer[i] = false;
-                pointers = true;
-            }
-            else if (SvOK(value)) {
-                if (sv_isobject(SvRV(value))) croak("Unexpected pointer to blessed object");
-                SV *type = *subtype_ptr;
-                size_t size = _sizeof(aTHX_ type);
-                Newxz(pointer[i], size, char);
-                (void)perl2ptr(aTHX_ type, value, pointer[i], false, 0);
-                l_pointer[i] = true;
-                pointers = true;
-            }
-            else if (!SvOK(value)) {
-                if (SvREADONLY(value)) { // explicit undef
-                    pointer[i] = NULL;
+            if (SvOK(value)) {
+                if (sv_derived_from(value, "Dyn::Call::Pointer")) {
+                    IV tmp = SvIV((SV *)SvRV(value));
+                    pointer[i] = INT2PTR(DCpointer, tmp);
                     l_pointer[i] = false;
+                    pointers = true;
                 }
-                else { // treat as if it's an lvalue
-                    SV **subtype_ptr = hv_fetchs(MUTABLE_HV(SvRV(type)), "type", 0);
+                else {
+                    if (sv_isobject(SvRV(value))) croak("Unexpected pointer to blessed object");
                     SV *type = *subtype_ptr;
                     size_t size = _sizeof(aTHX_ type);
                     Newxz(pointer[i], size, char);
+                    (void)perl2ptr(aTHX_ type, value, pointer[i], false, 0);
                     l_pointer[i] = true;
                     pointers = true;
                 }
             }
-            else
-                croak("%d%s parameter must be a scalar ref, a hash ref, or Dyn::Call::Pointer "
-                      "object",
-                      i + 1, ordinal(i + 1));
+            else if (SvREADONLY(value)) { // explicit undef
+                pointer[i] = NULL;
+                l_pointer[i] = false;
+            }
+            else { // treat as if it's an lvalue
+                SV **subtype_ptr = hv_fetchs(MUTABLE_HV(SvRV(type)), "type", 0);
+                SV *type = *subtype_ptr;
+                size_t size = _sizeof(aTHX_ type);
+                Newxz(pointer[i], size, char);
+                l_pointer[i] = true;
+                pointers = true;
+            }
+
             dcArgPointer(MY_CXT.cvm, pointer[i]);
         } break;
         case DC_SIGCHAR_BLESSED: {                     // Essentially the same as DC_SIGCHAR_POINTER
@@ -1814,12 +1811,11 @@ XS_EUPXS(Affix_call) {
                 switch (call->sig[i]) {
                 case DC_SIGCHAR_POINTER: {
                     SV *package = *av_fetch(call->args, i, 0); // Make broad assumptions
-                    if (sv_derived_from(ST(i), "Dyn::Call::Pointer")) {
+                    if (SvOK(ST(i)) && sv_derived_from(ST(i), "Dyn::Call::Pointer")) {
                         IV tmp = SvIV((SV *)SvRV(ST(i)));
                         pointer[i] = INT2PTR(DCpointer, tmp);
                     }
-
-                    else {
+                    else if (!SvREADONLY(value)) { // not explicit undef
                         HV *type_hv = MUTABLE_HV(SvRV(package));
                         // DumpHex(ptr, 16);
                         SV **type_ptr = hv_fetchs(type_hv, "type", 0);

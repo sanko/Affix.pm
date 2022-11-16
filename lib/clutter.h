@@ -261,69 +261,6 @@ bool is_valid_class_name(SV *sv) { // Stolen from Type::Tiny::XS::Util
     return RETVAL;
 }
 
-static HV *ptr2perl(DCpointer ptr, AV *fields) {
-    dTHX;
-
-    if (av_count(fields) % 2)
-        Perl_croak_nocontext("%s: %s is not an even sized list", "Dyn::Call::Pointer::perl",
-                             "fields");
-    /*DCpointer *  pointer;
-
-  // Dyn::Call | DCCallVM * | DCCallVMPtr
-  if (sv_derived_from(ST(0), "Dyn::Call::Pointer")){
-    IV tmp = SvIV((SV*)SvRV(ST(0)));
-    vm = INT2PTR(DCpointer *, tmp);
-  }
-  else
-    croak("obj is not of type Dyn::Call::Pointer");*/
-
-    // DumpHex(obj, sizeof(obj));
-
-    // SV ** classinfo_ref = hv_fetch(MY_CXT.structs, pkg, strlen(pkg), 0);
-
-    // HV * action;
-    // if (classinfo_ref && SvOK(*classinfo_ref))
-    //     action = MUTABLE_HV(SvRV(*classinfo_ref));
-    // else
-    //     croak("Attempt to cast a pointer to %s which is undefined", pkg);
-    HV *RETVAL = newHV_mortal();
-    size_t offset = 0;
-
-    for (int i = 0; i < av_count(fields); i += 2) {
-        DCpointer holder = NULL;
-        SV **name_ref = av_fetch(fields, i, 0);
-        SV **type_ref = av_fetch(fields, i + 1, 0);
-
-        char *name = (char *)SvPV_nolen(*name_ref);
-        char type = (char)*SvPV_nolen(*type_ref);
-        SV *element;
-
-        switch (type) {
-        case DC_SIGCHAR_CHAR: {
-            char *holder = (char *)safemalloc(1);
-            Copy((DCpointer)(PTR2IV(ptr) + offset), holder, 1, char);
-            offset += padding_needed_for(offset, 1);
-            element = newSVpv(holder, 1);
-            break;
-        }
-        case DC_SIGCHAR_UCHAR: {
-            char *holder = (char *)safemalloc(1);
-            Copy((DCpointer)(PTR2IV(ptr) + offset), holder, 1, unsigned char);
-            offset += padding_needed_for(offset, 1);
-            element = newSVpv(holder, 1);
-            break;
-        }
-        default:
-            Perl_croak_nocontext("%s: %c is not a known signature character",
-                                 "Dyn::Call::Pointer::perl", type);
-            break;
-        }
-        hv_store(RETVAL, name, strlen(name), element, 0);
-        if (holder) safefree(holder);
-    }
-    return RETVAL;
-}
-
 static SV *ptr2sv(pTHX_ DCpointer ptr, SV *type) {
     SV *RETVAL = newSV(0);
     char *_type = SvPV_nolen(type);

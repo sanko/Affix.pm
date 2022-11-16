@@ -213,8 +213,8 @@ SKIP: {
         my $obj = malloc(1);
         my $ret = dcCallAggr( $cvm, $ptr, $s, $obj );
         isa_ok $ret, 'Dyn::Call::Pointer', '$ret';
-        my $struct = $obj->perl( [ a => DC_SIGCHAR_UCHAR ] );
-        is_deeply $struct, { a => 'n' }, 'struct converted to perl hashref';
+        my $struct = unpack 'C', $obj;
+        is_deeply $struct, ord 'n', 'struct unpacked to perl vars';
         dcFreeAggr($s);
         free($ret);
     };
@@ -232,10 +232,10 @@ SKIP: {
         dcReset($cvm);
         dcBeginCallAggr( $cvm, $s );
         dcArgChar( $cvm, 'Y' );
-        my $obj = malloc(1);
-        my $ret = dcCallAggr( $cvm, $ptr, $s, $obj );
-        is_deeply $ret->perl( [ first => DC_SIGCHAR_UCHAR ] ), { first => 'Z' },
-            'parsing aggr into a simple hashref';
+        my $obj    = malloc(1);
+        my $ret    = dcCallAggr( $cvm, $ptr, $s, $obj );
+        my $struct = unpack 'C', $obj;
+        is_deeply $struct, ord 'Z', 'struct unpacked to perl vars';
         dcFreeAggr($s);
         free($obj);
     };

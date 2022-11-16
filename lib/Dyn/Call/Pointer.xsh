@@ -235,12 +235,3 @@ CODE:
         croak("dest is not of type Dyn::Call::Pointer");
 }
 // clang-format off
-
-HV *
-perl(DCpointer ptr, AV *fields)
-CODE:
-    // clang-format on
-    RETVAL = ptr2perl(ptr, fields);
-// clang-format off
-OUTPUT:
-    RETVAL
