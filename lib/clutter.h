@@ -47,13 +47,15 @@ extern "C" {
 #include <dyncall/dyncall/dyncall_aggregate.h>
 
 //{ii[5]Z&<iZ>}
-#define DC_SIGCHAR_CODE '&'    // 'p' but allows us to wrap CV * for the user
-#define DC_SIGCHAR_ARRAY '['   // 'A' but nicer
-#define DC_SIGCHAR_STRUCT '{'  // 'A' but nicer
-#define DC_SIGCHAR_UNION '<'   // 'A' but nicer
-#define DC_SIGCHAR_BLESSED '$' // 'p' but an object or subclass of a given package
-#define DC_SIGCHAR_ANY '*'     // 'p' but it's really an SV/HV/AV
-#define DC_SIGCHAR_ENUM 'e'    // 'i' but with multiple options
+#define DC_SIGCHAR_CODE '&'      // 'p' but allows us to wrap CV * for the user
+#define DC_SIGCHAR_ARRAY '['     // 'A' but nicer
+#define DC_SIGCHAR_STRUCT '{'    // 'A' but nicer
+#define DC_SIGCHAR_UNION '<'     // 'A' but nicer
+#define DC_SIGCHAR_BLESSED '$'   // 'p' but an object or subclass of a given package
+#define DC_SIGCHAR_ANY '*'       // 'p' but it's really an SV/HV/AV
+#define DC_SIGCHAR_ENUM 'e'      // 'i' but with multiple options
+#define DC_SIGCHAR_ENUM_UINT 'E' // 'I' but with multiple options
+#define DC_SIGCHAR_ENUM_CHAR 'o' // 'c' but with multiple options
 // bring balance
 #define DC_SIGCHAR_ARRAY_END ']'
 #define DC_SIGCHAR_STRUCT_END '}'
@@ -233,6 +235,19 @@ void _DumpHex(const void *addr, size_t len, const char *file, int line) {
     fflush(stdout);
 }
 
+SV *enum2sv(SV *type, int in) {
+    dTHX;
+    SV *val = newSViv(in);
+    AV *values = MUTABLE_AV(SvRV(*hv_fetchs(MUTABLE_HV(SvRV(type)), "values", 0)));
+    for (int i = 0; i < av_count(values); ++i) {
+        SV *el = *av_fetch(values, i, 0);
+        // Future ref: https://groups.google.com/g/perl.perl5.porters/c/q1k1qfbeVk0
+        // if(sv_numeq(val, el))
+        if (in == SvIV(el)) return el;
+    }
+    return val;
+}
+
 const char *ordinal(int n) {
     static const char suffixes[][3] = {"th", "st", "nd", "rd"};
     int ord = n % 100;
@@ -325,6 +340,8 @@ static SV *agg2sv(DCaggr *agg, SV *type, DCpointer data, size_t size) {
         // warn("i==%d type==%c", i, agg->fields[i].type);
         SV **field = av_fetch(fields, i, 0);
         SV **name_ptr = av_fetch(MUTABLE_AV(*field), 0, 0);
+                SV **value_ptr = av_fetch(MUTABLE_AV(*field), 1, 0);
+
         // sv_dump(*name_ptr);
         offset = PTR2IV(data) + agg->fields[i].offset;
         //
@@ -416,6 +433,21 @@ static SV *agg2sv(DCaggr *agg, SV *type, DCpointer data, size_t size) {
                              agg->fields[i].size * agg->fields[i].array_len);
             hv_store_ent(RETVAL, *name_ptr, kid, 0);
         } break;
+        case DC_SIGCHAR_ENUM: {
+            Copy(offset, me, agg->fields[i].array_len, int);
+            hv_store_ent(RETVAL, *name_ptr, enum2sv(*value_ptr, *(int *)me), 0);
+            break;
+        }
+        case DC_SIGCHAR_ENUM_UINT: {
+            Copy(offset, me, agg->fields[i].array_len, unsigned int);
+            hv_store_ent(RETVAL, *name_ptr, enum2sv(*value_ptr, *(unsigned int *)me), 0);
+            break;
+        }
+        case DC_SIGCHAR_ENUM_CHAR: {
+            Copy(offset, me, agg->fields[i].array_len, char);
+            hv_store_ent(RETVAL, *name_ptr, enum2sv(*value_ptr, *(char *)me), 0);
+            break;
+        }
         default:
             warn("TODO: %c", agg->fields[i].type);
             hv_store_ent(RETVAL, *name_ptr,

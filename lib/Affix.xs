@@ -84,6 +84,13 @@ char cbHandler(DCCallback *cb, DCArgs *args, DCValue *result, DCpointer userdata
                 SV **package = hv_fetchs(blessed, "package", 0);
                 PUSHs(sv_setref_pv(newSV(1), SvPV_nolen(*package), ptr));
             } break;
+            case DC_SIGCHAR_ENUM:
+            case DC_SIGCHAR_ENUM_UINT: {
+                PUSHs(enum2sv(*av_fetch(cbx->args, i, 0), dcbArgInt(args)));
+            } break;
+            case DC_SIGCHAR_ENUM_CHAR: {
+                PUSHs(enum2sv(*av_fetch(cbx->args, i, 0), dcbArgChar(args)));
+            } break;
             case DC_SIGCHAR_ANY: {
                 DCpointer ptr = dcbArgPointer(args);
                 SV *sv = newSV(0);
@@ -267,6 +274,8 @@ static size_t _sizeof(pTHX_ SV *type) {
         return SHORTSIZE;
     case DC_SIGCHAR_INT:
     case DC_SIGCHAR_UINT:
+    case DC_SIGCHAR_ENUM:
+    case DC_SIGCHAR_ENUM_UINT:
         return INTSIZE;
     case DC_SIGCHAR_LONG:
     case DC_SIGCHAR_ULONG:
@@ -701,6 +710,7 @@ static DCaggr *perl2ptr(pTHX_ SV *type, SV *data, DCpointer ptr, bool packed, si
         case DC_SIGCHAR_VOID:
             break;
         case DC_SIGCHAR_CHAR:
+        case DC_SIGCHAR_UCHAR:
             size = I8SIZE;
             break;
         case DC_SIGCHAR_FLOAT:
@@ -820,7 +830,10 @@ XS_EUPXS(Types) {
     //
     //  warn("ix == %c", ix);
     switch (ix) {
-    case DC_SIGCHAR_ENUM: {
+
+    case DC_SIGCHAR_ENUM:
+    case DC_SIGCHAR_ENUM_UINT:
+    case DC_SIGCHAR_ENUM_CHAR: {
         AV *vals = MUTABLE_AV(SvRV(ST(1)));
         AV *values = newAV_mortal();
         SV *current_value = newSViv(0);
@@ -1684,17 +1697,15 @@ XS_EUPXS(Affix_call) {
             // warn("here at %s line %d", __FILE__, __LINE__);
 
         } break;
-        case DC_SIGCHAR_ENUM: {
-            if (sv_derived_from(type, "Affix::Type::Enum::UInt"))
-                dcArgInt(MY_CXT.cvm, (unsigned int)SvUV(value));
-            else if (sv_derived_from(type, "Affix::Type::Enum::Char"))
-                dcArgChar(MY_CXT.cvm, (char)(SvIOK(value) ? SvIV(value) : *SvPV_nolen(value)));
-            else if (sv_derived_from(type, "Affix::Type::Enum::Int") ||
-                     sv_derived_from(type, "Affix::Type::Enum"))
-                dcArgInt(MY_CXT.cvm, (int)(SvIV(value)));
-            else
-                croak("Unknown Enum type");
-        } break;
+        case DC_SIGCHAR_ENUM:
+            dcArgInt(MY_CXT.cvm, (int)(SvIV(value)));
+            break;
+        case DC_SIGCHAR_ENUM_UINT:
+            dcArgInt(MY_CXT.cvm, (unsigned int)SvUV(value));
+            break;
+        case DC_SIGCHAR_ENUM_CHAR:
+            dcArgChar(MY_CXT.cvm, (char)(SvIOK(value) ? SvIV(value) : *SvPV_nolen(value)));
+            break;
         default:
             croak("--> Unfinished: [%c/%d]%s", call->sig[i], i, call->sig);
         }
@@ -1797,9 +1808,12 @@ XS_EUPXS(Affix_call) {
             DCpointer out = dcCallAggr(MY_CXT.cvm, call->fptr, agg, ret_ptr);
             RETVAL = agg2sv(agg, SvRV(call->retval), out, si);
         } break;
-        case DC_SIGCHAR_ENUM: {
-            // TODO: get dualvar from Enum[]
-            RETVAL = newSViv((int)dcCallInt(MY_CXT.cvm, call->fptr));
+        case DC_SIGCHAR_ENUM:
+        case DC_SIGCHAR_ENUM_UINT: {
+            RETVAL = enum2sv(call->retval, (int)dcCallInt(MY_CXT.cvm, call->fptr));
+        } break;
+        case DC_SIGCHAR_ENUM_CHAR: {
+            RETVAL = enum2sv(call->retval, (char)dcCallChar(MY_CXT.cvm, call->fptr));
         } break;
         default:
             croak("Unhandled return type: %c", call->ret);
@@ -1925,6 +1939,7 @@ XS_EUPXS(Affix_DESTROY) {
         safefree(XSANY.any_ptr);                                                                   \
         XSANY.any_i32 = (int)SIGCHAR;                                                              \
         export_function("Affix", NAME, "types");                                                   \
+        /*warn("Exporting %s to Affix q[:types]", NAME);*/                                         \
         /* Int->sig == 'i'; Struct[Int, Float]->sig == '{if}' */                                   \
         cv = newXSproto_portable(form("%s::sig", package), Types_sig, file, "$");                  \
         XSANY.any_i32 = (int)SIGCHAR;                                                              \
@@ -1991,14 +2006,14 @@ BOOT:
 
     TYPE("Enum", DC_SIGCHAR_ENUM, DC_SIGCHAR_INT);
 
-    TYPE("Enum::Int", DC_SIGCHAR_ENUM, DC_SIGCHAR_INT);
-    set_isa("Affix::Type::Enum::Int", "Affix::Type::Enum");
+    TYPE("IntEnum", DC_SIGCHAR_ENUM, DC_SIGCHAR_INT);
+    set_isa("Affix::Type::IntEnum", "Affix::Type::Enum");
 
-    TYPE("Enum::UInt", DC_SIGCHAR_ENUM, DC_SIGCHAR_UINT);
-    set_isa("Affix::Type::Enum::UInt", "Affix::Type::Enum");
+    TYPE("UIntEnum", DC_SIGCHAR_ENUM_UINT, DC_SIGCHAR_UINT);
+    set_isa("Affix::Type::UIntEnum", "Affix::Type::Enum");
 
-    TYPE("Enum::Char", DC_SIGCHAR_ENUM, DC_SIGCHAR_CHAR);
-    set_isa("Affix::Type::Enum::Char", "Affix::Type::Enum");
+    TYPE("CharEnum", DC_SIGCHAR_ENUM_CHAR, DC_SIGCHAR_CHAR);
+    set_isa("Affix::Type::CharEnum", "Affix::Type::Enum");
 
     // Enum[]?
     export_function("Affix", "typedef", "types");

@@ -9,7 +9,7 @@ use t::lib::nativecall;
 compile_test_lib('55_affix_enum');
 #
 {
-    my $ab = Enum::Int [ 'alpha', 'beta' ];
+    my $ab = IntEnum [ 'alpha', 'beta' ];
     isa_ok $ab, 'Affix::Type::Enum';
     is_deeply $ab->{values}, [ 'alpha', 'beta' ], qq![ 'alpha', 'beta' ] values!;
     is int $ab->{values}[0], 0, 'alpha == 0';

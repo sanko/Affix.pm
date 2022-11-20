@@ -324,6 +324,12 @@ package Affix 0.04 {
         package Affix::Type::Any 0.04;
 
         package Affix::Type::Enum 0.04;
+
+        package Affix::Type::IntEnum 0.04;
+
+        package Affix::Type::UIntEnum 0.04;
+
+        package Affix::Type::CharEnum 0.04;
     }
 };
 1;
