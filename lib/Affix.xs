@@ -293,7 +293,7 @@ XS_INTERNAL(Types) {
         }
         hv_stores(RETVAL_HV, "size", newSVsv(size));
         hv_stores(RETVAL_HV, "name", newSV(0));
-        // hv_stores(RETVAL_HV, "packed", packed);
+        hv_stores(RETVAL_HV, "packed", sv_2mortal(boolSV(false)));
         hv_stores(RETVAL_HV, "type", newSVsv(type));
     } break;
     case DC_SIGCHAR_CODE: {
@@ -349,19 +349,18 @@ XS_INTERNAL(Types) {
     case DC_SIGCHAR_STRUCT:
     case DC_SIGCHAR_UNION: {
         if (items == 2) {
-            AV *fields = newAV_mortal();
+            AV *fields = newAV();
             AV *fields_in = MUTABLE_AV(SvRV(ST(1)));
             size_t field_count = av_count(fields_in);
             if (field_count && field_count % 2) croak("Expected an even sized list");
-
             for (int i = 0; i < field_count; i += 2) {
                 AV *field = newAV();
                 SV **key_ptr = av_fetch(fields_in, i, 0);
-                SV *key = sv_mortalcopy(*key_ptr);
+                SV *key = newSVsv(*key_ptr);
                 if (!SvPOK(key)) croak("Given name of '%s' is not a string", SvPV_nolen(key));
                 av_push(field, SvREFCNT_inc(key));
                 SV **value_ptr = av_fetch(fields_in, i + 1, 0);
-                SV *value = sv_mortalcopy(*value_ptr);
+                SV *value = (*value_ptr);
                 if (!(sv_isobject(value) && sv_derived_from(value, "Affix::Type::Base")))
                     croak("Given type for '%s' is not a subclass of Affix::Type::Base",
                           SvPV_nolen(key));
@@ -371,8 +370,9 @@ XS_INTERNAL(Types) {
             hv_stores(RETVAL_HV, "fields", newRV_inc(MUTABLE_SV(fields)));
         }
         else
-            warn(ix == DC_SIGCHAR_STRUCT ? "Struct[...]" : "Union[...]");
-        if (ix == DC_SIGCHAR_STRUCT) hv_stores(RETVAL_HV, "packed", sv_2mortal(boolSV(false)));
+            croak("%s[...] expected an even a list of elements",
+                  ix == DC_SIGCHAR_STRUCT ? "Struct" : "Union");
+        hv_stores(RETVAL_HV, "packed", sv_2mortal(boolSV(false)));
     } break;
     case DC_SIGCHAR_POINTER: {
         AV *fields = MUTABLE_AV(SvRV(ST(1)));
@@ -1282,15 +1282,6 @@ CODE:
 OUTPUT:
     RETVAL
 
-MODULE = Affix PACKAGE = Affix::Type::Base
-
-size_t
-sizeof(SV * type)
-CODE:
-    RETVAL = _sizeof(aTHX_ MUTABLE_SV(type));
-OUTPUT:
-    RETVAL
-
 MODULE = Affix PACKAGE = Affix::ArrayRef
 
 void
@@ -1305,5 +1296,176 @@ CODE:
     ptr = INT2PTR(DCpointer, tmp);
     if (ptr) safefree(ptr);
     ptr = NULL;
+}
+// clang-format off
+
+MODULE = Affix PACKAGE = Affix
+
+size_t
+sizeof(SV * type)
+CODE:
+    RETVAL = _sizeof(aTHX_ MUTABLE_SV(type));
+OUTPUT:
+    RETVAL
+
+# c+p from Dyn::Call::Pointer
+
+DCpointer
+malloc(size_t size)
+CODE:
+// clang-format on
+{
+    RETVAL = safemalloc(size);
+    if (RETVAL == NULL) XSRETURN_EMPTY;
+}
+// clang-format off
+OUTPUT:
+RETVAL
+
+DCpointer
+calloc(size_t num, size_t size)
+CODE:
+// clang-format off
+    {RETVAL = safecalloc(num, size);
+    if (RETVAL == NULL) XSRETURN_EMPTY;}
+// clang-format off
+OUTPUT:
+    RETVAL
+
+DCpointer
+realloc(IN_OUT DCpointer ptr, size_t size)
+CODE:
+    ptr = saferealloc(ptr, size);
+OUTPUT:
+    RETVAL
+
+void
+free(DCpointer ptr)
+PPCODE:
+// clang-format on
+{
+    if (ptr != NULL) dcFreeMem(ptr);
+    ptr = NULL;
+    sv_set_undef(ST(0));
+} // Let Dyn::Call::Pointer::DESTROY take care of the rest
+  // clang-format off
+
+DCpointer
+memchr(DCpointer ptr, char ch, size_t count)
+
+int
+memcmp(lhs, rhs, size_t count)
+INIT:
+    DCpointer lhs, rhs;
+CODE:
+// clang-format on
+{
+    if (sv_derived_from(ST(0), "Dyn::Call::Pointer")) {
+        IV tmp = SvIV((SV *)SvRV(ST(0)));
+        lhs = INT2PTR(DCpointer, tmp);
+    }
+    else if (SvIOK(ST(0))) {
+        IV tmp = SvIV((SV *)(ST(0)));
+        lhs = INT2PTR(DCpointer, tmp);
+    }
+    else
+        croak("ptr is not of type Dyn::Call::Pointer");
+    if (sv_derived_from(ST(1), "Dyn::Call::Pointer")) {
+        IV tmp = SvIV((SV *)SvRV(ST(1)));
+        rhs = INT2PTR(DCpointer, tmp);
+    }
+    else if (SvIOK(ST(1))) {
+        IV tmp = SvIV((SV *)(ST(1)));
+        rhs = INT2PTR(DCpointer, tmp);
+    }
+    else if (SvPOK(ST(1))) { rhs = (DCpointer)(unsigned char *)SvPV_nolen(ST(1)); }
+    else
+        croak("dest is not of type Dyn::Call::Pointer");
+    RETVAL = memcmp(lhs, rhs, count);
+}
+// clang-format off
+OUTPUT:
+    RETVAL
+
+DCpointer
+memset(DCpointer dest, char ch, size_t count)
+
+void
+memcpy(dest, src, size_t nitems)
+INIT:
+    DCpointer dest, src;
+PPCODE:
+// clang-format on
+{
+    if (sv_derived_from(ST(0), "Dyn::Call::Pointer")) {
+        IV tmp = SvIV((SV *)SvRV(ST(0)));
+        dest = INT2PTR(DCpointer, tmp);
+    }
+    else if (SvIOK(ST(0))) {
+        IV tmp = SvIV((SV *)(ST(0)));
+        dest = INT2PTR(DCpointer, tmp);
+    }
+    else
+        croak("dest is not of type Dyn::Call::Pointer");
+    if (sv_derived_from(ST(1), "Dyn::Call::Pointer")) {
+        IV tmp = SvIV((SV *)SvRV(ST(1)));
+        src = INT2PTR(DCpointer, tmp);
+    }
+    else if (SvIOK(ST(1))) {
+        IV tmp = SvIV((SV *)(ST(1)));
+        src = INT2PTR(DCpointer, tmp);
+    }
+    else if (SvPOK(ST(1))) { src = (DCpointer)(unsigned char *)SvPV_nolen(ST(1)); }
+    else
+        croak("dest is not of type Dyn::Call::Pointer");
+    CopyD(src, dest, nitems, char);
+}
+// clang-format off
+
+void
+memmove(dest, src, size_t nitems)
+INIT:
+    DCpointer dest, src;
+PPCODE:
+// clang-format on
+{
+    if (sv_derived_from(ST(0), "Dyn::Call::Pointer")) {
+        IV tmp = SvIV((SV *)SvRV(ST(0)));
+        dest = INT2PTR(DCpointer, tmp);
+    }
+    else if (SvIOK(ST(0))) {
+        IV tmp = SvIV((SV *)(ST(0)));
+        dest = INT2PTR(DCpointer, tmp);
+    }
+    else
+        croak("dest is not of type Dyn::Call::Pointer");
+    if (sv_derived_from(ST(1), "Dyn::Call::Pointer")) {
+        IV tmp = SvIV((SV *)SvRV(ST(1)));
+        src = INT2PTR(DCpointer, tmp);
+    }
+    else if (SvIOK(ST(1))) {
+        IV tmp = SvIV((SV *)(ST(1)));
+        src = INT2PTR(DCpointer, tmp);
+    }
+    else if (SvPOK(ST(1))) { src = (DCpointer)(unsigned char *)SvPV_nolen(ST(1)); }
+    else
+        croak("dest is not of type Dyn::Call::Pointer");
+    Move(src, dest, nitems, char);
+}
+// clang-format off
+
+BOOT :
+// clang-format on
+{
+    export_function("Affix", "sizeof", "default");
+    export_function("Affix", "malloc", "memory");
+    export_function("Affix", "calloc", "memory");
+    export_function("Affix", "realloc", "memory");
+    export_function("Affix", "free", "memory");
+    export_function("Affix", "memchr", "memory");
+    export_function("Affix", "memcmp", "memory");
+    export_function("Affix", "memset", "memory");
+    export_function("Affix", "memcpy", "memory");
+    export_function("Affix", "memmove", "memory");
 }
 // clang-format off

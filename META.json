@@ -1,6 +1,6 @@
 {
    "X_No_Archive" : "Yes",
-   "abstract" : "'FFI' is my middle name!",
+   "abstract" : "'FFI' is my Middle Name!",
    "author" : [
       "Sanko Robinson <sanko@cpan.org>"
    ],
@@ -67,7 +67,7 @@
             "Sub::Util" : "0",
             "Text::ParseWords" : "0",
             "XSLoader" : "0",
-            "perl" : "5.030"
+            "perl" : "5.030000"
          }
       },
       "test" : {

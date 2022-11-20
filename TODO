@@ -1,3 +1,4 @@
  - Maybe[...]
- - test typedef that defines complex types
- - predefined subs such as sub :Native('some.lib') { warn 'what about this code here?' }
+ - wrap :Native subs with predefined subs such as sub :Native('some.lib') { warn 'what about this code here?' }
+ - expose offsetof( $struct, $id );
+ - packed structs and unions

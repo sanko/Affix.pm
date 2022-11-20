@@ -14,12 +14,9 @@ package Affix 0.04 {
     use Dyn::Call qw[:sigchar];
 
     #use Attribute::Handlers;
-    no warnings 'redefine';
-    use 5.030;
+    #no warnings 'redefine';
     use XSLoader;
     XSLoader::load( __PACKAGE__, our $VERSION );
-    #
-    use experimental 'signatures';
     #
     use parent 'Exporter';
     @EXPORT_OK          = sort map { @$_ = sort @$_; @$_ } values %EXPORT_TAGS;
@@ -74,7 +71,8 @@ package Affix 0.04 {
         Carp::croak("Undefined subroutine &$sub called");
     }
     #
-    sub MODIFY_CODE_ATTRIBUTES ( $package, $code, @attributes ) {
+    sub MODIFY_CODE_ATTRIBUTES {
+        my ( $package, $code, @attributes ) = @_;
 
         #use Data::Dump;
         #ddx \@_;
@@ -147,7 +145,8 @@ package Affix 0.04 {
     }
     our $OS = $^O;
 
-    sub locate_lib ( $name = (), $version = () ) {
+    sub locate_lib {
+        my ( $name, $version ) = @_;
         CORE::state $_lib_cache;
         ( $name, $version ) = @$name if ref $name eq 'ARRAY';
         $name // return ();    # NULL
@@ -317,11 +316,23 @@ package Affix 0.04 {
 
         package Affix::Type::Str 0.04;
 
+        package Affix::Type::Aggregate 0.04;    # Future
+
+        package Affix::Type::Struct 0.04;
+
+        package Affix::Type::ArrayRef 0.04;
+
+        package Affix::Type::Union 0.04;
+
         package Affix::Type::CodeRef 0.04;
 
         package Affix::Type::InstanceOf 0.04;
 
         package Affix::Type::Any 0.04;
+
+        package Affix::Type::Ssize_t 0.04;
+
+        package Affix::Type::Size_t 0.04;
 
         package Affix::Type::Enum 0.04;
 
@@ -339,7 +350,7 @@ __END__
 
 =head1 NAME
 
-Affix - 'FFI' is my middle name!
+Affix - 'FFI' is my Middle Name!
 
 =head1 SYNOPSIS
 
@@ -355,27 +366,48 @@ Affix - 'FFI' is my middle name!
 
 =head1 DESCRIPTION
 
-Dyn is a wrapper around L<dyncall|https://dyncall.org/>. If you're looking to
+Affix is a wrapper around L<dyncall|https://dyncall.org/>. If you're looking to
 design your own low level wrapper, see L<Dyn.pm|Dyn>.
 
 =head1 C<:Native> CODE attribute
 
 While most of the upstream API is covered in the L<Dyn::Call>,
 L<Dyn::Callback>, and L<Dyn::Load> packages, all the sugar is right here in
-C<Affix>. The most simple use of C<Affix> would look something like this:
+C<Affix>. The simplest but least flexible use of C<Affix> would look something
+like this:
 
-    use Affix ':all';
-    sub some_argless_function : Native('somelib.so') : Signature([]=>Void);
-    some_argless_function();
+    use Affix;
+    sub some_iiZ_func : Native('somelib.so') : Signature([Int, Long, Str] => Void);
+    some_iiZ_func( 100, time, 'Hello!' );
 
-The second line above looks like a normal Perl sub declaration but includes the
-C<:Native> CODE attribute which specifies that the sub is actually defined in a
-native library.
+Let's step through what's here...
+
+The second line above looks like a normal Perl sub declaration but includes our
+CODE attributes:
+
+=over
+
+=item C<:Native>
+
+Here, we're specifying that the sub is actually defined in a native library.
+This is inspired by Raku's C<native> trait.
+
+=item C<:Signature>
+
+Perl's L<signatures|perlsub/Signatures> and L<prototypes|perlsub/Prototypes>
+obviously don't contain type info so we use this attribute to define advisory
+argument and return types.
+
+=back
+
+Finally, we just call our affixed function. Positional parameters are passed
+through and any result is returned according to the given type. Here, we return
+nothing because our signature claims the function returns C<Void>.
 
 To avoid banging your head on a built-in function, you may name your sub
 anything else and let Affix know what symbol to attach:
 
-    sub my_abs : Native('my_lib.dll') : Signature([Double]=>Double) : Symbol('abs');
+    sub my_abs : Native('my_lib.dll') : Signature([Double] => Double) : Symbol('abs');
     CORE::say my_abs( -75 ); # Should print 75 if your abs is something that makes sense
 
 This is by far the fastest way to work with this distribution but it's not by
@@ -477,28 +509,375 @@ some BSD code does not care for Minor.)
 
 =head2 Calling into the standard library
 
-If you want to call a C function that's already loaded, either from the
-standard library or from your own program, you can omit the value, so is
-native.
+If you want to call a function that's already loaded, either from the standard
+library or from your own program, you can omit the library value or pass and
+explicit C<undef>.
 
 For example on a UNIX-like operating system, you could use the following code
 to print the home directory of the current user:
 
-    use Affix;
 
-    typedef PwStruct => Struct[
-        name => Str,
-        pass => Str,
-        uuid => UInt,
-        guid => UInt,
-        gecos => Str,
-        dir   => Str,
-        shell => Str
+    use Affix;
+    typedef PwStruct => Struct [
+        name  => Str,     # username
+        pass  => Str,     # hashed pass if shadow db isn't in use
+        uuid  => UInt,    # user
+        guid  => UInt,    # group
+        gecos => Str,     # real name
+        dir   => Str,     # ~/
+        shell => Str      # bash, etc.
+    ];
+    sub getuid : Native : Signature([]=>Int);
+    sub getpwuid : Native : Signature([Int]=>Pointer[PwStruct]);
+    my $data = main::getpwuid( getuid() );
+    use Data::Dumper;
+    print Dumper( Affix::ptr2sv( PwStruct(), $data ) );
+
+=head1 Memory Functions
+
+To help toss raw data around, some standard memory related functions are
+exposed here. You may import them by name or with the C<:memory> or C<:all>
+tags.
+
+=head2 C<malloc( ... )>
+
+    my $ptr = malloc( $size );
+
+Allocates L<$size> bytes of uninitialized storage.
+
+=head2 C<calloc( ... )>
+
+    my $ptr = calloc( $num, $size );
+
+Allocates memory for an array of C<$num> objects of C<$size> and initializes
+all bytes in the allocated storage to zero.
+
+=head2 C<realloc( ... )>
+
+    $ptr = realloc( $ptr, $new_size );
+
+Reallocates the given area of memory. It must be previously allocated by
+C<malloc( ... )>, C<calloc( ... )>, or C<realloc( ... )> and not yet freed with
+a call to C<free( ... )> or C<realloc( ... )>. Otherwise, the results are
+undefined.
+
+=head2 C<free( ... )>
+
+    free( $ptr );
+
+Deallocates the space previously allocated by C<malloc( ... )>, C<calloc( ...
+)>, or C<realloc( ... )>.
+
+=head2 C<memchr( ... )>
+
+    memchr( $ptr, $ch, $count );
+
+Finds the first occurrence of C<$ch> in the initial C<$count> bytes (each
+interpreted as unsigned char) of the object pointed to by C<$ptr>.
+
+=head2 C<memcmp( ... )>
+
+    my $cmp = memcmp( $lhs, $rhs, $count );
+
+Compares the first C<$count> bytes of the objects pointed to by C<$lhs> and
+C<$rhs>. The comparison is done lexicographically.
+
+=head2 C<memset( ... )>
+
+    memset( $dest, $ch, $count );
+
+Copies the value C<$ch> into each of the first C<$count> characters of the
+object pointed to by C<$dest>.
+
+=head2 C<memcpy( ... )>
+
+    memcpy( $dest, $src, $count );
+
+Copies C<$count> characters from the object pointed to by C<$src> to the object
+pointed to by C<$dest>.
+
+=head2 C<memmove( ... )>
+
+    memmove( $dest, $src, $count );
+
+Copies C<$count> characters from the object pointed to by C<$src> to the object
+pointed to by C<$dest>.
+
+=head2 C<sizeof( ... )>
+
+    my $size = sizeof( Int );
+    my $size1 = sizeof( Struct[ name => Str, age => Int ] );
+
+Returns the size, in bytes, of the L<type|/Types> passed to it.
+
+=head1 Types
+
+While Raku offers a set of native types with a fixed, and known, representation
+in memory but this is Perl so we need to do the work ourselves and design and
+build a pseudo-type system. Affix supports the fundamental types (void, int,
+etc.) and what dyncall refers to as aggregates (struct, array, union).
+
+=head2 Fundamental Types with Native Representation
+
+
+    Affix       C99/C++     Rust    C#          pack()  Raku
+    -----------------------------------------------------------------------
+    Void        void/NULL   ->()    void/NULL   -
+    Bool        _Bool       bool    bool        -       bool
+    Char        int8_t      i8      sbyte       c       int8
+    UChar       uint8_t     u8      byte        C       byte, uint8
+    Short       int16_t     i16     short       s       int16
+    UShort      uint16_t    u16     ushort      S       uint16
+    Int         int32_t     i32     int         i       int32
+    UInt        uint32_t    u32     uint        I       uint32
+    Long        int64_t     i64     long        l       int64, long
+    ULong       uint64_t    u64     ulong       L       uint64, ulong
+    LongLong    -           i128                q       longlong
+    ULongLong   -           u128                Q       ulonglong
+    Float       float       f32                 f       num32
+    Double      double      f64                 d       num64
+    SSize_t     ssize_t                                 ssize_t
+    Size_t      size_t                                  size_t
+    Str         char *
+
+Given sizes are minimums measured in bits
+
+=head3 C<Void>
+
+The C<Void> type corresponds to the C C<void> type. It is generally found in
+typed pointers representing the equivalent to the C<void *> pointer in C.
+
+    sub malloc :Native :Signature([Size_t] => Pointer[Void]);
+    my $data = malloc( 32 );
+
+As the example shows, it's represented by a parameterized C<Pointer[ ... ]>
+type, using as parameter whatever the original pointer is pointing to (in this
+case, C<void>). This role represents native pointers, and can be used wherever
+they need to be represented in a Perl script.
+
+In addition, you may place a C<Void> in your signature to skip a passed
+argument.
+
+=head3 C<Bool>
+
+Boolean type may only have room for one of two values: C<true> or C<false>.
+
+=head3 C<Char>
+
+Signed character. It's guaranteed to have a width of at least 8 bits.
+
+Pointers (C<Pointer[Char]>) might be better expressed with a C<Str>.
+
+=head3 C<UChar>
+
+Unsigned character. It's guaranteed to have a width of at least 8 bits.
+
+=head3 C<Short>
+
+Signed short integer. It's guaranteed to have a width of at least 16 bits.
+
+=head3 C<UShort>
+
+Unsigned short integer. It's guaranteed to have a width of at least 16 bits.
+
+=head3 C<Int>
+
+Basic signed integer type.
+
+It's guaranteed to have a width of at least 16 bits. However, on 32/64 bit
+systems it is almost exclusively guaranteed to have width of at least 32 bits.
+
+=head3 C<UInt>
+
+Basic unsigned integer type.
+
+It's guaranteed to have a width of at least 16 bits. However, on 32/64 bit
+systems it is almost exclusively guaranteed to have width of at least 32 bits.
+
+=head3 C<Long>
+
+Signed long integer type. It's guaranteed to have a width of at least 32 bits.
+
+=head3 C<ULong>
+
+Unsigned long integer type. It's guaranteed to have a width of at least 32
+bits.
+
+=head3 C<LongLong>
+
+Signed long long integer type. It's guaranteed to have a width of at least 64
+bits.
+
+=head3 C<ULongLong>
+
+Unsigned long long integer type. It's guaranteed to have a width of at least 64
+bits.
+
+=head3 C<Float>
+
+L<Single precision floating-point
+type|https://en.wikipedia.org/wiki/Single-precision_floating-point_format>.
+
+=head3 C<Double>
+
+L<Double precision floating-point
+type|https://en.wikipedia.org/wiki/Double-precision_floating-point_format>.
+
+=head3 C<Ssize_t>
+
+=head3 C<Size_t>
+
+=head2 C<Str>
+
+Automatically handle null terminated character pointers with this rather than
+trying to defined a parameterized C<Pointer[...]> type like as C<Pointer[Char]>
+and doing it yourself.
+
+You'll learn a bit more about parameterized types in the next section.
+
+=head1 Parameterized Types
+
+Some types must be provided with more context data.
+
+=head2 C<Pointer[ ... ]>
+
+Create pointers to (almost) all other defined types including C<Struct> and
+C<Void>.
+
+To handle a pointer to an object, see L<InstanceOf>.
+
+Void pointers (C<Pointer[Void]>) might be created with C<malloc> and other
+memory related functions.
+
+=head2 C<Aggregate>
+
+This is currently undefined and reserved for possible future use.
+
+=head2 C<Struct[ ... ]>
+
+A struct is a type consisting of a sequence of members whose storage is
+allocated in an ordered sequence (as opposed to C<Union>, which is a type
+consisting of a sequence of members whose storage overlaps).
+
+A C struct that looks like this:
+
+    struct {
+        char *make;
+        char *model;
+        int   year;
+    };
+
+...would be defined this way:
+
+    Struct[
+        make  => Str,
+        model => Str,
+        year  => Int
     ];
 
-    sub getuid:Native :Signature([]=>UInt);
-    sub getuid:Native :Signature([UInt]=>PwStruct);
-    CORE::say getpwuid(getuid())->{pw_dir};
+=head2 C<ArrayRef[ ... ]>
+
+The elements of the array must pass the additional constraint. For example
+C<ArrayRef[Int]> should be a reference to an array of numbers.
+
+An array length must be given:
+
+    ArrayRef[Int, 5];   # int arr[5]
+    ArrayRef[Any, 20];  # SV * arr[20]
+    ArrayRef[Char, 5];  # char arr[5]
+    ArrayRef[Str, 10];  # char *arr[10]
+
+=head2 C<Union[ ... ]>
+
+A union is a type consisting of a sequence of members whose storage overlaps
+(as opposed to C<Struct>, which is a type consisting of a sequence of members
+whose storage is allocated in an ordered sequence).
+
+The value of at most one of the members can be stored in a union at any one
+time and the union is only as big as necessary to hold its largest member
+(additional unnamed trailing padding may also be added). The other members are
+allocated in the same bytes as part of that largest member.
+
+A C union that looks like this:
+
+    union {
+        char  c[5];
+        float f;
+    };
+
+...would be defined this way:
+
+    Union[
+        c => ArrayRef[Char, 5],
+        f => Float
+    ];
+
+=head2 C<CodeRef[ ... ]>
+
+A value where C<ref($value)> equals C<CODE>.
+
+The argument list and return value must pass the additional constraint. For
+example, C<CodeRef[[Int, Int]=>Int]> C<typedef int (*fuc)(int a, int b);>; that
+is function that accepts two integers and returns an integer.
+
+    CodeRef[[] => Void]; # typedef void (*function)();
+    CodeRef[[Pointer[Int]] => Int]; # typedef Int (*function)(int * a);
+    CodeRef[[Str, Int] => Struct[...]]; # typedef struct Person (*function)(chat * name, int age);
+
+=head2 C<InstanceOf[ ... ]>
+
+=head2 C<Any>
+
+Anything you dump here will be passed along unmodified. We hand off whatever
+C<SV*> perl gives us without copying it.
+
+=head2 C<Enum[ ... ]>
+
+The value of an C<Enum> is defined by its underlying type which includes
+C<Int>, C<Char>, etc.
+
+This type is declared with an list of strings.
+
+    Enum[ 'ALPHA', 'BETA' ];
+    # ALPHA = 0
+    # BETA  = 1
+
+Unless an enumeration constant is defined in an array reference, its value is
+the value one greater than the value of the previous enumerator in the same
+enumeration. The value of the first enumerator (if it is not defined) is zero.
+
+    Enum[ 'A', 'B', [C => 10], 'D', [E => 1], 'F', [G => 'F + C'] ];
+    # A = 0
+    # B = 1
+    # C = 10
+    # D = 11
+    # E = 1
+    # F = 2
+    # G = 12
+
+    Enum[ [ one => 'a' ], 'two', [ 'three' => 'one' ] ]
+    # one   = a
+    # two   = b
+    # three = a
+
+Additionally, if you C<typedef> the enum into a given namespace, you may refer
+to elements by name:
+
+    typedef color => Enum[ 'RED', 'GREEN', 'BLUE' ];
+    print color::RED();     # RED
+    print int color::RED(); # 0
+
+=head2 C<IntEnum[ ... ]>
+
+Same as C<Enum>.
+
+=head2 C<UIntEnum[ ... ]>
+
+C<Enum> but with unsigned integers.
+
+=head2 C<CharEnum[ ... ]>
+
+C<Enum> but with signed chars.
 
 =head1 See Also
 
@@ -521,7 +900,7 @@ Sanko Robinson E<lt>sanko@cpan.orgE<gt>
 =begin stopwords
 
 dyncall OpenBSD FreeBSD macOS DragonFlyBSD NetBSD iOS ReactOS mips mips64 ppc32
-ppc64 sparc sparc64 co-existing varargs variadic
+ppc64 sparc sparc64 co-existing varargs variadic struct enum
 
 =end stopwords
 

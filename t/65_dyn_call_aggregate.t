@@ -6,7 +6,6 @@ use Dyn::Call qw[:aggr :sigchar];
 use Affix     qw[:all];
 $|++;
 #
-use Dyn qw[:all];
 use t::lib::nativecall;
 #
 compile_test_lib('65_dyn_call_aggregate');

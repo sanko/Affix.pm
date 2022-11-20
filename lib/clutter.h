@@ -137,13 +137,12 @@ typedef struct
 
 START_MY_CXT
 
+// http://www.catb.org/esr/structure-packing/#_structure_alignment_and_padding
 /* Returns the amount of padding needed after `offset` to ensure that the
 following address will be aligned to `alignment`. */
 size_t padding_needed_for(size_t offset, size_t alignment) {
-    // dTHX;
-    // warn("padding_needed_for( %d, %d );", offset, alignment);
     size_t misalignment = offset % alignment;
-    if (misalignment > 0) // round to the next multiple of alignment
+    if (misalignment) // round to the next multiple of alignment
         return alignment - misalignment;
     return 0; // already a multiple of alignment
 }
@@ -309,19 +308,22 @@ static size_t _sizeof(pTHX_ SV *type) {
     case DC_SIGCHAR_STRUCT: {
         if (hv_exists(MUTABLE_HV(SvRV(type)), "sizeof", 6))
             return SvIV(*hv_fetchs(MUTABLE_HV(SvRV(type)), "sizeof", 0));
-        size_t size = 0;
         SV **idk_wtf = hv_fetchs(MUTABLE_HV(SvRV(type)), "fields", 0);
         SV **sv_packed = hv_fetchs(MUTABLE_HV(SvRV(type)), "packed", 0);
         bool packed = SvTRUE(*sv_packed);
         AV *idk_arr = MUTABLE_AV(SvRV(*idk_wtf));
         int field_count = av_count(idk_arr);
+        size_t size = 0;
         for (int i = 0; i < field_count; ++i) {
             SV **type_ptr = av_fetch(MUTABLE_AV(*av_fetch(idk_arr, i, 0)), 1, 0);
-            size_t __sizeof = _sizeof(aTHX_ * type_ptr);
             hv_stores(MUTABLE_HV(SvRV(*type_ptr)), "offset", newSViv(size));
-            if (!packed) size += padding_needed_for(size, __sizeof);
+            size_t __sizeof = _sizeof(aTHX_ * type_ptr);
             size += __sizeof;
         }
+        if (!packed && field_count > 1 && size > MEM_ALIGNBYTES)
+            size += padding_needed_for(size, MEM_ALIGNBYTES);
+        // size += padding_needed_for(size, MEM_ALIGNBYTES);
+
         hv_stores(MUTABLE_HV(SvRV(type)), "sizeof", newSViv(size));
         return size;
     }
@@ -330,23 +332,38 @@ static size_t _sizeof(pTHX_ SV *type) {
             return SvIV(*hv_fetchs(MUTABLE_HV(SvRV(type)), "sizeof", 0));
         SV **type_ptr = hv_fetchs(MUTABLE_HV(SvRV(type)), "type", 0);
         SV **size_ptr = hv_fetchs(MUTABLE_HV(SvRV(type)), "size", 0);
-        size_t size = _sizeof(aTHX_ * type_ptr) * SvIV(*size_ptr);
+        SV **sv_packed = hv_fetchs(MUTABLE_HV(SvRV(type)), "packed", 0);
+        bool packed = SvTRUE(*sv_packed);
+        size_t size = 0;
+        size_t arr_len = SvIV(*size_ptr);
+        size_t __sizeof = _sizeof(aTHX_ * type_ptr);
+        for (int i = 0; i < arr_len; ++i) {
+            size += __sizeof;
+            // if (!packed)
+            if (!packed && arr_len > 1 && __sizeof > MEM_ALIGNBYTES)
+                size += padding_needed_for(__sizeof, MEM_ALIGNBYTES);
+        }
         hv_stores(MUTABLE_HV(SvRV(type)), "sizeof", newSViv(size));
         return size;
     }
     case DC_SIGCHAR_UNION: {
         if (hv_exists(MUTABLE_HV(SvRV(type)), "sizeof", 6))
             return SvIV(*hv_fetchs(MUTABLE_HV(SvRV(type)), "sizeof", 0));
-        size_t size = 0, this_size;
         SV **idk_wtf = hv_fetchs(MUTABLE_HV(SvRV(type)), "fields", 0);
+        SV **sv_packed = hv_fetchs(MUTABLE_HV(SvRV(type)), "packed", 0);
+        bool packed = SvTRUE(*sv_packed);
         AV *idk_arr = MUTABLE_AV(SvRV(*idk_wtf));
-        for (int i = 0; i < av_count(idk_arr); ++i) {
+        int field_count = av_count(idk_arr);
+        size_t size = 0;
+        for (int i = 0; i < field_count; ++i) {
             SV **type_ptr = av_fetch(MUTABLE_AV(*av_fetch(idk_arr, i, 0)), 1, 0);
             hv_stores(MUTABLE_HV(SvRV(*type_ptr)), "offset", newSViv(0));
-            this_size = _sizeof(aTHX_ * type_ptr);
-            hv_stores(MUTABLE_HV(SvRV(type)), "sizeof", newSViv(this_size));
-            if (size < this_size) size = this_size;
+            size_t __sizeof = _sizeof(aTHX_ * type_ptr);
+            if (size < __sizeof) size = __sizeof;
+            if (!packed && field_count > 1 && __sizeof > MEM_ALIGNBYTES)
+                size += padding_needed_for(__sizeof, MEM_ALIGNBYTES);
         }
+
         hv_stores(MUTABLE_HV(SvRV(type)), "sizeof", newSViv(size));
         return size;
     }
@@ -419,16 +436,8 @@ static DCaggr *_aggregate(pTHX_ SV *type) {
                 case DC_SIGCHAR_AGGREGATE:
                 case DC_SIGCHAR_STRUCT:
                 case DC_SIGCHAR_UNION: {
-                    warn("here at %s line %d", __FILE__, __LINE__);
-
                     DCaggr *child = _aggregate(aTHX_ * type_ptr);
-
                     dcAggrField(agg, DC_SIGCHAR_AGGREGATE, offset, 1, child);
-                    // void dcAggrField(DCaggr* ag, DCsigchar type, DCint offset, DCsize array_len,
-                    // ...)
-                    //  dcAggrField(agg, DC_SIGCHAR_AGGREGATE, offset, 1, child);
-                    warn("dcAggrField(agg, DC_SIGCHAR_AGGREGATE, %d, 1, child); at %s line %d",
-                         offset, __FILE__, __LINE__);
                 } break;
                 case DC_SIGCHAR_ARRAY: {
                     // sv_dump(*type_ptr);

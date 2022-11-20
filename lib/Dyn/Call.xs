@@ -1,71 +1,5 @@
 #include "lib/clutter.h"
 
-void unroll_aggregate(void *ptr, DCaggr *ag, SV *obj) {
-    warn("unroll_aggregate");
-    //*(int*)ptr = 42;
-    char *base;
-    size_t offset;
-    int *b;
-    // get base address
-    base = (char *)ptr;
-    DCsize i = ag->n_fields;
-    warn("ag->n_fields == %d", ag->n_fields);
-    for (int i = 0; i < ag->n_fields; ++i) {
-        warn("i==%d", i);
-        switch (ag->fields[i].type) {
-        case DC_SIGCHAR_BOOL:
-            warn("bool!!!!!");
-            break;
-        case DC_SIGCHAR_UCHAR:
-            warn("uchar!!!!!");
-            // and the offset to member_b
-            offset = ag->fields[i].offset;
-
-            // Compute address of member_b
-            b = (int *)(base + offset);
-
-            // warn(".a == %c", (unsigned char)b);
-            //  av_store(obj, i,newSVuv((unsigned char) b));
-            break;
-        default:
-            warn("fallthrough");
-            break;
-        }
-    }
-}
-
-/*
-#include "object_pad.h"
-
-#include "/home/sanko/Downloads/libui-ng-master/ui.h"
-
-uiMultilineEntry *e;
-
-int sayTime(void *data)
-{
-        time_t t;
-        char *s;
-
-        t = time(NULL);
-        s = ctime(&t);
-
-        uiMultilineEntryAppend(e, s);
-        return 1;
-}
-
-int onClosing(uiWindow *w, void *data)
-{
-        uiQuit();
-        return 1;
-}
-
-void saySomething(uiButton *b, void *data)
-{
-        uiMultilineEntryAppend(e, "Saying something\n");
-}
-
-*/
-
 // clang-format off
 
 MODULE = Dyn::Call   PACKAGE = Dyn::Call
@@ -206,47 +140,6 @@ dcVCallF(DCCallVM * vm, DCValue * result, DCpointer funcptr, const DCsigchar * s
 
 DCint
 dcGetError(DCCallVM* vm);
-
-=cut
-
-void letsgo(DCpointer * in)
-CODE:
-// clang-format on
-{
-    uiInitOptions *o;
-    o = (uiInitOptions *)in;
-    uiWindow *w;
-    uiBox *b;
-    uiButton *btn;
-
-    memset(o, 0, sizeof(uiInitOptions));
-    if (uiInit(o) != NULL) abort();
-
-    w = uiNewWindow("Hello", 320, 240, 0);
-    uiWindowSetMargined(w, 1);
-
-    b = uiNewVerticalBox();
-    uiBoxSetPadded(b, 1);
-    uiWindowSetChild(w, uiControl(b));
-
-    e = uiNewMultilineEntry();
-    uiMultilineEntrySetReadOnly(e, 1);
-
-    btn = uiNewButton("Say Something");
-    uiButtonOnClicked(btn, saySomething, NULL);
-    uiBoxAppend(b, uiControl(btn), 0);
-
-    uiBoxAppend(b, uiControl(e), 1);
-
-    uiTimer(1000, sayTime, NULL);
-
-    uiWindowOnClosing(w, onClosing, NULL);
-    uiControlShow(uiControl(w));
-    uiMain();
-}
-// clang-format off
-
-=cut
 
 BOOT:
 // clang-format on
