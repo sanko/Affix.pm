@@ -840,7 +840,7 @@ static DCaggr *sv2ptr(pTHX_ SV *type, SV *data, DCpointer ptr, bool packed, size
         size_t av_len = av_count(elements);
         if (SvOK(*size_ptr)) {
             size_t tmp = SvIV(*size_ptr);
-            if (av_len != tmp) croak("Expected and array of %ul elements; found %d", tmp, av_len);
+            if (av_len != tmp) croak("Expected and array of %zu elements; found %zu", tmp, av_len);
         }
         size_t el_len = _sizeof(aTHX_ * type_ptr);
 

@@ -1,12 +1,12 @@
 use strict;
 no warnings 'portable';
-use Affix     qw[:all];
-use Dyn::Call qw[:memory];
+use Affix qw[:all];
 use Test::More 0.98;
 BEGIN { chdir '../' if !-d 't'; }
 use lib '../lib', '../blib/arch', '../blib/lib', 'blib/arch', 'blib/lib', '../../', '.';
 use File::Spec;
 use t::lib::nativecall;
+use Config;
 
 #use experimental 'signatures';
 $|++;
@@ -44,8 +44,9 @@ subtest 'ref Dyn::Call::Pointer with a double (should croak)' => sub {
         my $data = pack 'd', 9;
         memcpy( $ptr, $data, length $data );
     }
-    is dbl_ptr($ptr),                'nine',   'dbl_ptr($ptr) where $ptr == malloc(...)';
-    is unpack( 'd', $ptr->raw(16) ), 9876.543, '$ptr is still 9';
+    is dbl_ptr($ptr), 'nine', 'dbl_ptr($ptr) where $ptr == malloc(...)';
+    is unpack( 'd', $ptr->raw(16) ), ( $Config{uselongdouble} ? 9876.54299999999967 : 9876.543 ),
+        '$ptr is still 9';
     free $ptr;
 };
 {
@@ -91,8 +92,10 @@ subtest 'ref Dyn::Call::Pointer with a double (should croak)' => sub {
             50.25;
         }
         ),
-        18.33825, 'making call with Dyn::Call::Pointer object with packed data';
-    is unpack( 'd', $ptr ), 3.493, 'Dyn::Call::Pointer updated';
+        ( $Config{uselongdouble} ? 18.3382499999999986 : 18.33825 ),
+        'making call with Dyn::Call::Pointer object with packed data';
+    is unpack( 'd', $ptr ), ( $Config{uselongdouble} ? 3.49299999999999988 : 3.493 ),
+        'Dyn::Call::Pointer updated';
     free $ptr;
 }
 #

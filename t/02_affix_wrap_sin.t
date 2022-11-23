@@ -36,8 +36,8 @@ SKIP: {
         sin_fastcall => wrap( $libfile, 'sin', [Double], Double, DC_SIGCHAR_CC_FASTCALL_GNU() ),
         sin_thiscall => wrap( $libfile, 'sin', [Double], Double, DC_SIGCHAR_CC_THISCALL_GNU() )
     );
-    my $correct = -0.988031624092862;    # The real value of sin(30);
-    is sin(30), $correct, 'sin(30) [perl]';
+    my $correct = $Config{uselongdouble} ? -0.988031624092861827 :
+        -0.988031624092862;    # The real value of sin(30);
     for my $fptr ( sort keys %loaders ) {
         if ( !defined $loaders{$fptr} ) {
             diag 'Failed to attach ' . $fptr;

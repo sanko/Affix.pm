@@ -281,7 +281,7 @@ XS_INTERNAL(Types) {
         switch (av_count(type_size)) {
         case 2:
             size = *av_fetch(type_size, 1, 0);
-            if (!SvIOK(size)) croak("Given size %d is not an integer", SvUV(size));
+            if (!SvIOK(size)) croak("Given size %zd is not an integer", SvUV(size));
             type = *av_fetch(type_size, 0, 0);
             if (!(sv_isobject(type) && sv_derived_from(type, "Affix::Type::Base")))
                 croak("Given type for '%s' is not a subclass of Affix::Type::Base",
@@ -445,7 +445,7 @@ XS_INTERNAL(Types_type) {
     // XSprePUSH;
     if (items != 1) croak("Expected 1 parameter; found %d", items);
     AV *args = MUTABLE_AV(SvRV(newSVsv(ST(0))));
-    if (av_count(args) > 1) croak("Expected 1 parameter; found %d", av_count(args));
+    if (av_count(args) > 1) croak("Expected 1 parameter; found %zu", av_count(args));
     SV *type = av_shift(args);
     if (SvPOK(type)) {
         HV *type_registry = get_hv("Affix::Type::_reg", GV_ADD);
@@ -688,7 +688,7 @@ XS_INTERNAL(Affix_call) {
             if (SvOK(*size_ptr)) {
                 av_len = SvIV(*size_ptr);
                 if (av_count(elements) != av_len)
-                    croak("Expected an array of %lu elements; found %d", av_len,
+                    croak("Expected an array of %lu elements; found %zd", av_len,
                           av_count(elements));
             }
             else
