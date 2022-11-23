@@ -4,7 +4,10 @@ DLLEXPORT int TakeInt(int x) {
     if (x == 42) return 1;
     return 0;
 }
-
+DLLEXPORT int TakeUInt(unsigned int x) {
+    if (x == 42) return 1;
+    return 0;
+}
 DLLEXPORT int TakeTwoShorts(short x, short y) {
     if (x == 10 && y == 20) return 2;
     return 0;

@@ -59,7 +59,7 @@ package Affix 0.04 {
             my $cv
                 = attach( $lib, $_delay{$sub}[3], $sig, $ret, $_delay{$sub}[6], $_delay{$sub}[7] );
             delete $_delay{$sub};
-            return goto &$cv;
+            return &$cv;
         }
 
         #~ elsif ( my $code = $self->can('SUPER::AUTOLOAD') ) {
@@ -132,6 +132,8 @@ package Affix 0.04 {
             #    $signature, $return,  $mode,            $full_name
             #];
             if ( defined &{$full_name} ) {    #no strict 'refs';
+
+                # TODO: call this defined sub and pass the wrapped symbol and then the passed args
                 ...;
                 return attach( locate_lib( $library, $library_version ),
                     $symbol, $signature, $return, $mode, $full_name );

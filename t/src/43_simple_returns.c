@@ -1,5 +1,8 @@
 #include "std.h"
 
+DLLEXPORT void ReturnVoid(int in) {
+    return;
+}
 DLLEXPORT bool ReturnBool(int in) {
     if (in == 5) return true;
     return false;

@@ -11,6 +11,9 @@ $|++;
 #
 compile_test_lib('43_simple_returns');
 #
+sub ReturnVoid : Signature([Int]=>Void) : Native('t/43_simple_returns');
+is ReturnVoid(4), undef, 'returning void works';
+#
 sub ReturnBool : Signature([Int]=>Bool) : Native('t/43_simple_returns');
 is ReturnBool(4), !1, 'returning bool works';
 is ReturnBool(5), !0, 'returning bool works';

@@ -756,6 +756,7 @@ XS_INTERNAL(Affix_call) {
     {
         switch (call->ret) {
         case DC_SIGCHAR_VOID:
+            RETVAL = newSV(0);
             dcCallVoid(MY_CXT.cvm, call->fptr);
             break;
         case DC_SIGCHAR_BOOL:

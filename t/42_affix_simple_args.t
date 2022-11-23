@@ -12,10 +12,12 @@ compile_test_lib('42_simple_args');
 
 # Int related
 sub TakeInt : Native('t/42_simple_args') : Signature([Int]=>Int);
+sub TakeUInt : Native('t/42_simple_args') : Signature([UInt]=>Int);
 sub TakeTwoShorts : Native('t/42_simple_args') : Signature([Short, Short] => Long);
 sub AssortedIntArgs : Native('t/42_simple_args') : Signature([Long, Short, Char]=>Long);
 #
 is TakeInt(42),                          1, 'passed int 42';
+is TakeUInt(42),                         1, 'passed int 42';
 is TakeTwoShorts( 10, 20 ),              2, 'passed two shorts';
 is AssortedIntArgs( 101, 102, chr 103 ), 3, 'passed an int32, int16 and int8';
 
