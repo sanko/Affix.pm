@@ -1,4 +1,4 @@
  - Maybe[...]
  - wrap :Native subs with predefined subs such as sub :Native('some.lib') { warn 'what about this code here?' }
  - expose offsetof( $struct, $id );
- - packed structs and unions
+ - packed structs and unions by value

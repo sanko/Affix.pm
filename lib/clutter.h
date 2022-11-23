@@ -60,6 +60,18 @@ extern "C" {
 #define DC_SIGCHAR_ENUM 'e'      // 'i' but with multiple options
 #define DC_SIGCHAR_ENUM_UINT 'E' // 'I' but with multiple options
 #define DC_SIGCHAR_ENUM_CHAR 'o' // 'c' but with multiple options
+
+#if Size_t_size == INTSIZE
+#define DC_SIGCHAR_SSIZE_T DC_SIGCHAR_INT
+#define DC_SIGCHAR_SIZE_T DC_SIGCHAR_UINT
+#elsif Size_t_size == LONGSIZE
+#define DC_SIGCHAR_SSIZE_T DC_SIGCHAR_LONG
+#define DC_SIGCHAR_SIZE_T DC_SIGCHAR_ULONG
+#else
+#define DC_SIGCHAR_SSIZE_T DC_SIGCHAR_LONGLONG
+#define DC_SIGCHAR_SIZE_T DC_SIGCHAR_ULONGLONG
+#endif
+
 // bring balance
 #define DC_SIGCHAR_ARRAY_END ']'
 #define DC_SIGCHAR_STRUCT_END '}'
