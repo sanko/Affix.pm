@@ -281,7 +281,8 @@ XS_INTERNAL(Types) {
         switch (av_count(type_size)) {
         case 2:
             size = *av_fetch(type_size, 1, 0);
-            if (!SvIOK(size)) croak("Given size %zd is not an integer", SvUV(size));
+            if (!SvIOK(size) || SvIV(size) < 0)
+                croak("Given size %zd is not a integer", SvIV(size));
             type = *av_fetch(type_size, 0, 0);
             if (!(sv_isobject(type) && sv_derived_from(type, "Affix::Type::Base")))
                 croak("Given type for '%s' is not a subclass of Affix::Type::Base",
