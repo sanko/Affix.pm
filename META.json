@@ -41,12 +41,9 @@
             "File::Path" : "0",
             "File::Spec::Functions" : "0",
             "Getopt::Long" : "2.36",
-            "HTTP::Tiny" : "0",
-            "IO::Socket::SSL" : "1.42",
             "IO::Uncompress::Unzip" : "0",
             "JSON::PP" : "2",
             "Module::Build::Tiny" : "0.035",
-            "Net::SSLeay" : "1.49",
             "Path::Tiny" : "0"
          }
       },
@@ -72,6 +69,7 @@
       },
       "test" : {
          "requires" : {
+            "Data::Dumper" : "0",
             "Test::More" : "0.98"
          }
       }
@@ -79,13 +77,13 @@
    "release_status" : "unstable",
    "resources" : {
       "bugtracker" : {
-         "web" : "https://github.com/sanko/Dyn.pm/issues"
+         "web" : "https://github.com/sanko/Affix.pm/issues"
       },
-      "homepage" : "https://github.com/sanko/Dyn.pm",
+      "homepage" : "https://github.com/sanko/Affix.pm",
       "repository" : {
          "type" : "git",
-         "url" : "https://github.com/sanko/Dyn.pm.git",
-         "web" : "https://github.com/sanko/Dyn.pm"
+         "url" : "https://github.com/sanko/Affix.pm.git",
+         "web" : "https://github.com/sanko/Affix.pm"
       }
    },
    "version" : "0.04",

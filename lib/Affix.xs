@@ -58,14 +58,54 @@ char cbHandler(DCCallback *cb, DCArgs *args, DCValue *result, DCpointer userdata
             // warn("type : %c", type);
             switch (type) {
             case DC_SIGCHAR_VOID:
-                // mPUSHi((IV)dcbArgInt(args));
+                // TODO: push undef?
+                break;
+            case DC_SIGCHAR_BOOL:
+                mPUSHs(boolSV(dcbArgBool(args)));
+                break;
+            case DC_SIGCHAR_CHAR:
+                mPUSHi((IV)dcbArgChar(args));
+                break;
+            case DC_SIGCHAR_UCHAR:
+                mPUSHu((UV)dcbArgChar(args));
+                break;
+            case DC_SIGCHAR_SHORT:
+                mPUSHi((IV)dcbArgShort(args));
+                break;
+            case DC_SIGCHAR_USHORT:
+                mPUSHu((UV)dcbArgShort(args));
                 break;
             case DC_SIGCHAR_INT:
                 mPUSHi((IV)dcbArgInt(args));
                 break;
+            case DC_SIGCHAR_UINT:
+                mPUSHu((UV)dcbArgInt(args));
+                break;
+            case DC_SIGCHAR_LONG:
+                mPUSHi((IV)dcbArgLong(args));
+                break;
+            case DC_SIGCHAR_ULONG:
+                mPUSHu((UV)dcbArgLong(args));
+                break;
+            case DC_SIGCHAR_LONGLONG:
+                mPUSHi((IV)dcbArgLongLong(args));
+                break;
+            case DC_SIGCHAR_ULONGLONG:
+                mPUSHu((UV)dcbArgLongLong(args));
+                break;
+            case DC_SIGCHAR_FLOAT:
+                mPUSHn((NV)dcbArgFloat(args));
+                break;
+            case DC_SIGCHAR_DOUBLE:
+                mPUSHn((NV)dcbArgDouble(args));
+                break;
             case DC_SIGCHAR_POINTER: {
                 DCpointer ptr = dcbArgPointer(args);
-                PUSHs(sv_setref_pv(newSV(1), "Dyn::Call::Pointer", dcbArgPointer(args)));
+                mPUSHs(newSVpv((char *)ptr, 0));
+            } break;
+            case DC_SIGCHAR_STRING: {
+                DCpointer ptr = dcbArgPointer(args);
+                mPUSHs(sv_setref_pv(newSV(1), "Dyn::Call::Pointer", dcbArgPointer(args)));
             } break;
             case DC_SIGCHAR_BLESSED: {
                 DCpointer ptr = dcbArgPointer(args);
@@ -1028,7 +1068,7 @@ BOOT:
     TYPE("CodeRef", DC_SIGCHAR_CODE, DC_SIGCHAR_AGGREGATE);
     TYPE("InstanceOf", DC_SIGCHAR_BLESSED, DC_SIGCHAR_POINTER);
     TYPE("Any", DC_SIGCHAR_ANY, DC_SIGCHAR_POINTER);
-    TYPE("Ssize_t", DC_SIGCHAR_SSIZE_T);
+    TYPE("SSize_t", DC_SIGCHAR_SSIZE_T);
     TYPE("Size_t", DC_SIGCHAR_SIZE_T);
 
     TYPE("Enum", DC_SIGCHAR_ENUM, DC_SIGCHAR_INT);

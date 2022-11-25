@@ -24,6 +24,9 @@ DLLEXPORT size_t s_float() {
 DLLEXPORT size_t s_double() {
     return sizeof(double);
 }
+DLLEXPORT size_t s_ssize_t() {
+    return sizeof(ssize_t);
+}
 DLLEXPORT size_t s_size_t() {
     warn("# sizeof(size_t) == %zu", sizeof(size_t));
     warn("# sizeof(unsigned long) == %zu", sizeof(unsigned long));

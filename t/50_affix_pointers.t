@@ -122,7 +122,8 @@ subtest struct => sub {
     sub massive_ptr : Native('t/50_affix_pointers') : Signature([] => Pointer[massive()]);
     my $ptr = massive_ptr();
     my $sv  = Affix::ptr2sv( massive(), $ptr );
-    is $sv->{Z}, 'Just a little test', 'parsed pointer to sv and got .Z';
+    is $sv->{A}{i}, 50,                   'parsed pointer to sv and got .A.i [nested structs]';
+    is $sv->{Z},    'Just a little test', 'parsed pointer to sv and got .Z';
 };
 #
 done_testing;

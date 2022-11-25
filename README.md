@@ -1,4 +1,4 @@
-[![Actions Status](https://github.com/sanko/Dyn.pm/actions/workflows/linux.yaml/badge.svg)](https://github.com/sanko/Dyn.pm/actions) [![Actions Status](https://github.com/sanko/Dyn.pm/actions/workflows/windows.yaml/badge.svg)](https://github.com/sanko/Dyn.pm/actions) [![Actions Status](https://github.com/sanko/Dyn.pm/actions/workflows/osx.yaml/badge.svg)](https://github.com/sanko/Dyn.pm/actions) [![Actions Status](https://github.com/sanko/Dyn.pm/actions/workflows/freebsd.yaml/badge.svg)](https://github.com/sanko/Dyn.pm/actions) [![MetaCPAN Release](https://badge.fury.io/pl/Affix.svg)](https://metacpan.org/release/Affix)
+[![Actions Status](https://github.com/sanko/Affix.pm/actions/workflows/linux.yaml/badge.svg)](https://github.com/sanko/Affix.pm/actions) [![Actions Status](https://github.com/sanko/Affix.pm/actions/workflows/windows.yaml/badge.svg)](https://github.com/sanko/Affix.pm/actions) [![Actions Status](https://github.com/sanko/Affix.pm/actions/workflows/osx.yaml/badge.svg)](https://github.com/sanko/Affix.pm/actions) [![Actions Status](https://github.com/sanko/Affix.pm/actions/workflows/freebsd.yaml/badge.svg)](https://github.com/sanko/Affix.pm/actions) [![MetaCPAN Release](https://badge.fury.io/pl/Affix.svg)](https://metacpan.org/release/Affix)
 # NAME
 
 Affix - 'FFI' is my Middle Name!
@@ -255,7 +255,7 @@ Returns the size, in bytes, of the [type](#types) passed to it.
 While Raku offers a set of native types with a fixed, and known, representation
 in memory but this is Perl so we need to do the work ourselves and design and
 build a pseudo-type system. Affix supports the fundamental types (void, int,
-etc.) and what dyncall refers to as aggregates (struct, array, union).
+etc.) and aggregates (struct, array, union).
 
 ## Fundamental Types with Native Representation
 
@@ -275,7 +275,7 @@ etc.) and what dyncall refers to as aggregates (struct, array, union).
     ULongLong   -           u128                Q       ulonglong
     Float       float       f32                 f       num32
     Double      double      f64                 d       num64
-    SSize_t     ssize_t                                 ssize_t
+    SSize_t     SSize_t                                 SSize_t
     Size_t      size_t                                  size_t
     Str         char *
 
@@ -362,7 +362,7 @@ type](https://en.wikipedia.org/wiki/Single-precision_floating-point_format).
 [Double precision floating-point
 type](https://en.wikipedia.org/wiki/Double-precision_floating-point_format).
 
-### `Ssize_t`
+### `SSize_t`
 
 ### `Size_t`
 

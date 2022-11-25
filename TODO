@@ -2,3 +2,6 @@
  - wrap :Native subs with predefined subs such as sub :Native('some.lib') { warn 'what about this code here?' }
  - expose offsetof( $struct, $id );
  - packed structs and unions by value
+ - OSX aligns structs oddly when long doubles are used
+ - rename dist and repo Affix.pm and
+ - flesh out CodeRef[] for passing aggr types to CV*

@@ -48,7 +48,8 @@ massive retval = {.B = true,
                   .d = 1.246,
                   .p = &_p,
                   .Z = "Just a little test",
-                  .u = 5};
+                  .u = 5,
+                  .A = {.i = 50}};
 
 DLLEXPORT massive *massive_ptr() {
     warn("    # sizeof in C:    %d", sizeof(massive));
@@ -61,12 +62,14 @@ DLLEXPORT massive *massive_ptr() {
     warn("    # offset.I:       %d", offsetof(massive, I));
     warn("    # offset.j:       %d", offsetof(massive, j));
     warn("    # offset.J:       %d", offsetof(massive, J));
+
     /*retval.c = -100;
     retval.C = 100;
     retval.s = -30;
     retval.S = 40;
     retval.Z = "Hi!";*/
     //(massive*) malloc(sizeof(massive));
+    warn("Z.i: %d", retval.A.i);
     warn("Z: %s", retval.Z);
     return &retval;
 }

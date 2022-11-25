@@ -318,7 +318,7 @@ package Affix 0.04 {
 
         package Affix::Type::Str 0.04;
 
-        package Affix::Type::Aggregate 0.04;    # Future
+        package Affix::Type::Aggregate 0.04;    # Reserved
 
         package Affix::Type::Struct 0.04;
 
@@ -332,7 +332,7 @@ package Affix 0.04 {
 
         package Affix::Type::Any 0.04;
 
-        package Affix::Type::Ssize_t 0.04;
+        package Affix::Type::SSize_t 0.04;
 
         package Affix::Type::Size_t 0.04;
 
@@ -617,7 +617,7 @@ Returns the size, in bytes, of the L<type|/Types> passed to it.
 While Raku offers a set of native types with a fixed, and known, representation
 in memory but this is Perl so we need to do the work ourselves and design and
 build a pseudo-type system. Affix supports the fundamental types (void, int,
-etc.) and what dyncall refers to as aggregates (struct, array, union).
+etc.) and aggregates (struct, array, union).
 
 =head2 Fundamental Types with Native Representation
 
@@ -638,7 +638,7 @@ etc.) and what dyncall refers to as aggregates (struct, array, union).
     ULongLong   -           u128                Q       ulonglong
     Float       float       f32                 f       num32
     Double      double      f64                 d       num64
-    SSize_t     ssize_t                                 ssize_t
+    SSize_t     SSize_t                                 SSize_t
     Size_t      size_t                                  size_t
     Str         char *
 
@@ -725,7 +725,7 @@ type|https://en.wikipedia.org/wiki/Single-precision_floating-point_format>.
 L<Double precision floating-point
 type|https://en.wikipedia.org/wiki/Double-precision_floating-point_format>.
 
-=head3 C<Ssize_t>
+=head3 C<SSize_t>
 
 =head3 C<Size_t>
 
