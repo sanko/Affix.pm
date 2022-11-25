@@ -156,7 +156,7 @@ size_t padding_needed_for(size_t offset, size_t alignment) {
     size_t misalignment = offset % alignment;
     if (misalignment) // round to the next multiple of alignment
         return alignment - misalignment;
-    return 0; // already a multiple of alignment
+    return 0; // already a multiple of alignment*/
 }
 
 void set_isa(const char *klass, const char *parent) {
@@ -328,14 +328,20 @@ static size_t _sizeof(pTHX_ SV *type) {
         size_t size = 0;
         for (int i = 0; i < field_count; ++i) {
             SV **type_ptr = av_fetch(MUTABLE_AV(*av_fetch(idk_arr, i, 0)), 1, 0);
-            hv_stores(MUTABLE_HV(SvRV(*type_ptr)), "offset", newSViv(size));
             size_t __sizeof = _sizeof(aTHX_ * type_ptr);
-            size += __sizeof;
-        }
-        if (!packed && field_count > 1 && size > MEM_ALIGNBYTES)
-            size += padding_needed_for(size, MEM_ALIGNBYTES);
-        // size += padding_needed_for(size, MEM_ALIGNBYTES);
+            size += packed ? 0
+                           : padding_needed_for(size, MEM_ALIGNBYTES > __sizeof ? __sizeof
+                                                                                : MEM_ALIGNBYTES);
 
+            size += __sizeof;
+            /*warn("alignto(%d, %d)            == %d", size, __sizeof, alignto(size, __sizeof));
+            warn("aligntonext(%d, %d)        == %d", size, __sizeof, aligntonext(size, __sizeof));
+            warn("padding_needed_for(%d, %d) == %d", size, __sizeof,
+                 padding_needed_for(size, __sizeof));*/
+            hv_stores(MUTABLE_HV(SvRV(*type_ptr)), "offset", newSViv(size - __sizeof));
+            // warn("[%d] size                    == %d", i, size);
+        }
+        if (!packed && size > MEM_ALIGNBYTES * 2) size += padding_needed_for(size, MEM_ALIGNBYTES);
         hv_stores(MUTABLE_HV(SvRV(type)), "sizeof", newSViv(size));
         return size;
     }
@@ -346,14 +352,15 @@ static size_t _sizeof(pTHX_ SV *type) {
         SV **size_ptr = hv_fetchs(MUTABLE_HV(SvRV(type)), "size", 0);
         SV **sv_packed = hv_fetchs(MUTABLE_HV(SvRV(type)), "packed", 0);
         bool packed = SvTRUE(*sv_packed);
-        size_t size = 0;
-        size_t arr_len = SvIV(*size_ptr);
+        size_t size = 0, offset = 0;
+        size_t field_count = SvIV(*size_ptr);
         size_t __sizeof = _sizeof(aTHX_ * type_ptr);
-        for (int i = 0; i < arr_len; ++i) {
+        for (int i = 0; i < field_count; ++i) {
+            // size += packed ? 0 : padding_needed_for(size, __sizeof);
+
+            // hv_stores(MUTABLE_HV(SvRV(*type_ptr)), "offset", newSViv(offset + padding));
             size += __sizeof;
-            // if (!packed)
-            if (!packed && arr_len > 1 && __sizeof > MEM_ALIGNBYTES)
-                size += padding_needed_for(__sizeof, MEM_ALIGNBYTES);
+            offset = size;
         }
         hv_stores(MUTABLE_HV(SvRV(type)), "sizeof", newSViv(size));
         return size;
@@ -548,7 +555,7 @@ SV *ptr2sv(pTHX_ DCpointer ptr, SV *type) {
 }
 
 SV *agg2sv(pTHX_ DCaggr *agg, SV *type, DCpointer data, size_t size) {
-    // sv_dump(aTHX_ sv);
+    // sv_dump(aTHX_ type);
     // sv_dump(aTHX_ SvRV(*hv_fetch(MUTABLE_HV(sv), "fields", 6, 0)));
     AV *fields = MUTABLE_AV(SvRV(*hv_fetch(MUTABLE_HV(type), "fields", 6, 0)));
     HV *RETVAL = newHV();
@@ -565,8 +572,8 @@ SV *agg2sv(pTHX_ DCaggr *agg, SV *type, DCpointer data, size_t size) {
 
         // sv_dump(*name_ptr);
         offset = PTR2IV(data) + agg->fields[i].offset;
-        //
-        /*warn("field offset: %ld", agg->fields[i].offset);
+        /*/
+        warn("field offset: %ld", agg->fields[i].offset);
         warn("field size: %ld", agg->fields[i].size);
         warn("field alignment: %ld", agg->fields[i].alignment);
         warn("field array_len: %ld", agg->fields[i].array_len);
@@ -772,69 +779,9 @@ static DCaggr *sv2ptr(pTHX_ SV *type, SV *data, DCpointer ptr, bool packed, size
                              padding_needed_for(PTR2IV(ptr), _sizeof(aTHX_ * type_ptr)),
                              _sizeof(aTHX_ * type_ptr), __FILE__, __LINE__);*/
             pos += el_len;
-
-            /*
-            if (!packed)
-                pos += padding_needed_for(pos, _sizeof(aTHX_ * type_ptr));
-            else
-                pos += _sizeof(aTHX_ * type_ptr);*/
-
-            // warn("value of pos is %d at %s line %d", pos, __FILE__, __LINE__);
-
-            // warn("dcAggrField(*agg, DC_SIGCHAR_INT, %d, 1);", pos);
-            // dcAggrField(retval, DC_SIGCHAR_INT, 0, 1);
-
-            // //sv_dump(*_data);
-
-            // DumpHex(ptr, size);
         }
         // DumpHex(ptr, pos);
         dcCloseAggr(retval);
-        // warn("     dcCloseAggr(agg);");
-
-        // dcAggrField(retval, DC_SIGCHAR_AGGREGATE, pos, 1, retval);
-        // warn ("     dcAggrField(*agg, DC_SIGCHAR_AGGREGATE, %d, %d, me);", pos, 1);
-
-        /*
-                size_t av_count = av_count(av);
-                HV *hash = MUTABLE_HV(data);
-                int pos = 0;
-                for (int i = 0; i < av_count; i++) {
-                    warn("i == %d", i);
-                    SV **field_ptr = av_fetch(av, i, 0);
-                    AV *field = MUTABLE_AV(*field_ptr);
-                    SV **name_ptr = av_fetch(field, 0, 0);
-                    SV **type_ptr = av_fetch(field, 1, 0);
-                    //sv_dump(*type_ptr);
-                    // HeVAL(hv_fetch_ent(MUTABLE_HV(data), *name_ptr, 0, 0)) =
-                    // MUTABLE_SV(newAV_mortal());//sv2ptr(*type_ptr, data);
-                    // //sv_dump(data);
-                    warn("HERE");
-                    //sv_dump(*name_ptr);
-                    const char *name = SvPV_nolen(*name_ptr);
-                    warn("name == %s", name);
-                    HV *data_hv = MUTABLE_HV(SvRV(data));
-                    warn("fdsafdasfdasfdsa");
-                    // return data;
-
-                    SV **idk_wtf = hv_fetch(data_hv, name, strlen(name), 0);
-
-                    //sv_dump(*idk_wtf);
-
-                    // SV * value = sv2ptr(*type_ptr,
-
-                    // const char * _type = SvPVbytex_nolen(type);
-                    // SV ** target = hv_fetch(hash, _type, 0, 0);
-                    // //sv_dump(*target);
-
-                    pos = sv2ptr(*type_ptr, *idk_wtf, ptr, packed);
-
-                    // //sv_dump(SvRV(field));
-                    //  SV * in = sv2ptr((field), data);
-                }
-                // IV tmp = SvIV((SV*)SvRV(ST(0)));
-                // ptr = INT2PTR(DCpointer *, tmp);
-                */
         return retval;
     } break;
     case DC_SIGCHAR_ARRAY: {
@@ -938,21 +885,6 @@ static DCaggr *sv2ptr(pTHX_ SV *type, SV *data, DCpointer ptr, bool packed, size
         default:
             croak("%c is not a known type", str[0]);
         }
-        // warn("aaaa %p - %d - %d", pos, size, array_len);
-
-        // if (!packed) pos += padding_needed_for(pos, size * array_len);
-
-        warn("bbb");
-
-        // dcAggrField(ag, type, current_offset, array_len);
-        // warn("Adding slot! type: %c, offset: 0[%p], array_len: %d", str[0], pos, array_len);
-        // croak("%d | %d", current_offset, array_len);
-
-        // value = newSVnv(*((float *)&val));
-
-        // pos += size * array_len;
-
-        // return newSVpv(value, 1);
     }
     }
     // DumpHex(RETVAL, 1024);

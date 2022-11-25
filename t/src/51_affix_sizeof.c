@@ -63,10 +63,11 @@ typedef struct
     } y;
 
 } struct5;
+
 typedef struct
 {
     struct3 y;
-    struct4 s[4];
+    struct4 s;
     char c;
 } struct6;
 
@@ -86,8 +87,49 @@ DLLEXPORT size_t s_struct5() {
     return sizeof(struct5);
 }
 DLLEXPORT size_t s_struct6() {
+    warn("offsetof(struct6, s) == %d", offsetof(struct6, s));
+    warn("offsetof(struct6, c) == %d", offsetof(struct6, c));
+    warn("sizeof(struct4) == %d", sizeof(struct4));
     return sizeof(struct6);
 }
+
+//
+typedef struct
+{
+    bool B;
+    char c;
+    unsigned char C;
+    short s;
+    unsigned short S;
+    int i;
+    unsigned int I;
+    long j;
+    unsigned long J;
+    long long l;
+    unsigned long long L;
+    float f;
+    double d;
+    int *p;
+    char *Z;
+    struct
+    {
+        int i;
+    } A;
+    union
+    {
+        int i;
+        struct
+        {
+            void *ptr;
+            long l;
+        } structure;
+
+    } u;
+} massive;
+DLLEXPORT size_t s_massive() {
+    return sizeof(massive);
+}
+
 //
 DLLEXPORT size_t s_array1() {
     return sizeof(struct {

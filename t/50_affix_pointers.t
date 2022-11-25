@@ -98,5 +98,55 @@ subtest 'ref Dyn::Call::Pointer with a double (should croak)' => sub {
         'Dyn::Call::Pointer updated';
     free $ptr;
 }
+subtest struct => sub {
+    typedef massive => Struct [
+        B => Bool,
+        c => Char,
+        C => UChar,
+        s => Short,
+        S => UShort,
+        i => Int,
+        I => UInt,
+        j => Long,
+        J => ULong,
+        l => LongLong,
+        L => ULongLong,
+        f => Float,
+        d => Double,
+        p => Pointer [Int],
+        Z => Str,
+        A => Struct [ i => Int ],
+        u => Union [ i => Int, structure => Struct [ ptr => Pointer [Void], l => Long ] ]
+    ];
+    diag 'sizeof in perl: ' . sizeof( massive() );
+    sub massive_ptr : Native('t/50_affix_pointers') : Signature([] => Pointer[massive()]);
+    my $ptr = massive_ptr();
+    my $sv  = Affix::ptr2sv( massive(), $ptr );
+    is $sv->{Z}, 'Just a little test', 'parsed pointer to sv and got .Z';
+};
 #
 done_testing;
+__END__
+typedef
+struct
+{
+    bool B;
+    char c;
+    unsigned char C;
+    short s;
+    unsigned short S;
+    int i;
+    unsigned int I;
+    long j;
+    unsigned long J;
+    long long l;
+    unsigned long long L;
+    float f;
+    double d;
+    int *p;
+    char *Z;
+    struct
+    {
+        int i;
+    } A;
+} massive;

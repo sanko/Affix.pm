@@ -1,5 +1,75 @@
 #include "std.h"
 
+typedef struct
+{
+    bool B;
+    char c;
+    unsigned char C;
+    short s;
+    unsigned short S;
+    int i;
+    unsigned int I;
+    long j;
+    unsigned long J;
+    long long l;
+    unsigned long long L;
+    float f;
+    double d;
+    int *p;
+    char *Z;
+    struct
+    {
+        int i;
+    } A;
+    union
+    {
+        int i;
+        struct
+        {
+            void *ptr;
+            long l;
+        } structure;
+    } u;
+} massive;
+
+int _p = 303;
+massive retval = {.B = true,
+                  .c = 'c',
+                  .C = 'C',
+                  .s = 3,
+                  .S = 5,
+                  .i = -987,
+                  .I = 678,
+                  .j = 13579,
+                  .J = 24680,
+                  .l = -1234567890,
+                  .L = 9876543210,
+                  .f = 9.9843,
+                  .d = 1.246,
+                  .p = &_p,
+                  .Z = "Just a little test",
+                  .u = 5};
+
+DLLEXPORT massive *massive_ptr() {
+    warn("    # sizeof in C:    %d", sizeof(massive));
+    warn("    # offset.B:       %d", offsetof(massive, B));
+    warn("    # offset.c:       %d", offsetof(massive, c));
+    warn("    # offset.C:       %d", offsetof(massive, C));
+    warn("    # offset.s:       %d", offsetof(massive, s));
+    warn("    # offset.S:       %d", offsetof(massive, S));
+    warn("    # offset.i:       %d", offsetof(massive, i));
+    warn("    # offset.I:       %d", offsetof(massive, I));
+    warn("    # offset.j:       %d", offsetof(massive, j));
+    warn("    # offset.J:       %d", offsetof(massive, J));
+    /*retval.c = -100;
+    retval.C = 100;
+    retval.s = -30;
+    retval.S = 40;
+    retval.Z = "Hi!";*/
+    //(massive*) malloc(sizeof(massive));
+    warn("Z: %s", retval.Z);
+    return &retval;
+}
 DLLEXPORT char *dbl_ptr(double *dbl) {
     // warn("# dbl == %f", *dbl);
     if (dbl == NULL)
@@ -36,7 +106,7 @@ DLLEXPORT double pointer_test(double *dbl, int arr[5], int size,
     // for (int i = 0; i < size; ++i)
     //     warn("# arr[%d] == %d", i, arr[i]);
     if (*dbl >= 590343.12351) {
-        warn("In: %f", *dbl);
+        warn("# In: %f", *dbl);
         *dbl = 3.493;
         return *dbl * 5.25;
     }

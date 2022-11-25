@@ -26,14 +26,34 @@ subtest 'aggregates' => sub {
     my $struct3 = Struct [ d => Double, c => ArrayRef [ Int, 3 ] ];
     my $struct4 = Struct [ y => $struct3 ];    # Make sure we are padding cached size data
     my $struct5 = Struct [ y => Struct [ d => Double, c => ArrayRef [ Int, 3 ] ] ];
-    my $struct6 = Struct [ y => $struct3, s => ArrayRef [ $struct4, 4 ], c => Char ];
+    my $struct6 = Struct [ y => $struct3, s => $struct4, c => Char ];
+    typedef massive => Struct [
+        B => Bool,
+        c => Char,
+        C => UChar,
+        s => Short,
+        S => UShort,
+        i => Int,
+        I => UInt,
+        j => Long,
+        J => ULong,
+        l => LongLong,
+        L => ULongLong,
+        f => Float,
+        d => Double,
+        p => Pointer [Int],
+        Z => Str,
+        A => Struct [ i => Int ],
+        u => Union [ i => Int, structure => Struct [ ptr => Pointer [Void], l => Long ] ]
+    ];
     subtest 'structs' => sub {
-        is sizeof($struct1), wrap( $lib, 's_struct1', [], Size_t )->(), 'sizeof(struct1)';
-        is sizeof($struct2), wrap( $lib, 's_struct2', [], Size_t )->(), 'sizeof(struct2)';
-        is sizeof($struct3), wrap( $lib, 's_struct3', [], Size_t )->(), 'sizeof(struct3)';
-        is sizeof($struct4), wrap( $lib, 's_struct4', [], Size_t )->(), 'sizeof(struct4)';
-        is sizeof($struct5), wrap( $lib, 's_struct5', [], Size_t )->(), 'sizeof(struct5)';
-        is sizeof($struct6), wrap( $lib, 's_struct6', [], Size_t )->(), 'sizeof(struct6)';
+        is sizeof($struct1),    wrap( $lib, 's_struct1', [], Size_t )->(), 'sizeof(struct1)';
+        is sizeof($struct2),    wrap( $lib, 's_struct2', [], Size_t )->(), 'sizeof(struct2)';
+        is sizeof($struct3),    wrap( $lib, 's_struct3', [], Size_t )->(), 'sizeof(struct3)';
+        is sizeof($struct4),    wrap( $lib, 's_struct4', [], Size_t )->(), 'sizeof(struct4)';
+        is sizeof($struct5),    wrap( $lib, 's_struct5', [], Size_t )->(), 'sizeof(struct5)';
+        is sizeof($struct6),    wrap( $lib, 's_struct6', [], Size_t )->(), 'sizeof(struct6)';
+        is sizeof( massive() ), wrap( $lib, 's_massive', [], Size_t )->(), 'sizeof(massive)';
     };
     subtest 'arrays' => sub {
         my $array1 = ArrayRef [ Struct [ d => Double, c => ArrayRef [ Int, 3 ] ], 3 ];
