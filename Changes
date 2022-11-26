@@ -1,7 +1,8 @@
-Revision history for Perl extension Dyn.pm and Affix.pm
+Revision history for Perl extension Affix.pm and Dyn.pm
 
 {{$NEXT}}
 
+    - Affix.pm is born
     - Settle on :Native, :Symbol, and :Signature code attributes
 
 0.03 2021-12-05T01:23:23Z

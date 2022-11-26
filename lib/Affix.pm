@@ -1,4 +1,4 @@
-package Affix 0.04 {
+package Affix 0.04 {    # 'FFI' is my middle name!
     use strict;
     use warnings;
     no warnings 'redefine';
@@ -352,7 +352,7 @@ __END__
 
 =head1 NAME
 
-Affix - 'FFI' is my Middle Name!
+Affix - A Foreign Function Interface eXtension
 
 =head1 SYNOPSIS
 
@@ -902,7 +902,7 @@ Sanko Robinson E<lt>sanko@cpan.orgE<gt>
 =begin stopwords
 
 dyncall OpenBSD FreeBSD macOS DragonFlyBSD NetBSD iOS ReactOS mips mips64 ppc32
-ppc64 sparc sparc64 co-existing varargs variadic struct enum
+ppc64 sparc sparc64 co-existing varargs variadic struct enum eXtension
 
 =end stopwords
 

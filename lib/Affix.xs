@@ -35,153 +35,177 @@ typedef struct
 
 char cbHandler(DCCallback *cb, DCArgs *args, DCValue *result, DCpointer userdata) {
     Callback *cbx = (Callback *)userdata;
-    //  result->i = 1244;
-
-    // warn("Bruh %c (%s [%d] return: %c) at %s line %d", cbx->ret, cbx->sig, cbx->sig_len,
-    // cbx->ret,
-    //     __FILE__, __LINE__);
+    /*warn("Triggering callback: %c (%s [%d] return: %c) at %s line %d", cbx->ret, cbx->sig,
+         cbx->sig_len, cbx->ret, __FILE__, __LINE__);*/
     dTHXa(cbx->perl);
 
-    {
-        dSP;
-        int count;
+    dSP;
+    int count;
 
-        ENTER;
-        SAVETMPS;
+    ENTER;
+    SAVETMPS;
 
-        PUSHMARK(SP);
+    PUSHMARK(SP);
 
-        EXTEND(SP, cbx->sig_len);
-        char type;
-        for (int i = 0; i < cbx->sig_len; ++i) {
-            type = cbx->sig[i];
-            // warn("type : %c", type);
-            switch (type) {
-            case DC_SIGCHAR_VOID:
-                // TODO: push undef?
-                break;
-            case DC_SIGCHAR_BOOL:
-                mPUSHs(boolSV(dcbArgBool(args)));
-                break;
-            case DC_SIGCHAR_CHAR:
-                mPUSHi((IV)dcbArgChar(args));
-                break;
-            case DC_SIGCHAR_UCHAR:
-                mPUSHu((UV)dcbArgChar(args));
-                break;
-            case DC_SIGCHAR_SHORT:
-                mPUSHi((IV)dcbArgShort(args));
-                break;
-            case DC_SIGCHAR_USHORT:
-                mPUSHu((UV)dcbArgShort(args));
-                break;
-            case DC_SIGCHAR_INT:
-                mPUSHi((IV)dcbArgInt(args));
-                break;
-            case DC_SIGCHAR_UINT:
-                mPUSHu((UV)dcbArgInt(args));
-                break;
-            case DC_SIGCHAR_LONG:
-                mPUSHi((IV)dcbArgLong(args));
-                break;
-            case DC_SIGCHAR_ULONG:
-                mPUSHu((UV)dcbArgLong(args));
-                break;
-            case DC_SIGCHAR_LONGLONG:
-                mPUSHi((IV)dcbArgLongLong(args));
-                break;
-            case DC_SIGCHAR_ULONGLONG:
-                mPUSHu((UV)dcbArgLongLong(args));
-                break;
-            case DC_SIGCHAR_FLOAT:
-                mPUSHn((NV)dcbArgFloat(args));
-                break;
-            case DC_SIGCHAR_DOUBLE:
-                mPUSHn((NV)dcbArgDouble(args));
-                break;
-            case DC_SIGCHAR_POINTER: {
-                DCpointer ptr = dcbArgPointer(args);
-                mPUSHs(newSVpv((char *)ptr, 0));
-            } break;
-            case DC_SIGCHAR_STRING: {
-                DCpointer ptr = dcbArgPointer(args);
-                mPUSHs(sv_setref_pv(newSV(1), "Dyn::Call::Pointer", dcbArgPointer(args)));
-            } break;
-            case DC_SIGCHAR_BLESSED: {
-                DCpointer ptr = dcbArgPointer(args);
-                HV *blessed = MUTABLE_HV(SvRV(*av_fetch(cbx->args, i, 0)));
-                SV **package = hv_fetchs(blessed, "package", 0);
-                PUSHs(sv_setref_pv(newSV(1), SvPV_nolen(*package), ptr));
-            } break;
-            case DC_SIGCHAR_ENUM:
-            case DC_SIGCHAR_ENUM_UINT: {
-                PUSHs(enum2sv(*av_fetch(cbx->args, i, 0), dcbArgInt(args)));
-            } break;
-            case DC_SIGCHAR_ENUM_CHAR: {
-                PUSHs(enum2sv(*av_fetch(cbx->args, i, 0), dcbArgChar(args)));
-            } break;
-            case DC_SIGCHAR_ANY: {
-                DCpointer ptr = dcbArgPointer(args);
-                SV *sv = newSV(0);
-                if (ptr != NULL && SvOK(MUTABLE_SV(ptr))) {
-                    // DumpHex(ptr, sizeof(SV));
-                    // warn("SvOK");
-                    sv = MUTABLE_SV(ptr);
-                    // sv_dump(sv);
-                }
-                PUSHs(sv);
-            } break;
+    EXTEND(SP, cbx->sig_len);
+    char type;
+    for (int i = 0; i < cbx->sig_len; ++i) {
+        type = cbx->sig[i];
+        // warn("type : %c", type);
+        switch (type) {
+        case DC_SIGCHAR_VOID:
+            // TODO: push undef?
+            break;
+        case DC_SIGCHAR_BOOL:
+            mPUSHs(boolSV(dcbArgBool(args)));
+            break;
+        case DC_SIGCHAR_CHAR:
+            mPUSHi((IV)dcbArgChar(args));
+            break;
+        case DC_SIGCHAR_UCHAR:
+            mPUSHu((UV)dcbArgChar(args));
+            break;
+        case DC_SIGCHAR_SHORT:
+            mPUSHi((IV)dcbArgShort(args));
+            break;
+        case DC_SIGCHAR_USHORT:
+            mPUSHu((UV)dcbArgShort(args));
+            break;
+        case DC_SIGCHAR_INT:
+            mPUSHi((IV)dcbArgInt(args));
+            break;
+        case DC_SIGCHAR_UINT:
+            mPUSHu((UV)dcbArgInt(args));
+            break;
+        case DC_SIGCHAR_LONG:
+            mPUSHi((IV)dcbArgLong(args));
+            break;
+        case DC_SIGCHAR_ULONG:
+            mPUSHu((UV)dcbArgLong(args));
+            break;
+        case DC_SIGCHAR_LONGLONG:
+            mPUSHi((IV)dcbArgLongLong(args));
+            break;
+        case DC_SIGCHAR_ULONGLONG:
+            mPUSHu((UV)dcbArgLongLong(args));
+            break;
+        case DC_SIGCHAR_FLOAT:
+            mPUSHn((NV)dcbArgFloat(args));
+            break;
+        case DC_SIGCHAR_DOUBLE:
+            mPUSHn((NV)dcbArgDouble(args));
+            break;
+        case DC_SIGCHAR_POINTER: {
+            mPUSHs(sv_setref_pv(newSV(1), "Dyn::Call::Pointer", dcbArgPointer(args)));
+            // mPUSHs(newSVpv((char *)ptr, 0));
+        } break;
+        case DC_SIGCHAR_STRING: {
+            DCpointer ptr = dcbArgPointer(args);
+            PUSHs(newSVpv((char *)ptr, 0));
+        } break;
 
-            default:
-                croak("Unhandled callback arg. Type: %c [%s]", cbx->sig[i], cbx->sig);
-                break;
+        case DC_SIGCHAR_BLESSED: {
+            DCpointer ptr = dcbArgPointer(args);
+            HV *blessed = MUTABLE_HV(SvRV(*av_fetch(cbx->args, i, 0)));
+            SV **package = hv_fetchs(blessed, "package", 0);
+            PUSHs(sv_setref_pv(newSV(1), SvPV_nolen(*package), ptr));
+        } break;
+        case DC_SIGCHAR_ENUM:
+        case DC_SIGCHAR_ENUM_UINT: {
+            PUSHs(enum2sv(*av_fetch(cbx->args, i, 0), dcbArgInt(args)));
+        } break;
+        case DC_SIGCHAR_ENUM_CHAR: {
+            PUSHs(enum2sv(*av_fetch(cbx->args, i, 0), dcbArgChar(args)));
+        } break;
+        case DC_SIGCHAR_ANY: {
+            DCpointer ptr = dcbArgPointer(args);
+            SV *sv = newSV(0);
+            if (ptr != NULL && SvOK(MUTABLE_SV(ptr))) {
+                // DumpHex(ptr, sizeof(SV));
+                // warn("SvOK");
+                sv = MUTABLE_SV(ptr);
+                // sv_dump(sv);
             }
+            PUSHs(sv);
+        } break;
+
+        default:
+            croak("Unhandled callback arg. Type: %c [%s]", cbx->sig[i], cbx->sig);
+            break;
         }
-
-        PUTBACK;
-
-        if (cbx->ret == DC_SIGCHAR_VOID)
-            call_sv(cbx->cv, G_DISCARD);
-        else {
-            count = call_sv(cbx->cv, G_EVAL | G_SCALAR);
-            if (count != 1) croak("Big trouble: %d returned items", count);
-            SPAGAIN;
-            switch (cbx->ret) {
-            case DC_SIGCHAR_VOID:
-                break;
-            case DC_SIGCHAR_INT:
-                result->i = POPi;
-                break;
-            case DC_SIGCHAR_UINT:
-                result->I = POPu;
-                break;
-            case DC_SIGCHAR_FLOAT:
-                result->f = POPn;
-                break;
-            case DC_SIGCHAR_DOUBLE:
-                result->d = POPn;
-                break;
-            case DC_SIGCHAR_POINTER: {
-                SV *sv_ptr = POPs;
-                if (SvOK(sv_ptr)) {
-                    if (sv_derived_from(sv_ptr, "Dyn::Call::Pointer")) {
-                        IV tmp = SvIV((SV *)SvRV(sv_ptr));
-                        result->p = INT2PTR(DCpointer, tmp);
-                    }
-                    croak("Returned value is not a Dyn::Call::Pointer or subclass");
+    }
+    PUTBACK;
+    if (cbx->ret == DC_SIGCHAR_VOID) { call_sv(cbx->cv, G_VOID); }
+    else {
+        count = call_sv(cbx->cv, G_SCALAR);
+        if (count != 1) croak("Big trouble: %d returned items", count);
+        SPAGAIN;
+        switch (cbx->ret) {
+        case DC_SIGCHAR_VOID:
+            break;
+        case DC_SIGCHAR_BOOL:
+            result->B = SvTRUEx(POPs);
+            break;
+        case DC_SIGCHAR_CHAR:
+            result->c = POPu;
+            break;
+        case DC_SIGCHAR_UCHAR:
+            result->C = POPu;
+            break;
+        case DC_SIGCHAR_SHORT:
+            result->s = POPu;
+            break;
+        case DC_SIGCHAR_USHORT:
+            result->S = POPi;
+            break;
+        case DC_SIGCHAR_INT:
+            result->i = POPi;
+            break;
+        case DC_SIGCHAR_UINT:
+            result->I = POPu;
+            break;
+        case DC_SIGCHAR_LONG:
+            result->j = POPl;
+            break;
+        case DC_SIGCHAR_ULONG:
+            result->J = POPul;
+            break;
+        case DC_SIGCHAR_LONGLONG:
+            result->l = POPi;
+            break;
+        case DC_SIGCHAR_ULONGLONG:
+            result->L = POPu;
+            break;
+        case DC_SIGCHAR_FLOAT:
+            result->f = POPn;
+            break;
+        case DC_SIGCHAR_DOUBLE:
+            result->d = POPn;
+            break;
+        case DC_SIGCHAR_POINTER: {
+            SV *sv_ptr = POPs;
+            if (SvOK(sv_ptr)) {
+                if (sv_derived_from(sv_ptr, "Dyn::Call::Pointer")) {
+                    IV tmp = SvIV((SV *)SvRV(sv_ptr));
+                    result->p = INT2PTR(DCpointer, tmp);
                 }
                 else
-                    result->p = NULL; // ha.
-            } break;
-            default:
-                croak("Unhandled return from callback: %c", cbx->ret);
+                    croak("Returned value is not a Dyn::Call::Pointer or subclass");
             }
-            PUTBACK;
+            else
+                result->p = NULL; // ha.
+        } break;
+        case DC_SIGCHAR_STRING:
+            result->Z = POPp;
+            break;
+        default:
+            croak("Unhandled return from callback: %c", cbx->ret);
         }
-
-        FREETMPS;
-        LEAVE;
+        PUTBACK;
     }
+
+    FREETMPS;
+    LEAVE;
 
     return cbx->ret;
 }
