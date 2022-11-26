@@ -24,8 +24,8 @@ use File::stat;
 #
 my $libver;
 my $CFLAGS
-    = ' -DNDEBUG -DBOOST_DISABLE_ASSERTS -flto -O2 -ffast-math -funroll-loops -fno-align-functions -fno-align-loops';
-my $LDFLAGS = ' -flto';    # https://wiki.freebsd.org/LinkTimeOptimization
+    = ' -DNDEBUG -DBOOST_DISABLE_ASSERTS -O2 -ffast-math -funroll-loops -fno-align-functions -fno-align-loops';
+my $LDFLAGS = ' ';    # https://wiki.freebsd.org/LinkTimeOptimization
 #
 sub write_file {
     my ( $filename, $content ) = @_;
