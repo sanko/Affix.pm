@@ -4,6 +4,15 @@ BEGIN { chdir '../' if !-d 't'; }
 use lib '../lib', 'lib', '../blib/arch', '../blib/lib', 'blib/arch', 'blib/lib', '../../', '.';
 use Affix;
 #
+if ( $^O eq 'darwin' ) {
+    plan skip_all => 'I know nothing about MacOS';
+}
+else {
+    sub pow : Native(get_lib) : Signature([Double, Double]=>Double);
+    is pow( 2, 10 ), 1024, 'pow( 2, 10 ) == 1024';
+}
+done_testing;
+
 sub get_lib {
     return 'ntdll'               if $^O eq 'MSWin32';
     return '/usr/lib/libm.dylib' if $^O eq 'darwin';
@@ -19,6 +28,3 @@ sub get_lib {
     diag $1;
     $1;
 }
-sub pow : Native(get_lib) : Signature([Double, Double]=>Double);
-is pow( 2, 10 ), 1024, 'pow( 2, 10 ) == 1024';
-done_testing;

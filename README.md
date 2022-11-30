@@ -7,14 +7,13 @@ Affix - A Foreign Function Interface eXtension
 
 ```perl
 use Affix;
-my $lib
-    = $^O eq 'MSWin32'    ? 'ntdll' :
-    $^O eq 'darwin'       ? '/usr/lib/libm.dylib' :
-    $^O eq 'bsd'          ? '/usr/lib/libm.so' :
-    -e '/lib64/libm.so.6' ? '/lib64/libm.so.6' :
-    '/lib/x86_64-linux-gnu/libm.so.6';
-affix( $lib, 'pow', [ Double, Double ] => Double );
+sub pow : Native(get_lib) : Signature([Double, Double] => Double);
 print pow( 2, 10 );    # 1024
+
+sub get_lib {
+    return 'ntdll' if $^O eq 'MSWin32';
+    return undef;
+}
 ```
 
 # DESCRIPTION

@@ -1,4 +1,40 @@
 #include "../lib/clutter.h"
+typedef struct
+{
+    SV *type;
+    void *ptr;
+} var_ptr;
+
+I32 get_tack(pTHX_ SV *sv, MAGIC *mg) {
+    var_ptr *ptr = (var_ptr *)mg->mg_ptr;
+    SV *val = ptr2sv(aTHX_ ptr->ptr, ptr->type);
+    sv_setsv(sv, val);
+    return (I32)0;
+}
+
+I32 set_tack(pTHX_ SV *sv, MAGIC *mg) {
+    var_ptr *ptr = (var_ptr *)mg->mg_ptr;
+    DCpointer val = sv2ptr(aTHX_ ptr->type, sv, ptr->ptr, 0, 0);
+    return (I32)0;
+}
+
+I32 free_tack(pTHX_ SV *sv, MAGIC *mg) {
+    var_ptr *ptr = (var_ptr *)mg->mg_ptr;
+    sv_2mortal(ptr->type);
+    safefree(ptr);
+    return (I32)0;
+}
+
+static MGVTBL tack_vtbl = {
+    get_tack,  // get
+    set_tack,  // set
+    NULL,      // len
+    NULL,      // clear
+    free_tack, // free
+    NULL,      // copy
+    NULL,      // dup
+    NULL       // local
+};
 
 typedef struct CoW
 {
@@ -1010,20 +1046,17 @@ XS_INTERNAL(Affix_DESTROY) {
     XSRETURN_EMPTY;
 }
 
-#define PTYPE(NAME, SIGCHAR) CTYPE(NAME, SIGCHAR, SIGCHAR)
-#define GET_4TH_ARG(arg1, arg2, arg3, arg4, ...) arg4
-#define TYPE(...) GET_4TH_ARG(__VA_ARGS__, CTYPE, PTYPE)(__VA_ARGS__)
-#define CTYPE(NAME, SIGCHAR, SIGCHAR_C)                                                            \
+#define TYPE(NAME, SIGCHAR, SIGCHAR_C)                                                             \
     {                                                                                              \
-        const char *package = form("Affix::Type::%s", NAME);                                       \
+        const char *package = form("Affix::Type::%s", #NAME);                                      \
         set_isa(package, "Affix::Type::Base");                                                     \
-        cv = newXSproto_portable(form("Affix::%s", NAME), Types_wrapper, file, ";$");              \
+        cv = newXSproto_portable(form("Affix::%s", #NAME), Types_wrapper, file, ";$");             \
         Newx(XSANY.any_ptr, strlen(package) + 1, char);                                            \
         Copy(package, XSANY.any_ptr, strlen(package) + 1, char);                                   \
-        cv = newXSproto_portable(form("%s::new", package), Types, file, "$");                      \
+        cv = newXSproto_portable(form("%s::new", package), Types /*_#NAME*/, file, "$");           \
         safefree(XSANY.any_ptr);                                                                   \
         XSANY.any_i32 = (int)SIGCHAR;                                                              \
-        export_function("Affix", NAME, "types");                                                   \
+        export_function("Affix", #NAME, "types");                                                  \
         /*warn("Exporting %s to Affix q[:types]", NAME);*/                                         \
         /* Int->sig == 'i'; Struct[Int, Float]->sig == '{if}' */                                   \
         cv = newXSproto_portable(form("%s::sig", package), Types_sig, file, "$");                  \
@@ -1061,56 +1094,56 @@ BOOT:
     (void)newXSproto_portable("Affix::DESTROY", Affix_DESTROY, file, "$");
 
     CV *cv;
-    TYPE("Void", DC_SIGCHAR_VOID);
-    TYPE("Bool", DC_SIGCHAR_BOOL);
-    TYPE("Char", DC_SIGCHAR_CHAR);
-    TYPE("UChar", DC_SIGCHAR_UCHAR);
-    TYPE("Short", DC_SIGCHAR_SHORT);
-    TYPE("UShort", DC_SIGCHAR_USHORT);
-    TYPE("Int", DC_SIGCHAR_INT);
-    TYPE("UInt", DC_SIGCHAR_UINT);
-    TYPE("Long", DC_SIGCHAR_LONG);
-    TYPE("ULong", DC_SIGCHAR_ULONG);
-    TYPE("LongLong", DC_SIGCHAR_LONGLONG);
-    TYPE("ULongLong", DC_SIGCHAR_ULONGLONG);
-    TYPE("Float", DC_SIGCHAR_FLOAT);
-    TYPE("Double", DC_SIGCHAR_DOUBLE);
-    TYPE("Pointer", DC_SIGCHAR_POINTER);
-    TYPE("Str", DC_SIGCHAR_STRING);
-    TYPE("Aggregate", DC_SIGCHAR_AGGREGATE);
-    TYPE("Struct", DC_SIGCHAR_STRUCT, DC_SIGCHAR_AGGREGATE);
-    TYPE("ArrayRef", DC_SIGCHAR_ARRAY, DC_SIGCHAR_AGGREGATE);
-    TYPE("Union", DC_SIGCHAR_UNION, DC_SIGCHAR_AGGREGATE);
-    TYPE("CodeRef", DC_SIGCHAR_CODE, DC_SIGCHAR_AGGREGATE);
-    TYPE("InstanceOf", DC_SIGCHAR_BLESSED, DC_SIGCHAR_POINTER);
-    TYPE("Any", DC_SIGCHAR_ANY, DC_SIGCHAR_POINTER);
-    TYPE("SSize_t", DC_SIGCHAR_SSIZE_T);
-    TYPE("Size_t", DC_SIGCHAR_SIZE_T);
+    TYPE(Void, DC_SIGCHAR_VOID, DC_SIGCHAR_VOID);
+    TYPE(Bool, DC_SIGCHAR_BOOL, DC_SIGCHAR_BOOL);
+    TYPE(Char, DC_SIGCHAR_CHAR, DC_SIGCHAR_CHAR);
+    TYPE(UChar, DC_SIGCHAR_UCHAR, DC_SIGCHAR_UCHAR);
+    TYPE(Short, DC_SIGCHAR_SHORT, DC_SIGCHAR_SHORT);
+    TYPE(UShort, DC_SIGCHAR_USHORT, DC_SIGCHAR_USHORT);
+    TYPE(Int, DC_SIGCHAR_INT, DC_SIGCHAR_INT);
+    TYPE(UInt, DC_SIGCHAR_UINT, DC_SIGCHAR_UINT);
+    TYPE(Long, DC_SIGCHAR_LONG, DC_SIGCHAR_LONG);
+    TYPE(ULong, DC_SIGCHAR_ULONG, DC_SIGCHAR_ULONG);
+    TYPE(LongLong, DC_SIGCHAR_LONGLONG, DC_SIGCHAR_LONGLONG);
+    TYPE(ULongLong, DC_SIGCHAR_ULONGLONG, DC_SIGCHAR_ULONGLONG);
+    TYPE(Float, DC_SIGCHAR_FLOAT, DC_SIGCHAR_FLOAT);
+    TYPE(Double, DC_SIGCHAR_DOUBLE, DC_SIGCHAR_DOUBLE);
+    TYPE(Pointer, DC_SIGCHAR_POINTER, DC_SIGCHAR_POINTER);
+    TYPE(Str, DC_SIGCHAR_STRING, DC_SIGCHAR_STRING);
+    TYPE(Aggregate, DC_SIGCHAR_AGGREGATE, DC_SIGCHAR_AGGREGATE);
+    TYPE(Struct, DC_SIGCHAR_STRUCT, DC_SIGCHAR_AGGREGATE);
+    TYPE(ArrayRef, DC_SIGCHAR_ARRAY, DC_SIGCHAR_AGGREGATE);
+    TYPE(Union, DC_SIGCHAR_UNION, DC_SIGCHAR_AGGREGATE);
+    TYPE(CodeRef, DC_SIGCHAR_CODE, DC_SIGCHAR_AGGREGATE);
+    TYPE(InstanceOf, DC_SIGCHAR_BLESSED, DC_SIGCHAR_POINTER);
+    TYPE(Any, DC_SIGCHAR_ANY, DC_SIGCHAR_POINTER);
+    TYPE(SSize_t, DC_SIGCHAR_SSIZE_T, DC_SIGCHAR_SSIZE_T);
+    TYPE(Size_t, DC_SIGCHAR_SIZE_T, DC_SIGCHAR_SIZE_T);
 
-    TYPE("Enum", DC_SIGCHAR_ENUM, DC_SIGCHAR_INT);
+    TYPE(Enum, DC_SIGCHAR_ENUM, DC_SIGCHAR_INT);
 
-    TYPE("IntEnum", DC_SIGCHAR_ENUM, DC_SIGCHAR_INT);
+    TYPE(IntEnum, DC_SIGCHAR_ENUM, DC_SIGCHAR_INT);
     set_isa("Affix::Type::IntEnum", "Affix::Type::Enum");
 
-    TYPE("UIntEnum", DC_SIGCHAR_ENUM_UINT, DC_SIGCHAR_UINT);
+    TYPE(UIntEnum, DC_SIGCHAR_ENUM_UINT, DC_SIGCHAR_UINT);
     set_isa("Affix::Type::UIntEnum", "Affix::Type::Enum");
 
-    TYPE("CharEnum", DC_SIGCHAR_ENUM_CHAR, DC_SIGCHAR_CHAR);
+    TYPE(CharEnum, DC_SIGCHAR_ENUM_CHAR, DC_SIGCHAR_CHAR);
     set_isa("Affix::Type::CharEnum", "Affix::Type::Enum");
 
-    TYPE("CC_DEFAULT", DC_SIGCHAR_CC_PREFIX, DC_SIGCHAR_CC_DEFAULT);
-    TYPE("CC_THISCALL", DC_SIGCHAR_CC_PREFIX, DC_SIGCHAR_CC_THISCALL);
-    TYPE("CC_ELLIPSIS", DC_SIGCHAR_CC_PREFIX, DC_SIGCHAR_CC_ELLIPSIS);
-    TYPE("CC_ELLIPSIS_VARARGS", DC_SIGCHAR_CC_PREFIX, DC_SIGCHAR_CC_ELLIPSIS_VARARGS);
-    TYPE("CC_CDECL", DC_SIGCHAR_CC_PREFIX, DC_SIGCHAR_CC_CDECL);
-    TYPE("CC_STDCALL", DC_SIGCHAR_CC_PREFIX, DC_SIGCHAR_CC_STDCALL);
-    TYPE("CC_FASTCALL_MS", DC_SIGCHAR_CC_PREFIX, DC_SIGCHAR_CC_FASTCALL_MS);
-    TYPE("CC_FASTCALL_GNU", DC_SIGCHAR_CC_PREFIX, DC_SIGCHAR_CC_FASTCALL_GNU);
-    TYPE("CC_THISCALL_MS", DC_SIGCHAR_CC_PREFIX, DC_SIGCHAR_CC_THISCALL_MS);
-    TYPE("CC_THISCALL_GNU", DC_SIGCHAR_CC_PREFIX, DC_SIGCHAR_CC_THISCALL_GNU);
-    TYPE("CC_ARM_ARM", DC_SIGCHAR_CC_PREFIX, DC_SIGCHAR_CC_ARM_ARM);
-    TYPE("CC_ARM_THUMB", DC_SIGCHAR_CC_PREFIX, DC_SIGCHAR_CC_ARM_THUMB);
-    TYPE("CC_SYSCALL", DC_SIGCHAR_CC_PREFIX, DC_SIGCHAR_CC_SYSCALL);
+    TYPE(CC_DEFAULT, DC_SIGCHAR_CC_PREFIX, DC_SIGCHAR_CC_DEFAULT);
+    TYPE(CC_THISCALL, DC_SIGCHAR_CC_PREFIX, DC_SIGCHAR_CC_THISCALL);
+    TYPE(CC_ELLIPSIS, DC_SIGCHAR_CC_PREFIX, DC_SIGCHAR_CC_ELLIPSIS);
+    TYPE(CC_ELLIPSIS_VARARGS, DC_SIGCHAR_CC_PREFIX, DC_SIGCHAR_CC_ELLIPSIS_VARARGS);
+    TYPE(CC_CDECL, DC_SIGCHAR_CC_PREFIX, DC_SIGCHAR_CC_CDECL);
+    TYPE(CC_STDCALL, DC_SIGCHAR_CC_PREFIX, DC_SIGCHAR_CC_STDCALL);
+    TYPE(CC_FASTCALL_MS, DC_SIGCHAR_CC_PREFIX, DC_SIGCHAR_CC_FASTCALL_MS);
+    TYPE(CC_FASTCALL_GNU, DC_SIGCHAR_CC_PREFIX, DC_SIGCHAR_CC_FASTCALL_GNU);
+    TYPE(CC_THISCALL_MS, DC_SIGCHAR_CC_PREFIX, DC_SIGCHAR_CC_THISCALL_MS);
+    TYPE(CC_THISCALL_GNU, DC_SIGCHAR_CC_PREFIX, DC_SIGCHAR_CC_THISCALL_GNU);
+    TYPE(CC_ARM_ARM, DC_SIGCHAR_CC_PREFIX, DC_SIGCHAR_CC_ARM_ARM);
+    TYPE(CC_ARM_THUMB, DC_SIGCHAR_CC_PREFIX, DC_SIGCHAR_CC_ARM_THUMB);
+    TYPE(CC_SYSCALL, DC_SIGCHAR_CC_PREFIX, DC_SIGCHAR_CC_SYSCALL);
 
     // Enum[]?
     export_function("Affix", "typedef", "types");
@@ -1163,6 +1196,77 @@ CODE:
 // clang-format off
 OUTPUT:
     RETVAL
+
+void
+global(SV *sv, lib, symbol, SV *type);
+    const char * symbol
+PREINIT:
+	struct ufuncs uf;
+PPCODE:
+// clang-format on
+{
+    PERL_UNUSED_VAR(sv);
+    DLLib *lib;
+    if (!SvOK(ST(1)))
+        lib = NULL;
+    else if (SvROK(ST(1)) && sv_derived_from(ST(1), "Dyn::Load::Lib")) {
+        IV tmp = SvIV((SV *)SvRV(ST(0)));
+        lib = INT2PTR(DLLib *, tmp);
+    }
+    else {
+        char *lib_name = (char *)SvPV_nolen(ST(1));
+        // Use perl to get the actual path to the library
+        {
+            dSP;
+            int count;
+            ENTER;
+            SAVETMPS;
+            PUSHMARK(SP);
+            EXTEND(SP, 1);
+            PUSHs(ST(1));
+            PUTBACK;
+            count = call_pv("Affix::locate_lib", G_SCALAR);
+            SPAGAIN;
+            if (count == 1) lib_name = SvPVx_nolen(POPs);
+            PUTBACK;
+            FREETMPS;
+            LEAVE;
+        }
+        lib =
+#if defined(_WIN32) || defined(_WIN64)
+            dlLoadLibrary(lib_name);
+#else
+            (DLLib *)dlopen(lib_name, RTLD_LAZY /* RTLD_NOW|RTLD_GLOBAL */);
+#endif
+        if (lib == NULL) {
+#if defined(_WIN32) || defined(__WIN32__)
+            unsigned int err = GetLastError();
+            croak("Failed to load %s: %d", lib_name, err);
+#else
+            char *reason = dlerror();
+            croak("Failed to load %s: %s", lib_name, reason);
+#endif
+            XSRETURN_EMPTY;
+        }
+    }
+    DCpointer ptr = dlFindSymbol(lib, symbol);
+    if (ptr == NULL) { // TODO: throw a warning
+        croak("Failed to locate symbol %s in %s", symbol, lib);
+        XSRETURN_EMPTY;
+    }
+    MAGIC *mg;
+    mg = sv_magicext(sv, NULL, PERL_MAGIC_ext, &tack_vtbl, NULL, 0);
+    {
+        var_ptr *_ptr;
+        Newx(_ptr, 1, var_ptr);
+        _ptr->ptr = ptr;
+        _ptr->type = newSVsv(type);
+        mg->mg_ptr = (char *)_ptr;
+    }
+    // magic_dump(mg);
+    XSRETURN_YES;
+}
+// clang-format off
 
 SV *
 affix(lib, symbol, args, ret, func_name = (ix == 1) ? NULL : symbol)
@@ -1231,6 +1335,7 @@ CODE:
 
     if (call->fptr == NULL) { // TODO: throw a warning
         safefree(call);
+        croak("Failed to locate symbol %s in %s", symbol, lib);
         XSRETURN_EMPTY;
     }
 
@@ -1380,6 +1485,7 @@ BOOT :
     export_function("Affix", "sv2ptr", "utility");
     export_function("Affix", "ptr2sv", "utility");
     export_function("Affix", "DumpHex", "utility");
+    export_function("Affix", "global", "default");
 }
 // clang-format off
 

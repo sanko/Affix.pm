@@ -541,6 +541,9 @@ SV *ptr2sv(pTHX_ DCpointer ptr, SV *type) {
     case DC_SIGCHAR_DOUBLE:
         sv_setnv(RETVAL, *(double *)ptr);
         break;
+    case DC_SIGCHAR_STRING:
+        sv_setsv(RETVAL, newSVpv(*(char **)ptr, 0));
+        break;
     case DC_SIGCHAR_ARRAY:
     case DC_SIGCHAR_STRUCT:
     case DC_SIGCHAR_UNION: {

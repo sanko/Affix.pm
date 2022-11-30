@@ -127,27 +127,3 @@ subtest struct => sub {
 };
 #
 done_testing;
-__END__
-typedef
-struct
-{
-    bool B;
-    char c;
-    unsigned char C;
-    short s;
-    unsigned short S;
-    int i;
-    unsigned int I;
-    long j;
-    unsigned long J;
-    long long l;
-    unsigned long long L;
-    float f;
-    double d;
-    int *p;
-    char *Z;
-    struct
-    {
-        int i;
-    } A;
-} massive;

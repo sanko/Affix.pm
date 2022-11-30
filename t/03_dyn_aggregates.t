@@ -125,9 +125,10 @@ SKIP: {
             my $dsyms = dlSymsInit($lib_file);
             ok $dsyms,                   'dlSymsInit(...)';
             ok dlSymsCount($dsyms) > 10, 'dlSymsCount(...) > 10';  # linker might export extra stuff
-            for ( 1 .. dlSymsCount($dsyms) - 1 ) {
-                diag '  -> ' . dlSymsName( $dsyms, $_ );
-            }
+
+            #for ( 1 .. dlSymsCount($dsyms) - 1 ) {
+            #    diag '  -> ' . dlSymsName( $dsyms, $_ );
+            #}
             dlSymsCleanup($dsyms);
             is $dsyms, undef, 'dlSymsCleanup(...)';
         }
