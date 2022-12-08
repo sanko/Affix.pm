@@ -5,24 +5,24 @@ typedef struct
     void *ptr;
 } var_ptr;
 
-I32 get_pin(pTHX_ SV *sv, MAGIC *mg) {
+int get_pin(pTHX_ SV *sv, MAGIC *mg) {
     var_ptr *ptr = (var_ptr *)mg->mg_ptr;
     SV *val = ptr2sv(aTHX_ ptr->ptr, ptr->type);
     sv_setsv(sv, val);
-    return (I32)0;
+    return 0;
 }
 
-I32 set_pin(pTHX_ SV *sv, MAGIC *mg) {
+int set_pin(pTHX_ SV *sv, MAGIC *mg) {
     var_ptr *ptr = (var_ptr *)mg->mg_ptr;
     DCpointer val = SvOK(sv) ? sv2ptr(aTHX_ ptr->type, sv, ptr->ptr, 0, 0) : NULL;
-    return (I32)0;
+    return 0;
 }
 
-I32 free_pin(pTHX_ SV *sv, MAGIC *mg) {
+int free_pin(pTHX_ SV *sv, MAGIC *mg) {
     var_ptr *ptr = (var_ptr *)mg->mg_ptr;
     sv_2mortal(ptr->type);
     safefree(ptr);
-    return (I32)0;
+    return 0;
 }
 
 static MGVTBL pin_vtbl = {

@@ -21,6 +21,7 @@ use Archive::Tar;
 use IO::File;
 use IO::Uncompress::Unzip qw($UnzipError);
 use File::stat;
+use Config;
 #
 my $libver;
 my $CFLAGS
@@ -64,212 +65,27 @@ sub alien {
         my $pre   = Path::Tiny->cwd->child( qw[blib arch auto], $opt{meta}->name )->absolute;
         chdir $kid->absolute->stringify;
         warn Path::Tiny->cwd->absolute;
+        my $make = $Config{make};
         if ( $^O eq 'MSWin32' ) {
             rename 'Makefile.generic',             'Makefile';
             rename 'dyncall/Makefile.generic',     'dyncall/Makefile';
             rename 'dynload/Makefile.generic',     'dynload/Makefile';
             rename 'dyncallback/Makefile.generic', 'dyncallback/Makefile';
         }
-        my $configure
-            = ( $^O eq 'MSWin32' ? '.\configure.bat /tool-gcc /prefix ' : './configure --prefix=' );
+        my $configure = ( $^O eq 'MSWin32' ? '.\configure.bat /tool-gcc ' . ( '/make-' . $make ) :
+                './configure --prefix=' );
         warn($_) && system($_ )
             for grep {defined}
             $configure . $pre->absolute .
             ' CFLAGS="-fPIC ' . ( $opt{config}->get('osname') =~ /bsd/ ? '' : $CFLAGS ) .
             '" LDFLAGS="' .     ( $opt{config}->get('osname') =~ /bsd/ ? '' : $LDFLAGS ) . '"',
-            'make V=1' .
-            ( $^O eq 'MSWin32' ? ' CC=gcc VPATH=. PREFIX="' . $pre->absolute . '"' : '' ),
-            'make V=1' .
-            ( $^O eq 'MSWin32' ? ' CC=gcc VPATH=. PREFIX="' . $pre->absolute . '"' : '' ) .
+            $make .
+            ' V=1' . ( $^O eq 'MSWin32' ? ' CC=gcc VPATH=. PREFIX="' . $pre->absolute . '"' : '' ),
+            $make .
+            ' V=1' . ( $^O eq 'MSWin32' ? ' CC=gcc VPATH=. PREFIX="' . $pre->absolute . '"' : '' ) .
             ' install';
         warn Path::Tiny->cwd->absolute;
         chdir $cwd->stringify;
-    }
-    else {
-        my $http     = HTTP::Tiny->new;
-        my $response = $http->get('https://dyncall.org/download');
-        die sprintf "Failed to download %s: %s!", $response->{url}, $response->{content}
-            unless $response->{success};
-
-        #print "$response->{status} $response->{reason}\n";
-        #while ( my ( $k, $v ) = each %{ $response->{headers} } ) {
-        #    for ( ref $v eq 'ARRAY' ? @$v : $v ) {
-        #        print "$k: $_\n";
-        #    }
-        #}
-        #print $response->{content} if length $response->{content};
-        # https://dyncall.org/r1.2/dyncall-1.2-windows-xp-x64-r.zip
-        # https://dyncall.org/r1.2/dyncall-1.2-windows-xp-x86-r.zip
-        # https://dyncall.org/r1.2/dyncall-1.2-windows-10-arm64-r.zip
-        if ( $^O eq 'MSWin32' ) {    # Use prebuilt libs on Windows
-            my $x64  = $opt{config}->get('ptrsize') == 8;
-            my $plat = $x64 ? '64' : '86';
-            my %versions;
-            for my $url ( map { 'https://dyncall.org/' . $_ }
-                $response->{content}
-                =~ m[href="(.+/dyncall-\d\.\d+\-windows-xp-x${plat}(?:-r)?\.zip)"]g ) {
-                my ($version) = $url =~ m[-(\d+\.\d+)-windows];
-                $versions{$version} = $url;
-            }
-            for my $version ( reverse sort keys %versions ) {
-                $libver //= $version;
-
-             #printf "%s %s => %s\n", ($pick eq $version ? '*': ' '), $version, $versions{$version};
-            }
-
-            #ddx \@src;
-            # https://dyncall.org/r1.2/dyncall-1.2-windows-xp-x64-r.zip
-            # https://dyncall.org/r1.2/dyncall-1.2-windows-xp-x86-r.zip
-            # https://dyncall.org/r1.2/dyncall-1.2-windows-10-arm64-r.zip
-            my $filename = Path::Tiny->new( $versions{$libver} )->basename;
-            my $dest =    #Path::Tiny::tempdir( { realpath => 1 } );
-                Path::Tiny->cwd;
-            $response = $http->mirror( $versions{$libver}, $dest->child($filename), {} );
-            if ( $response->{success} ) {
-
-                #print $dest->child($filename) . " is up to date\n";
-                my $extract = $dest->child('extract');
-                my $output  = $dest->child('output');
-                my $ret     = unzip( $filename, $extract );
-                warn $ret;
-                my $pre = Path::Tiny->cwd->child( qw[blib arch auto], $opt{meta}->name )->absolute;
-
-                #$pre->mkpath;
-                for my $sub (qw[lib include]) {
-                    for my $kid ( $ret->child($sub)->children ) {
-                        $pre->child( $sub, $kid->basename )->parent->mkpath;
-                        $kid->copy( $pre->child( $sub, $kid->basename ) );
-                    }
-                }
-            }
-            else {
-                die sprintf 'Failed to download %s: %s!', $response->{url}, $response->{content}
-                    unless $response->{success};
-            }
-        }
-        else {    # Build from source on all other platforms
-            my %versions;
-            for my $url ( map { 'https://dyncall.org/' . $_ }
-                $response->{content} =~ m[href="(.+/dyncall-\d\.\d+\.tar\.gz)"]g ) {
-                my ($version) = $url =~ m[/r(\d\.\d+)/];
-                $versions{$version} = $url;
-            }
-            for my $version ( reverse sort keys %versions ) {
-                $libver //= $version;
-
-             #printf "%s %s => %s\n", ($pick eq $version ? '*': ' '), $version, $versions{$version};
-            }
-            my $filename = Path::Tiny->new( $versions{$libver} )->basename;
-            my $dest     = Path::Tiny::tempdir( { realpath => 1 } );
-            $dest     = Path::Tiny->cwd;
-            $response = $http->mirror( $versions{$libver}, $dest->child($filename), {} );
-
-            #use Data::Dump;
-            #ddx $response;
-            if ( $response->{success} ) {
-
-                #print $dest->child($filename) . " is up to date\n";
-                my $tar     = Archive::Tar->new;
-                my $extract = $dest->child('extract');
-                my $output  = $dest->child('output');
-                $tar->setcwd( $extract->stringify );
-                $tar->read( $dest->child($filename) );
-                $tar->extract;
-                my ($kid) = $extract->children;
-
-                #die;
-                my $cwd = Path::Tiny->cwd->absolute;
-                my $pre = Path::Tiny->cwd->child( qw[blib arch auto], $opt{meta}->name )->absolute;
-                chdir $kid->absolute->stringify;
-                warn($_) && system($_ )
-                    for './configure --prefix=' .
-                    $pre->absolute,    # . ' CFLAGS="-Ofast" LDFLAGS="-Ofast"',
-                    'make', 'make install';
-                chdir $cwd->stringify;
-            }
-            else {
-                die sprintf 'Failed to download %s: %s!', $response->{url}, $response->{content}
-                    unless $response->{success};
-            }
-        }
-    }
-}
-
-sub x_alien {
-    my (%opt) = @_;
-    die "Can't build xs files under --pureperl-only\n" if $opt{'pureperl-only'};
-    if ( -d Path::Tiny->cwd->child('dyncall') ) {
-        my ($kid) = Path::Tiny->cwd->child('dyncall');
-        my $cwd   = Path::Tiny->cwd->absolute->canonpath;
-        my $pre   = Path::Tiny->cwd->child( qw[blib arch auto], $opt{meta}->name )->absolute;
-        chdir $kid->absolute->canonpath;
-        warn Path::Tiny->cwd->absolute;
-        if ( $^O eq 'MSWin32' ) {
-
-            #rename 'Makefile.generic',             'Makefile';
-            #rename 'dyncall/Makefile.generic',     'dyncall/Makefile';
-            #rename 'dynload/Makefile.generic',     'dynload/Makefile';
-            #rename 'dyncallback/Makefile.generic', 'dyncallback/Makefile';
-            warn($_) && system($_ )
-                for 'configure.bat /target-x64 /tool-gcc /prefix ' .
-                $pre->absolute->canonpath,    # . ' CFLAGS="-Ofast" LDFLAGS="-Ofast"',
-                'gmake'    # V=1 CC=gcc VPATH=. PREFIX="' . $pre->absolute->canonpath . '"'
-                ;
-
-            # make room
-            $pre->child('lib')->absolute->mkpath;
-            $pre->child('include')->absolute->mkpath;
-
-# dyncall
-#system('robocopy "' . $kid->child('lib')->absolute->canonpath. '" "' .$pre->child('lib')->absolute->canonpath.
-#'" /e /z /j /y /q'
-#);
-            $kid->child( $_, 'lib' . $_ . '_s.a' )
-                ->copy( $pre->child( 'lib', 'lib' . $_ . '_s.a' )->absolute->canonpath )
-                for qw[dyncall dynload dyncallback];
-            $kid->child( 'dyncall', $_ . '.h' )
-                ->copy( $pre->child( 'include', $_ . '.h' )->absolute->canonpath )
-                for qw[dyncall_macros
-                dyncall_config
-                dyncall_types
-                dyncall
-                dyncall_signature
-                dyncall_value
-                dyncall_callf
-                dyncall_alloc];
-            $kid->child( 'dyncallback', $_ . '.h' )
-                ->copy( $pre->child( 'include', $_ . '.h' )->absolute->canonpath )
-                for qw[dyncall_thunk
-                dyncall_thunk_x86
-                dyncall_thunk_ppc32
-                dyncall_thunk_x64
-                dyncall_thunk_arm32
-                dyncall_thunk_arm64
-                dyncall_thunk_mips
-                dyncall_thunk_mips64
-                dyncall_thunk_ppc64
-                dyncall_thunk_sparc32
-                dyncall_thunk_sparc64
-                dyncall_args
-                dyncall_callback
-                ];
-            $kid->child( 'dynload', $_ . '.h' )
-                ->copy( $pre->child( 'include', $_ . '.h' )->absolute->canonpath )
-                for qw[
-                dynload
-                ];
-
-            # dynload
-            # dyncallback
-        }
-        else {
-            warn($_) && system($_ )
-                for './configure --prefix=' .
-                $pre->absolute->canonpath,    # . ' CFLAGS="-Ofast" LDFLAGS="-Ofast"',
-                'make V=1', 'make V=1 install';
-        }
-        warn Path::Tiny->cwd->absolute->canonpath;
-        chdir $cwd;
     }
     else {
         my $http     = HTTP::Tiny->new;
@@ -396,7 +212,7 @@ sub process_xs {
     ExtUtils::ParseXS::process_file(
         prototypes  => 1,
         linenumbers => 1,
-        'C++'       => 1,
+        'C++'       => 0,
         filename    => $source,
         prototypes  => 1,
         output      => $c_file
@@ -407,7 +223,7 @@ sub process_xs {
     my $pre     = Path::Tiny->cwd->child(qw[blib arch auto])->absolute;
     my $obj     = $builder->object_file($c_file);
     my $ob_file = $builder->compile(
-        'C++'        => 1,
+        'C++'        => 0,
         source       => $c_file,
         defines      => { VERSION => qq/"$version"/, XS_VERSION => qq/"$version"/ },
         include_dirs =>
