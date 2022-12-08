@@ -5,24 +5,24 @@ typedef struct
     void *ptr;
 } var_ptr;
 
-I32 get_pin(pTHX_ SV *sv, MAGIC *mg) {
+int get_pin(pTHX_ SV *sv, MAGIC *mg) {
     var_ptr *ptr = (var_ptr *)mg->mg_ptr;
     SV *val = ptr2sv(aTHX_ ptr->ptr, ptr->type);
     sv_setsv(sv, val);
-    return (I32)0;
+    return 0;
 }
 
-I32 set_pin(pTHX_ SV *sv, MAGIC *mg) {
+int set_pin(pTHX_ SV *sv, MAGIC *mg) {
     var_ptr *ptr = (var_ptr *)mg->mg_ptr;
     DCpointer val = SvOK(sv) ? sv2ptr(aTHX_ ptr->type, sv, ptr->ptr, 0, 0) : NULL;
-    return (I32)0;
+    return 0;
 }
 
-I32 free_pin(pTHX_ SV *sv, MAGIC *mg) {
+int free_pin(pTHX_ SV *sv, MAGIC *mg) {
     var_ptr *ptr = (var_ptr *)mg->mg_ptr;
     sv_2mortal(ptr->type);
     safefree(ptr);
-    return (I32)0;
+    return 0;
 }
 
 static MGVTBL pin_vtbl = {
@@ -561,13 +561,13 @@ XS_INTERNAL(Affix_call) {
     Call *call = (Call *)XSANY.any_ptr;
     if (call->reset) dcReset(MY_CXT.cvm);
     bool pointers = false;
-    /*
+
         warn("Calling at %s line %d", __FILE__, __LINE__);
         warn("%d items at %s line %d", items, __FILE__, __LINE__);
         warn("sig_len: %d at %s line %d", call->sig_len, __FILE__, __LINE__);
         warn("sig: %s at %s line %d", call->sig, __FILE__, __LINE__);
         warn("perl_sig: %s at %s line %d", call->perl_sig, __FILE__, __LINE__);
-    */
+
     if (call->sig_len != items) {
         if (call->sig_len < items) croak("Too many arguments");
         if (call->sig_len > items) croak("Not enough arguments");
