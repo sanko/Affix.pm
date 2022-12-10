@@ -48,6 +48,7 @@ subtest 'aggregates' => sub {
         A => Struct [ i => Int ],
         u => Union [ i => Int, structure => Struct [ ptr => Pointer [Void], l => Long ] ]
     ];
+    my $struct7 = Struct [ i => Int, Z => Str ];
     subtest 'structs' => sub {
         is sizeof($struct1), wrap( $lib, 's_struct1', [], Size_t )->(), 'sizeof(struct1)';
         is sizeof($struct2), wrap( $lib, 's_struct2', [], Size_t )->(), 'sizeof(struct2)';
@@ -60,6 +61,7 @@ subtest 'aggregates' => sub {
             is sizeof($struct6),    wrap( $lib, 's_struct6', [], Size_t )->(), 'sizeof(struct6)';
             is sizeof( massive() ), wrap( $lib, 's_massive', [], Size_t )->(), 'sizeof(massive)';
         }
+        is sizeof($struct7), wrap( $lib, 's_struct7', [], Size_t )->(), 'sizeof(struct7)';
     };
     subtest 'arrays' => sub {
         my $array1 = ArrayRef [ Struct [ d => Double, c => ArrayRef [ Int, 3 ] ], 3 ];

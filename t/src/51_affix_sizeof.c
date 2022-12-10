@@ -74,6 +74,13 @@ typedef struct
     char c;
 } struct6;
 
+typedef struct
+{
+    int i;
+    char *Z;
+
+} struct7;
+
 DLLEXPORT size_t s_struct1() {
     return sizeof(struct1);
 }
@@ -96,6 +103,9 @@ DLLEXPORT size_t s_struct6() {
     return sizeof(struct6);
 }
 
+DLLEXPORT size_t s_struct7() {
+    return sizeof(struct7);
+}
 //
 typedef struct
 {

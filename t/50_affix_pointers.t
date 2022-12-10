@@ -9,13 +9,32 @@ use t::lib::nativecall;
 use Config;
 $|++;
 #
-plan skip_all => q[You use *BSD. You don't like nice things.] if $^O =~ /bsd/i;
+#plan skip_all => q[You use *BSD. You don't like nice things.] if $^O =~ /bsd/i;
 #
 compile_test_lib('50_affix_pointers');
+#
+subtest 'cast' => sub {
+    subtest 'double' => sub {
+        my $ptr = Affix::cast( 50, Double );
+        isa_ok $ptr, 'Affix::Pointer';
+        is Affix::cast( $ptr, Double ), 50, 'Store and returned double in a pointer';
+    };
+    subtest 'struct with string pointer' => sub {
+        affix( 't/50_affix_pointers', 'demo', [ Struct [ i => Int, Z => Str, ] ] => Bool );
+        my $ptr = Affix::cast( { Z => 'Here. There. Everywhere.', i => 100 },
+            Struct [ i => Int, Z => Str ] );
+        ok demo( { Z => 'Here. There. Everywhere.', i => 100 } ),
+            'passed struct with string pointer';
+        isa_ok $ptr, 'Affix::Pointer';
+        is_deeply Affix::cast( $ptr, Struct [ b => Int, c => Str ] ),
+            { b => 100, c => 'Here. There. Everywhere.' }, 'Store and returned struct in a pointer';
+    };
+};
 #
 sub pointer_test : Native('t/50_affix_pointers') :
     Signature([Pointer[Double], ArrayRef [ Int, 5 ], Int, CodeRef [ [ Int, Int ] => Double ] ] => Double);
 sub dbl_ptr : Native('t/50_affix_pointers') : Signature([Pointer[Double]] => Str);
+#
 subtest 'scalar ref' => sub {
     my $ptr = 100;
     is dbl_ptr($ptr), 'one hundred', 'dbl_ptr($ptr) where $ptr == 100';
@@ -120,6 +139,8 @@ subtest struct => sub {
     ];
     diag 'sizeof in perl: ' . sizeof( massive() );
     sub massive_ptr : Native('t/50_affix_pointers') : Signature([] => Pointer[massive()]);
+    sub sptr : Native('t/50_affix_pointers') : Signature([Pointer[massive()]] => Bool);
+    ok sptr( { Z => 'Works!' } );
     my $ptr = massive_ptr();
     my $sv  = cast( $ptr, Pointer [ massive() ] );
     is $sv->{A}{i}, 50,                   'parsed pointer to sv and got .A.i [nested structs]';
