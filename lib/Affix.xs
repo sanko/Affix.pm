@@ -288,7 +288,7 @@ XS_INTERNAL(Types) {
     // PERL_UNUSED_VAR(ax); /* -Wall */
     // warn("Creating a new %s [ix == %c]", package, ix);
 
-    HV *RETVAL_HV = newHV_mortal();
+    HV *RETVAL_HV = newHV();
     //
     //  warn("ix == %c", ix);
     switch (ix) {
@@ -449,7 +449,9 @@ XS_INTERNAL(Types) {
     case DC_SIGCHAR_STRUCT:
     case DC_SIGCHAR_UNION: {
         if (items == 2) {
+            hv_stores(RETVAL_HV, "packed", boolSV(false));
             AV *fields = newAV();
+
             AV *fields_in = MUTABLE_AV(SvRV(ST(1)));
             size_t field_count = av_count(fields_in);
             if (field_count && field_count % 2) croak("Expected an even sized list");
@@ -460,19 +462,18 @@ XS_INTERNAL(Types) {
                 if (!SvPOK(key)) croak("Given name of '%s' is not a string", SvPV_nolen(key));
                 av_push(field, SvREFCNT_inc(key));
                 SV **value_ptr = av_fetch(fields_in, i + 1, 0);
-                SV *value = (*value_ptr);
-                if (!(sv_isobject(value) && sv_derived_from(value, "Affix::Type::Base")))
+                if (!(sv_isobject(*value_ptr) && sv_derived_from(*value_ptr, "Affix::Type::Base")))
                     croak("Given type for '%s' is not a subclass of Affix::Type::Base",
                           SvPV_nolen(key));
-                av_push(field, SvREFCNT_inc(value));
-                av_push(fields, (MUTABLE_SV(field)));
+                av_push(field, SvREFCNT_inc(*value_ptr));
+                SV *sv_field = (MUTABLE_SV(field));
+                av_push(fields, newRV(sv_field));
             }
-            hv_stores(RETVAL_HV, "fields", newRV_inc(MUTABLE_SV(fields)));
+            hv_stores(RETVAL_HV, "fields", newRV(MUTABLE_SV(fields)));
         }
         else
             croak("%s[...] expected an even a list of elements",
                   ix == DC_SIGCHAR_STRUCT ? "Struct" : "Union");
-        hv_stores(RETVAL_HV, "packed", sv_2mortal(boolSV(false)));
     } break;
     case DC_SIGCHAR_POINTER: {
         AV *fields = MUTABLE_AV(SvRV(ST(1)));
@@ -506,7 +507,7 @@ XS_INTERNAL(Types) {
         break;
     }
 
-    SV *self = newRV_inc_mortal(MUTABLE_SV(RETVAL_HV));
+    SV *self = newRV_inc(MUTABLE_SV(RETVAL_HV));
     ST(0) = sv_bless(self, gv_stashpv(package, GV_ADD));
     // SvREADONLY_on(self);
 
@@ -572,7 +573,6 @@ XS_INTERNAL(Affix_call) {
         if (call->sig_len > items) croak("Not enough arguments");
     }
     // warn("ping at %s line %d", __FILE__, __LINE__);
-
     DCaggr *agg;
     switch (call->ret) {
     case DC_SIGCHAR_AGGREGATE:
@@ -588,7 +588,6 @@ XS_INTERNAL(Affix_call) {
     }
     // dcArgPointer(pc, &o); // this ptr
     // dcCallAggr(pc, vtbl[VTBI_BASE+1], s, &returned);
-
     SV *value;
     SV *type;
     char _type;
@@ -818,9 +817,8 @@ XS_INTERNAL(Affix_call) {
             SV *field = *av_fetch(call->args, i, 0); // Make broad assumptions
             // DCaggr *agg = _aggregate(aTHX_ field);
             DCpointer ptr = safemalloc(_sizeof(aTHX_ field));
-            // static DCaggr *sv2ptr(pTHX_ SV *type, SV *data, DCpointer ptr, bool packed,
-            // size_t pos) {
             DCaggr *agg = sv2ptr(aTHX_ field, value, ptr, false, 0);
+            // DumpHex(ptr, _sizeof(aTHX_ field));
             dcArgAggr(MY_CXT.cvm, agg, ptr);
         } break;
         case DC_SIGCHAR_ENUM:
@@ -1047,9 +1045,12 @@ XS_INTERNAL(Affix_DESTROY) {
         cv = newXSproto_portable(form("Affix::%s", #NAME), Types_wrapper, file, ";$");             \
         Newx(XSANY.any_ptr, strlen(package) + 1, char);                                            \
         Copy(package, XSANY.any_ptr, strlen(package) + 1, char);                                   \
-        cv = newXSproto_portable(form("%s::new", package), Types /*_#NAME*/, file, "$");           \
-        safefree(XSANY.any_ptr);                                                                   \
-        XSANY.any_i32 = (int)SIGCHAR;                                                              \
+        cv = get_cv(form("%s::new", package), 0); /* Allow type constructors to be overridden */   \
+        if (cv == NULL) {                                                                          \
+            cv = newXSproto_portable(form("%s::new", package), Types /*_#NAME*/, file, "$");       \
+            safefree(XSANY.any_ptr);                                                               \
+            XSANY.any_i32 = (int)SIGCHAR;                                                          \
+        }                                                                                          \
         export_function("Affix", #NAME, "types");                                                  \
         /*warn("Exporting %s to Affix q[:types]", NAME);*/                                         \
         /* Int->sig == 'i'; Struct[Int, Float]->sig == '{if}' */                                   \
@@ -1451,7 +1452,7 @@ CODE :
     MY_CXT_CLONE;
 
 void
-DUMP_IT(SV * sv)
+sv_dump(SV * sv)
 CODE :
     sv_dump(sv);
 
@@ -1554,7 +1555,7 @@ HERE
 size_t
 sizeof(SV * type)
 CODE:
-    RETVAL = _sizeof(aTHX_ MUTABLE_SV(type));
+    RETVAL = _sizeof(aTHX_ type);
 OUTPUT:
     RETVAL
 
@@ -1567,10 +1568,12 @@ CODE:
         HV *href = MUTABLE_HV(SvRV(type));
         SV **fields_ref = hv_fetch(href, "fields", 6, 0);
         AV *fields = MUTABLE_AV(SvRV(*fields_ref));
-        size_t field_count = av_count(MUTABLE_AV(fields));
+        size_t field_count = av_count(fields);
         for (size_t i = 0; i < field_count; ++i) {
-            AV *av_field = MUTABLE_AV(*av_fetch(fields, i, 0));
-            if (!strcmp(SvPV_nolen(*av_fetch(av_field, 0, 0)), field)) {
+            AV *av_field = MUTABLE_AV(SvRV(*av_fetch(fields, i, 0)));
+            SV *sv_field = *av_fetch(av_field, 0, 0);
+            char *this_field = SvPV_nolen(sv_field);
+            if (!strcmp(this_field, field)) {
                 RETVAL = _offsetof(aTHX_ * av_fetch(av_field, 1, 0));
                 break;
             }

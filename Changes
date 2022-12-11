@@ -2,6 +2,9 @@ Revision history for Perl extension Affix.pm and Dyn.pm
 
 {{$NEXT}}
 
+    - Strings inside of structs are not correct
+    - Expose offsetof( ... )
+
 0.04 2022-12-07T00:30:25Z
 
     - Affix.pm is born

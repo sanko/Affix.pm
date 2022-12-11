@@ -41,6 +41,8 @@ typedef massive => Struct [
     A => Struct [ i => Int ],
     u => Union [ i => Int, structure => Struct [ ptr => Pointer [Void], l => Long ] ]
 ];
+use Data::Dumper;
+diag Dumper massive();
 subtest 'aggregates' => sub {
     my $struct1 = Struct [ c => ArrayRef [ Char, 3 ] ];
     my $struct2 = Struct [ c => ArrayRef [ Int,  3 ] ];
@@ -50,7 +52,11 @@ subtest 'aggregates' => sub {
     my $struct6 = Struct [ y => $struct3, s => $struct4, c => Char ];
     my $struct7 = Struct [ i => Int, Z => Str ];
     subtest 'structs' => sub {
+        use Data::Dumper;
+        diag Dumper $struct1;
+        diag 'here';
         is sizeof($struct1), wrap( $lib, 's_struct1', [], Size_t )->(), 'sizeof(struct1)';
+        diag 'here';
         is sizeof($struct2), wrap( $lib, 's_struct2', [], Size_t )->(), 'sizeof(struct2)';
         is sizeof($struct3), wrap( $lib, 's_struct3', [], Size_t )->(), 'sizeof(struct3)';
         is sizeof($struct4), wrap( $lib, 's_struct4', [], Size_t )->(), 'sizeof(struct4)';
@@ -61,6 +67,7 @@ subtest 'aggregates' => sub {
             is sizeof($struct6),    wrap( $lib, 's_struct6', [], Size_t )->(), 'sizeof(struct6)';
             is sizeof( massive() ), wrap( $lib, 's_massive', [], Size_t )->(), 'sizeof(massive)';
         }
+        diag Dumper $struct7;
         is sizeof($struct7), wrap( $lib, 's_struct7', [], Size_t )->(), 'sizeof(struct7)';
     };
     subtest 'arrays' => sub {

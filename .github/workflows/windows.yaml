@@ -90,13 +90,6 @@ jobs:
         shell: cmd
         run: |
              set PATH=C:\Users\runneradmin\perl5\perlbrew\bin;%PATH%
-
-             cpanm --test-only -v --mirror http://cpan.cpantesters.org/ .
-
-      - name: "Testing on chached perl ${{ matrix.os }}-${{ matrix.perl }}(${{ matrix.flags }})"
-        if: ${{ matrix.os != 'windows-latest' }}
-        shell: bash
-        run: |
-             source ~/perl5/perlbrew/etc/bashrc
-
-             cpanm --test-only -v --mirror http://cpan.cpantesters.org/ .
+             perl -V
+             cpanm --installdeps -v -n --mirror http://cpan.cpantesters.org/ .
+             cpanm --test-only -v .
