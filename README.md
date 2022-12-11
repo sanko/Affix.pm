@@ -7,13 +7,19 @@ Affix - A Foreign Function Interface eXtension
 
 ```perl
 use Affix;
-sub pow : Native(get_lib) : Signature([Double, Double] => Double);
-print pow( 2, 10 );    # 1024
 
-sub get_lib {
-    return 'ntdll' if $^O eq 'MSWin32';
-    return undef;
-}
+affix( 'libfoo', 'bar', [Str, Float] => Double );
+print bar( 'Baz', 3.14 );
+
+# or
+
+my $bar = wrap( 'libfoo', 'bar', [Str, Float] => Double );
+print $bar->( 'Baz', 3.14 );
+
+# or
+
+sub bar : Native('libfoo') : Signature([Str, Float] => Double);
+print bar( 'Baz', 10.9 );
 ```
 
 # DESCRIPTION
