@@ -140,7 +140,7 @@ const char *file = __FILE__;
 
 /* api wrapping utils */
 
-#define MY_CXT_KEY "Dyn::_guts" XS_VERSION
+#define MY_CXT_KEY "Affix::_guts" XS_VERSION
 
 typedef struct
 {

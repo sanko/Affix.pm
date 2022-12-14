@@ -1750,3 +1750,243 @@ BOOT :
     set_isa("Affix::Pointer", "Dyn::Call::Pointer");
 }
 // clang-format off
+
+MODULE = Affix PACKAGE = Affix::Pointer
+
+FALLBACK : TRUE
+
+IV
+plus(DCpointer ptr, IV other, IV swap)
+OVERLOAD: +
+CODE:
+    // clang-format on
+    RETVAL = PTR2IV(ptr) + other;
+// clang-format off
+OUTPUT:
+    RETVAL
+
+IV
+minus(DCpointer ptr, IV other, IV swap)
+OVERLOAD: -
+CODE:
+    // clang-format on
+    RETVAL = PTR2IV(ptr) - other;
+// clang-format off
+OUTPUT:
+    RETVAL
+
+char *
+as_string(DCpointer ptr, ...)
+OVERLOAD: \"\"
+CODE:
+    // clang-format on
+    RETVAL = (char *)ptr;
+// clang-format off
+OUTPUT:
+    RETVAL
+
+SV *
+raw(ptr, size_t size, bool utf8 = false)
+CODE:
+// clang-format on
+{
+    DCpointer ptr;
+    if (sv_derived_from(ST(0), "Dyn::Call::Pointer")) {
+        IV tmp = SvIV((SV *)SvRV(ST(0)));
+        ptr = INT2PTR(DCpointer, tmp);
+    }
+    else if (SvIOK(ST(0))) {
+        IV tmp = SvIV((SV *)(ST(0)));
+        ptr = INT2PTR(DCpointer, tmp);
+    }
+    else
+        croak("dest is not of type Dyn::Call::Pointer");
+    RETVAL = newSVpvn_utf8((const char *)ptr, size, utf8 ? 1 : 0);
+}
+// clang-format off
+OUTPUT:
+    RETVAL
+
+void
+dump(ptr, size_t size)
+CODE:
+// clang-format on
+{
+    DCpointer ptr;
+    if (sv_derived_from(ST(0), "Dyn::Call::Pointer")) {
+        IV tmp = SvIV((SV *)SvRV(ST(0)));
+        ptr = INT2PTR(DCpointer, tmp);
+    }
+    else if (SvIOK(ST(0))) {
+        IV tmp = SvIV((SV *)(ST(0)));
+        ptr = INT2PTR(DCpointer, tmp);
+    }
+    else
+        croak("dest is not of type Dyn::Call::Pointer");
+}
+//clang-format off
+
+BOOT:
+// clang-format on
+{
+    HV *stash = gv_stashpv("Affix", 0);
+    // Supported Calling Convention Modes
+    newCONSTSUB(stash, "DC_CALL_C_DEFAULT", newSViv(DC_CALL_C_DEFAULT));
+    newCONSTSUB(stash, "DC_CALL_C_ELLIPSIS", newSViv(DC_CALL_C_ELLIPSIS));
+    newCONSTSUB(stash, "DC_CALL_C_ELLIPSIS_VARARGS", newSViv(DC_CALL_C_ELLIPSIS_VARARGS));
+    newCONSTSUB(stash, "DC_CALL_C_X86_CDECL", newSViv(DC_CALL_C_X86_CDECL));
+    newCONSTSUB(stash, "DC_CALL_C_X86_WIN32_STD", newSViv(DC_CALL_C_X86_WIN32_STD));
+    newCONSTSUB(stash, "DC_CALL_C_X86_WIN32_FAST_MS", newSViv(DC_CALL_C_X86_WIN32_FAST_MS));
+    newCONSTSUB(stash, "DC_CALL_C_X86_WIN32_FAST_GNU", newSViv(DC_CALL_C_X86_WIN32_FAST_GNU));
+    newCONSTSUB(stash, "DC_CALL_C_X86_WIN32_THIS_MS", newSViv(DC_CALL_C_X86_WIN32_THIS_MS));
+    newCONSTSUB(stash, "DC_CALL_C_X86_WIN32_THIS_GNU", newSViv(DC_CALL_C_X86_WIN32_THIS_GNU));
+    newCONSTSUB(stash, "DC_CALL_C_X64_WIN64", newSViv(DC_CALL_C_X64_WIN64));
+    newCONSTSUB(stash, "DC_CALL_C_X64_SYSV", newSViv(DC_CALL_C_X64_SYSV));
+    newCONSTSUB(stash, "DC_CALL_C_PPC32_DARWIN", newSViv(DC_CALL_C_PPC32_DARWIN));
+    newCONSTSUB(stash, "DC_CALL_C_PPC32_OSX", newSViv(DC_CALL_C_PPC32_OSX));
+    newCONSTSUB(stash, "DC_CALL_C_ARM_ARM_EABI", newSViv(DC_CALL_C_ARM_ARM_EABI));
+    newCONSTSUB(stash, "DC_CALL_C_ARM_THUMB_EABI", newSViv(DC_CALL_C_ARM_THUMB_EABI));
+    newCONSTSUB(stash, "DC_CALL_C_ARM_ARMHF", newSViv(DC_CALL_C_ARM_ARMHF));
+    newCONSTSUB(stash, "DC_CALL_C_MIPS32_EABI", newSViv(DC_CALL_C_MIPS32_EABI));
+    newCONSTSUB(stash, "DC_CALL_C_MIPS32_PSPSDK", newSViv(DC_CALL_C_MIPS32_PSPSDK));
+    newCONSTSUB(stash, "DC_CALL_C_PPC32_SYSV", newSViv(DC_CALL_C_PPC32_SYSV));
+    newCONSTSUB(stash, "DC_CALL_C_PPC32_LINUX", newSViv(DC_CALL_C_PPC32_LINUX));
+    newCONSTSUB(stash, "DC_CALL_C_ARM_ARM", newSViv(DC_CALL_C_ARM_ARM));
+    newCONSTSUB(stash, "DC_CALL_C_ARM_THUMB", newSViv(DC_CALL_C_ARM_THUMB));
+    newCONSTSUB(stash, "DC_CALL_C_MIPS32_O32", newSViv(DC_CALL_C_MIPS32_O32));
+    newCONSTSUB(stash, "DC_CALL_C_MIPS64_N32", newSViv(DC_CALL_C_MIPS64_N32));
+    newCONSTSUB(stash, "DC_CALL_C_MIPS64_N64", newSViv(DC_CALL_C_MIPS64_N64));
+    newCONSTSUB(stash, "DC_CALL_C_X86_PLAN9", newSViv(DC_CALL_C_X86_PLAN9));
+    newCONSTSUB(stash, "DC_CALL_C_SPARC32", newSViv(DC_CALL_C_SPARC32));
+    newCONSTSUB(stash, "DC_CALL_C_SPARC64", newSViv(DC_CALL_C_SPARC64));
+    newCONSTSUB(stash, "DC_CALL_C_ARM64", newSViv(DC_CALL_C_ARM64));
+    newCONSTSUB(stash, "DC_CALL_C_PPC64", newSViv(DC_CALL_C_PPC64));
+    newCONSTSUB(stash, "DC_CALL_C_PPC64_LINUX", newSViv(DC_CALL_C_PPC64_LINUX));
+    newCONSTSUB(stash, "DC_CALL_SYS_DEFAULT", newSViv(DC_CALL_SYS_DEFAULT));
+    newCONSTSUB(stash, "DC_CALL_SYS_X86_INT80H_LINUX", newSViv(DC_CALL_SYS_X86_INT80H_LINUX));
+    newCONSTSUB(stash, "DC_CALL_SYS_X86_INT80H_BSD", newSViv(DC_CALL_SYS_X86_INT80H_BSD));
+    newCONSTSUB(stash, "DC_CALL_SYS_PPC32", newSViv(DC_CALL_SYS_PPC32));
+    newCONSTSUB(stash, "DC_CALL_SYS_PPC64", newSViv(DC_CALL_SYS_PPC64));
+
+    // Signature characters
+    newCONSTSUB(stash, "DC_SIGCHAR_VOID", newSVpv(form("%c", DC_SIGCHAR_VOID), 1));
+    newCONSTSUB(stash, "DC_SIGCHAR_BOOL", newSVpv(form("%c", DC_SIGCHAR_BOOL), 1));
+    newCONSTSUB(stash, "DC_SIGCHAR_CHAR", newSVpv(form("%c", DC_SIGCHAR_CHAR), 1));
+    newCONSTSUB(stash, "DC_SIGCHAR_UCHAR", newSVpv(form("%c", DC_SIGCHAR_UCHAR), 1));
+    newCONSTSUB(stash, "DC_SIGCHAR_SHORT", newSVpv(form("%c", DC_SIGCHAR_SHORT), 1));
+    newCONSTSUB(stash, "DC_SIGCHAR_USHORT", newSVpv(form("%c", DC_SIGCHAR_USHORT), 1));
+    newCONSTSUB(stash, "DC_SIGCHAR_INT", newSVpv(form("%c", DC_SIGCHAR_INT), 1));
+    newCONSTSUB(stash, "DC_SIGCHAR_UINT", newSVpv(form("%c", DC_SIGCHAR_UINT), 1));
+    newCONSTSUB(stash, "DC_SIGCHAR_LONG", newSVpv(form("%c", DC_SIGCHAR_LONG), 1));
+    newCONSTSUB(stash, "DC_SIGCHAR_ULONG", newSVpv(form("%c", DC_SIGCHAR_ULONG), 1));
+    newCONSTSUB(stash, "DC_SIGCHAR_LONGLONG", newSVpv(form("%c", DC_SIGCHAR_LONGLONG), 1));
+    newCONSTSUB(stash, "DC_SIGCHAR_ULONGLONG", newSVpv(form("%c", DC_SIGCHAR_ULONGLONG), 1));
+    newCONSTSUB(stash, "DC_SIGCHAR_FLOAT", newSVpv(form("%c", DC_SIGCHAR_FLOAT), 1));
+    newCONSTSUB(stash, "DC_SIGCHAR_DOUBLE", newSVpv(form("%c", DC_SIGCHAR_DOUBLE), 1));
+    newCONSTSUB(stash, "DC_SIGCHAR_POINTER", newSVpv(form("%c", DC_SIGCHAR_POINTER), 1));
+    newCONSTSUB(stash, "DC_SIGCHAR_STRING",
+                newSVpv(form("%c", DC_SIGCHAR_STRING),
+                        1)); /* in theory same as 'p', but convenient to disambiguate */
+    newCONSTSUB(stash, "DC_SIGCHAR_AGGREGATE", newSVpv(form("%c", DC_SIGCHAR_AGGREGATE), 1));
+    newCONSTSUB(stash, "DC_SIGCHAR_ENDARG",
+                newSVpv(form("%c", DC_SIGCHAR_ENDARG), 1)); /* also works for end struct */
+
+    /* calling convention / mode signatures */
+    newCONSTSUB(stash, "DC_SIGCHAR_CC_PREFIX", newSVpv(form("%c", DC_SIGCHAR_CC_PREFIX), 1));
+    newCONSTSUB(stash, "DC_SIGCHAR_CC_DEFAULT", newSVpv(form("%c", DC_SIGCHAR_CC_DEFAULT), 1));
+    newCONSTSUB(stash, "DC_SIGCHAR_CC_THISCALL", newSVpv(form("%c", DC_SIGCHAR_CC_THISCALL), 1));
+    newCONSTSUB(stash, "DC_SIGCHAR_CC_ELLIPSIS", newSVpv(form("%c", DC_SIGCHAR_CC_ELLIPSIS), 1));
+    newCONSTSUB(stash, "DC_SIGCHAR_CC_ELLIPSIS_VARARGS",
+                newSVpv(form("%c", DC_SIGCHAR_CC_ELLIPSIS_VARARGS), 1));
+    newCONSTSUB(stash, "DC_SIGCHAR_CC_CDECL", newSVpv(form("%c", DC_SIGCHAR_CC_CDECL), 1));
+    newCONSTSUB(stash, "DC_SIGCHAR_CC_STDCALL", newSVpv(form("%c", DC_SIGCHAR_CC_STDCALL), 1));
+    newCONSTSUB(stash, "DC_SIGCHAR_CC_FASTCALL_MS",
+                newSVpv(form("%c", DC_SIGCHAR_CC_FASTCALL_MS), 1));
+    newCONSTSUB(stash, "DC_SIGCHAR_CC_FASTCALL_GNU",
+                newSVpv(form("%c", DC_SIGCHAR_CC_FASTCALL_GNU), 1));
+    newCONSTSUB(stash, "DC_SIGCHAR_CC_THISCALL_MS",
+                newSVpv(form("%c", DC_SIGCHAR_CC_THISCALL_MS), 1));
+    newCONSTSUB(stash, "DC_SIGCHAR_CC_THISCALL_GNU",
+                newSVpv(form("%c", DC_SIGCHAR_CC_THISCALL_GNU), 1));
+    newCONSTSUB(stash, "DC_SIGCHAR_CC_ARM_ARM", newSVpv(form("%c", DC_SIGCHAR_CC_ARM_ARM), 1));
+    newCONSTSUB(stash, "DC_SIGCHAR_CC_ARM_THUMB", newSVpv(form("%c", DC_SIGCHAR_CC_ARM_THUMB), 1));
+    newCONSTSUB(stash, "DC_SIGCHAR_CC_SYSCALL", newSVpv(form("%c", DC_SIGCHAR_CC_SYSCALL), 1));
+
+    // Error codes
+    newCONSTSUB(stash, "DC_ERROR_NONE", newSViv(DC_ERROR_NONE));
+    newCONSTSUB(stash, "DC_ERROR_UNSUPPORTED_MODE", newSViv(DC_ERROR_UNSUPPORTED_MODE));
+
+    export_function("Affix", "DC_CALL_C_DEFAULT", "vars");
+    export_function("Affix", "DC_CALL_C_ELLIPSIS", "vars");
+    export_function("Affix", "DC_CALL_C_ELLIPSIS_VARARGS", "vars");
+    export_function("Affix", "DC_CALL_C_X86_CDECL", "vars");
+    export_function("Affix", "DC_CALL_C_X86_WIN32_STD", "vars");
+    export_function("Affix", "DC_CALL_C_X86_WIN32_FAST_MS", "vars");
+    export_function("Affix", "DC_CALL_C_X86_WIN32_FAST_GNU", "vars");
+    export_function("Affix", "DC_CALL_C_X86_WIN32_THIS_MS", "vars");
+    export_function("Affix", "DC_CALL_C_X86_WIN32_THIS_GNU", "vars");
+    export_function("Affix", "DC_CALL_C_X64_WIN64", "vars");
+    export_function("Affix", "DC_CALL_C_X64_SYSV", "vars");
+    export_function("Affix", "DC_CALL_C_PPC32_DARWIN", "vars");
+    export_function("Affix", "DC_CALL_C_PPC32_OSX", "vars");
+    export_function("Affix", "DC_CALL_C_ARM_ARM_EABI", "vars");
+    export_function("Affix", "DC_CALL_C_ARM_THUMB_EABI", "vars");
+    export_function("Affix", "DC_CALL_C_ARM_ARMHF", "vars");
+    export_function("Affix", "DC_CALL_C_MIPS32_EABI", "vars");
+    export_function("Affix", "DC_CALL_C_MIPS32_PSPSDK", "vars");
+    export_function("Affix", "DC_CALL_C_PPC32_SYSV", "vars");
+    export_function("Affix", "DC_CALL_C_PPC32_LINUX", "vars");
+    export_function("Affix", "DC_CALL_C_ARM_ARM", "vars");
+    export_function("Affix", "DC_CALL_C_ARM_THUMB", "vars");
+    export_function("Affix", "DC_CALL_C_MIPS32_O32", "vars");
+    export_function("Affix", "DC_CALL_C_MIPS64_N32", "vars");
+    export_function("Affix", "DC_CALL_C_MIPS64_N64", "vars");
+    export_function("Affix", "DC_CALL_C_X86_PLAN9", "vars");
+    export_function("Affix", "DC_CALL_C_SPARC32", "vars");
+    export_function("Affix", "DC_CALL_C_SPARC64", "vars");
+    export_function("Affix", "DC_CALL_C_ARM64", "vars");
+    export_function("Affix", "DC_CALL_C_PPC64", "vars");
+    export_function("Affix", "DC_CALL_C_PPC64_LINUX", "vars");
+    export_function("Affix", "DC_CALL_SYS_DEFAULT", "vars");
+    export_function("Affix", "DC_CALL_SYS_X86_INT80H_LINUX", "vars");
+    export_function("Affix", "DC_CALL_SYS_X86_INT80H_BSD", "vars");
+    export_function("Affix", "DC_CALL_SYS_PPC32", "vars");
+    export_function("Affix", "DC_CALL_SYS_PPC64", "vars");
+
+    export_function("Affix", "DC_ERROR_NONE", "vars");
+    export_function("Affix", "DC_ERROR_UNSUPPORTED_MODE", "vars");
+
+    export_function("Affix", "DC_SIGCHAR_VOID", "sigchar");
+    export_function("Affix", "DC_SIGCHAR_BOOL", "sigchar");
+    export_function("Affix", "DC_SIGCHAR_CHAR", "sigchar");
+    export_function("Affix", "DC_SIGCHAR_UCHAR", "sigchar");
+    export_function("Affix", "DC_SIGCHAR_SHORT", "sigchar");
+    export_function("Affix", "DC_SIGCHAR_USHORT", "sigchar");
+    export_function("Affix", "DC_SIGCHAR_INT", "sigchar");
+    export_function("Affix", "DC_SIGCHAR_UINT", "sigchar");
+    export_function("Affix", "DC_SIGCHAR_LONG", "sigchar");
+    export_function("Affix", "DC_SIGCHAR_ULONG", "sigchar");
+    export_function("Affix", "DC_SIGCHAR_LONGLONG", "sigchar");
+    export_function("Affix", "DC_SIGCHAR_ULONGLONG", "sigchar");
+    export_function("Affix", "DC_SIGCHAR_FLOAT", "sigchar");
+    export_function("Affix", "DC_SIGCHAR_DOUBLE", "sigchar");
+    export_function("Affix", "DC_SIGCHAR_POINTER", "sigchar");
+    export_function("Affix", "DC_SIGCHAR_STRING", "sigchar");
+    export_function("Affix", "DC_SIGCHAR_STRUCT", "sigchar");
+    export_function("Affix", "DC_SIGCHAR_ENDARG", "sigchar");
+    export_function("Affix", "DC_SIGCHAR_CC_PREFIX", "sigchar");
+    export_function("Affix", "DC_SIGCHAR_CC_DEFAULT", "sigchar");
+    export_function("Affix", "DC_SIGCHAR_CC_ELLIPSIS", "sigchar");
+    export_function("Affix", "DC_SIGCHAR_CC_ELLIPSIS_VARARGS", "sigchar");
+    export_function("Affix", "DC_SIGCHAR_CC_CDECL", "sigchar");
+    export_function("Affix", "DC_SIGCHAR_CC_STDCALL", "sigchar");
+    export_function("Affix", "DC_SIGCHAR_CC_THISCALL", "sigchar");
+    export_function("Affix", "DC_SIGCHAR_CC_FASTCALL_MS", "sigchar");
+    export_function("Affix", "DC_SIGCHAR_CC_FASTCALL_GNU", "sigchar");
+    export_function("Affix", "DC_SIGCHAR_CC_THISCALL_MS", "sigchar");
+    export_function("Affix", "DC_SIGCHAR_CC_THISCALL_GNU", "sigchar");
+    export_function("Affix", "DC_SIGCHAR_CC_ARM_ARM", "sigchar");
+    export_function("Affix", "DC_SIGCHAR_CC_ARM_THUMB", "sigchar");
+    export_function("Affix", "DC_SIGCHAR_CC_SYSCALL", "sigchar");
+    export_function("Affix", "DEFAULT_ALIGNMENT", "vars");
+}
