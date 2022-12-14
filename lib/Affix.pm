@@ -268,38 +268,6 @@ package Affix 0.05 {    # 'FFI' is my middle name!
         return $_lib_cache->{ $name . ';' . ( $version // '' ) }
             // Carp::croak( 'Cannot locate symbol: ' . $name );
     }
-
-    package Affix::Type::Struct {
-
-        sub group_by ($@) {
-            my $n     = shift;
-            my @array = @_;
-            my @groups;
-            push @groups, [ splice @array, 0, $n ] while @array;
-            return @groups;
-        }
-
-        sub newd {
-            my ( $package, $fields ) = @_;
-            bless { fields => [ group_by( 2, @$fields ) ], packed => !1 }, $package;
-        }
-    }
-
-    package Affix::Type::Union {
-
-        sub group_by ($@) {
-            my $n     = shift;
-            my @array = @_;
-            my @groups;
-            push @groups, [ splice @array, 0, $n ] while @array;
-            return @groups;
-        }
-
-        sub newm {
-            my ( $package, $fields ) = @_;
-            bless { fields => [ group_by( 2, @$fields ) ], packed => !1 }, $package;
-        }
-    }
 };
 1;
 __END__
