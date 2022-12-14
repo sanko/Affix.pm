@@ -8,10 +8,10 @@ package Affix 0.05 {    # 'FFI' is my middle name!
     use Config;
     use Sub::Util qw[subname];
     use Text::ParseWords;
-    use Carp      qw[];
-    use vars      qw[@EXPORT_OK @EXPORT %EXPORT_TAGS];
-    use Dyn::Call qw[:sigchar];
+    use Carp qw[];
+    use vars qw[@EXPORT_OK @EXPORT %EXPORT_TAGS];
 
+    #use Dyn::Call qw[:sigchar];
     #use Attribute::Handlers;
     #no warnings 'redefine';
     use XSLoader;

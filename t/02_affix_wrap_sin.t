@@ -1,8 +1,7 @@
 use strict;
 use warnings;
 use lib '../lib', '../blib/arch', '../blib/lib', 'blib/arch', 'blib/lib';
-use Affix;
-use Dyn::Call qw[:sigchar];
+use Affix qw[:all];
 use Test::More;
 use Config;
 $|++;

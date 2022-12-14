@@ -2,7 +2,7 @@ use strict;
 use Test::More 0.98;
 BEGIN { chdir '../' if !-d 't'; }
 use lib '../lib', '../blib/arch', '../blib/lib', 'blib/arch', 'blib/lib', '../../', '.';
-use Dyn::Call qw[:memory];
+use Affix qw[:memory];
 $|++;
 #
 plan skip_all => q[You use *BSD. You don't like nice things.] if $^O =~ /bsd/i;
@@ -34,14 +34,14 @@ subtest 'memset' => sub {
 };
 subtest 'memcpy' => sub {
     my $source = calloc( 30, 1 );
-    isa_ok $source, 'Dyn::Call::Pointer', '$source';
+    isa_ok $source, 'Affix::Pointer', '$source';
     memcpy( $source, 'once upon a midnight dreary...', 30 );
     my $dest = calloc( 4, 1 );
-    isa_ok $dest, 'Dyn::Call::Pointer', '$dest';
+    isa_ok $dest, 'Affix::Pointer', '$dest';
     memcpy( $dest, $source, 4 );
     my @expectations = qw[o n c e];
     for my $n ( 0 .. 3 ) {
-        is Dyn::Call::Pointer::raw( $dest + $n, 1 ), $expectations[$n], $expectations[$n];
+        is Affix::Pointer::raw( $dest + $n, 1 ), $expectations[$n], $expectations[$n];
     }
     free $dest;
     is $dest, undef, 'freed $dest';
@@ -50,7 +50,7 @@ subtest 'memcpy' => sub {
 };
 subtest 'memmove' => sub {
     my $mem = calloc( 10, 1 );
-    isa_ok $mem, 'Dyn::Call::Pointer', '$mem = calloc( 10, 1 )';
+    isa_ok $mem, 'Affix::Pointer', '$mem = calloc( 10, 1 )';
     is $mem->raw(10), "\0" x 10, 'new pointer is NULL filled';
     diag 'memcpy( $mem, "1234567890", 10 );';
     memcpy( $mem, "1234567890", 10 );
@@ -63,7 +63,7 @@ subtest 'memmove' => sub {
 };
 subtest 'stringify' => sub {
     my $mem = calloc( 12, 1 );
-    isa_ok $mem, 'Dyn::Call::Pointer', '$mem = calloc( 12, 1 )';
+    isa_ok $mem, 'Affix::Pointer', '$mem = calloc( 12, 1 )';
     is $mem->raw(10), "\0" x 10, 'new pointer is NULL filled';
     diag 'memcpy( $mem, "1234567890", 10 );';
     memcpy( $mem, "1234567890", 10 );
@@ -73,7 +73,7 @@ subtest 'stringify' => sub {
 };
 subtest 'offsets' => sub {
     my $mem = calloc( 12, 1 );
-    isa_ok $mem, 'Dyn::Call::Pointer', '$mem = calloc( 12, 1 )';
+    isa_ok $mem, 'Affix::Pointer', '$mem = calloc( 12, 1 )';
     is $mem->raw(10), "\0" x 10, 'new pointer is NULL filled';
     diag 'memcpy( $mem, "1234567890", 10 );';
     memcpy( $mem,     "1234567890", 10 );
