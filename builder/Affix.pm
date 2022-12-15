@@ -65,20 +65,20 @@ sub alien {
         chdir $kid->absolute->stringify;
         warn Path::Tiny->cwd->absolute;
         my $make = 'make';
+        my $configure
+            = './configure --prefix=' . $pre->absolute . ' CFLAGS="-fPIC ' .
+            ( $opt{config}->get('osname') =~ /bsd/ ? '' : $CFLAGS ) . '" LDFLAGS="' .
+            ( $opt{config}->get('osname') =~ /bsd/ ? '' : $LDFLAGS ) . '"';
         if ( $^O eq 'MSWin32' ) {
-            $make = 'nmake' unless system 'nmake -V';
+            $make      = 'nmake' if !system qw[nmake -V];
+            $configure = '.\configure.bat /tool-gcc /make-' . $make;
             rename 'Makefile.generic',             'Makefile';
             rename 'dyncall/Makefile.generic',     'dyncall/Makefile';
             rename 'dynload/Makefile.generic',     'dynload/Makefile';
             rename 'dyncallback/Makefile.generic', 'dyncallback/Makefile';
         }
-        my $configure = ( $^O eq 'MSWin32' ? '.\configure.bat /tool-gcc /prefix /make-' . $make :
-                './configure --prefix=' );
         warn($_) && system($_ )
-            for grep {defined}
-            $configure . $pre->absolute .
-            ' CFLAGS="-fPIC ' . ( $opt{config}->get('osname') =~ /bsd/ ? '' : $CFLAGS ) .
-            '" LDFLAGS="' .     ( $opt{config}->get('osname') =~ /bsd/ ? '' : $LDFLAGS ) . '"',
+            for grep {defined} $configure,
             $make .
             ' V=1' . ( $^O eq 'MSWin32' ? ' CC=gcc VPATH=. PREFIX="' . $pre->absolute . '"' : '' ),
             $make .

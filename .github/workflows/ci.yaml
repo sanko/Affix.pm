@@ -14,6 +14,9 @@ jobs:
     strategy:
       fail-fast: false
       matrix:
+        exclude:
+          - os: macos-latest
+            flags: -Dusequadmath
         os:
           - ubuntu-latest
           - macos-latest
@@ -28,6 +31,7 @@ jobs:
           - --thread
           - --ld
           - --multi
+          - -Dusequadmath
           - ""
     name: "${{ matrix.os }}-${{ matrix.perl }}${{ matrix.flags }}"
     steps:
@@ -62,15 +66,28 @@ jobs:
             pushd perl5\win32
 
             gmake CCHOME=C:\strawberry\c INST_TOP="C:\Users\runneradmin\perl5\perlbrew"  ^
-                ${{ matrix.flags == '--64int'  && 'USE_64_BIT_INT=define'                   || '' }} ^
-                ${{ matrix.flags == '--thread' && 'USE_ITHREADS=define    USE_MULTI=define' || '' }} ^
-                ${{ matrix.flags == '--ld'     && 'USE_LONG_DOUBLE=define'                  || '' }} ^
-                ${{ matrix.flags == '--multi'  && 'USE_MULTI=define'                        || '' }} ^
+                ${{ matrix.flags == '--64int'        && 'USE_64_BIT_INT=define'                   || '' }} ^
+                ${{ matrix.flags == '--thread'       && 'USE_ITHREADS=define    USE_MULTI=define' || '' }} ^
+                ${{ matrix.flags == '--ld'           && 'USE_LONG_DOUBLE=define'                  || '' }} ^
+                ${{ matrix.flags == '--multi'        && 'USE_MULTI=define'                        || '' }} ^
+                ${{ matrix.flags == '-Dusequadmath'  && 'USE_QUADMATH=define'                     || '' }} ^
                 -f GNUMakefile -j2 install
 
             popd
 
             set PATH=C:\Users\runneradmin\perl5\perlbrew\bin;%PATH%
+
+      - name: "Testing on chached perl ${{ matrix.os }}-${{ matrix.perl }}(${{ matrix.flags }})"
+        if: ${{ matrix.os == 'windows-latest' }}
+        shell: cmd
+        run: |
+             set PATH=C:\Users\runneradmin\perl5\perlbrew\bin;%PATH%
+
+             perl -V
+
+             cpanm --installdeps -v -n --mirror http://cpan.cpantesters.org/ .
+
+             cpanm --test-only -v .
 
       - name: "Build perl ${{ matrix.perl }} with perlbrew"
         if: ${{ steps.cache-perl.outputs.cache-hit != 'true' && matrix.os != 'windows-latest' }}
@@ -89,10 +106,10 @@ jobs:
              perlbrew clean
 
       - name: "Testing on chached perl ${{ matrix.os }}-${{ matrix.perl }}(${{ matrix.flags }})"
-        if: ${{ matrix.os == 'windows-latest' }}
-        shell: cmd
+        if: ${{ matrix.os != 'windows-latest' }}
+        shell: bash
         run: |
-             set PATH=C:\Users\runneradmin\perl5\perlbrew\bin;%PATH%
+             source ~/perl5/perlbrew/etc/bashrc
 
              perl -V
 

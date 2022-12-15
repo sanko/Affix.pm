@@ -43,6 +43,13 @@ typedef massive => Struct [
 ];
 use Data::Dumper;
 diag Dumper massive();
+subtest 'array' => sub {
+    is sizeof( ArrayRef [ Char, 3 ] ), 3, 'ArrayRef [ Char, 3 ]';
+    is sizeof( ArrayRef [ Pointer [Void], 1 ] ), 8, 'ArrayRef [ Pointer[Void], 1 ]';
+
+    # This needs pointer size x 3
+    is sizeof( ArrayRef [ Str, 3 ] ), 24, 'ArrayRef [ Str, 5 ]';
+};
 subtest 'aggregates' => sub {
     my $struct1 = Struct [ c => ArrayRef [ Char, 3 ] ];
     my $struct2 = Struct [ c => ArrayRef [ Int,  3 ] ];
@@ -63,7 +70,7 @@ subtest 'aggregates' => sub {
         is sizeof($struct5), wrap( $lib, 's_struct5', [], Size_t )->(), 'sizeof(struct5)';
     SKIP: {
             skip 'perl defined bad var sizes with -Duselongdouble before 5.36.x', 2
-                if $Config{uselongdouble} && $^V lt v5.36.1;
+                if ( $Config{uselongdouble} || $Config{usequadmath} ) && $^V lt v5.36.1;
             is sizeof($struct6),    wrap( $lib, 's_struct6', [], Size_t )->(), 'sizeof(struct6)';
             is sizeof( massive() ), wrap( $lib, 's_massive', [], Size_t )->(), 'sizeof(massive)';
         }
@@ -83,7 +90,7 @@ subtest 'aggregates' => sub {
         is sizeof($union2), wrap( $lib, 's_union2', [], Size_t )->(), 'sizeof(union2)';
     SKIP: {
             skip 'perl defined bad var sizes with -Duselongdouble before 5.36.x', 2
-                if $Config{uselongdouble} && $^V lt v5.36.1;
+                if ( $Config{uselongdouble} || $Config{usequadmath} ) && $^V lt v5.36.1;
             is sizeof($union3), wrap( $lib, 's_union3', [], Size_t )->(), 'sizeof(union3)';
             is sizeof($union4), wrap( $lib, 's_union4', [], Size_t )->(), 'sizeof(union4)';
         }
@@ -107,5 +114,6 @@ subtest 'offsetof' => sub {
     is offsetof( massive(), 'p' ), wrap( $lib, 'o_p', [], Size_t )->(), 'offsetof(..., "p")';
     is offsetof( massive(), 'Z' ), wrap( $lib, 'o_Z', [], Size_t )->(), 'offsetof(..., "Z")';
 };
+diag Dumper massive();
 #
 done_testing;

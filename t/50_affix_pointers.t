@@ -64,8 +64,10 @@ subtest 'ref Dyn::Call::Pointer with a double (should croak)' => sub {
         memcpy( $ptr, $data, length $data );
     }
     is dbl_ptr($ptr), 'nine', 'dbl_ptr($ptr) where $ptr == malloc(...)';
-    is unpack( 'd', $ptr->raw(16) ), ( $Config{uselongdouble} ? 9876.54299999999967 : 9876.543 ),
-        '$ptr is still 9';
+    is unpack( 'd', $ptr->raw(16) ),
+        ( $Config{usequadmath} ? 9876.54299999999966530594974756241 :
+            $Config{uselongdouble} ? 9876.54299999999967 :
+            9876.543 ), '$ptr is still 9';
     free $ptr;
 };
 {
@@ -111,10 +113,13 @@ subtest 'ref Dyn::Call::Pointer with a double (should croak)' => sub {
             50.25;
         }
         ),
-        ( $Config{uselongdouble} ? 18.3382499999999986 : 18.33825 ),
-        'making call with Dyn::Call::Pointer object with packed data';
-    is unpack( 'd', $ptr ), ( $Config{uselongdouble} ? 3.49299999999999988 : 3.493 ),
-        'Dyn::Call::Pointer updated';
+        ( $Config{usequadmath} ? 18.3382499999999986073362379102036 :
+            $Config{uselongdouble} ? 18.3382499999999986 :
+            18.33825 ), 'making call with Dyn::Call::Pointer object with packed data';
+    is unpack( 'd', $ptr ),
+        ( $Config{usequadmath} ? 3.49299999999999988276044859958347 :
+            $Config{uselongdouble} ? 3.49299999999999988 :
+            3.493 ), 'Dyn::Call::Pointer updated';
     free $ptr;
 }
 subtest struct => sub {

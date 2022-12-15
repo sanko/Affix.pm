@@ -24,11 +24,13 @@ BraceWrapping: {
     AfterEnum : 'true'
     AfterFunction : 'false'
     AfterNamespace : 'true'
-    AfterStruct : 'true'
+    AfterStruct : 'false'
     AfterUnion : 'true'
     BeforeCatch : 'false'
     BeforeElse : 'true'
-    IndentBraces : 'false'
+    SplitEmptyFunction: 'false'
+    SplitEmptyRecord: 'false'
+    SplitEmptyNamespace: 'false'
 }
 
 # The column limit
@@ -39,6 +41,7 @@ IndentWidth: '4'
 
 # Targeted language
 Language: Cpp
+Standard: c++14
 
 # Pointer is aligned to right side
 PointerAlignment: Right
@@ -46,4 +49,4 @@ PointerAlignment: Right
 # High penalty to avoid line break just after return type
 PenaltyReturnTypeOnItsOwnLine: 10000
 
-SortIncludes: 'false'
+UseTab: Never

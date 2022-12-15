@@ -3,6 +3,9 @@ Revision history for Perl extension Affix.pm
 {{$NEXT}}
 
     - Allow calling convention to be changed in param list
+    - Fix quadmath tests
+    - Attempt to build with nmake on Win32 smokers that have gcc but not GNU make (how? why?)
+    -
 
 0.05 2022-12-14T16:57:07Z
 

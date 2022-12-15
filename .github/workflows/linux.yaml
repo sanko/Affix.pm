@@ -24,6 +24,7 @@ jobs:
           - --thread
           - --ld
           - --multi
+          - -Dusequadmath
           - ""
     name: "${{ matrix.os }}-${{ matrix.perl }}${{ matrix.flags }}"
     steps:

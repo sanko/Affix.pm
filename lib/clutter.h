@@ -67,7 +67,10 @@ extern "C" {
 #elif Size_t_size == LONGSIZE
 #define DC_SIGCHAR_SSIZE_T DC_SIGCHAR_LONG
 #define DC_SIGCHAR_SIZE_T DC_SIGCHAR_ULONG
-#else
+#elif Size_t_size == LONGLONGSIZE
+#define DC_SIGCHAR_SSIZE_T DC_SIGCHAR_LONGLONG
+#define DC_SIGCHAR_SIZE_T DC_SIGCHAR_ULONGLONG
+#else // quadmath is broken
 #define DC_SIGCHAR_SSIZE_T DC_SIGCHAR_LONGLONG
 #define DC_SIGCHAR_SIZE_T DC_SIGCHAR_ULONGLONG
 #endif
@@ -317,74 +320,16 @@ static size_t _sizeof(pTHX_ SV *type) {
         return FLOATSIZE;
     case DC_SIGCHAR_DOUBLE:
         return DOUBLESIZE;
-    case DC_SIGCHAR_STRUCT: {
-        HV *hv_type = MUTABLE_HV(SvRV(type));
-        if (hv_exists(hv_type, "sizeof", 6)) return SvIV(*hv_fetchs(hv_type, "sizeof", 0));
-        AV *fields = MUTABLE_AV(SvRV(*hv_fetchs(hv_type, "fields", 0)));
-        bool packed = SvTRUE(*hv_fetchs(hv_type, "packed", 0));
-        size_t field_count = av_count(fields);
-        size_t size = 0;
-        for (size_t i = 0; i < field_count; ++i) {
-            AV *field = MUTABLE_AV(SvRV(*av_fetch(fields, i, 0)));
-            SV **type_ptr = av_fetch(field, 1, 0);
-            size_t __sizeof = _sizeof(aTHX_ * type_ptr);
-            size += packed ? 0
-                           : padding_needed_for(size, MEM_ALIGNBYTES > __sizeof ? __sizeof
-                                                                                : MEM_ALIGNBYTES);
-            size += __sizeof;
-            hv_stores(MUTABLE_HV(SvRV(*type_ptr)), "offset", newSViv(size - __sizeof));
-        }
-        if (!packed && size > MEM_ALIGNBYTES * 2) size += padding_needed_for(size, MEM_ALIGNBYTES);
-        hv_stores(MUTABLE_HV(SvRV(type)), "sizeof", newSViv(size));
-        return size;
-    }
-    case DC_SIGCHAR_UNION: {
-        HV *hv_type = MUTABLE_HV(SvRV(type));
-        if (hv_exists(hv_type, "sizeof", 6)) return SvIV(*hv_fetchs(hv_type, "sizeof", 0));
-        AV *fields = MUTABLE_AV(SvRV(*hv_fetchs(hv_type, "fields", 0)));
-        bool packed = SvTRUE(*hv_fetchs(hv_type, "packed", 0));
-        size_t field_count = av_count(fields);
-        size_t size = 0;
-        for (size_t i = 0; i < field_count; ++i) {
-            AV *field = MUTABLE_AV(SvRV(*av_fetch(fields, i, 0)));
-            SV **type_ptr = av_fetch(field, 1, 0);
-            size_t __sizeof = _sizeof(aTHX_ * type_ptr);
-            if (size < __sizeof) size = __sizeof;
-            if (!packed && field_count > 1 && __sizeof > MEM_ALIGNBYTES)
-                size += padding_needed_for(__sizeof, MEM_ALIGNBYTES);
-            hv_stores(MUTABLE_HV(SvRV(*type_ptr)), "offset", newSViv(0));
-        }
-        if (!packed && size > MEM_ALIGNBYTES * 2) size += padding_needed_for(size, MEM_ALIGNBYTES);
-        hv_stores(MUTABLE_HV(SvRV(type)), "sizeof", newSViv(size));
-        return size;
-    }
-    case DC_SIGCHAR_ARRAY: {
-        if (hv_exists(MUTABLE_HV(SvRV(type)), "sizeof", 6))
-            return SvIV(*hv_fetchs(MUTABLE_HV(SvRV(type)), "sizeof", 0));
-        SV **type_ptr = hv_fetchs(MUTABLE_HV(SvRV(type)), "type", 0);
-        SV **size_ptr = hv_fetchs(MUTABLE_HV(SvRV(type)), "size", 0);
-        SV **sv_packed = hv_fetchs(MUTABLE_HV(SvRV(type)), "packed", 0);
-        bool packed = SvTRUE(*sv_packed);
-        size_t size = 0, offset = 0;
-        size_t field_count = SvIV(*size_ptr);
-        size_t __sizeof = _sizeof(aTHX_ * type_ptr);
-        for (int i = 0; i < field_count; ++i) {
-            // size += packed ? 0 : padding_needed_for(size, __sizeof);
-
-            // hv_stores(MUTABLE_HV(SvRV(*type_ptr)), "offset", newSViv(offset + padding));
-            size += __sizeof;
-            offset = size;
-        }
-        hv_stores(MUTABLE_HV(SvRV(type)), "sizeof", newSViv(size));
-        return size;
-    }
+    case DC_SIGCHAR_STRUCT:
+    case DC_SIGCHAR_UNION:
+    case DC_SIGCHAR_ARRAY:
+        return SvUV(*hv_fetchs(MUTABLE_HV(SvRV(type)), "sizeof", 0));
     case DC_SIGCHAR_CODE: // automatically wrapped in a DCCallback pointer
     case DC_SIGCHAR_POINTER:
     case DC_SIGCHAR_STRING:
     case DC_SIGCHAR_BLESSED:
-        return PTRSIZE;
     case DC_SIGCHAR_ANY:
-        return sizeof(SV);
+        return PTRSIZE;
     default:
         croak("Failed to gather sizeof info for unknown type: %s", str);
         return -1;
@@ -392,9 +337,8 @@ static size_t _sizeof(pTHX_ SV *type) {
 }
 
 static size_t _offsetof(pTHX_ SV *type) {
-    _sizeof(aTHX_ type); // verify it has been calculated
     if (hv_exists(MUTABLE_HV(SvRV(type)), "offset", 6))
-        return SvIV(*hv_fetchs(MUTABLE_HV(SvRV(type)), "offset", 0));
+        return SvUV(*hv_fetchs(MUTABLE_HV(SvRV(type)), "offset", 0));
     return 0;
 }
 
