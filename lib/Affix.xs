@@ -54,7 +54,7 @@ typedef struct
     DLLib *lib;
     AV *args;
     SV *retval;
-    bool varargs;
+    bool reset;
 } Call;
 
 typedef struct
@@ -560,7 +560,7 @@ XS_INTERNAL(Affix_call) {
     dMY_CXT;
 
     Call *call = (Call *)XSANY.any_ptr;
-    dcReset(MY_CXT.cvm);
+    if (call->reset) dcReset(MY_CXT.cvm);
     bool pointers = false;
 
     /*warn("Calling at %s line %d", __FILE__, __LINE__);
@@ -569,7 +569,7 @@ XS_INTERNAL(Affix_call) {
     warn("sig: %s at %s line %d", call->sig, __FILE__, __LINE__);*/
 
     if (call->sig_len != items) {
-        if (call->sig_len < items && !call->varargs) croak("Too many arguments");
+        if (call->sig_len < items && !call->reset) croak("Too many arguments");
         if (call->sig_len > items) croak("Not enough arguments");
     }
     // warn("ping at %s line %d", __FILE__, __LINE__);
@@ -1354,6 +1354,7 @@ CODE:
     }
 
     call->lib = lib;
+    call->reset = true;
     call->retval = SvREFCNT_inc(ret);
     Newxz(call->sig, args_len * 2, char);
     Newxz(call->perl_sig, args_len, char);
@@ -1401,9 +1402,9 @@ CODE:
                 LEAVE;
             }
             call->sig[c_sig_pos++] = cc[0];
-            if (cc[0] != DC_SIGCHAR_CC_ELLIPSIS_VARARGS) {
-                // call->reset = false;
-                call->varargs = true;
+            if (i == 0 &&
+                !(cc[0] != DC_SIGCHAR_CC_ELLIPSIS || cc[0] != DC_SIGCHAR_CC_ELLIPSIS_VARARGS)) {
+                call->reset = false;
             }
         }
             continue;

@@ -64,7 +64,7 @@ extern "C" {
 #if Size_t_size == INTSIZE
 #define DC_SIGCHAR_SSIZE_T DC_SIGCHAR_INT
 #define DC_SIGCHAR_SIZE_T DC_SIGCHAR_UINT
-#elsif Size_t_size == LONGSIZE
+#elif Size_t_size == LONGSIZE
 #define DC_SIGCHAR_SSIZE_T DC_SIGCHAR_LONG
 #define DC_SIGCHAR_SIZE_T DC_SIGCHAR_ULONG
 #else
