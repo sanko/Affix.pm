@@ -43,8 +43,8 @@ extern "C" {
 #include <dyncall_callback.h>
 #include <dynload.h>
 
-#include <dyncall_value.h>
 #include <dyncall_callf.h>
+#include <dyncall_value.h>
 
 #include <dyncall_signature.h>
 
@@ -145,8 +145,7 @@ const char *file = __FILE__;
 
 #define MY_CXT_KEY "Affix::_guts" XS_VERSION
 
-typedef struct
-{
+typedef struct {
     DCCallVM *cvm;
 } my_cxt_t;
 
