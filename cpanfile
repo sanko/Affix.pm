@@ -13,6 +13,7 @@ on 'test' => sub {
 on 'configure' => sub {
     requires 'Archive::Tar';
     requires 'CPAN::Meta';
+    requires 'Devel::CheckBin';
     requires 'ExtUtils::Config'  => 0.003;
     requires 'ExtUtils::Helpers' => 0.020;
     requires 'ExtUtils::Install';

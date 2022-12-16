@@ -70,13 +70,20 @@ sub alien {
             ( $opt{config}->get('osname') =~ /bsd/ ? '' : $CFLAGS ) . '" LDFLAGS="' .
             ( $opt{config}->get('osname') =~ /bsd/ ? '' : $LDFLAGS ) . '"';
         if ( $opt{config}->get('osname') eq 'MSWin32' ) {
-            $make = $make =~ /nmake/? 'nmake': 'make';
-            $configure = '.\configure.bat /tool-gcc /make-' . $make;
+            require Devel::CheckBin;
+            for my $exe ( $make, qw[make nmake mingw32-make] ) {
+                next unless Devel::CheckBin::check_bin($exe);
+                $configure
+                    = '.\configure.bat /tool-gcc /make-' . ( $exe eq 'nmake' ? 'nmake' : 'make' );
+                $make = $exe;
+                last;
+            }
             rename 'Makefile.generic',             'Makefile';
             rename 'dyncall/Makefile.generic',     'dyncall/Makefile';
             rename 'dynload/Makefile.generic',     'dynload/Makefile';
             rename 'dyncallback/Makefile.generic', 'dyncallback/Makefile';
         }
+        else { $make = $opt{config}->get('make') }
         warn($_) && system($_ )
             for grep {defined} $configure,
             $make . ' V=1' . ( $opt{config}->get('osname') eq 'MSWin32' ?
