@@ -64,25 +64,32 @@ sub alien {
         my $pre   = Path::Tiny->cwd->child( qw[blib arch auto], $opt{meta}->name )->absolute;
         chdir $kid->absolute->stringify;
         warn Path::Tiny->cwd->absolute;
-        my $make = 'make';
+        my $make = $opt{config}->get('make');
         my $configure
             = './configure --prefix=' . $pre->absolute . ' CFLAGS="-fPIC ' .
             ( $opt{config}->get('osname') =~ /bsd/ ? '' : $CFLAGS ) . '" LDFLAGS="' .
             ( $opt{config}->get('osname') =~ /bsd/ ? '' : $LDFLAGS ) . '"';
-        if ( $^O eq 'MSWin32' ) {
-            $make      = 'nmake' if !system qw[nmake -V];
-            $configure = '.\configure.bat /tool-gcc /make-' . $make;
+        if ( $opt{config}->get('osname') eq 'MSWin32' ) {
+            require Devel::CheckBin;
+            for my $exe ( $make, qw[make nmake mingw32-make] ) {
+                next unless Devel::CheckBin::check_bin($exe);
+                $configure
+                    = '.\configure.bat /tool-gcc /make-' . ( $exe eq 'nmake' ? 'nmake' : 'make' );
+                $make = $exe;
+                last;
+            }
             rename 'Makefile.generic',             'Makefile';
             rename 'dyncall/Makefile.generic',     'dyncall/Makefile';
             rename 'dynload/Makefile.generic',     'dynload/Makefile';
             rename 'dyncallback/Makefile.generic', 'dyncallback/Makefile';
         }
+        else { $make = $opt{config}->get('make') }
         warn($_) && system($_ )
             for grep {defined} $configure,
-            $make .
-            ' V=1' . ( $^O eq 'MSWin32' ? ' CC=gcc VPATH=. PREFIX="' . $pre->absolute . '"' : '' ),
-            $make .
-            ' V=1' . ( $^O eq 'MSWin32' ? ' CC=gcc VPATH=. PREFIX="' . $pre->absolute . '"' : '' ) .
+            $make . ' V=1' . ( $opt{config}->get('osname') eq 'MSWin32' ?
+                ' CC=gcc VPATH=. PREFIX="' . $pre->absolute . '"' : '' ),
+            $make . ' V=1' . ( $opt{config}->get('osname') eq 'MSWin32' ?
+                ' CC=gcc VPATH=. PREFIX="' . $pre->absolute . '"' : '' ) .
             ' install';
         warn Path::Tiny->cwd->absolute;
         chdir $cwd->stringify;
@@ -103,7 +110,7 @@ sub alien {
         # https://dyncall.org/r1.2/dyncall-1.2-windows-xp-x64-r.zip
         # https://dyncall.org/r1.2/dyncall-1.2-windows-xp-x86-r.zip
         # https://dyncall.org/r1.2/dyncall-1.2-windows-10-arm64-r.zip
-        if ( $^O eq 'MSWin32' ) {    # Use prebuilt libs on Windows
+        if ( $opt{config}->get('osname') eq 'MSWin32' ) {    # Use prebuilt libs on Windows
             my $x64  = $opt{config}->get('ptrsize') == 8;
             my $plat = $x64 ? '64' : '86';
             my %versions;
