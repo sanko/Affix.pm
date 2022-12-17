@@ -85,8 +85,6 @@ jobs:
 
              perl -V
 
-             cpanm --installdeps -v -n --mirror http://cpan.cpantesters.org/ .
-
              cpanm --test-only -v .
 
       - name: "Build perl ${{ matrix.perl }} with perlbrew"
@@ -112,7 +110,5 @@ jobs:
              source ~/perl5/perlbrew/etc/bashrc
 
              perl -V
-
-             cpanm --installdeps -v -n --mirror http://cpan.cpantesters.org/ .
 
              cpanm --test-only -v .

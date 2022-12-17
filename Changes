@@ -2,6 +2,8 @@ Revision history for Perl extension Affix.pm
 
 {{$NEXT}}
 
+    - Smoke diagnostics
+
 0.07 2022-12-17T02:41:44Z
 
     - Pull upstream changes to dyncall 1.5 (unstable)

@@ -1655,7 +1655,7 @@ free(DCpointer ptr)
 PPCODE:
 // clang-format on
 {
-    if (ptr != NULL) dcFreeMem(ptr);
+    if (ptr != NULL) safefree(ptr);
     ptr = NULL;
     sv_set_undef(ST(0));
 } // Let Affix::Pointer::DESTROY take care of the rest

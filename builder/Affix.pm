@@ -73,25 +73,21 @@ sub alien {
             require Devel::CheckBin;
             for my $exe ( $make, qw[make nmake mingw32-make] ) {
                 next unless Devel::CheckBin::check_bin($exe);
-                $configure
-                    = '.\configure.bat /tool-gcc /make-' . ( $exe eq 'nmake' ? 'nmake' : 'make' );
-                $make = $exe;
+                $make      = $exe;
+                $configure = '.\configure.bat /tool-' . $opt{config}->get('cc') . ' /make-';
+                if ( $exe eq 'nmake' ) {
+                    $configure .= 'nmake';
+                    $make      .= ' -f Nmakefile';
+                }
+                else {
+                    $configure .= 'make';
+                    $make      .= ' CC=gcc VPATH=. PREFIX="' . $pre->absolute . '"';
+                }
                 last;
             }
-            rename 'Makefile.generic',             'Makefile';
-            rename 'dyncall/Makefile.generic',     'dyncall/Makefile';
-            rename 'dynload/Makefile.generic',     'dynload/Makefile';
-            rename 'dyncallback/Makefile.generic', 'dyncallback/Makefile';
         }
         else { $make = $opt{config}->get('make') }
-        warn($_) && system($_ )
-            for grep {defined} $configure,
-            $make . ' V=1' . ( $opt{config}->get('osname') eq 'MSWin32' ?
-                ' CC=gcc VPATH=. PREFIX="' . $pre->absolute . '"' : '' ),
-            $make . ' V=1' . ( $opt{config}->get('osname') eq 'MSWin32' ?
-                ' CC=gcc VPATH=. PREFIX="' . $pre->absolute . '"' : '' ) .
-            ' install';
-        warn Path::Tiny->cwd->absolute;
+        warn($_) && system($_ ) for $configure, $make, $make . ' install';
         chdir $cwd->stringify;
     }
     else {
@@ -229,12 +225,16 @@ sub process_xs {
     my $builder = ExtUtils::CBuilder->new( config => ( $opt{config}->values_set ) );
     my $pre     = Path::Tiny->cwd->child(qw[blib arch auto])->absolute;
     my $obj     = $builder->object_file($c_file);
+    warn $pre->child( $opt{meta}->name, 'include' )->stringify;
     my $ob_file = $builder->compile(
         'C++'        => 1,
         source       => $c_file,
         defines      => { VERSION => qq/"$version"/, XS_VERSION => qq/"$version"/ },
-        include_dirs =>
-            [ curdir, dirname($source), $pre->child( $opt{meta}->name, 'include' )->stringify ],
+        include_dirs => [
+            curdir,                                                dirname($source),
+            $pre->child( $opt{meta}->name, 'include' )->stringify, dirname('dyncall/dyncall'),
+            dirname('dyncall/dynload'),                            dirname('dyncall/dyncallback')
+        ],
         extra_compiler_flags => (
             '-fPIC ' . ( $opt{config}->get('osname') =~ /bsd/ ? '' : $CFLAGS ) .
                 ( $DEBUG ? ' -ggdb3 ' : '' )

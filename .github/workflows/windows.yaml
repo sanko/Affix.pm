@@ -26,7 +26,10 @@ jobs:
           - --multi
           - -Dusequadmath
           - ""
-    name: "${{ matrix.os }}-${{ matrix.perl }}${{ matrix.flags }}"
+        builder:
+          #~ - nmake
+          - gmake
+    name: "${{ matrix.os }}-${{ matrix.perl }}${{ matrix.flags }}(${{ matrix.builder }})"
     steps:
       - uses: actions/checkout@v3
 
@@ -87,8 +90,10 @@ jobs:
 
              perlbrew clean
 
-      - name: "Testing on chached perl ${{ matrix.os }}-${{ matrix.perl }}(${{ matrix.flags }})"
-        if: ${{ matrix.os == 'windows-latest' }}
+      - uses: ilammy/msvc-dev-cmd@v1
+        if: ${{ matrix.builder == 'nmake' }}
+
+      - name: "Testing on chached perl ${{ matrix.os }}-${{ matrix.perl }}${{ matrix.flags }} (${{matrix.builder}})"
         shell: cmd
         run: |
              set PATH=C:\Users\runneradmin\perl5\perlbrew\bin;%PATH%
