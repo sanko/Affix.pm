@@ -269,7 +269,7 @@ typedef PwStruct => Struct [
 sub getuid : Native : Signature([]=>Int);
 sub getpwuid : Native : Signature([Int]=>Pointer[PwStruct]);
 my $data = main::getpwuid( getuid() );
-print Dumper( cast( $data, Pointer [ PwStruct() ] ) );
+print Dumper( ptr2sv( $data, Pointer [ PwStruct() ] ) );
 ```
 
 # Exported Variables

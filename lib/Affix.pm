@@ -530,7 +530,7 @@ to print the home directory of the current user:
     sub getuid : Native : Signature([]=>Int);
     sub getpwuid : Native : Signature([Int]=>Pointer[PwStruct]);
     my $data = main::getpwuid( getuid() );
-    print Dumper( cast( $data, Pointer [ PwStruct() ] ) );
+    print Dumper( ptr2sv( $data, Pointer [ PwStruct() ] ) );
 
 =head1 Exported Variables
 

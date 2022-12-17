@@ -1128,8 +1128,29 @@ XS_INTERNAL(Affix_DESTROY) {
 
 MODULE = Affix PACKAGE = Affix
 
+# Override default typemap
+
+TYPEMAP: <<HERE
+DCpointer   T_DCPOINTER
+
+INPUT
+T_DCPOINTER
+    if (sv_derived_from($arg, \"Affix::Pointer\")){
+    IV tmp = SvIV((SV*)SvRV($arg));
+    $var = INT2PTR($type, tmp);
+  }
+  else
+    croak(\"$var is not of type Affix::Pointer\");
+
+OUTPUT
+T_DCPOINTER
+    sv_setref_pv($arg,\"Affix::Pointer\", $var);
+
+HERE
+
+
 BOOT:
-// clang-format on
+  // clang-format on
 #ifdef USE_ITHREADS
     my_perl = (PerlInterpreter *)PERL_GET_CONTEXT;
 #endif
@@ -1529,31 +1550,6 @@ OUTPUT:
     RETVAL
 
 void
-cast( source, SV * type)
-PPCODE:
-// clang-format on
-{
-    SV *RETVAL;
-    DCpointer ptr;
-    if (sv_derived_from(ST(0), "Affix::Pointer")) {
-        IV tmp = SvIV((SV *)SvRV(ST(0)));
-        ptr = INT2PTR(DCpointer, tmp);
-        RETVAL = ptr2sv(aTHX_ ptr, type);
-        RETVAL = sv_2mortal(RETVAL);
-    }
-    else {
-        size_t size = _sizeof(aTHX_ type);
-        Newxz(ptr, size, char);
-        sv2ptr(aTHX_ type, ST(0), ptr, false, 0);
-        RETVAL = sv_newmortal();
-        sv_setref_pv(RETVAL, "Affix::Pointer", ptr);
-    }
-    ST(0) = RETVAL;
-    XSRETURN(1);
-}
-// clang-format off
-
-void
 DumpHex(DCpointer ptr, size_t size)
 CODE:
     DumpHex(ptr, size);
@@ -1587,26 +1583,6 @@ CODE:
 // clang-format off
 
 MODULE = Affix PACKAGE = Affix
-
-# Override default typemap
-
-TYPEMAP: <<HERE
-DCpointer   T_DCPOINTER
-
-INPUT
-T_DCPOINTER
-    if (sv_derived_from($arg, \"Affix::Pointer\")){
-    IV tmp = SvIV((SV*)SvRV($arg));
-    $var = INT2PTR($type, tmp);
-  }
-  else
-    croak(\"$var is not of type Affix::Pointer\");
-
-OUTPUT
-T_DCPOINTER
-    sv_setref_pv($arg,\"Affix::Pointer\", $var);
-
-HERE
 
 size_t
 sizeof(SV * type)

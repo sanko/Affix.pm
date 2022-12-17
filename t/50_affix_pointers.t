@@ -13,20 +13,20 @@ $|++;
 #
 compile_test_lib('50_affix_pointers');
 #
-subtest 'cast' => sub {
+subtest 'sv2ptr and ptr2sv' => sub {
     subtest 'double' => sub {
-        my $ptr = Affix::cast( 50, Double );
+        my $ptr = Affix::sv2ptr( 50, Double );
         isa_ok $ptr, 'Affix::Pointer';
-        is Affix::cast( $ptr, Double ), 50, 'Store and returned double in a pointer';
+        is Affix::ptr2sv( $ptr, Double ), 50, 'Store and returned double in a pointer';
     };
     subtest 'struct with string pointer' => sub {
         affix( 't/50_affix_pointers', 'demo', [ Struct [ i => Int, Z => Str, ] ] => Bool );
-        my $ptr = Affix::cast( { Z => 'Here. There. Everywhere.', i => 100 },
+        my $ptr = Affix::sv2ptr( { Z => 'Here. There. Everywhere.', i => 100 },
             Struct [ i => Int, Z => Str ] );
         ok demo( { Z => 'Here. There. Everywhere.', i => 100 } ),
             'passed struct with string pointer';
         isa_ok $ptr, 'Affix::Pointer';
-        is_deeply Affix::cast( $ptr, Struct [ b => Int, c => Str ] ),
+        is_deeply Affix::ptr2sv( $ptr, Struct [ b => Int, c => Str ] ),
             { b => 100, c => 'Here. There. Everywhere.' }, 'Store and returned struct in a pointer';
     };
 };
@@ -147,7 +147,7 @@ subtest struct => sub {
     sub sptr : Native('t/50_affix_pointers') : Signature([Pointer[massive()]] => Bool);
     ok sptr( { Z => 'Works!' } );
     my $ptr = massive_ptr();
-    my $sv  = cast( $ptr, Pointer [ massive() ] );
+    my $sv  = ptr2sv( $ptr, Pointer [ massive() ] );
     is $sv->{A}{i}, 50,                   'parsed pointer to sv and got .A.i [nested structs]';
     is $sv->{Z},    'Just a little test', 'parsed pointer to sv and got .Z';
 };
