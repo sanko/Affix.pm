@@ -1,10 +1,12 @@
-name: OSX
+name: MacOS
 
 on:
-  push:
-    branches: "*"
-  pull_request:
-    branches: "*"
+    push:
+        branches: '*'
+    pull_request:
+        branches: '*'
+    schedule:
+        - cron: '42 5 * * 0'
 
 jobs:
   install_perl:
@@ -12,18 +14,19 @@ jobs:
     strategy:
       fail-fast: false
       matrix:
+        exclude:
+          - os: macos-latest
+            flags: -Dusequadmath
         os:
           - macos-latest
         perl:
           - 5.36.0
-          #- 5.34.1
-          #- 5.32.1
-          #- 5.30.3
         flags:
           - --64int
           - --thread
           - --ld
           - --multi
+          - -Dusequadmath
           - ""
     name: "${{ matrix.os }}-${{ matrix.perl }}${{ matrix.flags }}"
     steps:
@@ -49,9 +52,8 @@ jobs:
           C:\strawberry\perl\bin
           "@ |
             Out-File -FilePath $env:GITHUB_PATH -Encoding utf8 -Append
-
       - name: "Build perl ${{ matrix.perl }} directly on Windows"
-        if: ${{  steps.cache-perl.outputs.cache-hit != 'true' && matrix.os == 'windows-latest' }}
+        if: ${{ steps.cache-perl.outputs.cache-hit != 'true' && matrix.os == 'windows-latest' }}
         shell: cmd
         run: >
             git clone --depth 1 --branch v${{matrix.perl}} https://github.com/Perl/perl5.git
@@ -59,15 +61,26 @@ jobs:
             pushd perl5\win32
 
             gmake CCHOME=C:\strawberry\c INST_TOP="C:\Users\runneradmin\perl5\perlbrew"  ^
-                ${{ matrix.flags == '--64int'  && 'USE_64_BIT_INT=define'                   || '' }} ^
-                ${{ matrix.flags == '--thread' && 'USE_ITHREADS=define    USE_MULTI=define' || '' }} ^
-                ${{ matrix.flags == '--ld'     && 'USE_LONG_DOUBLE=define'                  || '' }} ^
-                ${{ matrix.flags == '--multi'  && 'USE_MULTI=define'                        || '' }} ^
+                ${{ matrix.flags == '--64int'        && 'USE_64_BIT_INT=define'                   || '' }} ^
+                ${{ matrix.flags == '--thread'       && 'USE_ITHREADS=define    USE_MULTI=define' || '' }} ^
+                ${{ matrix.flags == '--ld'           && 'USE_LONG_DOUBLE=define'                  || '' }} ^
+                ${{ matrix.flags == '--multi'        && 'USE_MULTI=define'                        || '' }} ^
+                ${{ matrix.flags == '-Dusequadmath'  && 'USE_QUADMATH=define'                     || '' }} ^
                 -f GNUMakefile -j2 install
 
             popd
 
             set PATH=C:\Users\runneradmin\perl5\perlbrew\bin;%PATH%
+
+      - name: "Testing on chached perl ${{ matrix.os }}-${{ matrix.perl }}(${{ matrix.flags }})"
+        if: ${{ matrix.os == 'windows-latest' }}
+        shell: cmd
+        run: |
+             set PATH=C:\Users\runneradmin\perl5\perlbrew\bin;%PATH%
+
+             perl -V
+
+             cpanm --test-only -v .
 
       - name: "Build perl ${{ matrix.perl }} with perlbrew"
         if: ${{ steps.cache-perl.outputs.cache-hit != 'true' && matrix.os != 'windows-latest' }}
@@ -81,17 +94,7 @@ jobs:
 
              perlbrew install-cpanm
 
-             perlbrew install --switch --verbose perl-${{ matrix.perl }} --as cache-${{ matrix.os }}${{ matrix.perl }}${{ matrix.flags }} -j 12 --notest --noman ${{ matrix.flags }}
-
-             perlbrew clean
-
-      - name: "Testing on chached perl ${{ matrix.os }}-${{ matrix.perl }}(${{ matrix.flags }})"
-        if: ${{ matrix.os == 'windows-latest' }}
-        shell: cmd
-        run: |
-             set PATH=C:\Users\runneradmin\perl5\perlbrew\bin;%PATH%
-
-             cpanm --test-only -v --mirror http://cpan.cpantesters.org/ .
+             perlbrew install --switch --verbose --as cache-${{ matrix.os }}${{ matrix.perl }}${{ matrix.flags }} -j 12 --notest --noman ${{ matrix.flags }} perl-${{ matrix.perl }}
 
       - name: "Testing on chached perl ${{ matrix.os }}-${{ matrix.perl }}(${{ matrix.flags }})"
         if: ${{ matrix.os != 'windows-latest' }}
@@ -99,4 +102,10 @@ jobs:
         run: |
              source ~/perl5/perlbrew/etc/bashrc
 
-             cpanm --test-only -v --mirror http://cpan.cpantesters.org/ .
+             perlbrew list
+
+             perlbrew switch cache-${{ matrix.os }}${{ matrix.perl }}${{ matrix.flags }}
+
+             perl -V
+
+             cpanm --test-only -v .

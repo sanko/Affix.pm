@@ -29,3 +29,4 @@ select = **/*.{pl,pm,pod}
 
 [ClangFormat]
 select = **/*.{cpp,h,c,xs,xsh}
+ignore = **/ppport.h
