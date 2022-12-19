@@ -86,21 +86,46 @@ sub alien {
                     }
                     last;
                 }
-                warn $ENV{COMSPEC};
-                warn $ENV{SHELL};
-                unless ( $ENV{SHELL} ) {
-                    $pre->child('lib')->mkdir;
-                    $pre->child('include')->mkdir;
-                    for my $makefile (qw[dyncall/Makefile.generic]) {
-                        my $guts = path($makefile)->slurp;
-                        $guts =~ s[mkdir -p][#mkdir -p]g;
-                        warn $guts;
-                        path($makefile)->spew($guts);
+                warn($_) && system($_ ) for $configure, $make;
+                my %libs = (
+                    dyncall => [
+                        qw[dyncall_version.h dyncall_macros.h dyncall_config.h
+                            dyncall_types.h dyncall.h dyncall_signature.h
+                            dyncall_value.h dyncall_callf.h dyncall_alloc.h
+                        ]
+                    ],
+                    dyncallback => [
+                        qw[dyncall_thunk.h dyncall_thunk_x86.h
+                            dyncall_thunk_ppc32.h dyncall_thunk_x64.h
+                            dyncall_thunk_arm32.h dyncall_thunk_arm64.h
+                            dyncall_thunk_mips.h dyncall_thunk_mips64.h
+                            dyncall_thunk_ppc64.h dyncall_thunk_sparc32.h
+                            dyncall_thunk_sparc64.h dyncall_args.h
+                            dyncall_callback.h
+                        ]
+                    ],
+                    dynload => [qw[dynload.h]],
+                );
+                $pre->child('include')->mkdir;
+                $pre->child('lib')->mkdir;
+                for my $lib ( keys %libs ) {
+
+                    #chdir $kid->child($lib)->absolute;
+                    warn $kid->child( $lib, 'lib' . $lib . '_s' . $opt{config}->get('_a') );
+                    $kid->child( $lib, 'lib' . $lib . '_s' . $opt{config}->get('_a') )
+                        ->copy( $pre->child('lib')->absolute );
+                    for ( @{ $libs{$lib} } ) {
+                        warn sprintf '%s => %s', $kid->child( $lib, $_ ),
+                            $pre->child( 'include', $_ )->absolute;
+                        warn $kid->child( $lib, $_ )
+                            ->copy( $pre->child( 'include', $_ )->absolute );
                     }
                 }
             }
-            else { $make = $opt{config}->get('make') }
-            warn($_) && system($_ ) for $configure, $make, $make . ' install';
+            else {
+                $make = $opt{config}->get('make');
+                warn($_) && system($_ ) for $configure, $make, $make . ' install';
+            }
         }
         else {    # Future, maybe...
             require ExtUtils::CBuilder;
