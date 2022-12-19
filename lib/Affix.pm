@@ -11,7 +11,7 @@ package Affix 0.08 {    # 'FFI' is my middle name!
     use Carp qw[];
     use vars qw[@EXPORT_OK @EXPORT %EXPORT_TAGS];
 
-    # our $VERSION = '0.08_04';
+    # our $VERSION = '0.08';
     use XSLoader;
     XSLoader::load( __PACKAGE__, our $VERSION );
     #
