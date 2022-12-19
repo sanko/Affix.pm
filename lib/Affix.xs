@@ -1652,18 +1652,11 @@ free(DCpointer ptr)
 PPCODE:
 // clang-format on
 {
-    warn("here at %s line %d", __FILE__, __LINE__);
-
     if (ptr) {
-        warn("here at %s line %d", __FILE__, __LINE__);
         safefree(ptr);
-        warn("here at %s line %d", __FILE__, __LINE__);
         ptr = NULL;
-        warn("here at %s line %d", __FILE__, __LINE__);
     }
-    warn("here at %s line %d", __FILE__, __LINE__);
     sv_set_undef(ST(0));
-    warn("here at %s line %d", __FILE__, __LINE__);
 } // Let Affix::Pointer::DESTROY take care of the rest
   // clang-format off
 

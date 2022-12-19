@@ -23,9 +23,8 @@ use IO::Uncompress::Unzip qw($UnzipError);
 use File::stat;
 #
 my $libver;
-my $CFLAGS = ' ';
-
-#= ' -DNDEBUG -DBOOST_DISABLE_ASSERTS -O2 -ffast-math -funroll-loops -fno-align-functions -fno-align-loops';
+my $CFLAGS
+    = ' -DNDEBUG -DBOOST_DISABLE_ASSERTS -O2 -ffast-math -funroll-loops -fno-align-functions -fno-align-loops';
 my $LDFLAGS = ' ';    # https://wiki.freebsd.org/LinkTimeOptimization
 #
 sub write_file {
@@ -352,11 +351,10 @@ sub process_xs {
             $pre->child( $opt{meta}->name, 'include' )->stringify, dirname('dyncall/dyncall'),
             dirname('dyncall/dynload'),                            dirname('dyncall/dyncallback')
         ],
-
-        #~ extra_compiler_flags => (
-        #~ '-fPIC ' . ( $opt{config}->get('osname') =~ /bsd/ ? '' : $CFLAGS ) .
-        #~ ( $DEBUG ? ' -ggdb3 ' : '' )
-        #~ )
+        extra_compiler_flags => (
+            '-fPIC ' . ( $opt{config}->get('osname') =~ /bsd/ ? '' : $CFLAGS ) .
+                ( $DEBUG ? ' -ggdb3 ' : '' )
+        )
     );
     require DynaLoader;
     my $mod2fname
@@ -371,9 +369,8 @@ sub process_xs {
     #);
     return $builder->link(
         extra_linker_flags => (
-
-            #~ ( $opt{config}->get('osname') =~ /bsd/ ? '' : $LDFLAGS ) .
-            ' -L' . dirname($source) . ' -L' . $pre->child( $opt{meta}->name, 'lib' )->stringify .
+            ( $opt{config}->get('osname') =~ /bsd/ ? '' : $LDFLAGS ) . ' -L' .
+                dirname($source) . ' -L' . $pre->child( $opt{meta}->name, 'lib' )->stringify .
                 ' -ldyncall_s -ldyncallback_s -ldynload_s'
         ),
         objects     => [$ob_file],

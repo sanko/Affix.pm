@@ -24,27 +24,6 @@ subtest 'fundamental types' => sub {
     is sizeof(Double),   wrap( $lib, 's_double',   [], Size_t )->(),  'sizeof(Double)';
     is sizeof(SSize_t),  wrap( $lib, 's_ssize_t',  [], SSize_t )->(), 'sizeof(SSize_t)';
     is sizeof(Size_t),   wrap( $lib, 's_size_t',   [], Size_t )->(),  'sizeof(Size_t)';
-    diag sizeof(Bool);
-    diag sizeof(Char);
-    diag sizeof(Short);
-    diag sizeof(Int);
-    diag sizeof(Long);
-    diag sizeof(LongLong);
-    diag sizeof(Float);
-    diag sizeof(Double);
-    diag sizeof(Size_t);
-    diag Affix::ALIGNBYTES();
-
-    # 1
-    # 1
-    # 2
-    # 4
-    # 8
-    # 8
-    # 4
-    # 8
-    # 8
-    # 16
 };
 
 #done_testing;
@@ -68,8 +47,9 @@ typedef massive => Struct [
     A => Struct [ i => Int ],
     u => Union [ i => Int, structure => Struct [ ptr => Pointer [Void], l => Long ] ]
 ];
-use Data::Dumper;
-diag Dumper massive();
+
+#use Data::Dumper;
+#diag Dumper massive();
 subtest 'array' => sub {
     is sizeof( ArrayRef [ Char, 3 ] ), 3, 'ArrayRef [ Char, 3 ]';
     is sizeof( ArrayRef [ Pointer [Void], 1 ] ), 8, 'ArrayRef [ Pointer[Void], 1 ]';
@@ -87,11 +67,10 @@ subtest 'aggregates' => sub {
     my $struct7 = Struct [ i => Int,    Z => Str ];
     my $struct8 = Struct [ d => Double, c => ArrayRef [ Int, 4 ] ];
     subtest 'structs' => sub {
-        use Data::Dumper;
-        diag Dumper $struct1;
-        diag 'here';
+
+        #use Data::Dumper;
+        #diag Dumper $struct1;
         is sizeof($struct1), wrap( $lib, 's_struct1', [], Size_t )->(), 'sizeof(struct1)';
-        diag 'here';
         is sizeof($struct2), wrap( $lib, 's_struct2', [], Size_t )->(), 'sizeof(struct2)';
         is sizeof($struct3), wrap( $lib, 's_struct3', [], Size_t )->(), 'sizeof(struct3)';
         is sizeof($struct4), wrap( $lib, 's_struct4', [], Size_t )->(), 'sizeof(struct4)';
@@ -102,7 +81,8 @@ subtest 'aggregates' => sub {
             is sizeof($struct6),    wrap( $lib, 's_struct6', [], Size_t )->(), 'sizeof(struct6)';
             is sizeof( massive() ), wrap( $lib, 's_massive', [], Size_t )->(), 'sizeof(massive)';
         }
-        diag Dumper $struct7;
+
+        #diag Dumper $struct7;
         is sizeof($struct7), wrap( $lib, 's_struct7', [], Size_t )->(), 'sizeof(struct7)';
         is sizeof($struct8), wrap( $lib, 's_struct8', [], Size_t )->(), 'sizeof(struct8)';
     };
@@ -111,7 +91,8 @@ subtest 'aggregates' => sub {
         #die sizeof( Struct [ d => Double, c => ArrayRef [ Int, 4 ] ]);
         for my $length ( 1 .. 3 ) {
             my $array1 = ArrayRef [ Struct [ d => Double, c => ArrayRef [ Int, 4 ] ], $length ];
-            diag Dumper $array1;
+
+            #diag Dumper $array1;
             is sizeof($array1), wrap( $lib, 's_array1', [Int], Size_t )->($length),
                 'sizeof(array1) [' . $length . ']';
         }
@@ -149,6 +130,7 @@ subtest 'offsetof' => sub {
     is offsetof( massive(), 'p' ), wrap( $lib, 'o_p', [], Size_t )->(), 'offsetof(..., "p")';
     is offsetof( massive(), 'Z' ), wrap( $lib, 'o_Z', [], Size_t )->(), 'offsetof(..., "Z")';
 };
-diag Dumper massive();
+
+#diag Dumper massive();
 #
 done_testing;
