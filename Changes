@@ -2,9 +2,7 @@ Revision history for Perl extension Affix.pm
 
 {{$NEXT}}
 
-0.08_03 2022-12-19T04:55:20Z
-
-    - Smoke diagnostics
+    - Correct struct alignment for perls with quadmath and/or longdouble enabled
 
 0.07 2022-12-17T02:41:44Z
 

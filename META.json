@@ -96,7 +96,7 @@
          "web" : "https://github.com/sanko/Affix.pm"
       }
    },
-   "version" : "0.08_03",
+   "version" : "0.08",
    "x_authority" : "cpan:SANKO",
    "x_serialization_backend" : "JSON::PP version 4.12",
    "x_static_install" : 0
