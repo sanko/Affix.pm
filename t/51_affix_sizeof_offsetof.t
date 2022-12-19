@@ -11,6 +11,9 @@ use t::lib::nativecall;
 compile_test_lib('51_affix_sizeof_offsetof');
 my $lib = 't/51_affix_sizeof_offsetof';
 subtest 'fundamental types' => sub {
+
+    #diag sizeof(Double);
+    #die;
     is sizeof(Bool),     wrap( $lib, 's_bool',     [], Size_t )->(),  'sizeof(Bool)';
     is sizeof(Char),     wrap( $lib, 's_char',     [], Size_t )->(),  'sizeof(Char)';
     is sizeof(Short),    wrap( $lib, 's_short',    [], Size_t )->(),  'sizeof(Short)';
@@ -21,7 +24,31 @@ subtest 'fundamental types' => sub {
     is sizeof(Double),   wrap( $lib, 's_double',   [], Size_t )->(),  'sizeof(Double)';
     is sizeof(SSize_t),  wrap( $lib, 's_ssize_t',  [], SSize_t )->(), 'sizeof(SSize_t)';
     is sizeof(Size_t),   wrap( $lib, 's_size_t',   [], Size_t )->(),  'sizeof(Size_t)';
+    diag sizeof(Bool);
+    diag sizeof(Char);
+    diag sizeof(Short);
+    diag sizeof(Int);
+    diag sizeof(Long);
+    diag sizeof(LongLong);
+    diag sizeof(Float);
+    diag sizeof(Double);
+    diag sizeof(Size_t);
+    diag Affix::ALIGNBYTES();
+
+    # 1
+    # 1
+    # 2
+    # 4
+    # 8
+    # 8
+    # 4
+    # 8
+    # 8
+    # 16
 };
+
+#done_testing;
+#exit;
 typedef massive => Struct [
     B => Bool,
     c => Char,
@@ -57,7 +84,8 @@ subtest 'aggregates' => sub {
     my $struct4 = Struct [ y => $struct3 ];    # Make sure we are padding cached size data
     my $struct5 = Struct [ y => Struct [ d => Double, c => ArrayRef [ Int, 3 ] ] ];
     my $struct6 = Struct [ y => $struct3, s => $struct4, c => Char ];
-    my $struct7 = Struct [ i => Int, Z => Str ];
+    my $struct7 = Struct [ i => Int,    Z => Str ];
+    my $struct8 = Struct [ d => Double, c => ArrayRef [ Int, 4 ] ];
     subtest 'structs' => sub {
         use Data::Dumper;
         diag Dumper $struct1;
@@ -69,17 +97,24 @@ subtest 'aggregates' => sub {
         is sizeof($struct4), wrap( $lib, 's_struct4', [], Size_t )->(), 'sizeof(struct4)';
         is sizeof($struct5), wrap( $lib, 's_struct5', [], Size_t )->(), 'sizeof(struct5)';
     SKIP: {
-            skip 'perl defined bad var sizes with -Duselongdouble before 5.36.x', 2
-                if ( $Config{uselongdouble} || $Config{usequadmath} ) && $^V lt v5.36.1;
+            #skip 'perl defined bad var sizes with -Duselongdouble before 5.36.x', 2
+            #    if ( $Config{uselongdouble} || $Config{usequadmath} ) && $^V lt v5.36.1;
             is sizeof($struct6),    wrap( $lib, 's_struct6', [], Size_t )->(), 'sizeof(struct6)';
             is sizeof( massive() ), wrap( $lib, 's_massive', [], Size_t )->(), 'sizeof(massive)';
         }
         diag Dumper $struct7;
         is sizeof($struct7), wrap( $lib, 's_struct7', [], Size_t )->(), 'sizeof(struct7)';
+        is sizeof($struct8), wrap( $lib, 's_struct8', [], Size_t )->(), 'sizeof(struct8)';
     };
     subtest 'arrays' => sub {
-        my $array1 = ArrayRef [ Struct [ d => Double, c => ArrayRef [ Int, 3 ] ], 3 ];
-        is sizeof($array1), wrap( $lib, 's_array1', [], Size_t )->(), 'sizeof(array1)';
+
+        #die sizeof( Struct [ d => Double, c => ArrayRef [ Int, 4 ] ]);
+        for my $length ( 1 .. 3 ) {
+            my $array1 = ArrayRef [ Struct [ d => Double, c => ArrayRef [ Int, 4 ] ], $length ];
+            diag Dumper $array1;
+            is sizeof($array1), wrap( $lib, 's_array1', [Int], Size_t )->($length),
+                'sizeof(array1) [' . $length . ']';
+        }
     };
     subtest 'unions' => sub {
         my $union1 = Union [ i => Int, d => Float ];
@@ -89,8 +124,8 @@ subtest 'aggregates' => sub {
         is sizeof($union1), wrap( $lib, 's_union1', [], Size_t )->(), 'sizeof(union1)';
         is sizeof($union2), wrap( $lib, 's_union2', [], Size_t )->(), 'sizeof(union2)';
     SKIP: {
-            skip 'perl defined bad var sizes with -Duselongdouble before 5.36.x', 2
-                if ( $Config{uselongdouble} || $Config{usequadmath} ) && $^V lt v5.36.1;
+            #skip 'perl defined bad var sizes with -Duselongdouble before 5.36.x', 2
+            #    if ( $Config{uselongdouble} || $Config{usequadmath} ) && $^V lt v5.36.1;
             is sizeof($union3), wrap( $lib, 's_union3', [], Size_t )->(), 'sizeof(union3)';
             is sizeof($union4), wrap( $lib, 's_union4', [], Size_t )->(), 'sizeof(union4)';
         }

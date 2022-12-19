@@ -40,46 +40,42 @@ DLLEXPORT size_t s_size_t() {
 }
 
 //
-typedef struct
-{
+typedef struct {
     char c[3];
 } struct1;
-typedef struct
-{
+typedef struct {
     int c[3];
 } struct2;
-typedef struct
-{
+typedef struct {
     double d;
     int c[3];
 } struct3;
-typedef struct
-{
+typedef struct {
     struct3 y;
 } struct4;
-typedef struct
-{
-    struct
-    {
+typedef struct {
+    struct {
         double d;
         int c[3];
     } y;
 
 } struct5;
 
-typedef struct
-{
+typedef struct {
     struct3 y;
     struct4 s;
     char c;
 } struct6;
 
-typedef struct
-{
+typedef struct {
     int i;
     char *Z;
-
 } struct7;
+
+typedef struct {
+    double d;
+    int c[4];
+} struct8;
 
 DLLEXPORT size_t s_struct1() {
     return sizeof(struct1);
@@ -106,9 +102,12 @@ DLLEXPORT size_t s_struct6() {
 DLLEXPORT size_t s_struct7() {
     return sizeof(struct7);
 }
+
+DLLEXPORT size_t s_struct8() {
+    return sizeof(struct8);
+}
 //
-typedef struct
-{
+typedef struct {
     bool B;
     char c;
     unsigned char C;
@@ -124,15 +123,13 @@ typedef struct
     double d;
     int *p;
     char *Z;
-    struct
-    {
+    struct {
         int i;
     } A;
     union
     {
         int i;
-        struct
-        {
+        struct {
             void *ptr;
             long l;
         } structure;
@@ -144,11 +141,11 @@ DLLEXPORT size_t s_massive() {
 }
 
 //
-DLLEXPORT size_t s_array1() {
+DLLEXPORT size_t s_array1(int length) {
     return sizeof(struct {
         double d;
-        int c[3];
-    }[3]);
+        int c[4];
+    }[length]);
 }
 
 //

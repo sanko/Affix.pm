@@ -26,6 +26,8 @@ jobs:
           - 5.34.1
           - 5.32.1
           - 5.30.3
+          - 5.28.3
+          - 5.26.3
         flags:
           - --64int
           - --thread
@@ -58,7 +60,7 @@ jobs:
           "@ |
             Out-File -FilePath $env:GITHUB_PATH -Encoding utf8 -Append
       - name: "Build perl ${{ matrix.perl }} directly on Windows"
-        if: ${{  steps.cache-perl.outputs.cache-hit != 'true' && matrix.os == 'windows-latest' }}
+        if: ${{ steps.cache-perl.outputs.cache-hit != 'true' && matrix.os == 'windows-latest' }}
         shell: cmd
         run: >
             git clone --depth 1 --branch v${{matrix.perl}} https://github.com/Perl/perl5.git
@@ -85,6 +87,8 @@ jobs:
 
              perl -V
 
+             cpanm -n -v --installdeps .
+
              cpanm --test-only -v .
 
       - name: "Build perl ${{ matrix.perl }} with perlbrew"
@@ -99,9 +103,7 @@ jobs:
 
              perlbrew install-cpanm
 
-             perlbrew install --switch --verbose perl-${{ matrix.perl }} --as cache-${{ matrix.os }}${{ matrix.perl }}${{ matrix.flags }} -j 12 --notest --noman ${{ matrix.flags }}
-
-             perlbrew clean
+             perlbrew install --switch --verbose --as cache-${{ matrix.os }}${{ matrix.perl }}${{ matrix.flags }} -j 12 --notest --noman ${{ matrix.flags }} perl-${{ matrix.perl }}
 
       - name: "Testing on chached perl ${{ matrix.os }}-${{ matrix.perl }}(${{ matrix.flags }})"
         if: ${{ matrix.os != 'windows-latest' }}
@@ -109,6 +111,12 @@ jobs:
         run: |
              source ~/perl5/perlbrew/etc/bashrc
 
+             perlbrew list
+
+             perlbrew switch cache-${{ matrix.os }}${{ matrix.perl }}${{ matrix.flags }}
+
              perl -V
+
+             cpanm -n -v --installdeps .
 
              cpanm --test-only -v .

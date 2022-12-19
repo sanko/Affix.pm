@@ -61,6 +61,9 @@ extern "C" {
 #define DC_SIGCHAR_ENUM_UINT 'E' // 'I' but with multiple options
 #define DC_SIGCHAR_ENUM_CHAR 'o' // 'c' but with multiple options
 
+// MEM_ALIGNBYTES is messed up by quadmath and long doubles
+#define ALIGNBYTES 8
+
 #if Size_t_size == INTSIZE
 #define DC_SIGCHAR_SSIZE_T DC_SIGCHAR_INT
 #define DC_SIGCHAR_SIZE_T DC_SIGCHAR_UINT

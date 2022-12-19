@@ -385,11 +385,10 @@ XS_INTERNAL(Types) {
             size_t type_sizeof = _sizeof(aTHX_ type);
             for (int i = 0; i < array_length; ++i) {
                 array_sizeof += type_sizeof;
-                array_sizeof += packed
-                                    ? 0
-                                    : padding_needed_for(array_sizeof, MEM_ALIGNBYTES > type_sizeof
-                                                                           ? type_sizeof
-                                                                           : MEM_ALIGNBYTES);
+                array_sizeof += packed ? 0
+                                       : padding_needed_for(array_sizeof, ALIGNBYTES > type_sizeof
+                                                                              ? type_sizeof
+                                                                              : ALIGNBYTES);
                 offset = array_sizeof;
             }
         } break;
@@ -477,17 +476,16 @@ XS_INTERNAL(Types) {
                           SvPV_nolen(key));
                 size_t __sizeof = _sizeof(aTHX_ type);
                 if (ix == DC_SIGCHAR_STRUCT) {
-                    size += packed
-                                ? 0
-                                : padding_needed_for(
-                                      size, MEM_ALIGNBYTES > __sizeof ? __sizeof : MEM_ALIGNBYTES);
+                    size += packed ? 0
+                                   : padding_needed_for(size, ALIGNBYTES > __sizeof ? __sizeof
+                                                                                    : ALIGNBYTES);
                     size += __sizeof;
                     (void)hv_stores(MUTABLE_HV(SvRV(type)), "offset", newSVuv(size - __sizeof));
                 }
                 else {
                     if (size < __sizeof) size = __sizeof;
-                    if (!packed && field_count > 1 && __sizeof > MEM_ALIGNBYTES)
-                        size += padding_needed_for(__sizeof, MEM_ALIGNBYTES);
+                    if (!packed && field_count > 1 && __sizeof > ALIGNBYTES)
+                        size += padding_needed_for(__sizeof, ALIGNBYTES);
                     (void)hv_stores(MUTABLE_HV(SvRV(type)), "offset", newSVuv(0));
                 }
                 (void)hv_stores(MUTABLE_HV(SvRV(type)), "sizeof", newSVuv(__sizeof));
@@ -501,8 +499,7 @@ XS_INTERNAL(Types) {
 
             if (ix == DC_SIGCHAR_STRUCT) {
 
-                if (!packed && size > MEM_ALIGNBYTES * 2)
-                    size += padding_needed_for(size, MEM_ALIGNBYTES);
+                if (!packed && size > ALIGNBYTES * 2) size += padding_needed_for(size, ALIGNBYTES);
             }
             hv_stores(RETVAL_HV, "sizeof", newSVuv(size));
             hv_stores(RETVAL_HV, "fields", newRV(MUTABLE_SV(fields)));
@@ -1655,9 +1652,18 @@ free(DCpointer ptr)
 PPCODE:
 // clang-format on
 {
-    if (ptr != NULL) safefree(ptr);
-    ptr = NULL;
+    warn("here at %s line %d", __FILE__, __LINE__);
+
+    if (ptr) {
+        warn("here at %s line %d", __FILE__, __LINE__);
+        safefree(ptr);
+        warn("here at %s line %d", __FILE__, __LINE__);
+        ptr = NULL;
+        warn("here at %s line %d", __FILE__, __LINE__);
+    }
+    warn("here at %s line %d", __FILE__, __LINE__);
     sv_set_undef(ST(0));
+    warn("here at %s line %d", __FILE__, __LINE__);
 } // Let Affix::Pointer::DESTROY take care of the rest
   // clang-format off
 
@@ -2021,4 +2027,6 @@ BOOT:
     export_function("Affix", "DC_SIGCHAR_CC_ARM_THUMB", "sigchar");
     export_function("Affix", "DC_SIGCHAR_CC_SYSCALL", "sigchar");
     export_function("Affix", "DEFAULT_ALIGNMENT", "vars");
+
+    newCONSTSUB(stash, "ALIGNBYTES", newSViv(ALIGNBYTES));
 }

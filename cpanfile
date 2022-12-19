@@ -1,4 +1,4 @@
-requires 'perl', '5.030000';
+requires 'perl', '5.026000';
 requires 'File::Spec';
 requires 'Config';
 requires 'XSLoader';
