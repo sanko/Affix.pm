@@ -44,7 +44,7 @@
             "IO::Uncompress::Unzip" : "0",
             "JSON::PP" : "2",
             "Module::Build::Tiny" : "0.035",
-            "Path::Tiny" : "0"
+            "Path::Tiny" : "0.144"
          }
       },
       "develop" : {
