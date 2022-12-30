@@ -3,6 +3,8 @@ package t::lib::nativecall {
     use warnings;
     use Test::More;
     use experimental 'signatures';
+    use ExtUtils::CBuilder;
+    use Path::Tiny;
     use Exporter 'import';
     our @EXPORT = qw[compile_test_lib compile_cpp_test_lib is_approx];
     use Config;
@@ -10,72 +12,32 @@ package t::lib::nativecall {
     my $OS = $^O;
     my @cleanup;
     #
-    sub compile_test_lib ($name) {
-        my $libname = $name . '.' . $Config{so};
-
-        #warn $libname;
-        my @cmds;
-
-        #$VM;
-        #my $cfg = $VM->{config};
-        if ( $OS eq 'MSWin32' ) {
-            @cmds = (
-                "cl /LD /EHsc /Fe$libname t/src/$name.c",
-                "gcc --shared -fPIC -DBUILD_LIB -o t/$libname t/src/$name.c"
-            );
-        }
-        else {
-            @cmds = (
-                "gcc --shared -fPIC -DBUILD_LIB -o t/$libname t/src/$name.c",
-                "clang -stdlib=libc --shared -fPIC -o t/$libname t/src/$name.c"
-            );
-        }
-        my ( @fails, $succeeded );
-        for my $cmd (@cmds) {
-
-            #my $out = `$cmd 2>&1`;
-            last if !system(qq[$cmd 2>&1]);
-
-            #warn $out;
-            #system (qq"$cmd 2>&1") == 0 or warn qq[system( $cmd ) failed: $?];
-        }
-        push @cleanup, $libname;
+    my $compiler = ExtUtils::CBuilder->new();
+    #
+    sub compile_test_lib ( $name, $file = "$name.c" ) {
+        plan skip_all => 'Tests require a C compiler' unless $compiler->have_compiler;
+        diag sprintf 'Compiling test lib t/src/%s...', $file;
+        my $obj = $compiler->compile( source => path("t/src/$file")->absolute );
+        diag sprintf 'Linking %s...', $obj;
+        my $lib = $compiler->link( objects => $obj );
+        diag sprintf 'Built %s', $lib;
+        push @cleanup, $obj, $lib;
+        $lib;
     }
 
-    sub compile_cpp_test_lib ($name) {
-        my $libname = $name . '.' . $Config{so};
-
-        #warn $libname;
-        my @cmds;
-
-        #$VM;
-        #my $cfg = $VM->{config};
-        if ( $OS eq 'MSWin32' ) {
-            @cmds = (
-                "cl /LD /EHsc /Fe$libname t/src/$name.cpp",
-                "g++ --shared -fPIC -DBUILD_LIB -o t/$libname t/src/$name.cpp"
-            );
-        }
-        else {
-            @cmds = (
-                "g++ --shared -fPIC -DBUILD_LIB -o t/$libname t/src/$name.cpp",
-                "clang++ -stdlib=libc++ --shared -fPIC -o t/$libname t/src/$name.cpp"
-            );
-        }
-        my ( @fails, $succeeded );
-        for my $cmd (@cmds) {
-
-            #my $out = `$cmd 2>&1`;
-            last if !system(qq[$cmd 2>&1]);
-
-            #warn $out;
-            #system (qq"$cmd 2>&1") == 0 or warn qq[system( $cmd ) failed: $?];
-        }
-        push @cleanup, $libname;
+    sub compile_cpp_test_lib ( $name, $file = "$name.cpp" ) {
+        plan skip_all => 'Tests require a C++ compiler' unless $compiler->have_cplusplus;
+        my $obj = $compiler->compile( source => path("t/src/$file")->absolute );
+        my $lib = $compiler->link( objects => $obj, 'C++' => 1 );
+        push @cleanup, $obj, $lib;
+        $lib;
     }
 
     END {
-        unlink $_ for @cleanup;
+        for my $file (@cleanup) {
+            diag 'Removing ' . $file;
+            unlink $file;
+        }
     }
 
     sub is_approx ( $actual, $expected, $desc ) {    # https://docs.raku.org/routine/is-approx

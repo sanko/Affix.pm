@@ -27,7 +27,7 @@ subtest 'sv2ptr and ptr2sv' => sub {
     diag __LINE__;
     subtest 'struct with string pointer' => sub {
         diag __LINE__;
-        affix( 't/50_affix_pointers', 'demo', [ Struct [ i => Int, Z => Str, ] ] => Bool );
+        affix( 't/src/50_affix_pointers', 'demo', [ Struct [ i => Int, Z => Str, ] ] => Bool );
         my $ptr = Affix::sv2ptr( { Z => 'Here. There. Everywhere.', i => 100 },
             Struct [ i => Int, Z => Str ] );
         ok demo( { Z => 'Here. There. Everywhere.', i => 100 } ),
@@ -41,9 +41,9 @@ subtest 'sv2ptr and ptr2sv' => sub {
 };
 diag __LINE__;
 #
-sub pointer_test : Native('t/50_affix_pointers') :
+sub pointer_test : Native('t/src/50_affix_pointers') :
     Signature([Pointer[Double], ArrayRef [ Int, 5 ], Int, CodeRef [ [ Int, Int ] => Double ] ] => Double);
-sub dbl_ptr : Native('t/50_affix_pointers') : Signature([Pointer[Double]] => Str);
+sub dbl_ptr : Native('t/src/50_affix_pointers') : Signature([Pointer[Double]] => Str);
 #
 diag __LINE__;
 subtest 'scalar ref' => sub {
@@ -192,8 +192,8 @@ subtest struct => sub {
     ];
     diag __LINE__;
     diag 'sizeof in perl: ' . sizeof( massive() );
-    sub massive_ptr : Native('t/50_affix_pointers') : Signature([] => Pointer[massive()]);
-    sub sptr : Native('t/50_affix_pointers') : Signature([Pointer[massive()]] => Bool);
+    sub massive_ptr : Native('t/src/50_affix_pointers') : Signature([] => Pointer[massive()]);
+    sub sptr : Native('t/src/50_affix_pointers') : Signature([Pointer[massive()]] => Bool);
     ok sptr( { Z => 'Works!' } );
     my $ptr = massive_ptr();
     my $sv  = ptr2sv( $ptr, Pointer [ massive() ] );

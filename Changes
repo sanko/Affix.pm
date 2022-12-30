@@ -2,6 +2,8 @@ Revision history for Perl extension Affix.pm
 
 {{$NEXT}}
 
+    - Struct[] may not contain a code reference
+
 0.08 2022-12-19T22:29:53Z
 
     - Correct struct alignment for perls with quadmath and/or longdouble enabled

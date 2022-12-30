@@ -1,7 +1,6 @@
 #include "std.h"
 
-typedef struct
-{
+typedef struct {
     bool B;
     char c;
     unsigned char C;
@@ -17,15 +16,13 @@ typedef struct
     double d;
     int *p;
     char *Z;
-    struct
-    {
+    struct {
         int i;
     } A;
     union
     {
         int i;
-        struct
-        {
+        struct {
             void *ptr;
             long l;
         } structure;
@@ -127,8 +124,7 @@ DLLEXPORT double pointer_test(double *dbl, int arr[5], int size,
     return 900;
 }
 
-typedef struct
-{
+typedef struct {
     int i;
     char *Z;
 
