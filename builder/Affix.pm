@@ -111,14 +111,15 @@ sub alien {
                 for my $lib ( keys %libs ) {
 
                     #chdir $kid->child($lib)->absolute;
-                    warn $kid->child( $lib, 'lib' . $lib . '_s' . $opt{config}->get('_a') );
+                    #warn $kid->child( $lib, 'lib' . $lib . '_s' . $opt{config}->get('_a') );
                     $kid->child( $lib, 'lib' . $lib . '_s' . $opt{config}->get('_a') )
                         ->copy( $pre->child('lib')->absolute );
                     for ( @{ $libs{$lib} } ) {
-                        warn sprintf '%s => %s', $kid->child( $lib, $_ ),
-                            $pre->child( 'include', $_ )->absolute;
-                        warn $kid->child( $lib, $_ )
-                            ->copy( $pre->child( 'include', $_ )->absolute );
+
+                        #warn sprintf '%s => %s', $kid->child( $lib, $_ ),
+                        #    $pre->child( 'include', $_ )->absolute;
+                        #warn
+                        $kid->child( $lib, $_ )->copy( $pre->child( 'include', $_ )->absolute );
                     }
                 }
             }

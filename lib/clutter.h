@@ -62,7 +62,7 @@ extern "C" {
 #define DC_SIGCHAR_ENUM_CHAR 'o' // 'c' but with multiple options
 
 // MEM_ALIGNBYTES is messed up by quadmath and long doubles
-#define ALIGNBYTES 8
+#define AFFIX_ALIGNBYTES 8
 
 #if Size_t_size == INTSIZE
 #define DC_SIGCHAR_SSIZE_T DC_SIGCHAR_INT
@@ -129,7 +129,7 @@ extern "C" {
 #define newHV_mortal() (HV *)sv_2mortal((SV *)newHV())
 #define newRV_inc_mortal(sv) sv_2mortal(newRV_inc(sv))
 #define newRV_noinc_mortal(sv) sv_2mortal(newRV_noinc(sv))
-
+/*
 #define DECL_BOOT(name) EXTERN_C XS(CAT2(boot_, name))
 #define CALL_BOOT(name)                                                                            \
     STMT_START {                                                                                   \
@@ -137,6 +137,7 @@ extern "C" {
         CALL_FPTR(CAT2(boot_, name))(aTHX_ cv);                                                    \
     }                                                                                              \
     STMT_END
+*/
 
 /* Useful but undefined in perlapi */
 #define FLOATSIZE sizeof(float)
@@ -873,7 +874,7 @@ void sv2ptr(pTHX_ SV *type, SV *data, DCpointer ptr, bool packed) {
             size_t el_off = _offsetof(aTHX_ * type_ptr);
             if (SvOK(data) || SvOK(SvRV(data)))
                 sv2ptr(aTHX_ * type_ptr, *(hv_fetch(hv_data, key, strlen(key), 0)),
-                       ((DCpointer)(PTR2IV(ptr) + el_off)), packed);
+                       INT2PTR(DCpointer, PTR2IV(ptr) + el_off), packed);
             // pos += el_len;
         }
     } break;

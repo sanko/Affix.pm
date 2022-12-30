@@ -92,7 +92,7 @@ typedef struct {
     char c5;
 } gappy_t;
 
-#define Pt(struct, field, tchar) printf("------------ @%d%s ", offsetof(struct, field), #tchar);
+#define Pt(struct, field, tchar) printf("# ------------ @%zu%s ", offsetof(struct, field), #tchar);
 
 int pppp() {
     Pt(gappy_t, c1, c);
@@ -109,6 +109,7 @@ int pppp() {
     Pt(gappy_t, c4, c);
     Pt(gappy_t, c5, c);
     printf("\n");
+    return 0;
 }
 
 struct test {

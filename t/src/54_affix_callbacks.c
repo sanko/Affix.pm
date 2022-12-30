@@ -15,6 +15,7 @@ DLLEXPORT bool cb_dZb_b(dZb_b cb) {
 typedef void (*v_v)(void);
 DLLEXPORT bool cb_v_v(v_v cb) {
     ((*cb)());
+    return true;
 }
 
 //

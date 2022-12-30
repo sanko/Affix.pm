@@ -118,7 +118,8 @@ XS_INTERNAL(Types) {
                                 size = (strlen(eval) > (size + strlen(line))) ? size + strlen(line)
                                                                               : size;
                                 Renewc(eval, size, char, char);
-                                Copy(line, (DCpointer)(PTR2IV(eval) + pos), strlen(line) + 1, char);
+                                Copy(line, INT2PTR(DCpointer, PTR2IV(eval) + pos), strlen(line) + 1,
+                                     char);
                                 pos += strlen(line);
                             }
                             current_value = eval_pv(form("package Affix::Enum::eval{no warnings "
@@ -180,10 +181,11 @@ XS_INTERNAL(Types) {
             size_t type_sizeof = _sizeof(aTHX_ type);
             for (int i = 0; i < array_length; ++i) {
                 array_sizeof += type_sizeof;
-                array_sizeof += packed ? 0
-                                       : padding_needed_for(array_sizeof, ALIGNBYTES > type_sizeof
-                                                                              ? type_sizeof
-                                                                              : ALIGNBYTES);
+                array_sizeof +=
+                    packed ? 0
+                           : padding_needed_for(array_sizeof, AFFIX_ALIGNBYTES > type_sizeof
+                                                                  ? type_sizeof
+                                                                  : AFFIX_ALIGNBYTES);
                 offset = array_sizeof;
             }
         } break;
@@ -272,15 +274,16 @@ XS_INTERNAL(Types) {
                 size_t __sizeof = _sizeof(aTHX_ type);
                 if (ix == DC_SIGCHAR_STRUCT) {
                     size += packed ? 0
-                                   : padding_needed_for(size, ALIGNBYTES > __sizeof ? __sizeof
-                                                                                    : ALIGNBYTES);
+                                   : padding_needed_for(size, AFFIX_ALIGNBYTES > __sizeof
+                                                                  ? __sizeof
+                                                                  : AFFIX_ALIGNBYTES);
                     size += __sizeof;
                     (void)hv_stores(MUTABLE_HV(SvRV(type)), "offset", newSVuv(size - __sizeof));
                 }
                 else {
                     if (size < __sizeof) size = __sizeof;
-                    if (!packed && field_count > 1 && __sizeof > ALIGNBYTES)
-                        size += padding_needed_for(__sizeof, ALIGNBYTES);
+                    if (!packed && field_count > 1 && __sizeof > AFFIX_ALIGNBYTES)
+                        size += padding_needed_for(__sizeof, AFFIX_ALIGNBYTES);
                     (void)hv_stores(MUTABLE_HV(SvRV(type)), "offset", newSVuv(0));
                 }
                 (void)hv_stores(MUTABLE_HV(SvRV(type)), "sizeof", newSVuv(__sizeof));
@@ -294,7 +297,8 @@ XS_INTERNAL(Types) {
 
             if (ix == DC_SIGCHAR_STRUCT) {
 
-                if (!packed && size > ALIGNBYTES * 2) size += padding_needed_for(size, ALIGNBYTES);
+                if (!packed && size > AFFIX_ALIGNBYTES * 2)
+                    size += padding_needed_for(size, AFFIX_ALIGNBYTES);
             }
             hv_stores(RETVAL_HV, "sizeof", newSVuv(size));
             hv_stores(RETVAL_HV, "fields", newRV(MUTABLE_SV(fields)));
@@ -523,7 +527,7 @@ XS_INTERNAL(Affix_call) {
             else if (!SvOK(value)) // Passed us an undef
                 ptr = NULL;
             else
-                croak("Type of arg %d must be an instance or subclass of %s", pos_arg + 1,
+                croak("Type of arg %lu must be an instance or subclass of %s", pos_arg + 1,
                       SvPVbytex_nolen(*package_ptr));
             // DCpointer ptr = sv2ptr(aTHX_ field, MUTABLE_SV(value), false);
             dcArgPointer(MY_CXT.cvm, ptr);
@@ -602,7 +606,7 @@ XS_INTERNAL(Affix_call) {
         } break;
         case DC_SIGCHAR_ARRAY: {
             if (!SvROK(value) || SvTYPE(SvRV(value)) != SVt_PVAV)
-                croak("Type of arg %d must be an array ref", pos_arg + 1);
+                croak("Type of arg %lu must be an array ref", pos_arg + 1);
             AV *elements = MUTABLE_AV(SvRV(value));
             HV *hv_ptr = MUTABLE_HV(SvRV(type));
             SV **type_ptr = hv_fetchs(hv_ptr, "type", 0);
@@ -641,7 +645,7 @@ XS_INTERNAL(Affix_call) {
         } break;
         case DC_SIGCHAR_STRUCT: {
             if (!SvROK(value) || SvTYPE(SvRV(value)) != SVt_PVHV)
-                croak("Type of arg %d must be a hash ref", pos_arg + 1);
+                croak("Type of arg %lu must be a hash ref", pos_arg + 1);
             DCaggr *agg = _aggregate(aTHX_ type);
             DCpointer ptr = safemalloc(_sizeof(aTHX_ type));
             sv2ptr(aTHX_ type, value, ptr, false);
@@ -674,7 +678,7 @@ XS_INTERNAL(Affix_call) {
             break;
         }
         default:
-            croak("--> Unfinished: [%c/%d]%s", call->sig[pos_csig], pos_arg, call->sig);
+            croak("--> Unfinished: [%c/%lu]%s", call->sig[pos_csig], pos_arg, call->sig);
         }
     }
     // warn("Return type: %c at %s line %d", call->ret, __FILE__, __LINE__);
@@ -1800,5 +1804,5 @@ BOOT:
     export_function("Affix", "DC_SIGCHAR_CC_SYSCALL", "sigchar");
     export_function("Affix", "DEFAULT_ALIGNMENT", "vars");
 
-    newCONSTSUB(stash, "ALIGNBYTES", newSViv(ALIGNBYTES));
+    newCONSTSUB(stash, "ALIGNBYTES", newSViv(AFFIX_ALIGNBYTES));
 }

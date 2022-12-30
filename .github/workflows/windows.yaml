@@ -80,6 +80,36 @@ jobs:
 
              perl -V
 
-             cpanm --notest --installdeps -v .
+             cpanm -n -v --installdeps .
+
+             cpanm --test-only -v .
+
+      - name: "Build perl ${{ matrix.perl }} with perlbrew"
+        if: ${{ steps.cache-perl.outputs.cache-hit != 'true' && matrix.os != 'windows-latest' }}
+        shell: bash
+        run: >
+             \curl -L https://install.perlbrew.pl | bash
+
+             source ~/perl5/perlbrew/etc/bashrc
+
+             perlbrew available
+
+             perlbrew install-cpanm
+
+             perlbrew install --switch --verbose --as cache-${{ matrix.os }}${{ matrix.perl }}${{ matrix.flags }} -j 12 --notest --noman ${{ matrix.flags }} perl-${{ matrix.perl }}
+
+      - name: "Testing on chached perl ${{ matrix.os }}-${{ matrix.perl }}(${{ matrix.flags }})"
+        if: ${{ matrix.os != 'windows-latest' }}
+        shell: bash
+        run: |
+             source ~/perl5/perlbrew/etc/bashrc
+
+             perlbrew list
+
+             perlbrew switch cache-${{ matrix.os }}${{ matrix.perl }}${{ matrix.flags }}
+
+             perl -V
+
+             cpanm -n -v --installdeps .
 
              cpanm --test-only -v .

@@ -17,7 +17,7 @@ package t::lib::nativecall {
     sub compile_test_lib ( $name, $file = "$name.c" ) {
         plan skip_all => 'Tests require a C compiler' unless $compiler->have_compiler;
         diag sprintf 'Compiling test lib t/src/%s...', $file;
-        my $obj = $compiler->compile( source => path("t/src/$file")->absolute );
+        my $obj = $compiler->compile( source => path("t/src/$file") );
         diag sprintf 'Linking %s...', $obj;
         my $lib = $compiler->link( objects => $obj );
         diag sprintf 'Built %s', $lib;
@@ -27,8 +27,11 @@ package t::lib::nativecall {
 
     sub compile_cpp_test_lib ( $name, $file = "$name.cpp" ) {
         plan skip_all => 'Tests require a C++ compiler' unless $compiler->have_cplusplus;
-        my $obj = $compiler->compile( source => path("t/src/$file")->absolute );
+        diag sprintf 'Compiling test lib t/src/%s...', $file;
+        my $obj = $compiler->compile( source => path("t/src/$file") );
+        diag sprintf 'Linking %s...', $obj;
         my $lib = $compiler->link( objects => $obj, 'C++' => 1 );
+        diag sprintf 'Built %s', $lib;
         push @cleanup, $obj, $lib;
         $lib;
     }

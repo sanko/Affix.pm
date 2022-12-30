@@ -10,10 +10,9 @@ package Affix {    # 'FFI' is my middle name!
     use Text::ParseWords;
     use Carp qw[];
     use vars qw[@EXPORT_OK @EXPORT %EXPORT_TAGS];
-
-    our $VERSION = '0.09_01';
+    our $VERSION = '0.09_02';
     use XSLoader;
-    XSLoader::load( __PACKAGE__, $VERSION);
+    XSLoader::load( __PACKAGE__, $VERSION );
     #
     use parent 'Exporter';
     @EXPORT_OK          = sort map { @$_ = sort @$_; @$_ } values %EXPORT_TAGS;
