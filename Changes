@@ -2,8 +2,6 @@ Revision history for Perl extension Affix.pm
 
 {{$NEXT}}
 
-0.09_02 2022-12-30T16:39:32Z
-
     - Struct[] may now contain a code reference
 
 0.08 2022-12-19T22:29:53Z

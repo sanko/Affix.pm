@@ -10,7 +10,7 @@ package Affix {    # 'FFI' is my middle name!
     use Text::ParseWords;
     use Carp qw[];
     use vars qw[@EXPORT_OK @EXPORT %EXPORT_TAGS];
-    our $VERSION = '0.09_02';
+    our $VERSION = '0.09_03';
     use XSLoader;
     XSLoader::load( __PACKAGE__, $VERSION );
     #

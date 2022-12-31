@@ -493,10 +493,8 @@ XS_INTERNAL(Affix_call) {
                 }
                 else {
                     if (sv_isobject(SvRV(value))) croak("Unexpected pointer to blessed object");
-                    SV *type = *subtype_ptr;
-                    size_t size = _sizeof(aTHX_ type);
-                    Newxz(pointer[pos_arg], size, char);
-                    sv2ptr(aTHX_ type, value, pointer[pos_arg], false);
+                    pointer[pos_arg] = safemalloc(_sizeof(aTHX_ * subtype_ptr));
+                    sv2ptr(aTHX_ * subtype_ptr, value, pointer[pos_arg], false);
                     l_pointer[pos_arg] = true;
                     pointers = true;
                 }

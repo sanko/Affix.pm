@@ -72,7 +72,7 @@ jobs:
 
             set PATH=C:\Users\runneradmin\perl5\perlbrew\bin;%PATH%
 
-      - name: "Testing on chached perl ${{ matrix.os }}-${{ matrix.perl }}(${{ matrix.flags }})"
+      - name: "Install deps"
         if: ${{ matrix.os == 'windows-latest' }}
         shell: cmd
         run: |
@@ -80,7 +80,15 @@ jobs:
 
              perl -V
 
-             cpanm -n -v --installdeps .
+             cpanm --installdeps --notest .
+
+      - name: "Testing on chached perl ${{ matrix.os }}-${{ matrix.perl }}(${{ matrix.flags }})"
+        if: ${{ matrix.os == 'windows-latest' }}
+        shell: cmd
+        run: |
+             set PATH=C:\Users\runneradmin\perl5\perlbrew\bin;%PATH%
+
+             perl -V
 
              cpanm --test-only -v .
 
@@ -98,7 +106,7 @@ jobs:
 
              perlbrew install --switch --verbose --as cache-${{ matrix.os }}${{ matrix.perl }}${{ matrix.flags }} -j 12 --notest --noman ${{ matrix.flags }} perl-${{ matrix.perl }}
 
-      - name: "Testing on chached perl ${{ matrix.os }}-${{ matrix.perl }}(${{ matrix.flags }})"
+      - name: "Install deps"
         if: ${{ matrix.os != 'windows-latest' }}
         shell: bash
         run: |
@@ -110,6 +118,18 @@ jobs:
 
              perl -V
 
-             cpanm -n -v --installdeps .
+             cpanm --installdeps --notest .
+
+      - name: "Testing on chached perl ${{ matrix.os }}-${{ matrix.perl }}(${{ matrix.flags }})"
+        if: ${{ matrix.os != 'windows-latest' }}
+        shell: bash
+        run: |
+             source ~/perl5/perlbrew/etc/bashrc
+
+             perlbrew list
+
+             perlbrew switch cache-${{ matrix.os }}${{ matrix.perl }}${{ matrix.flags }}
+
+             perl -V
 
              cpanm --test-only -v .
