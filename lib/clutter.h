@@ -770,68 +770,74 @@ void sv2ptr(pTHX_ SV *type, SV *data, DCpointer ptr, bool packed) {
     } break;
     case DC_SIGCHAR_BOOL: {
         bool value = SvTRUE(data);
-        Copy((char *)(&value), ptr, 1, bool);
+        Copy(&value, ptr, 1, bool);
     } break;
     case DC_SIGCHAR_CHAR: {
         if (SvIOK(data)) {
             char value = (char)SvIV(data);
-            Copy((char *)(&value), ptr, 1, char);
+            Copy(&value, ptr, 1, char);
         }
         else {
             char *value = SvPV_nolen(data);
             Copy(value, ptr, 1, char);
-            Copy((char *)(&value), ptr, 1, char);
+            Copy(&value, ptr, 1, char);
         }
     } break;
     case DC_SIGCHAR_UCHAR: {
         if (SvUOK(data)) {
             unsigned char value = (unsigned char)SvUV(data);
-            Copy((char *)(&value), ptr, 1, unsigned char);
+            Copy(&value, ptr, 1, unsigned char);
         }
         else {
             unsigned char *value = (unsigned char *)SvPV_nolen(data);
-            Copy((char *)(&value), ptr, 1, unsigned char);
+            Copy(&value, ptr, 1, unsigned char);
         }
     } break;
     case DC_SIGCHAR_SHORT: {
         short value = (short)SvIV(data);
-        Copy((char *)(&value), ptr, 1, short);
+        Copy(&value, ptr, 1, short);
     } break;
     case DC_SIGCHAR_USHORT: {
         unsigned short value = (unsigned short)SvUV(data);
-        Copy((char *)(&value), ptr, 1, unsigned short);
+        Copy(&value, ptr, 1, unsigned short);
     } break;
     case DC_SIGCHAR_INT: {
         int value = SvIV(data);
-        Copy((char *)(&value), ptr, 1, int);
+        Copy(&value, ptr, 1, int);
     } break;
     case DC_SIGCHAR_UINT: {
         unsigned int value = SvUV(data);
-        Copy((char *)(&value), ptr, 1, unsigned int);
+        Copy(&value, ptr, 1, unsigned int);
     } break;
     case DC_SIGCHAR_LONG: {
         long value = SvIV(data);
-        Copy((char *)(&value), ptr, 1, long);
+        Copy(&value, ptr, 1, long);
     } break;
     case DC_SIGCHAR_ULONG: {
         unsigned long value = SvUV(data);
-        Copy((char *)(&value), ptr, 1, unsigned long);
+        Copy(&value, ptr, 1, unsigned long);
     } break;
     case DC_SIGCHAR_LONGLONG: {
         I64 value = SvUV(data);
-        Copy((char *)(&value), ptr, 1, I64);
+        Copy(&value, ptr, 1, I64);
     } break;
     case DC_SIGCHAR_ULONGLONG: {
         U64 value = SvUV(data);
-        Copy((char *)(&value), ptr, 1, U64);
+        Copy(&value, ptr, 1, U64);
     } break;
     case DC_SIGCHAR_FLOAT: {
         float value = SvNV(data);
-        Copy((char *)(&value), ptr, 1, float);
+        Copy(&value, ptr, 1, float);
     } break;
     case DC_SIGCHAR_DOUBLE: {
+                    warn("here at %s line %d", __FILE__, __LINE__);
+
         double value = SvNV(data);
-        Copy((char *)(&value), ptr, 1, double);
+                    warn("here at %s line %d", __FILE__, __LINE__);
+
+        Copy(&value, ptr, 1, double);
+                    warn("here at %s line %d", __FILE__, __LINE__);
+
     } break;
     case DC_SIGCHAR_STRING: {
         const char *str = SvPV_nolen(data);
@@ -982,7 +988,10 @@ void sv2ptr(pTHX_ SV *type, SV *data, DCpointer ptr, bool packed) {
         char *str = SvPVbytex_nolen(type);
         croak("%c is not a known type in sv2ptr(...)", str[0]);
     }
+                warn("here at %s line %d", __FILE__, __LINE__);
+
     }
+            warn("here at %s line %d", __FILE__, __LINE__);
 
     return;
 }

@@ -9,8 +9,6 @@ use t::lib::nativecall;
 use Config;
 $|++;
 #
-#plan skip_all => q[You use *BSD. You don't like nice things.] if $^O =~ /bsd/i;
-#
 diag __LINE__;
 compile_test_lib('50_affix_pointers');
 #
