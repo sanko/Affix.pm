@@ -830,13 +830,13 @@ void sv2ptr(pTHX_ SV *type, SV *data, DCpointer ptr, bool packed) {
         Copy(&value, ptr, 1, float);
     } break;
     case DC_SIGCHAR_DOUBLE: {
-                    warn("here at %s line %d", __FILE__, __LINE__);
+        warn("here at %s line %d", __FILE__, __LINE__);
 
         double value = SvNV(data);
-                    warn("here at %s line %d", __FILE__, __LINE__);
+        warn("here at %s line %d", __FILE__, __LINE__);
 
         Copy(&value, ptr, 1, double);
-                    warn("here at %s line %d", __FILE__, __LINE__);
+        warn("here at %s line %d", __FILE__, __LINE__);
 
     } break;
     case DC_SIGCHAR_STRING: {
@@ -988,10 +988,9 @@ void sv2ptr(pTHX_ SV *type, SV *data, DCpointer ptr, bool packed) {
         char *str = SvPVbytex_nolen(type);
         croak("%c is not a known type in sv2ptr(...)", str[0]);
     }
-                warn("here at %s line %d", __FILE__, __LINE__);
-
+        warn("here at %s line %d", __FILE__, __LINE__);
     }
-            warn("here at %s line %d", __FILE__, __LINE__);
+    warn("here at %s line %d", __FILE__, __LINE__);
 
     return;
 }

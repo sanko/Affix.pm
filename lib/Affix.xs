@@ -485,53 +485,50 @@ XS_INTERNAL(Affix_call) {
         case DC_SIGCHAR_POINTER: {
             warn("here at %s line %d", __FILE__, __LINE__);
             SV **subtype_ptr = hv_fetchs(MUTABLE_HV(SvRV(type)), "type", 0);
-                        warn("here at %s line %d", __FILE__, __LINE__);
+            warn("here at %s line %d", __FILE__, __LINE__);
 
             if (SvOK(value)) {
-                            warn("here at %s line %d", __FILE__, __LINE__);
+                warn("here at %s line %d", __FILE__, __LINE__);
 
                 if (sv_derived_from(value, "Dyn::Call::Pointer")) {
-                                warn("here at %s line %d", __FILE__, __LINE__);
+                    warn("here at %s line %d", __FILE__, __LINE__);
 
                     IV tmp = SvIV((SV *)SvRV(value));
                     pointer[pos_arg] = INT2PTR(DCpointer, tmp);
                     l_pointer[pos_arg] = false;
                     pointers = true;
-                                warn("here at %s line %d", __FILE__, __LINE__);
-
+                    warn("here at %s line %d", __FILE__, __LINE__);
                 }
                 else {
-                                warn("here at %s line %d", __FILE__, __LINE__);
+                    warn("here at %s line %d", __FILE__, __LINE__);
 
                     if (sv_isobject(value)) croak("Unexpected pointer to blessed object");
-                                                    warn("here at %s line %d", __FILE__, __LINE__);
+                    warn("here at %s line %d", __FILE__, __LINE__);
 
                     pointer[pos_arg] = safemalloc(_sizeof(aTHX_ * subtype_ptr));
-                                                    warn("here at %s line %d", __FILE__, __LINE__);
+                    warn("here at %s line %d", __FILE__, __LINE__);
 
                     sv2ptr(aTHX_ * subtype_ptr, value, pointer[pos_arg], false);
-                                                    warn("here at %s line %d", __FILE__, __LINE__);
+                    warn("here at %s line %d", __FILE__, __LINE__);
 
                     l_pointer[pos_arg] = true;
-                                                    warn("here at %s line %d", __FILE__, __LINE__);
+                    warn("here at %s line %d", __FILE__, __LINE__);
 
                     pointers = true;
-                                warn("here at %s line %d", __FILE__, __LINE__);
-
+                    warn("here at %s line %d", __FILE__, __LINE__);
                 }
             }
             else if (SvREADONLY(value)) { // explicit undef
-                            warn("here at %s line %d", __FILE__, __LINE__);
+                warn("here at %s line %d", __FILE__, __LINE__);
 
                 pointer[pos_arg] = NULL;
-                                                warn("here at %s line %d", __FILE__, __LINE__);
+                warn("here at %s line %d", __FILE__, __LINE__);
 
                 l_pointer[pos_arg] = false;
-                            warn("here at %s line %d", __FILE__, __LINE__);
-
+                warn("here at %s line %d", __FILE__, __LINE__);
             }
             else { // treat as if it's an lvalue
-                            warn("here at %s line %d", __FILE__, __LINE__);
+                warn("here at %s line %d", __FILE__, __LINE__);
 
                 SV **subtype_ptr = hv_fetchs(MUTABLE_HV(SvRV(type)), "type", 0);
                 SV *type = *subtype_ptr;
@@ -539,8 +536,7 @@ XS_INTERNAL(Affix_call) {
                 Newxz(pointer[pos_arg], size, char);
                 l_pointer[pos_arg] = true;
                 pointers = true;
-                            warn("here at %s line %d", __FILE__, __LINE__);
-
+                warn("here at %s line %d", __FILE__, __LINE__);
             }
             warn("here at %s line %d", __FILE__, __LINE__);
 
