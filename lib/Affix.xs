@@ -716,8 +716,14 @@ XS_INTERNAL(Affix_call) {
             dcCallVoid(MY_CXT.cvm, call->fptr);
             break;
         case DC_SIGCHAR_BOOL:
+            warn("here at %s line %d", __FILE__, __LINE__);
+
             RETVAL = newSV(0);
+            warn("here at %s line %d", __FILE__, __LINE__);
+
             sv_setbool_mg(RETVAL, (bool)dcCallBool(MY_CXT.cvm, call->fptr));
+            warn("here at %s line %d", __FILE__, __LINE__);
+
             break;
         case DC_SIGCHAR_CHAR:
             RETVAL = newSViv((char)dcCallChar(MY_CXT.cvm, call->fptr));
@@ -805,9 +811,9 @@ XS_INTERNAL(Affix_call) {
         default:
             croak("Unhandled return type: %c", call->ret);
         }
-
+        warn("here at %s line %d", __FILE__, __LINE__);
         if (pointers) {
-            // warn("pointers! at %s line %d", __FILE__, __LINE__);
+            warn("pointers! at %s line %d", __FILE__, __LINE__);
             for (int i = 0; i < call->sig_len; ++i) {
                 switch (call->sig[i]) {
                 case DC_SIGCHAR_POINTER: {
@@ -858,7 +864,7 @@ XS_INTERNAL(Affix_call) {
                 }
             }
         }
-
+        warn("here at %s line %d", __FILE__, __LINE__);
         if (call->ret == DC_SIGCHAR_VOID) XSRETURN_EMPTY;
         RETVAL = sv_2mortal(RETVAL);
         ST(0) = RETVAL;

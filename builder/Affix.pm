@@ -349,8 +349,7 @@ sub process_xs {
         defines      => { VERSION => qq/"$version"/, XS_VERSION => qq/"$version"/ },
         include_dirs => [
             curdir,                                                dirname($source),
-            $pre->child( $opt{meta}->name, 'include' )->stringify, dirname('dyncall/dyncall'),
-            dirname('dyncall/dynload'),                            dirname('dyncall/dyncallback')
+            $pre->child( $opt{meta}->name, 'include' )->stringify
         ],
         extra_compiler_flags => (
             '-fPIC ' . ( $opt{config}->get('osname') =~ /bsd/ ? '' : $CFLAGS ) .
