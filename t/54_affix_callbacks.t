@@ -166,22 +166,23 @@ is wrap( $lib, 'cb_Z_Z', [ CodeRef [ [Str] => Str ] ] => Str )->(
     ),
     'Go!', '    => Str';
 #
-if (0) {
-    is wrap( $lib, 'cb_A', [ Struct [ cb => CodeRef [ [Str] => Str ], i => Int ] ] => Str )->(
-        sub {
+my $ptr = Affix::sv2ptr(
+    {   cb => sub {
             is_deeply( \@_, ['Ready!'], '[ Str ]' );
             return 'Go!';
-        }
-        ),
-        'Go!', 'Callback inside struct';
-
-    #~ struct A {
-    #~ ZZ cb;
-    #~ int i;
-    #~ }
-    #~ DLLEXPORT char *cb_A(struct A a) {
-    #~ return ((*a.cb)("Ready!"));
-    #~ }
-    #
-}
+        },
+        i => 100
+    },
+    Struct [ cb => CodeRef [ [Str] => Str ], i => Int ]
+);
+is wrap( $lib, 'cb_A', [ Struct [ cb => CodeRef [ [Str] => Str ], i => Int ] ] => Str )->(
+    {   cb => sub {
+            is_deeply( \@_, ['Ready!'], '[ Str ]' );
+            return 'Go!';
+        },
+        i => 100
+    }
+    ),
+    'Go!', 'Callback inside struct';
+#
 done_testing;

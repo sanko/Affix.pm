@@ -10,7 +10,7 @@ package Affix {    # 'FFI' is my middle name!
     use Text::ParseWords;
     use Carp qw[];
     use vars qw[@EXPORT_OK @EXPORT %EXPORT_TAGS];
-    our $VERSION = '0.09_05';
+    our $VERSION = '0.09';
     use XSLoader;
     XSLoader::load( __PACKAGE__, $VERSION );
     #
@@ -265,6 +265,12 @@ package Affix {    # 'FFI' is my middle name!
         return $_lib_cache->{ $name . ';' . ( $version // '' ) }
             // Carp::croak( 'Cannot locate symbol: ' . $name );
     }
+
+    # define packages that are otherwise XS-only so PAUSE will find them in META.json
+    {
+
+        package Affix::Feature 0.09;
+    }
 };
 1;
 __END__
@@ -291,6 +297,10 @@ Affix - A Foreign Function Interface eXtension
 
     sub bar : Native('libfoo') : Signature([Str, Float] => Double);
     print bar( 'Baz', 10.9 );
+
+    # bind to exported values
+
+
 
 =head1 DESCRIPTION
 

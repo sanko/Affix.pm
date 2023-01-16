@@ -101,3 +101,11 @@ typedef char *(*Z_Z)(char *);
 DLLEXPORT char *cb_Z_Z(Z_Z cb) {
     return ((*cb)("Ready!"));
 }
+
+struct A {
+    Z_Z cb;
+    int i;
+};
+DLLEXPORT char *cb_A(struct A a) {
+    return ((*a.cb)("Ready!"));
+}

@@ -483,52 +483,52 @@ XS_INTERNAL(Affix_call) {
             dcArgDouble(MY_CXT.cvm, (double)SvNV(value));
             break;
         case DC_SIGCHAR_POINTER: {
-            warn("here at %s line %d", __FILE__, __LINE__);
+            //~ warn("here at %s line %d", __FILE__, __LINE__);
             SV **subtype_ptr = hv_fetchs(MUTABLE_HV(SvRV(type)), "type", 0);
-            warn("here at %s line %d", __FILE__, __LINE__);
+            //~ warn("here at %s line %d", __FILE__, __LINE__);
 
             if (SvOK(value)) {
-                warn("here at %s line %d", __FILE__, __LINE__);
+                //~ warn("here at %s line %d", __FILE__, __LINE__);
 
                 if (sv_derived_from(value, "Dyn::Call::Pointer")) {
-                    warn("here at %s line %d", __FILE__, __LINE__);
+                    //~ warn("here at %s line %d", __FILE__, __LINE__);
 
                     IV tmp = SvIV((SV *)SvRV(value));
                     pointer[pos_arg] = INT2PTR(DCpointer, tmp);
                     l_pointer[pos_arg] = false;
                     pointers = true;
-                    warn("here at %s line %d", __FILE__, __LINE__);
+                    //~ warn("here at %s line %d", __FILE__, __LINE__);
                 }
                 else {
-                    warn("here at %s line %d", __FILE__, __LINE__);
+                    //~ warn("here at %s line %d", __FILE__, __LINE__);
 
                     if (sv_isobject(value)) croak("Unexpected pointer to blessed object");
-                    warn("here at %s line %d", __FILE__, __LINE__);
+                    //~ warn("here at %s line %d", __FILE__, __LINE__);
 
                     pointer[pos_arg] = safemalloc(_sizeof(aTHX_ * subtype_ptr));
-                    warn("here at %s line %d", __FILE__, __LINE__);
+                    //~ warn("here at %s line %d", __FILE__, __LINE__);
 
                     sv2ptr(aTHX_ * subtype_ptr, value, pointer[pos_arg], false);
-                    warn("here at %s line %d", __FILE__, __LINE__);
+                    //~ warn("here at %s line %d", __FILE__, __LINE__);
 
                     l_pointer[pos_arg] = true;
-                    warn("here at %s line %d", __FILE__, __LINE__);
+                    //~ warn("here at %s line %d", __FILE__, __LINE__);
 
                     pointers = true;
-                    warn("here at %s line %d", __FILE__, __LINE__);
+                    //~ warn("here at %s line %d", __FILE__, __LINE__);
                 }
             }
             else if (SvREADONLY(value)) { // explicit undef
-                warn("here at %s line %d", __FILE__, __LINE__);
+                //~ warn("here at %s line %d", __FILE__, __LINE__);
 
                 pointer[pos_arg] = NULL;
-                warn("here at %s line %d", __FILE__, __LINE__);
+                //~ warn("here at %s line %d", __FILE__, __LINE__);
 
                 l_pointer[pos_arg] = false;
-                warn("here at %s line %d", __FILE__, __LINE__);
+                //~ warn("here at %s line %d", __FILE__, __LINE__);
             }
             else { // treat as if it's an lvalue
-                warn("here at %s line %d", __FILE__, __LINE__);
+                //~ warn("here at %s line %d", __FILE__, __LINE__);
 
                 SV **subtype_ptr = hv_fetchs(MUTABLE_HV(SvRV(type)), "type", 0);
                 SV *type = *subtype_ptr;
@@ -536,9 +536,9 @@ XS_INTERNAL(Affix_call) {
                 Newxz(pointer[pos_arg], size, char);
                 l_pointer[pos_arg] = true;
                 pointers = true;
-                warn("here at %s line %d", __FILE__, __LINE__);
+                //~ warn("here at %s line %d", __FILE__, __LINE__);
             }
-            warn("here at %s line %d", __FILE__, __LINE__);
+            //~ warn("here at %s line %d", __FILE__, __LINE__);
 
             dcArgPointer(MY_CXT.cvm, pointer[pos_arg]);
         } break;
@@ -707,7 +707,7 @@ XS_INTERNAL(Affix_call) {
             croak("--> Unfinished: [%c/%lu]%s", call->sig[pos_csig], pos_arg, call->sig);
         }
     }
-    warn("Return type: %c at %s line %d", call->ret, __FILE__, __LINE__);
+    //~ warn("Return type: %c at %s line %d", call->ret, __FILE__, __LINE__);
     SV *RETVAL;
     {
         switch (call->ret) {
@@ -716,14 +716,8 @@ XS_INTERNAL(Affix_call) {
             dcCallVoid(MY_CXT.cvm, call->fptr);
             break;
         case DC_SIGCHAR_BOOL:
-            warn("here at %s line %d", __FILE__, __LINE__);
-
             RETVAL = newSV(0);
-            warn("here at %s line %d", __FILE__, __LINE__);
-
             sv_setbool_mg(RETVAL, (bool)dcCallBool(MY_CXT.cvm, call->fptr));
-            warn("here at %s line %d", __FILE__, __LINE__);
-
             break;
         case DC_SIGCHAR_CHAR:
             RETVAL = newSViv((char)dcCallChar(MY_CXT.cvm, call->fptr));
@@ -811,9 +805,9 @@ XS_INTERNAL(Affix_call) {
         default:
             croak("Unhandled return type: %c", call->ret);
         }
-        warn("here at %s line %d", __FILE__, __LINE__);
+        //~ warn("here at %s line %d", __FILE__, __LINE__);
         if (pointers) {
-            warn("pointers! at %s line %d", __FILE__, __LINE__);
+            //~ warn("pointers! at %s line %d", __FILE__, __LINE__);
             for (int i = 0; i < call->sig_len; ++i) {
                 switch (call->sig[i]) {
                 case DC_SIGCHAR_POINTER: {
@@ -864,7 +858,7 @@ XS_INTERNAL(Affix_call) {
                 }
             }
         }
-        warn("here at %s line %d", __FILE__, __LINE__);
+        //~ warn("here at %s line %d", __FILE__, __LINE__);
         if (call->ret == DC_SIGCHAR_VOID) XSRETURN_EMPTY;
         RETVAL = sv_2mortal(RETVAL);
         ST(0) = RETVAL;
@@ -1837,4 +1831,18 @@ BOOT:
     export_function("Affix", "DEFAULT_ALIGNMENT", "vars");
 
     newCONSTSUB(stash, "ALIGNBYTES", newSViv(AFFIX_ALIGNBYTES));
+    export_constant("Affix::Feature", "Syscall", "feature",
+#ifdef DC__Feature_Syscall
+                    1
+#else
+                    0
+#endif
+    );
+    export_constant("Affix::Feature", "AggrByVal", "feature",
+#ifdef DC__Feature_AggrByVal
+                    1
+#else
+                    0
+#endif
+    );
 }

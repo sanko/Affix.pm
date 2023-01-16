@@ -347,10 +347,8 @@ sub process_xs {
         'C++'        => 1,
         source       => $c_file,
         defines      => { VERSION => qq/"$version"/, XS_VERSION => qq/"$version"/ },
-        include_dirs => [
-            curdir,                                                dirname($source),
-            $pre->child( $opt{meta}->name, 'include' )->stringify
-        ],
+        include_dirs =>
+            [ curdir, dirname($source), $pre->child( $opt{meta}->name, 'include' )->stringify ],
         extra_compiler_flags => (
             '-fPIC ' . ( $opt{config}->get('osname') =~ /bsd/ ? '' : $CFLAGS ) .
                 ( $DEBUG ? ' -ggdb3 ' : '' )

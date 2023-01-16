@@ -548,8 +548,8 @@ static size_t _offsetof(pTHX_ SV *type) {
 }
 
 static DCaggr *_aggregate(pTHX_ SV *type) {
-    // warn("here at %s line %d", __FILE__, __LINE__);
-    //  //sv_dump(type);
+    //~ warn("_aggregate( ... ) at %s line %d", __FILE__, __LINE__);
+    //~ sv_dump(type);
 
     char *str = SvPVbytex_nolen(type); // stringify to sigchar; speed cheat vs sv_derived_from(...)
                                        // warn("here at %s line %d", __FILE__, __LINE__);
@@ -605,10 +605,15 @@ static DCaggr *_aggregate(pTHX_ SV *type) {
                        array_len,
                          __FILE__, __LINE__);*/
                 } break;
+                case DC_SIGCHAR_ANY:
+                case DC_SIGCHAR_CODE:
+                case DC_SIGCHAR_POINTER: {
+                    dcAggrField(agg, DC_SIGCHAR_POINTER, offset, 1);
+                } break;
                 default: {
+                    //~ warn("dcAggrField(agg, %c, %d, 1); at %s line %d", str[0], offset, __FILE__,
+                    //~ __LINE__);
                     dcAggrField(agg, str[0], offset, 1);
-                    // warn("dcAggrField(agg, %c, %d, 1); at %s line %d", str[0], offset, __FILE__,
-                    //     __LINE__);
                 } break;
                 }
             }
@@ -988,9 +993,9 @@ void sv2ptr(pTHX_ SV *type, SV *data, DCpointer ptr, bool packed) {
         char *str = SvPVbytex_nolen(type);
         croak("%c is not a known type in sv2ptr(...)", str[0]);
     }
-        warn("here at %s line %d", __FILE__, __LINE__);
+        //~ warn("here at %s line %d", __FILE__, __LINE__);
     }
-    warn("here at %s line %d", __FILE__, __LINE__);
+    //~ warn("here at %s line %d", __FILE__, __LINE__);
 
     return;
 }

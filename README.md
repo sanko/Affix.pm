@@ -20,6 +20,8 @@ print $bar->( 'Baz', 3.14 );
 
 sub bar : Native('libfoo') : Signature([Str, Float] => Double);
 print bar( 'Baz', 10.9 );
+
+# bind to exported values
 ```
 
 # DESCRIPTION
