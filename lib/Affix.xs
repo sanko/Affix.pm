@@ -227,7 +227,9 @@ XS_INTERNAL(Types) {
                 croak("Given type for return value is not a subclass of "
                       "Affix::Type::Base");
 
-            char signature[field_count];
+            char *signature;
+            Newxz(signature, field_count + 1, char);
+
             for (int i = 0; i < field_count; i++) {
                 SV **type_ref = av_fetch(fields, i, 0);
                 char *str = SvPVbytex_nolen(*type_ref);
@@ -246,10 +248,13 @@ XS_INTERNAL(Types) {
                     break;
                 }
             }
+            signature[field_count] = ')';
+            signature[field_count + 1] = (char)*SvPV_nolen(retval);
+
             hv_stores(RETVAL_HV, "args", SvREFCNT_inc(*av_fetch(args, 0, 0)));
             hv_stores(RETVAL_HV, "return", SvREFCNT_inc(retval));
             hv_stores(RETVAL_HV, "sig_len", newSViv(field_count));
-            hv_stores(RETVAL_HV, "signature", newSVpv(signature, field_count));
+            hv_stores(RETVAL_HV, "signature", newSVpv(signature, field_count + 2));
         }
     } break;
     case DC_SIGCHAR_STRUCT:
@@ -570,62 +575,12 @@ XS_INTERNAL(Affix_call) {
         } break;
         case DC_SIGCHAR_CODE: {
             if (SvOK(value)) {
-                DCCallback *cb = NULL;
-                {
-                    CoW *p = cow;
-                    while (p != NULL) {
-                        if (p->cb) {
-                            Callback *_cb = (Callback *)dcbGetUserData(p->cb);
-                            if (SvRV(_cb->cv) == SvRV(value)) {
-                                cb = p->cb;
-                                break;
-                            }
-                        }
-                        p = p->next;
-                    }
-                }
+                CoW *hold;
+                Newx(hold, 1, CoW);
+                //~ warn("here at %s line %d", __FILE__, __LINE__);
 
-                if (!cb) {
-                    HV *field = MUTABLE_HV(SvRV(type)); // Make broad assumptions
-                    SV **sig = hv_fetchs(field, "signature", 0);
-                    SV **sig_len = hv_fetchs(field, "sig_len", 0);
-                    SV **ret = hv_fetchs(field, "return", 0);
-                    SV **args = hv_fetchs(field, "args", 0);
-
-                    Callback *callback;
-                    Newxz(callback, 1, Callback);
-
-                    callback->args = MUTABLE_AV(SvRV(*args));
-                    callback->sig = SvPV_nolen(*sig);
-                    callback->sig_len = strlen(callback->sig);
-                    callback->ret = (char)*SvPV_nolen(*ret);
-
-                    /*CV *coderef;
-                    STMT_START {
-                        HV *st;
-                        GV *gvp;
-                        SV *const xsub_tmp_sv = ST(i);
-                        SvGETMAGIC(xsub_tmp_sv);
-                        coderef = sv_2cv(xsub_tmp_sv, &st, &gvp, 0);
-                        if (!coderef) croak("Type of arg %d must be code ref", i + 1);
-                    }
-                    STMT_END;
-                    if (callback->cv) SvREFCNT_dec(callback->cv);
-                    callback->cv = SvREFCNT_inc(MUTABLE_SV(coderef));*/
-
-                    callback->cv = SvREFCNT_inc(value);
-                    storeTHX(callback->perl);
-
-                    cb = dcbNewCallback(callback->sig, cbHandler, callback);
-                    {
-                        CoW *hold;
-                        Newxz(hold, 1, CoW);
-                        hold->cb = cb;
-                        hold->next = cow;
-                        cow = hold;
-                    }
-                }
-                dcArgPointer(MY_CXT.cvm, cb);
+                sv2ptr(aTHX_ type, value, hold, false);
+                dcArgPointer(MY_CXT.cvm, hold->cb);
             }
             else
                 dcArgPointer(MY_CXT.cvm, NULL);
