@@ -411,13 +411,14 @@ char cbHandler(DCCallback *cb, DCArgs *args, DCValue *result, DCpointer userdata
                 croak("Unhandled callback arg. Type: %c [%s]", cbx->sig[i], cbx->sig);
                 break;
             }
-        }  }
-        PUTBACK;
+        }
+    }
+    PUTBACK;
 
-    warn("here at %s line %d", __FILE__, __LINE__);
+    // warn("here at %s line %d", __FILE__, __LINE__);
     if (cbx->ret == DC_SIGCHAR_VOID) { call_sv(cbx->cv, G_VOID); }
     else {
-        warn("here at %s line %d", __FILE__, __LINE__);
+        // warn("here at %s line %d", __FILE__, __LINE__);
         count = call_sv(cbx->cv, G_SCALAR);
         if (count != 1) croak("Big trouble: %d returned items", count);
         SPAGAIN;
@@ -859,13 +860,13 @@ void sv2ptr(pTHX_ SV *type, SV *data, DCpointer ptr, bool packed) {
         Copy(&value, ptr, 1, float);
     } break;
     case DC_SIGCHAR_DOUBLE: {
-        warn("here at %s line %d", __FILE__, __LINE__);
+        // warn("here at %s line %d", __FILE__, __LINE__);
 
         double value = SvNV(data);
-        warn("here at %s line %d", __FILE__, __LINE__);
+        // warn("here at %s line %d", __FILE__, __LINE__);
 
         Copy(&value, ptr, 1, double);
-        warn("here at %s line %d", __FILE__, __LINE__);
+        // warn("here at %s line %d", __FILE__, __LINE__);
 
     } break;
     case DC_SIGCHAR_STRING: {

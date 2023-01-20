@@ -182,7 +182,6 @@ is wrap( $lib, 'cb_A', [ Struct [ cb => CodeRef [ [Str] => Str ], i => Int ] ] =
     ),
     'Go!', 'Callback inside struct';
 #
-
 Affix::typedef cv => CodeRef [ [] => Str ];
 my $cv = sub { pass 'Callback!'; };
 is wrap( $lib, 'cb_CV_Z', [ CodeRef [ [ Str, cv() ] => Str ], cv() ] => Str )->(
