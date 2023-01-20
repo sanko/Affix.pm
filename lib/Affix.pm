@@ -1076,6 +1076,25 @@ declaration is straightforward:
 
     TODO
 
+=head1 Features
+
+Not all features of dyncall are supported on all platforms, for those, the
+underlying library defines macros you can use to detect support. These values
+are exposed under the C<Affix::Feature> package:
+
+=over
+
+=item C<Affix::Feature::Syscall()>
+
+If true, your platform supports a syscall calling conventions.
+
+=item C<Affix::Feature::AggrByVal()>
+
+If true, your platform supports passing around aggregates (struct, union) by
+value.
+
+=back
+
 =head1 See Also
 
 Check out L<FFI::Platypus> for a more robust and mature FFI.
@@ -1102,7 +1121,7 @@ Sanko Robinson E<lt>sanko@cpan.orgE<gt>
 
 dyncall OpenBSD FreeBSD macOS DragonFlyBSD NetBSD iOS ReactOS mips mips64 ppc32
 ppc64 sparc sparc64 co-existing varargs variadic struct enum eXtension rvalue
-dualvars libsomething versioned errno
+dualvars libsomething versioned errno syscall
 
 =end stopwords
 
