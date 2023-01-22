@@ -24,7 +24,7 @@ package t::lib::nativecall {
         my $l_file = path( "t/src/$name." . $Config{so} )->canonpath;
         diag sprintf 'Building %s into %s', $c_file, $l_file;
         my @cmds = (
-            $Config{cc} . " --shared -fPIC -DBUILD_LIB -o $l_file $c_file",
+            $Config{cc} . " -Wall --shared -fPIC -DBUILD_LIB -o $l_file $c_file",
 
             #~ (
             #~ $OS eq 'MSWin32' ? "cl /LD /EHsc /Fe$l_file $c_file" :

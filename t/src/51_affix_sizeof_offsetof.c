@@ -141,11 +141,12 @@ DLLEXPORT size_t s_massive() {
 }
 
 //
+typedef struct {
+    double d;
+    int c[4];
+} array_struct;
 DLLEXPORT size_t s_array1(int length) {
-    return sizeof(struct {
-        double d;
-        int c[4];
-    }[length]);
+    return sizeof(array_struct[length]);
 }
 
 //
