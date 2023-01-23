@@ -2,10 +2,11 @@ Revision history for Perl extension Affix.pm
 
 {{$NEXT}}
 
-0.09_06 2023-01-20T05:35:31Z
-
-    - Struct[] may now contain a code reference
-    - CodeRef, Any, etc. are now properly handled as aggregates
+    - Structs may now contain a CodeRef
+    - CodeRef, Any, etc. are now properly handled as aggregate members
+    - Nesting CodeRefs used as callbacks work now
+    - Bind to exported values with pin()
+    - Expose aggregate by value and syscall support in Affix::Feature
     - Survive callbacks with unexpectedly empty return values
 
 0.08 2022-12-19T22:29:53Z
