@@ -6,6 +6,7 @@ Revision history for Perl extension Affix.pm
 
     - Struct[] may now contain a code reference
     - CodeRef, Any, etc. are now properly handled as aggregates
+    - Survive callbacks with unexpectedly empty return values
 
 0.08 2022-12-19T22:29:53Z
 

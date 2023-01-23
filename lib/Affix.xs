@@ -566,8 +566,6 @@ XS_INTERNAL(Affix_call) {
         } break;
         case DC_SIGCHAR_ANY: {
             if (!SvOK(value)) sv_set_undef(value);
-            // sv_dump(value);
-            //   croak("here");
             dcArgPointer(MY_CXT.cvm, SvREFCNT_inc(value));
         } break;
         case DC_SIGCHAR_STRING: {
