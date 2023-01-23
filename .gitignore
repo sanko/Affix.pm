@@ -60,4 +60,4 @@ eg/lib/*.pm
 eg/*.c
 eg/*.orig
 eg/vgcore.*
-lib/Dyn.xs.orig
+*.orig

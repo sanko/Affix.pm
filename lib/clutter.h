@@ -23,7 +23,7 @@ extern "C" {
 #define dcAllocMem safemalloc
 #define dcFreeMem Safefree
 
-//#include "ppport.h"
+// #include "ppport.h"
 
 #ifndef av_count
 #define av_count(av) (AvFILL(av) + 1)
@@ -141,7 +141,8 @@ extern "C" {
 
 /* Useful but undefined in perlapi */
 #define FLOATSIZE sizeof(float)
-#define BOOLSIZE sizeof(bool) // ha!
+#define BOOLSIZE sizeof(bool)      // ha!
+#define XDOUBLESIZE sizeof(double) // ugh...
 
 const char *file = __FILE__;
 
@@ -157,10 +158,10 @@ START_MY_CXT
 
 typedef struct CoW {
     DCCallback *cb;
-    struct CoW *next;
+    // struct CoW *next;
 } CoW;
 
-static CoW *cow;
+// static CoW *cow;
 
 typedef struct {
     char *sig;
@@ -184,6 +185,8 @@ typedef struct {
     SV *retval;
     dTHXfield(perl)
 } Callback;
+
+SV *ptr2sv(pTHX_ DCpointer ptr, SV *type);
 
 // http://www.catb.org/esr/structure-packing/#_structure_alignment_and_padding
 /* Returns the amount of padding needed after `offset` to ensure that the
@@ -297,12 +300,10 @@ SV *enum2sv(pTHX_ SV *type, int in) {
 }
 
 char cbHandler(DCCallback *cb, DCArgs *args, DCValue *result, DCpointer userdata) {
-    // warn("here at %s line %d", __FILE__, __LINE__);
     Callback *cbx = (Callback *)userdata;
-    // warn("Triggering callback: %c (%s [%d] return: %c) at %s line %d", cbx->ret, cbx->sig,
-    // cbx->sig_len, cbx->ret, __FILE__, __LINE__);
+    //~ warn("Triggering callback: %s [%d] return: %c at %s line %d", cbx->sig, cbx->sig_len,
+    //~ cbx->ret, __FILE__, __LINE__);
     dTHXa(cbx->perl);
-
     dSP;
     int count;
 
@@ -312,137 +313,167 @@ char cbHandler(DCCallback *cb, DCArgs *args, DCValue *result, DCpointer userdata
     PUSHMARK(SP);
 
     EXTEND(SP, cbx->sig_len);
-    char type;
-    for (int i = 0; i < cbx->sig_len; ++i) {
-        type = cbx->sig[i];
-        // warn("type : %c", type);
-        switch (type) {
-        case DC_SIGCHAR_VOID:
-            // TODO: push undef?
-            break;
-        case DC_SIGCHAR_BOOL:
-            mPUSHs(boolSV(dcbArgBool(args)));
-            break;
-        case DC_SIGCHAR_CHAR:
-            mPUSHi((IV)dcbArgChar(args));
-            break;
-        case DC_SIGCHAR_UCHAR:
-            mPUSHu((UV)dcbArgChar(args));
-            break;
-        case DC_SIGCHAR_SHORT:
-            mPUSHi((IV)dcbArgShort(args));
-            break;
-        case DC_SIGCHAR_USHORT:
-            mPUSHu((UV)dcbArgShort(args));
-            break;
-        case DC_SIGCHAR_INT:
-            mPUSHi((IV)dcbArgInt(args));
-            break;
-        case DC_SIGCHAR_UINT:
-            mPUSHu((UV)dcbArgInt(args));
-            break;
-        case DC_SIGCHAR_LONG:
-            mPUSHi((IV)dcbArgLong(args));
-            break;
-        case DC_SIGCHAR_ULONG:
-            mPUSHu((UV)dcbArgLong(args));
-            break;
-        case DC_SIGCHAR_LONGLONG:
-            mPUSHi((IV)dcbArgLongLong(args));
-            break;
-        case DC_SIGCHAR_ULONGLONG:
-            mPUSHu((UV)dcbArgLongLong(args));
-            break;
-        case DC_SIGCHAR_FLOAT:
-            mPUSHn((NV)dcbArgFloat(args));
-            break;
-        case DC_SIGCHAR_DOUBLE:
-            mPUSHn((NV)dcbArgDouble(args));
-            break;
-        case DC_SIGCHAR_POINTER: {
-            mPUSHs(sv_setref_pv(newSV(1), "Affix::Pointer", dcbArgPointer(args)));
-        } break;
-        case DC_SIGCHAR_STRING: {
-            DCpointer ptr = dcbArgPointer(args);
-            PUSHs(newSVpv((char *)ptr, 0));
-        } break;
-        case DC_SIGCHAR_BLESSED: {
-            DCpointer ptr = dcbArgPointer(args);
-            HV *blessed = MUTABLE_HV(SvRV(*av_fetch(cbx->args, i, 0)));
-            SV **package = hv_fetchs(blessed, "package", 0);
-            PUSHs(sv_setref_pv(newSV(1), SvPV_nolen(*package), ptr));
-        } break;
-        case DC_SIGCHAR_ENUM:
-        case DC_SIGCHAR_ENUM_UINT: {
-            PUSHs(enum2sv(aTHX_ * av_fetch(cbx->args, i, 0), dcbArgInt(args)));
-        } break;
-        case DC_SIGCHAR_ENUM_CHAR: {
-            PUSHs(enum2sv(aTHX_ * av_fetch(cbx->args, i, 0), dcbArgChar(args)));
-        } break;
-        case DC_SIGCHAR_ANY: {
-            DCpointer ptr = dcbArgPointer(args);
-            SV *sv = newSV(0);
-            if (ptr != NULL && SvOK(MUTABLE_SV(ptr))) { sv = MUTABLE_SV(ptr); }
-            PUSHs(sv);
-        } break;
-        default:
-            croak("Unhandled callback arg. Type: %c [%s]", cbx->sig[i], cbx->sig);
-            break;
+
+    if (cbx->sig_len) {
+
+        char type;
+        for (size_t i = 0; i < cbx->sig_len; ++i) {
+            type = cbx->sig[i];
+            //~ warn("type %d: %c", i, type);
+            //~ {
+            //~ SV *_type = SvRV(*av_fetch(cbx->args, i, 0));
+            //~ sv_dump(_type);
+            //~ }
+            switch (type) {
+            case DC_SIGCHAR_VOID:
+                // TODO: push undef?
+                break;
+            case DC_SIGCHAR_BOOL:
+                mPUSHs(boolSV(dcbArgBool(args)));
+                break;
+            case DC_SIGCHAR_CHAR:
+                mPUSHi((IV)dcbArgChar(args));
+                break;
+            case DC_SIGCHAR_UCHAR:
+                mPUSHu((UV)dcbArgChar(args));
+                break;
+            case DC_SIGCHAR_SHORT:
+                mPUSHi((IV)dcbArgShort(args));
+                break;
+            case DC_SIGCHAR_USHORT:
+                mPUSHu((UV)dcbArgShort(args));
+                break;
+            case DC_SIGCHAR_INT:
+                mPUSHi((IV)dcbArgInt(args));
+                break;
+            case DC_SIGCHAR_UINT:
+                mPUSHu((UV)dcbArgInt(args));
+                break;
+            case DC_SIGCHAR_LONG:
+                mPUSHi((IV)dcbArgLong(args));
+                break;
+            case DC_SIGCHAR_ULONG:
+                mPUSHu((UV)dcbArgLong(args));
+                break;
+            case DC_SIGCHAR_LONGLONG:
+                mPUSHi((IV)dcbArgLongLong(args));
+                break;
+            case DC_SIGCHAR_ULONGLONG:
+                mPUSHu((UV)dcbArgLongLong(args));
+                break;
+            case DC_SIGCHAR_FLOAT:
+                mPUSHn((NV)dcbArgFloat(args));
+                break;
+            case DC_SIGCHAR_DOUBLE:
+                mPUSHn((NV)dcbArgDouble(args));
+                break;
+            case DC_SIGCHAR_POINTER: {
+                DCpointer ptr = dcbArgPointer(args);
+                SV *__type = *av_fetch(cbx->args, i, 0);
+                char *_type = SvPV_nolen(__type);
+                switch (_type[0]) { // true type
+                case DC_SIGCHAR_ANY: {
+                    SV *s = ptr2sv(aTHX_ ptr, (__type));
+                    mPUSHs(s);
+                } break;
+                case DC_SIGCHAR_CODE: {
+                    Callback *cb = (Callback *)dcbGetUserData((DCCallback *)ptr);
+                    mPUSHs(cb->cv);
+                } break;
+                default:
+                    mPUSHs(sv_setref_pv(newSV(1), "Affix::Pointer", ptr));
+                    break;
+                }
+            } break;
+            case DC_SIGCHAR_STRING: {
+                DCpointer ptr = dcbArgPointer(args);
+                PUSHs(newSVpv((char *)ptr, 0));
+            } break;
+            case DC_SIGCHAR_BLESSED: {
+                DCpointer ptr = dcbArgPointer(args);
+                HV *blessed = MUTABLE_HV(SvRV(*av_fetch(cbx->args, i, 0)));
+                SV **package = hv_fetchs(blessed, "package", 0);
+                PUSHs(sv_setref_pv(newSV(1), SvPV_nolen(*package), ptr));
+            } break;
+            case DC_SIGCHAR_ENUM:
+            case DC_SIGCHAR_ENUM_UINT: {
+                PUSHs(enum2sv(aTHX_ * av_fetch(cbx->args, i, 0), dcbArgInt(args)));
+            } break;
+            case DC_SIGCHAR_ENUM_CHAR: {
+                PUSHs(enum2sv(aTHX_ * av_fetch(cbx->args, i, 0), dcbArgChar(args)));
+            } break;
+            case DC_SIGCHAR_ANY: {
+                DCpointer ptr = dcbArgPointer(args);
+                SV *sv = newSV(0);
+                if (ptr != NULL && SvOK(MUTABLE_SV(ptr))) { sv = MUTABLE_SV(ptr); }
+                PUSHs(sv);
+            } break;
+            default:
+                croak("Unhandled callback arg. Type: %c [%s]", cbx->sig[i], cbx->sig);
+                break;
+            }
         }
     }
     PUTBACK;
-    if (cbx->ret == DC_SIGCHAR_VOID) { call_sv(cbx->cv, G_VOID); }
+
+    // warn("cbx->ret eq '%c' at %s line %d", cbx->ret, __FILE__, __LINE__);
+    if (cbx->ret == DC_SIGCHAR_VOID) {
+        count = call_sv(cbx->cv, G_VOID);
+        SPAGAIN;
+    }
     else {
         count = call_sv(cbx->cv, G_SCALAR);
-        if (count != 1) croak("Big trouble: %d returned items", count);
         SPAGAIN;
+        if (count != 1) croak("Big trouble: %d returned items", count);
+
+        SV *ret = POPs;
+
         switch (cbx->ret) {
         case DC_SIGCHAR_VOID:
             break;
         case DC_SIGCHAR_BOOL:
-            result->B = SvTRUEx(POPs);
+            result->B = SvTRUEx(ret);
             break;
         case DC_SIGCHAR_CHAR:
-            result->c = POPu;
+            result->c = SvIOK(ret) ? SvIV(ret) : 0;
             break;
         case DC_SIGCHAR_UCHAR:
-            result->C = POPu;
+            result->C = SvIOK(ret) ? ((UV)SvUVx(ret)) : 0;
             break;
         case DC_SIGCHAR_SHORT:
-            result->s = POPu;
+            result->s = SvIOK(ret) ? SvIVx(ret) : 0;
             break;
         case DC_SIGCHAR_USHORT:
-            result->S = POPi;
+            result->S = SvIOK(ret) ? SvUVx(ret) : 0;
             break;
         case DC_SIGCHAR_INT:
-            result->i = POPi;
+            result->i = SvIOK(ret) ? SvIVx(ret) : 0;
             break;
         case DC_SIGCHAR_UINT:
-            result->I = POPu;
+            result->I = SvIOK(ret) ? SvUVx(ret) : 0;
             break;
         case DC_SIGCHAR_LONG:
-            result->j = POPl;
+            result->j = SvIOK(ret) ? SvIVx(ret) : 0;
             break;
         case DC_SIGCHAR_ULONG:
-            result->J = POPul;
+            result->J = SvIOK(ret) ? SvUVx(ret) : 0;
             break;
         case DC_SIGCHAR_LONGLONG:
-            result->l = POPi;
+            result->l = SvIOK(ret) ? SvIVx(ret) : 0;
             break;
         case DC_SIGCHAR_ULONGLONG:
-            result->L = POPu;
+            result->L = SvIOK(ret) ? SvUVx(ret) : 0;
             break;
         case DC_SIGCHAR_FLOAT:
-            result->f = POPn;
+            result->f = SvNOK(ret) ? SvNVx(ret) : 0.0;
             break;
         case DC_SIGCHAR_DOUBLE:
-            result->d = POPn;
+            result->d = SvNOK(ret) ? SvNVx(ret) : 0.0;
             break;
         case DC_SIGCHAR_POINTER: {
-            SV *sv_ptr = POPs;
-            if (SvOK(sv_ptr)) {
-                if (sv_derived_from(sv_ptr, "Affix::Pointer")) {
-                    IV tmp = SvIV((SV *)SvRV(sv_ptr));
+            if (SvOK(ret)) {
+                if (sv_derived_from(ret, "Affix::Pointer")) {
+                    IV tmp = SvIV((SV *)SvRV(ret));
                     result->p = INT2PTR(DCpointer, tmp);
                 }
                 else
@@ -452,13 +483,13 @@ char cbHandler(DCCallback *cb, DCArgs *args, DCValue *result, DCpointer userdata
                 result->p = NULL; // ha.
         } break;
         case DC_SIGCHAR_STRING:
-            result->Z = POPp;
+            result->Z = SvPOK(ret) ? SvPVx_nolen_const(ret) : NULL;
             break;
         default:
             croak("Unhandled return from callback: %c", cbx->ret);
         }
-        PUTBACK;
     }
+    PUTBACK;
 
     FREETMPS;
     LEAVE;
@@ -523,7 +554,7 @@ static size_t _sizeof(pTHX_ SV *type) {
     case DC_SIGCHAR_FLOAT:
         return FLOATSIZE;
     case DC_SIGCHAR_DOUBLE:
-        return DOUBLESIZE;
+        return XDOUBLESIZE;
     case DC_SIGCHAR_STRUCT:
     case DC_SIGCHAR_UNION:
     case DC_SIGCHAR_ARRAY:
@@ -548,11 +579,11 @@ static size_t _offsetof(pTHX_ SV *type) {
 }
 
 static DCaggr *_aggregate(pTHX_ SV *type) {
-    // warn("here at %s line %d", __FILE__, __LINE__);
-    //  //sv_dump(type);
+    //~ warn("_aggregate( ... ) at %s line %d", __FILE__, __LINE__);
+    //~ sv_dump(type);
 
     char *str = SvPVbytex_nolen(type); // stringify to sigchar; speed cheat vs sv_derived_from(...)
-                                       // warn("here at %s line %d", __FILE__, __LINE__);
+    // warn("here at %s line %d", __FILE__, __LINE__);
     size_t size = _sizeof(aTHX_ type);
 
     switch (str[0]) {
@@ -605,10 +636,15 @@ static DCaggr *_aggregate(pTHX_ SV *type) {
                        array_len,
                          __FILE__, __LINE__);*/
                 } break;
+                case DC_SIGCHAR_ANY:
+                case DC_SIGCHAR_CODE:
+                case DC_SIGCHAR_POINTER: {
+                    dcAggrField(agg, DC_SIGCHAR_POINTER, offset, 1);
+                } break;
                 default: {
+                    //~ warn("dcAggrField(agg, %c, %d, 1); at %s line %d", str[0], offset, __FILE__,
+                    //~ __LINE__);
                     dcAggrField(agg, str[0], offset, 1);
-                    // warn("dcAggrField(agg, %c, %d, 1); at %s line %d", str[0], offset, __FILE__,
-                    //     __LINE__);
                 } break;
                 }
             }
@@ -636,8 +672,8 @@ static DCaggr *_aggregate(pTHX_ SV *type) {
 SV *ptr2sv(pTHX_ DCpointer ptr, SV *type) {
     SV *RETVAL = newSV(0);
     char *_type = SvPV_nolen(type);
-    // sv_dump(type);
-    //  warn("ptr2sv( %p, '%s' ); at %s line %d", ptr, _type, __FILE__, __LINE__);
+    //~ sv_dump(type);
+    //~ warn("ptr2sv( %p, '%s' ); at %s line %d", ptr, _type, __FILE__, __LINE__);
 
     switch (_type[0]) {
     case DC_SIGCHAR_VOID:
@@ -747,7 +783,6 @@ SV *ptr2sv(pTHX_ DCpointer ptr, SV *type) {
 
         SvSetSV(RETVAL, cb->cv);
         // warn("here at %s line %d", __FILE__, __LINE__);
-
     } break;
     default:
         croak("Oh, this is unexpected: %c", _type[0]);
@@ -770,68 +805,74 @@ void sv2ptr(pTHX_ SV *type, SV *data, DCpointer ptr, bool packed) {
     } break;
     case DC_SIGCHAR_BOOL: {
         bool value = SvTRUE(data);
-        Copy((char *)(&value), ptr, 1, bool);
+        Copy(&value, ptr, 1, bool);
     } break;
     case DC_SIGCHAR_CHAR: {
         if (SvIOK(data)) {
             char value = (char)SvIV(data);
-            Copy((char *)(&value), ptr, 1, char);
+            Copy(&value, ptr, 1, char);
         }
         else {
             char *value = SvPV_nolen(data);
             Copy(value, ptr, 1, char);
-            Copy((char *)(&value), ptr, 1, char);
+            Copy(&value, ptr, 1, char);
         }
     } break;
     case DC_SIGCHAR_UCHAR: {
         if (SvUOK(data)) {
             unsigned char value = (unsigned char)SvUV(data);
-            Copy((char *)(&value), ptr, 1, unsigned char);
+            Copy(&value, ptr, 1, unsigned char);
         }
         else {
             unsigned char *value = (unsigned char *)SvPV_nolen(data);
-            Copy((char *)(&value), ptr, 1, unsigned char);
+            Copy(&value, ptr, 1, unsigned char);
         }
     } break;
     case DC_SIGCHAR_SHORT: {
         short value = (short)SvIV(data);
-        Copy((char *)(&value), ptr, 1, short);
+        Copy(&value, ptr, 1, short);
     } break;
     case DC_SIGCHAR_USHORT: {
         unsigned short value = (unsigned short)SvUV(data);
-        Copy((char *)(&value), ptr, 1, unsigned short);
+        Copy(&value, ptr, 1, unsigned short);
     } break;
     case DC_SIGCHAR_INT: {
         int value = SvIV(data);
-        Copy((char *)(&value), ptr, 1, int);
+        Copy(&value, ptr, 1, int);
     } break;
     case DC_SIGCHAR_UINT: {
         unsigned int value = SvUV(data);
-        Copy((char *)(&value), ptr, 1, unsigned int);
+        Copy(&value, ptr, 1, unsigned int);
     } break;
     case DC_SIGCHAR_LONG: {
         long value = SvIV(data);
-        Copy((char *)(&value), ptr, 1, long);
+        Copy(&value, ptr, 1, long);
     } break;
     case DC_SIGCHAR_ULONG: {
         unsigned long value = SvUV(data);
-        Copy((char *)(&value), ptr, 1, unsigned long);
+        Copy(&value, ptr, 1, unsigned long);
     } break;
     case DC_SIGCHAR_LONGLONG: {
         I64 value = SvUV(data);
-        Copy((char *)(&value), ptr, 1, I64);
+        Copy(&value, ptr, 1, I64);
     } break;
     case DC_SIGCHAR_ULONGLONG: {
         U64 value = SvUV(data);
-        Copy((char *)(&value), ptr, 1, U64);
+        Copy(&value, ptr, 1, U64);
     } break;
     case DC_SIGCHAR_FLOAT: {
         float value = SvNV(data);
-        Copy((char *)(&value), ptr, 1, float);
+        Copy(&value, ptr, 1, float);
     } break;
     case DC_SIGCHAR_DOUBLE: {
+        // warn("here at %s line %d", __FILE__, __LINE__);
+
         double value = SvNV(data);
-        Copy((char *)(&value), ptr, 1, double);
+        // warn("here at %s line %d", __FILE__, __LINE__);
+
+        Copy(&value, ptr, 1, double);
+        // warn("here at %s line %d", __FILE__, __LINE__);
+
     } break;
     case DC_SIGCHAR_STRING: {
         const char *str = SvPV_nolen(data);
@@ -929,60 +970,47 @@ void sv2ptr(pTHX_ SV *type, SV *data, DCpointer ptr, bool packed) {
     case DC_SIGCHAR_CODE: {
         // warn("here at %s line %d", __FILE__, __LINE__);
         DCCallback *cb = NULL;
+
+        // warn("here at %s line %d", __FILE__, __LINE__);
+        HV *field = MUTABLE_HV(SvRV(type)); // Make broad assumptions
+        SV **sig = hv_fetchs(field, "signature", 0);
+        SV **sig_len = hv_fetchs(field, "sig_len", 0);
+        SV **ret = hv_fetchs(field, "return", 0);
+        SV **args = hv_fetchs(field, "args", 0);
+
+        Callback *callback;
+        Newxz(callback, 1, Callback);
+
+        callback->args = MUTABLE_AV(SvRV(*args));
+        callback->sig = SvPV_nolen(*sig);
+        callback->sig_len = (size_t)SvIV(*sig_len);
+        callback->ret = (char)*SvPV_nolen(*ret);
+
+        callback->cv = SvREFCNT_inc(data);
+        storeTHX(callback->perl);
+        // warn("callback->sig_len == %d at %s line %d", callback->sig_len, __FILE__, __LINE__);
+        cb = dcbNewCallback(callback->sig, cbHandler, callback);
+        // warn("here at %s line %d", __FILE__, __LINE__);
         {
-            CoW *p = cow;
-            while (p != NULL) {
-                if (p->cb) {
-                    Callback *_cb = (Callback *)dcbGetUserData(p->cb);
-                    if (SvRV(_cb->cv) == SvRV(data)) {
-                        cb = p->cb;
-                        break;
-                    }
-                }
-                p = p->next;
-            }
+            CoW *hold;
+            Newxz(hold, 1, CoW);
+            // warn("here at %s line %d", __FILE__, __LINE__);
+            hold->cb = cb;
+            // warn("here at %s line %d", __FILE__, __LINE__);
+            Copy(hold, ptr, 1, DCpointer);
+            // warn("here at %s line %d", __FILE__, __LINE__);
         }
         // warn("here at %s line %d", __FILE__, __LINE__);
-        if (!cb) {
-            HV *field = MUTABLE_HV(SvRV(type)); // Make broad assumptions
-            SV **sig = hv_fetchs(field, "signature", 0);
-            SV **sig_len = hv_fetchs(field, "sig_len", 0);
-            SV **ret = hv_fetchs(field, "return", 0);
-            SV **args = hv_fetchs(field, "args", 0);
 
-            Callback *callback;
-            Newxz(callback, 1, Callback);
-
-            callback->args = MUTABLE_AV(SvRV(*args));
-            callback->sig = SvPV_nolen(*sig);
-            callback->sig_len = strlen(callback->sig);
-            callback->ret = (char)*SvPV_nolen(*ret);
-
-            callback->cv = SvREFCNT_inc(data);
-            storeTHX(callback->perl);
-            // warn("here at %s line %d", __FILE__, __LINE__);
-            cb = dcbNewCallback(callback->sig, cbHandler, callback);
-            // warn("here at %s line %d", __FILE__, __LINE__);
-            {
-                CoW *hold;
-                Newxz(hold, 1, CoW);
-                // warn("here at %s line %d", __FILE__, __LINE__);
-                hold->cb = cb;
-                hold->next = cow;
-                cow = hold;
-                // warn("here at %s line %d", __FILE__, __LINE__);
-                Copy(hold, ptr, 1, DCpointer);
-                // warn("here at %s line %d", __FILE__, __LINE__);
-            }
-            // warn("here at %s line %d", __FILE__, __LINE__);
-        }
         // warn("here at %s line %d", __FILE__, __LINE__);
     } break;
     default: {
         char *str = SvPVbytex_nolen(type);
         croak("%c is not a known type in sv2ptr(...)", str[0]);
     }
+        //~ warn("here at %s line %d", __FILE__, __LINE__);
     }
+    //~ warn("here at %s line %d", __FILE__, __LINE__);
 
     return;
 }
