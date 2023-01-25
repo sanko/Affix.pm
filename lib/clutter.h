@@ -51,15 +51,15 @@ extern "C" {
 #include <dyncall/dyncall/dyncall_aggregate.h>
 
 //{ii[5]Z&<iZ>}
-#define DC_SIGCHAR_CODE '&'      // 'p' but allows us to wrap CV * for the user
-#define DC_SIGCHAR_ARRAY '['     // 'A' but nicer
-#define DC_SIGCHAR_STRUCT '{'    // 'A' but nicer
-#define DC_SIGCHAR_UNION '<'     // 'A' but nicer
-#define DC_SIGCHAR_BLESSED '$'   // 'p' but an object or subclass of a given package
-#define DC_SIGCHAR_ANY '*'       // 'p' but it's really an SV/HV/AV
-#define DC_SIGCHAR_ENUM 'e'      // 'i' but with multiple options
-#define DC_SIGCHAR_ENUM_UINT 'E' // 'I' but with multiple options
-#define DC_SIGCHAR_ENUM_CHAR 'o' // 'c' but with multiple options
+#define DC_SIGCHAR_CODE '&'       // 'p' but allows us to wrap CV * for the user
+#define DC_SIGCHAR_ARRAY '['      // 'A' but nicer
+#define DC_SIGCHAR_STRUCT '{'     // 'A' but nicer
+#define DC_SIGCHAR_UNION '<'      // 'A' but nicer
+#define DC_SIGCHAR_INSTANCEOF '$' // 'p' but an object or subclass of a given package
+#define DC_SIGCHAR_ANY '*'        // 'p' but it's really an SV/HV/AV
+#define DC_SIGCHAR_ENUM 'e'       // 'i' but with multiple options
+#define DC_SIGCHAR_ENUM_UINT 'E'  // 'I' but with multiple options
+#define DC_SIGCHAR_ENUM_CHAR 'o'  // 'c' but with multiple options
 
 // MEM_ALIGNBYTES is messed up by quadmath and long doubles
 #define AFFIX_ALIGNBYTES 8
@@ -389,7 +389,7 @@ char cbHandler(DCCallback *cb, DCArgs *args, DCValue *result, DCpointer userdata
                 DCpointer ptr = dcbArgPointer(args);
                 PUSHs(newSVpv((char *)ptr, 0));
             } break;
-            case DC_SIGCHAR_BLESSED: {
+            case DC_SIGCHAR_INSTANCEOF: {
                 DCpointer ptr = dcbArgPointer(args);
                 HV *blessed = MUTABLE_HV(SvRV(*av_fetch(cbx->args, i, 0)));
                 SV **package = hv_fetchs(blessed, "package", 0);
@@ -485,6 +485,9 @@ char cbHandler(DCCallback *cb, DCArgs *args, DCValue *result, DCpointer userdata
         case DC_SIGCHAR_STRING:
             result->Z = SvPOK(ret) ? SvPVx_nolen_const(ret) : NULL;
             break;
+        case DC_SIGCHAR_STRUCT:
+        case DC_SIGCHAR_UNION:
+        case DC_SIGCHAR_INSTANCEOF:
         default:
             croak("Unhandled return from callback: %c", cbx->ret);
         }
@@ -525,6 +528,39 @@ bool is_valid_class_name(SV *sv) { // Stolen from Type::Tiny::XS::Util
     return RETVAL;
 }
 
+SV *_instanceof(pTHX_ SV *type) { // Lazy load actual type from typemap and InstanceOf[]
+    SV *retval;
+    char *name = SvPV_nolen(*hv_fetchs(MUTABLE_HV(SvRV(type)), "package", 0));
+    {
+        dSP;
+        int count;
+        SV *err_tmp;
+        ENTER;
+        SAVETMPS;
+
+        PUSHMARK(SP);
+        PUTBACK;
+
+        count = call_pv(name, G_SCALAR | G_EVAL);
+
+        SPAGAIN;
+
+        err_tmp = ERRSV;
+        if (SvTRUE(err_tmp)) {
+            croak("Malformed InstanceOf[ '%s' ]; %s\n", name, SvPV_nolen(err_tmp));
+            POPs;
+        }
+        else {
+            if (count != 1) croak("Malformed InstanceOf[ '%s' ]; missing typedef", name);
+            retval = POPs;
+            SvSetMagicSV(type, retval);
+        }
+        FREETMPS;
+        LEAVE;
+    }
+    return type;
+}
+
 static size_t _sizeof(pTHX_ SV *type) {
     char *_type =
         SvPVbytex_nolen(type); // stringify to sigchar; speed cheat vs sv_derived_from(...)
@@ -562,9 +598,10 @@ static size_t _sizeof(pTHX_ SV *type) {
     case DC_SIGCHAR_CODE: // automatically wrapped in a DCCallback pointer
     case DC_SIGCHAR_POINTER:
     case DC_SIGCHAR_STRING:
-    case DC_SIGCHAR_BLESSED:
     case DC_SIGCHAR_ANY:
         return PTRSIZE;
+    case DC_SIGCHAR_INSTANCEOF:
+        return _sizeof(aTHX_ _instanceof(aTHX_ type));
     default:
         croak("Failed to gather sizeof info for unknown type: %s", _type);
         return -1;
@@ -638,7 +675,8 @@ static DCaggr *_aggregate(pTHX_ SV *type) {
                 } break;
                 case DC_SIGCHAR_ANY:
                 case DC_SIGCHAR_CODE:
-                case DC_SIGCHAR_POINTER: {
+                case DC_SIGCHAR_POINTER:
+                case DC_SIGCHAR_INSTANCEOF: {
                     dcAggrField(agg, DC_SIGCHAR_POINTER, offset, 1);
                 } break;
                 default: {
@@ -784,6 +822,9 @@ SV *ptr2sv(pTHX_ DCpointer ptr, SV *type) {
         SvSetSV(RETVAL, cb->cv);
         // warn("here at %s line %d", __FILE__, __LINE__);
     } break;
+    case DC_SIGCHAR_INSTANCEOF: {
+        RETVAL = ptr2sv(aTHX_ ptr, _instanceof(aTHX_ type));
+    } break;
     default:
         croak("Oh, this is unexpected: %c", _type[0]);
     }
@@ -865,14 +906,8 @@ void sv2ptr(pTHX_ SV *type, SV *data, DCpointer ptr, bool packed) {
         Copy(&value, ptr, 1, float);
     } break;
     case DC_SIGCHAR_DOUBLE: {
-        // warn("here at %s line %d", __FILE__, __LINE__);
-
         double value = SvNV(data);
-        // warn("here at %s line %d", __FILE__, __LINE__);
-
         Copy(&value, ptr, 1, double);
-        // warn("here at %s line %d", __FILE__, __LINE__);
-
     } break;
     case DC_SIGCHAR_STRING: {
         const char *str = SvPV_nolen(data);
@@ -886,6 +921,13 @@ void sv2ptr(pTHX_ SV *type, SV *data, DCpointer ptr, bool packed) {
         SV **type_ptr = hv_fetchs(hv_ptr, "type", 0);
         DCpointer value = safemalloc(_sizeof(aTHX_ * type_ptr));
         sv2ptr(aTHX_ * type_ptr, data, value, packed);
+        Copy(&value, ptr, 1, intptr_t);
+    } break;
+    case DC_SIGCHAR_INSTANCEOF: {
+        HV *hv_ptr = MUTABLE_HV(SvRV(type));
+        SV **type_ptr = hv_fetchs(hv_ptr, "type", 0);
+        DCpointer value = safemalloc(_sizeof(aTHX_ * type_ptr));
+        sv2ptr(aTHX_ _instanceof(aTHX_ * type_ptr), data, value, packed);
         Copy(&value, ptr, 1, intptr_t);
     } break;
     case DC_SIGCHAR_STRUCT: {
@@ -1006,6 +1048,7 @@ void sv2ptr(pTHX_ SV *type, SV *data, DCpointer ptr, bool packed) {
     } break;
     default: {
         char *str = SvPVbytex_nolen(type);
+        sv_dump(type);
         croak("%c is not a known type in sv2ptr(...)", str[0]);
     }
         //~ warn("here at %s line %d", __FILE__, __LINE__);
