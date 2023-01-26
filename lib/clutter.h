@@ -825,6 +825,15 @@ SV *ptr2sv(pTHX_ DCpointer ptr, SV *type) {
     case DC_SIGCHAR_INSTANCEOF: {
         RETVAL = ptr2sv(aTHX_ ptr, _instanceof(aTHX_ type));
     } break;
+    case DC_SIGCHAR_ENUM: {
+        SvSetSV(RETVAL, enum2sv(aTHX_ type, *(int *)ptr));
+    }; break;
+    case DC_SIGCHAR_ENUM_UINT: {
+        SvSetSV(RETVAL, enum2sv(aTHX_ type, *(unsigned int *)ptr));
+    }; break;
+    case DC_SIGCHAR_ENUM_CHAR: {
+        SvSetSV(RETVAL, enum2sv(aTHX_ type, (IV) * (char *)ptr));
+    }; break;
     default:
         croak("Oh, this is unexpected: %c", _type[0]);
     }
