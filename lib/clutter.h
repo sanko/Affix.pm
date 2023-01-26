@@ -887,10 +887,12 @@ void sv2ptr(pTHX_ SV *type, SV *data, DCpointer ptr, bool packed) {
         unsigned short value = (unsigned short)SvUV(data);
         Copy(&value, ptr, 1, unsigned short);
     } break;
+    case DC_SIGCHAR_ENUM:
     case DC_SIGCHAR_INT: {
         int value = SvIV(data);
         Copy(&value, ptr, 1, int);
     } break;
+    case DC_SIGCHAR_ENUM_UINT:
     case DC_SIGCHAR_UINT: {
         unsigned int value = SvUV(data);
         Copy(&value, ptr, 1, unsigned int);
