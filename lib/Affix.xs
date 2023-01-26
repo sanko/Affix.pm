@@ -268,7 +268,6 @@ XS_INTERNAL(Types) {
             size_t size = 0;
             if (field_count && field_count % 2) croak("Expected an even sized list");
             for (int i = 0; i < field_count; i += 2) {
-                // warn("here at %s line %d", __FILE__, __LINE__);
                 AV *field = newAV();
                 SV *key = newSVsv(*av_fetch(fields_in, i, 0));
                 if (!SvPOK(key)) croak("Given name of '%s' is not a string", SvPV_nolen(key));

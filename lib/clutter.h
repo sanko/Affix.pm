@@ -192,6 +192,7 @@ SV *ptr2sv(pTHX_ DCpointer ptr, SV *type);
 /* Returns the amount of padding needed after `offset` to ensure that the
 following address will be aligned to `alignment`. */
 size_t padding_needed_for(size_t offset, size_t alignment) {
+    if (alignment == 0) return 0;
     size_t misalignment = offset % alignment;
     if (misalignment) // round to the next multiple of alignment
         return alignment - misalignment;

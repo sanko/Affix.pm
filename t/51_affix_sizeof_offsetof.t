@@ -57,6 +57,7 @@ subtest 'array' => sub {
     is sizeof( ArrayRef [ Str, 3 ] ), 24, 'ArrayRef [ Str, 5 ]';
 };
 subtest 'aggregates' => sub {
+    is sizeof( Struct [] ), 0, 'empty struct is 0 bytes';
     my $struct1 = Struct [ c => ArrayRef [ Char, 3 ] ];
     my $struct2 = Struct [ c => ArrayRef [ Int,  3 ] ];
     my $struct3 = Struct [ d => Double, c => ArrayRef [ Int, 3 ] ];
