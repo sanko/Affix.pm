@@ -301,7 +301,6 @@ XS_INTERNAL(Types) {
             }
 
             if (ix == DC_SIGCHAR_STRUCT) {
-
                 if (!packed && size > AFFIX_ALIGNBYTES * 2)
                     size += padding_needed_for(size, AFFIX_ALIGNBYTES);
             }
@@ -325,7 +324,7 @@ XS_INTERNAL(Types) {
         else
             croak("Pointer[...] expects a single type. e.g. Pointer[Int]");
     } break;
-    case DC_SIGCHAR_BLESSED: {
+    case DC_SIGCHAR_INSTANCEOF: {
         AV *packages_in = MUTABLE_AV(SvRV(ST(1)));
         if (av_count(packages_in) != 1) croak("InstanceOf[...] expects a single package name");
         SV **package_ptr = av_fetch(packages_in, 0, 0);
@@ -547,7 +546,7 @@ XS_INTERNAL(Affix_call) {
 
             dcArgPointer(MY_CXT.cvm, pointer[pos_arg]);
         } break;
-        case DC_SIGCHAR_BLESSED: { // Essentially the same as DC_SIGCHAR_POINTER
+        case DC_SIGCHAR_INSTANCEOF: { // Essentially the same as DC_SIGCHAR_POINTER
             SV **package_ptr = hv_fetchs(MUTABLE_HV(SvRV(type)), "package", 0);
             DCpointer ptr;
             if (SvROK(value) &&
@@ -717,7 +716,7 @@ XS_INTERNAL(Affix_call) {
         case DC_SIGCHAR_STRING:
             RETVAL = newSVpv((char *)dcCallPointer(MY_CXT.cvm, call->fptr), 0);
             break;
-        case DC_SIGCHAR_BLESSED: {
+        case DC_SIGCHAR_INSTANCEOF: {
             // warn("here at %s line %d", __FILE__, __LINE__);
 
             DCpointer ptr = dcCallPointer(MY_CXT.cvm, call->fptr);
@@ -943,7 +942,7 @@ BOOT:
     TYPE(ArrayRef, DC_SIGCHAR_ARRAY, DC_SIGCHAR_AGGREGATE);
     TYPE(Union, DC_SIGCHAR_UNION, DC_SIGCHAR_AGGREGATE);
     TYPE(CodeRef, DC_SIGCHAR_CODE, DC_SIGCHAR_AGGREGATE);
-    TYPE(InstanceOf, DC_SIGCHAR_BLESSED, DC_SIGCHAR_POINTER);
+    TYPE(InstanceOf, DC_SIGCHAR_INSTANCEOF, DC_SIGCHAR_POINTER);
     TYPE(Any, DC_SIGCHAR_ANY, DC_SIGCHAR_POINTER);
     TYPE(SSize_t, DC_SIGCHAR_SSIZE_T, DC_SIGCHAR_SSIZE_T);
     TYPE(Size_t, DC_SIGCHAR_SIZE_T, DC_SIGCHAR_SIZE_T);

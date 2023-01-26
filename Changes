@@ -8,6 +8,7 @@ Revision history for Perl extension Affix.pm
     - Bind to exported values with pin()
     - Expose aggregate by value and syscall support in Affix::Feature
     - Survive callbacks with unexpectedly empty return values
+    - Delayed type resolution with InstanceOf
 
 0.08 2022-12-19T22:29:53Z
 
