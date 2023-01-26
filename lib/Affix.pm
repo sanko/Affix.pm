@@ -264,12 +264,6 @@ package Affix 0.09 {    # 'FFI' is my middle name!
         return $_lib_cache->{ $name . ';' . ( $version // '' ) }
             // Carp::croak( 'Cannot locate symbol: ' . $name );
     }
-
-    # define packages that are otherwise XS-only so PAUSE will find them in META.json
-    {
-
-        package Affix::Feature 0.09;
-    }
 };
 1;
 __END__
