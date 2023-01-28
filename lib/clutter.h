@@ -370,11 +370,13 @@ char cbHandler(DCCallback *cb, DCArgs *args, DCValue *result, DCpointer userdata
                 break;
             case DC_SIGCHAR_POINTER: {
                 DCpointer ptr = dcbArgPointer(args);
+                //~ warn("here %p at %s line %d", ptr, __FILE__, __LINE__);
+
                 SV *__type = *av_fetch(cbx->args, i, 0);
                 char *_type = SvPV_nolen(__type);
                 switch (_type[0]) { // true type
                 case DC_SIGCHAR_ANY: {
-                    SV *s = ptr2sv(aTHX_ ptr, (__type));
+                    SV *s = ptr2sv(aTHX_ ptr, __type);
                     mPUSHs(s);
                 } break;
                 case DC_SIGCHAR_CODE: {
@@ -796,6 +798,8 @@ SV *ptr2sv(pTHX_ DCpointer ptr, SV *type) {
         SvSetSV(RETVAL, newRV(MUTABLE_SV(RETVAL_)));
     } break;
     case DC_SIGCHAR_POINTER: {
+        // ptr = *(DCpointer *)ptr;
+        //~ warn("here %p at %s line %d", ptr, __FILE__, __LINE__);
         SV *subtype;
         if (sv_derived_from(type, "Affix::Type::Pointer"))
             subtype = *hv_fetchs(MUTABLE_HV(SvRV(type)), "type", 0);
@@ -803,11 +807,13 @@ SV *ptr2sv(pTHX_ DCpointer ptr, SV *type) {
             subtype = type;
         char *_subtype = SvPV_nolen(subtype);
         if (_subtype[0] == DC_SIGCHAR_VOID) {
-            SV *RETVALSV = newSV(0); // sv_newmortal();
-            SvSetSV(RETVAL, sv_setref_pv(RETVALSV, "Dyn::Call::Pointer", ptr));
+            //~ warn("void pointer [%p] at %s line %d", ptr, __FILE__, __LINE__);
+            SV *RETVALSV = newSV(1); // sv_newmortal();
+            SvSetSV(RETVAL, sv_setref_pv(RETVALSV, "Affix::Pointer", *(DCpointer *)ptr));
+            // sv_setref_pv(RETVAL, "Affix::Pointer", ptr);
         }
         else {
-            char *_subtype = SvPV_nolen(subtype);
+            //~ warn("some other pointer at %s line %d", __FILE__, __LINE__);
             SvSetSV(RETVAL, ptr2sv(aTHX_ ptr, subtype));
         }
     } break;
@@ -846,13 +852,13 @@ void sv2ptr(pTHX_ SV *type, SV *data, DCpointer ptr, bool packed) {
     // warn("sv2ptr( %s, data, %p, packed) at %s line %d", str, ptr, __FILE__, __LINE__);
     switch (str[0]) {
     case DC_SIGCHAR_VOID: {
-        if (sv_derived_from(data, "Dyn::Call::Pointer")) {
+        if (sv_derived_from(data, "Affix::Pointer")) {
             IV tmp = SvIV((SV *)SvRV(data));
             DCpointer ptr = INT2PTR(DCpointer, tmp);
             Copy((DCpointer)(&data), ptr, 1, intptr_t);
         }
         else
-            croak("Expected a subclass of Dyn::Call::Pointer");
+            croak("Expected a subclass of Affix::Pointer");
     } break;
     case DC_SIGCHAR_BOOL: {
         bool value = SvTRUE(data);

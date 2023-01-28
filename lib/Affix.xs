@@ -493,7 +493,7 @@ XS_INTERNAL(Affix_call) {
             if (SvOK(value)) {
                 //~ warn("here at %s line %d", __FILE__, __LINE__);
 
-                if (sv_derived_from(value, "Dyn::Call::Pointer")) {
+                if (sv_derived_from(value, "Affix::Pointer")) {
                     //~ warn("here at %s line %d", __FILE__, __LINE__);
 
                     IV tmp = SvIV((SV *)SvRV(value));
@@ -709,7 +709,8 @@ XS_INTERNAL(Affix_call) {
         case DC_SIGCHAR_POINTER: {
             SV *RETVALSV;
             RETVALSV = newSV(1);
-            sv_setref_pv(RETVALSV, "Affix::Pointer", dcCallPointer(MY_CXT.cvm, call->fptr));
+            DCpointer ptr = dcCallPointer(MY_CXT.cvm, call->fptr);
+            sv_setref_pv(RETVALSV, "Affix::Pointer", ptr);
             RETVAL = RETVALSV;
         } break;
         case DC_SIGCHAR_STRING:
@@ -775,7 +776,7 @@ XS_INTERNAL(Affix_call) {
                         char *_type = SvPV_nolen(type);
                         switch (_type[0]) {
                         case DC_SIGCHAR_VOID:
-                            // let it pass through as a Dyn::Call::Pointer
+                            // let it pass through as a Affix::Pointer
                             break;
                         case DC_SIGCHAR_AGGREGATE:
                         case DC_SIGCHAR_STRUCT:
@@ -1582,7 +1583,7 @@ CODE:
 // clang-format on
 {
     DCpointer ptr;
-    if (sv_derived_from(ST(0), "Dyn::Call::Pointer")) {
+    if (sv_derived_from(ST(0), "Affix::Pointer")) {
         IV tmp = SvIV((SV *)SvRV(ST(0)));
         ptr = INT2PTR(DCpointer, tmp);
     }
@@ -1591,7 +1592,7 @@ CODE:
         ptr = INT2PTR(DCpointer, tmp);
     }
     else
-        croak("dest is not of type Dyn::Call::Pointer");
+        croak("dest is not of type Affix::Pointer");
     RETVAL = newSVpvn_utf8((const char *)ptr, size, utf8 ? 1 : 0);
 }
 // clang-format off
@@ -1604,7 +1605,7 @@ CODE:
 // clang-format on
 {
     DCpointer ptr;
-    if (sv_derived_from(ST(0), "Dyn::Call::Pointer")) {
+    if (sv_derived_from(ST(0), "Affix::Pointer")) {
         IV tmp = SvIV((SV *)SvRV(ST(0)));
         ptr = INT2PTR(DCpointer, tmp);
     }
@@ -1613,7 +1614,7 @@ CODE:
         ptr = INT2PTR(DCpointer, tmp);
     }
     else
-        croak("dest is not of type Dyn::Call::Pointer");
+        croak("dest is not of type Affix::Pointer");
 }
 //clang-format off
 
