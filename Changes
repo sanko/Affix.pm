@@ -2,6 +2,12 @@ Revision history for Perl extension Affix.pm
 
 {{$NEXT}}
 
+0.10_01 2023-01-28T05:16:44Z
+
+    - Unstable TRIAL release
+
+0.09 2023-01-26T01:36:55Z
+
     - Structs may now contain a CodeRef
     - CodeRef, Any, etc. are now properly handled as aggregate members
     - Nesting CodeRefs used as callbacks work now
