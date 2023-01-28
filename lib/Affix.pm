@@ -55,7 +55,7 @@ package Affix {    # 'FFI' is my middle name!
             #ddx [ $lib, $_delay{$sub}[3], $sig, $ret, $_delay{$sub}[6] ];
             my $cv = affix( $lib, $_delay{$sub}[3], $sig, $ret, $_delay{$sub}[6] );
             Carp::croak 'Undefined subroutine &' . $_delay{$sub}[6] unless $cv;
-            delete $_delay{$sub};
+            delete $_delay{$sub} if defined $_delay{$sub};
             return &$cv;
         }
 
