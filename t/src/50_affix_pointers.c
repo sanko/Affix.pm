@@ -45,7 +45,7 @@ massive retval = {.B = true,
                   .d = 1.246,
                   .p = &_p,
                   .Z = "Just a little test",
-                  .u = 5,
+                  .u = {.i = 5},
                   .A = {.i = 50}};
 
 DLLEXPORT massive *massive_ptr() {
