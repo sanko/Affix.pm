@@ -28,6 +28,7 @@ subtest 'sv2ptr and ptr2sv' => sub {
         affix( 't/src/50_affix_pointers', 'demo', [ Struct [ i => Int, Z => Str ] ] => Bool );
         my $ptr = Affix::sv2ptr( { Z => 'Here. There. Everywhere.', i => 100 },
             Struct [ i => Int, Z => Str ] );
+        diag __LINE__;
         ok demo( { Z => 'Here. There. Everywhere.', i => 100 } ),
             'passed struct with string pointer';
         diag __LINE__;

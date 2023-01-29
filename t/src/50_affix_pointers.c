@@ -48,18 +48,24 @@ massive retval = {.B = true,
                   .u = {.i = 5},
                   .A = {.i = 50}};
 
+#if __GNUC__ < 3
+#define PZ "Z"
+#else
+#define PZ "z"
+#endif
+
 DLLEXPORT massive *massive_ptr() {
-    warn("    # sizeof in C:    %zu", sizeof(massive));
-    warn("    # offset.B:       %zu", offsetof(massive, B));
-    warn("    # offset.c:       %zu", offsetof(massive, c));
-    warn("    # offset.C:       %zu", offsetof(massive, C));
-    warn("    # offset.s:       %zu", offsetof(massive, s));
-    warn("    # offset.S:       %zu", offsetof(massive, S));
-    warn("    # offset.i:       %zu", offsetof(massive, i));
-    warn("    # offset.I:       %zu", offsetof(massive, I));
-    warn("    # offset.j:       %zu", offsetof(massive, j));
-    warn("    # offset.J:       %zu", offsetof(massive, J));
-    warn("    # offset.Z:       %zu", offsetof(massive, Z));
+    warn("    # sizeof in C:    %" PZ "u", sizeof(massive));
+    warn("    # offset.B:       %" PZ "u", offsetof(massive, B));
+    warn("    # offset.c:       %" PZ "u", offsetof(massive, c));
+    warn("    # offset.C:       %" PZ "u", offsetof(massive, C));
+    warn("    # offset.s:       %" PZ "u", offsetof(massive, s));
+    warn("    # offset.S:       %" PZ "u", offsetof(massive, S));
+    warn("    # offset.i:       %" PZ "u", offsetof(massive, i));
+    warn("    # offset.I:       %" PZ "u", offsetof(massive, I));
+    warn("    # offset.j:       %" PZ "u", offsetof(massive, j));
+    warn("    # offset.J:       %" PZ "u", offsetof(massive, J));
+    warn("    # offset.Z:       %" PZ "u", offsetof(massive, Z));
 
     /*retval.c = -100;
     retval.C = 100;
@@ -131,7 +137,7 @@ typedef struct {
 
 } test;
 DLLEXPORT bool demo(test in) {
-    warn("# offsetof: %zu", offsetof(test, Z));
+    warn("# offsetof: %" PZ "u", offsetof(test, Z));
     warn("# i: %d", in.i);
     warn("# Z: %s", in.Z);
     return !strcmp(in.Z, "Here. There. Everywhere.");

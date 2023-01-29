@@ -143,6 +143,7 @@ extern "C" {
 #define FLOATSIZE sizeof(float)
 #define BOOLSIZE sizeof(bool)      // ha!
 #define XDOUBLESIZE sizeof(double) // ugh...
+#define XPTRSIZE sizeof(intptr_t)  // ugh...
 
 const char *file = __FILE__;
 
@@ -602,7 +603,7 @@ static size_t _sizeof(pTHX_ SV *type) {
     case DC_SIGCHAR_POINTER:
     case DC_SIGCHAR_STRING:
     case DC_SIGCHAR_ANY:
-        return PTRSIZE;
+        return XPTRSIZE;
     case DC_SIGCHAR_INSTANCEOF:
         return _sizeof(aTHX_ _instanceof(aTHX_ type));
     default:
@@ -930,13 +931,15 @@ void sv2ptr(pTHX_ SV *type, SV *data, DCpointer ptr, bool packed) {
         Copy(&value, ptr, 1, double);
     } break;
     case DC_SIGCHAR_STRING: {
-        DCpointer value = NULL;
         if (SvPOK(data)) {
             const char *str = SvPV_nolen(data);
+            DCpointer value;
             Newxz(value, strlen(str) + 1, char);
             Copy(str, value, strlen(str), char);
+            Copy(&value, ptr, 1, intptr_t);
         }
-        Copy(&value, ptr, 1, intptr_t);
+        else
+            Zero(ptr, 1, intptr_t);
     } break;
     case DC_SIGCHAR_POINTER: {
         HV *hv_ptr = MUTABLE_HV(SvRV(type));
