@@ -9,6 +9,7 @@ use t::lib::nativecall;
 use Config;
 $|++;
 #
+plan skip_all => 'no support for aggregates by value' unless Affix::Feature::AggrByVal();
 diag __LINE__;
 compile_test_lib('50_affix_pointers');
 #
