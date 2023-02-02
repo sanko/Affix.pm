@@ -470,7 +470,7 @@ sub Build_PL {
     my $meta = get_meta();
     printf "Creating new 'Build' script for '%s' version '%s'\n", $meta->name, $meta->version;
     my $dir = $meta->name eq 'Module-Build-Tiny' ? "use lib '../lib';" : '';
-    write_file( 'Build', "#!perl\n$dir\nuse lib '.';use " . __PACKAGE__ . ";\nBuild();\n" );
+    write_file( 'Build', "#!$^X\n$dir\nuse lib '.';use " . __PACKAGE__ . ";\nBuild();\n" );
     make_executable('Build');
     my @env = defined $ENV{PERL_MB_OPT} ? split_like_shell( $ENV{PERL_MB_OPT} ) : ();
     write_file( '_build_params', encode_json( [ \@env, \@ARGV ] ) );

@@ -414,7 +414,7 @@ XS_INTERNAL(Affix_call) {
     case DC_SIGCHAR_UNION:
     case DC_SIGCHAR_ARRAY:
     case DC_SIGCHAR_STRUCT: {
-        // warn("here at %s line %d", __FILE__, __LINE__);
+        warn("here at %s line %d", __FILE__, __LINE__);
         agg = _aggregate(aTHX_ call->retval);
         dcBeginCallAggr(MY_CXT.cvm, agg);
     } break;
@@ -621,12 +621,18 @@ XS_INTERNAL(Affix_call) {
             dcArgPointer(MY_CXT.cvm, ptr);
         } break;
         case DC_SIGCHAR_STRUCT: {
+            warn("here at %s line %d", __FILE__, __LINE__);
             if (!SvROK(value) || SvTYPE(SvRV(value)) != SVt_PVHV)
                 croak("Type of arg %lu must be a hash ref", pos_arg + 1);
+            warn("here at %s line %d", __FILE__, __LINE__);
             DCaggr *agg = _aggregate(aTHX_ type);
+            warn("here at %s line %d", __FILE__, __LINE__);
             DCpointer ptr = safemalloc(_sizeof(aTHX_ type));
+            warn("here at %s line %d", __FILE__, __LINE__);
             sv2ptr(aTHX_ type, value, ptr, false);
+            warn("here at %s line %d", __FILE__, __LINE__);
             dcArgAggr(MY_CXT.cvm, agg, ptr);
+            warn("here at %s line %d", __FILE__, __LINE__);
         } break;
         case DC_SIGCHAR_ENUM:
             dcArgInt(MY_CXT.cvm, (int)(SvIV(value)));
@@ -658,7 +664,7 @@ XS_INTERNAL(Affix_call) {
             croak("--> Unfinished: [%c/%lu]%s", call->sig[pos_csig], pos_arg, call->sig);
         }
     }
-    //~ warn("Return type: %c at %s line %d", call->ret, __FILE__, __LINE__);
+    warn("Return type: %c at %s line %d", call->ret, __FILE__, __LINE__);
     SV *RETVAL;
     {
         switch (call->ret) {
@@ -667,8 +673,11 @@ XS_INTERNAL(Affix_call) {
             dcCallVoid(MY_CXT.cvm, call->fptr);
             break;
         case DC_SIGCHAR_BOOL:
+            warn("here at %s line %d", __FILE__, __LINE__);
             RETVAL = newSV(0);
+            warn("here at %s line %d", __FILE__, __LINE__);
             sv_setbool_mg(RETVAL, (bool)dcCallBool(MY_CXT.cvm, call->fptr));
+            warn("here at %s line %d", __FILE__, __LINE__);
             break;
         case DC_SIGCHAR_CHAR:
             RETVAL = newSViv((char)dcCallChar(MY_CXT.cvm, call->fptr));
@@ -810,7 +819,7 @@ XS_INTERNAL(Affix_call) {
                 }
             }
         }
-        //~ warn("here at %s line %d", __FILE__, __LINE__);
+        warn("here at %s line %d", __FILE__, __LINE__);
         if (call->ret == DC_SIGCHAR_VOID) XSRETURN_EMPTY;
         RETVAL = sv_2mortal(RETVAL);
         ST(0) = RETVAL;
