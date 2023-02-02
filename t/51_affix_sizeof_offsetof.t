@@ -51,11 +51,11 @@ typedef massive => Struct [
 #use Data::Dumper;
 #diag Dumper massive();
 subtest 'array' => sub {
-    is sizeof( ArrayRef [ Char, 3 ] ), 3, 'ArrayRef [ Char, 3 ]';
-    is sizeof( ArrayRef [ Pointer [Void], 1 ] ), 8, 'ArrayRef [ Pointer[Void], 1 ]';
-
-    # This needs pointer size x 3
-    is sizeof( ArrayRef [ Str, 3 ] ), 24, 'ArrayRef [ Str, 5 ]';
+    is sizeof( ArrayRef [ Char, 3 ] ), 3, 'sizeof(ArrayRef [ Char, 3 ])';
+    is sizeof( ArrayRef [ Pointer [Void], 1 ] ), wrap( $lib, 's_pointer_array', [], Size_t )->(),
+        'sizeof(ArrayRef [ Pointer[Void], 1 ])';
+    is sizeof( ArrayRef [ Str, 3 ] ), wrap( $lib, 's_string_array', [], Size_t )->(),
+        'sizeof(ArrayRef [ Str, 3 ])';
 };
 subtest 'aggregates' => sub {
     is sizeof( Struct [] ), 0, 'empty struct is 0 bytes';

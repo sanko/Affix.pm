@@ -43,6 +43,14 @@ DLLEXPORT size_t s_pointer() {
     return sizeof(void *);
 }
 
+DLLEXPORT size_t s_pointer_array() {
+    return sizeof(void *[1]);
+}
+
+DLLEXPORT size_t s_string_array() {
+    return sizeof(char *[3]);
+}
+
 //
 typedef struct {
     char c[3];
