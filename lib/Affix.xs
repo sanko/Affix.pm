@@ -414,7 +414,7 @@ XS_INTERNAL(Affix_call) {
     case DC_SIGCHAR_UNION:
     case DC_SIGCHAR_ARRAY:
     case DC_SIGCHAR_STRUCT: {
-        warn("here at %s line %d", __FILE__, __LINE__);
+        //  warn("here at %s line %d", __FILE__, __LINE__);
         agg = _aggregate(aTHX_ call->retval);
         dcBeginCallAggr(MY_CXT.cvm, agg);
     } break;
@@ -621,18 +621,18 @@ XS_INTERNAL(Affix_call) {
             dcArgPointer(MY_CXT.cvm, ptr);
         } break;
         case DC_SIGCHAR_STRUCT: {
-            warn("here at %s line %d", __FILE__, __LINE__);
+            //  warn("here at %s line %d", __FILE__, __LINE__);
             if (!SvROK(value) || SvTYPE(SvRV(value)) != SVt_PVHV)
                 croak("Type of arg %lu must be a hash ref", pos_arg + 1);
-            warn("here at %s line %d", __FILE__, __LINE__);
+            //  warn("here at %s line %d", __FILE__, __LINE__);
             DCaggr *agg = _aggregate(aTHX_ type);
-            warn("here at %s line %d", __FILE__, __LINE__);
+            //  warn("here at %s line %d", __FILE__, __LINE__);
             DCpointer ptr = safemalloc(_sizeof(aTHX_ type));
-            warn("here at %s line %d", __FILE__, __LINE__);
+            //  warn("here at %s line %d", __FILE__, __LINE__);
             sv2ptr(aTHX_ type, value, ptr, false);
-            warn("here at %s line %d", __FILE__, __LINE__);
+            //  warn("here at %s line %d", __FILE__, __LINE__);
             dcArgAggr(MY_CXT.cvm, agg, ptr);
-            warn("here at %s line %d", __FILE__, __LINE__);
+            //  warn("here at %s line %d", __FILE__, __LINE__);
         } break;
         case DC_SIGCHAR_ENUM:
             dcArgInt(MY_CXT.cvm, (int)(SvIV(value)));
@@ -664,7 +664,7 @@ XS_INTERNAL(Affix_call) {
             croak("--> Unfinished: [%c/%lu]%s", call->sig[pos_csig], pos_arg, call->sig);
         }
     }
-    warn("Return type: %c at %s line %d", call->ret, __FILE__, __LINE__);
+    //  warn("Return type: %c at %s line %d", call->ret, __FILE__, __LINE__);
     SV *RETVAL;
     {
         switch (call->ret) {
@@ -673,11 +673,11 @@ XS_INTERNAL(Affix_call) {
             dcCallVoid(MY_CXT.cvm, call->fptr);
             break;
         case DC_SIGCHAR_BOOL:
-            warn("here at %s line %d", __FILE__, __LINE__);
+            //  warn("here at %s line %d", __FILE__, __LINE__);
             RETVAL = newSV(0);
-            warn("here at %s line %d", __FILE__, __LINE__);
+            //  warn("here at %s line %d", __FILE__, __LINE__);
             sv_setbool_mg(RETVAL, (bool)dcCallBool(MY_CXT.cvm, call->fptr));
-            warn("here at %s line %d", __FILE__, __LINE__);
+            //  warn("here at %s line %d", __FILE__, __LINE__);
             break;
         case DC_SIGCHAR_CHAR:
             RETVAL = newSViv((char)dcCallChar(MY_CXT.cvm, call->fptr));
@@ -819,7 +819,7 @@ XS_INTERNAL(Affix_call) {
                 }
             }
         }
-        warn("here at %s line %d", __FILE__, __LINE__);
+        //  warn("here at %s line %d", __FILE__, __LINE__);
         if (call->ret == DC_SIGCHAR_VOID) XSRETURN_EMPTY;
         RETVAL = sv_2mortal(RETVAL);
         ST(0) = RETVAL;
@@ -891,6 +891,11 @@ XS_INTERNAL(Affix_DESTROY) {
         /* overload::Overloaded("Affix::Call::Aggregate") to return true. */                       \
         (void)newXSproto_portable(form("%s::()", package), Types_sig, file, ";$");                 \
     }
+
+#define CLEANUP(NAME)                                                                              \
+    cv = get_cv(form("Affix::%s", #NAME), 0);                                                      \
+    if (cv != NULL) safefree(XSANY.any_ptr);
+
 // clang-format off
 
 MODULE = Affix PACKAGE = Affix
@@ -1332,6 +1337,60 @@ BOOT :
 }
 // clang-format off
 
+void
+_shutdown()
+INIT:
+    dMY_CXT;
+CODE:
+// clang-format on
+{
+    dcFree(MY_CXT.cvm);
+    CV *cv;
+    CLEANUP(Void);
+    CLEANUP(Bool);
+    CLEANUP(Char);
+    CLEANUP(UChar);
+    CLEANUP(Short);
+    CLEANUP(UShort);
+    CLEANUP(Int);
+    CLEANUP(UInt);
+    CLEANUP(Long);
+    CLEANUP(ULong);
+    CLEANUP(LongLong);
+    CLEANUP(ULongLong);
+    CLEANUP(Float);
+    CLEANUP(Double);
+    CLEANUP(Pointer);
+    CLEANUP(Str);
+    CLEANUP(Aggregate);
+    CLEANUP(Struct);
+    CLEANUP(ArrayRef);
+    CLEANUP(Union);
+    CLEANUP(CodeRef);
+    CLEANUP(InstanceOf);
+    CLEANUP(Any);
+    CLEANUP(SSize_t);
+    CLEANUP(Size_t);
+    CLEANUP(Enum);
+    CLEANUP(IntEnum);
+    CLEANUP(UIntEnum);
+    CLEANUP(CharEnum);
+    CLEANUP(CC_DEFAULT);
+    CLEANUP(CC_THISCALL);
+    CLEANUP(CC_ELLIPSIS);
+    CLEANUP(CC_ELLIPSIS_VARARGS);
+    CLEANUP(CC_CDECL);
+    CLEANUP(CC_STDCALL);
+    CLEANUP(CC_FASTCALL_MS);
+    CLEANUP(CC_FASTCALL_GNU);
+    CLEANUP(CC_THISCALL_MS);
+    CLEANUP(CC_THISCALL_GNU);
+    CLEANUP(CC_ARM_ARM);
+    CLEANUP(CC_ARM_THUMB);
+    CLEANUP(CC_SYSCALL);
+    }
+// clang-format off
+
 MODULE = Affix PACKAGE = Affix::ArrayRef
 
 void
@@ -1627,6 +1686,7 @@ CODE:
 }
 //clang-format off
 
+
 BOOT:
 // clang-format on
 {
@@ -1807,3 +1867,4 @@ BOOT:
 #endif
     );
 }
+// clang-format off

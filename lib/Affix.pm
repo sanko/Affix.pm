@@ -12,7 +12,19 @@ package Affix {    # 'FFI' is my middle name!
     use vars qw[@EXPORT_OK @EXPORT %EXPORT_TAGS];
     our $VERSION = '0.10_06';
     use XSLoader;
-    XSLoader::load( __PACKAGE__, $VERSION );
+
+    #sub dl_load_flags {0x01}
+    #~ END {
+    #~ my @librefs = @DynaLoader::dl_librefs;
+    #~ for my $i ( 0 .. $#librefs ) {
+    #~ if ( $DynaLoader::dl_modules[$i] eq __PACKAGE__ ) {
+    #~ DynaLoader::dl_unload_file( $librefs[$i] );
+    #~ last;
+    #~ }
+    #~ }
+    #~ }
+    END { _shutdown(); }
+    XSLoader::load();
     #
     use parent 'Exporter';
     @EXPORT_OK          = sort map { @$_ = sort @$_; @$_ } values %EXPORT_TAGS;
