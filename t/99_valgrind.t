@@ -18,10 +18,7 @@ affix $lib => 's_bool' => [] => Size_t;
 is s_bool(), 1, 'affixed function works';
 #
 subtest 'Valgrind' => sub {
-TODO: {
-        local $TODO = 'perl has a problem keeping memory attached by dynload';
-        Test::Valgrind->analyse( file => 't/' . __FILE__ );
-    }
+    Test::Valgrind->analyse( file => 't/' . __FILE__ );
 };
 #
 done_testing;

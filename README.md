@@ -8,20 +8,20 @@ Affix - A Foreign Function Interface eXtension
 ```perl
 use Affix;
 
+# bind to exported function
 affix( 'libfoo', 'bar', [Str, Float] => Double );
 print bar( 'Baz', 3.14 );
 
-# or
-
-my $bar = wrap( 'libfoo', 'bar', [Str, Float] => Double );
-print $bar->( 'Baz', 3.14 );
-
-# or
-
+# bind to exported function but with sugar
 sub bar : Native('libfoo') : Signature([Str, Float] => Double);
 print bar( 'Baz', 10.9 );
 
-# bind to exported values
+# wrap an exported function in a code reference
+my $bar = wrap( 'libfoo', 'bar', [Str, Float] => Double );
+print $bar->( 'Baz', 3.14 );
+
+# bind an exported value to a Perl value
+rivet( my $ver, 'libfoo', 'VERSION', Int );
 ```
 
 # DESCRIPTION
@@ -277,12 +277,12 @@ print Dumper( ptr2sv( $data, Pointer [ PwStruct() ] ) );
 # Exported Variables
 
 Variables exported by a library - also names "global" or "extern" variables -
-can be accessed using `pin( ... )`.
+can be accessed using `rivet( ... )`.
 
-## `pin( ... )`
+## `rivet( ... )`
 
 ```
-pin( $errno, 'libc', 'errno', Int );
+rivet( $errno, 'libc', 'errno', Int );
 print $errno;
 $errno = 0;
 ```

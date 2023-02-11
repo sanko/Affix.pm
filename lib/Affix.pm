@@ -12,17 +12,6 @@ package Affix {    # 'FFI' is my middle name!
     use vars qw[@EXPORT_OK @EXPORT %EXPORT_TAGS];
     our $VERSION = '0.10_06';
     use XSLoader;
-
-    #sub dl_load_flags {0x01}
-    #~ END {
-    #~ my @librefs = @DynaLoader::dl_librefs;
-    #~ for my $i ( 0 .. $#librefs ) {
-    #~ if ( $DynaLoader::dl_modules[$i] eq __PACKAGE__ ) {
-    #~ DynaLoader::dl_unload_file( $librefs[$i] );
-    #~ last;
-    #~ }
-    #~ }
-    #~ }
     END { _shutdown(); }
     XSLoader::load();
     #
@@ -291,22 +280,20 @@ Affix - A Foreign Function Interface eXtension
 
     use Affix;
 
+    # bind to exported function
     affix( 'libfoo', 'bar', [Str, Float] => Double );
     print bar( 'Baz', 3.14 );
 
-    # or
-
-    my $bar = wrap( 'libfoo', 'bar', [Str, Float] => Double );
-    print $bar->( 'Baz', 3.14 );
-
-    # or
-
+    # bind to exported function but with sugar
     sub bar : Native('libfoo') : Signature([Str, Float] => Double);
     print bar( 'Baz', 10.9 );
 
-    # bind to exported values
+    # wrap an exported function in a code reference
+    my $bar = wrap( 'libfoo', 'bar', [Str, Float] => Double );
+    print $bar->( 'Baz', 3.14 );
 
-
+    # bind an exported value to a Perl value
+    rivet( my $ver, 'libfoo', 'VERSION', Int );
 
 =head1 DESCRIPTION
 
@@ -548,11 +535,11 @@ to print the home directory of the current user:
 =head1 Exported Variables
 
 Variables exported by a library - also names "global" or "extern" variables -
-can be accessed using C<pin( ... )>.
+can be accessed using C<rivet( ... )>.
 
-=head2 C<pin( ... )>
+=head2 C<rivet( ... )>
 
-    pin( $errno, 'libc', 'errno', Int );
+    rivet( $errno, 'libc', 'errno', Int );
     print $errno;
     $errno = 0;
 

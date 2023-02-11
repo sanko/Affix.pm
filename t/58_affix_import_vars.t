@@ -13,14 +13,14 @@ sub get_integer : Native('t/src/58_affix_import_vars') : Signature([]=>Int);
 sub get_string : Native('t/src/58_affix_import_vars') : Signature([]=>Str);
 subtest 'integer' => sub {
     is get_integer(), 5, 'correct lib value returned';
-    pin( my $integer, Affix::locate_lib('t/src/58_affix_import_vars'), 'integer', Int );
+    rivet( my $integer, Affix::locate_lib('t/src/58_affix_import_vars'), 'integer', Int );
     is $integer, 5, 'correct initial value returned';
     ok $integer = 90, 'set value via magic';
     is get_integer(), 90, 'correct new lib value returned';
 };
 subtest 'string' => sub {
     is get_string(), 'Hi!', 'correct initial lib value returned';
-    pin( my $string, Affix::locate_lib('t/src/58_affix_import_vars'), 'string', Str );
+    rivet( my $string, Affix::locate_lib('t/src/58_affix_import_vars'), 'string', Str );
     is $string, 'Hi!', 'correct initial value returned';
     ok $string = 'Testing', 'set value via magic';
     is get_string(), 'Testing', 'correct new lib value returned';
