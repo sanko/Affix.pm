@@ -1484,30 +1484,36 @@ XS_INTERNAL(Affix_call) {
                     dcArgPointer(MY_CXT.cvm, NULL);
             } break;
             case DC_SIGCHAR_ARRAY: {
-                if (!SvROK(ST(pos_arg)) || SvTYPE(SvRV(ST(pos_arg))) != SVt_PVAV)
-                    croak("Type of arg %lu must be an array ref", pos_arg + 1);
-                AV *elements = MUTABLE_AV(SvRV(ST(pos_arg)));
-                HV *hv_ptr = MUTABLE_HV(SvRV(type));
-                SV **type_ptr = hv_fetchs(hv_ptr, "type", 0);
-                SV **size_ptr = hv_fetchs(hv_ptr, "size", 0);
-                SV **ptr_ptr = hv_fetchs(hv_ptr, "pointer", 0);
-                size_t av_len;
-                if (SvOK(*size_ptr)) {
-                    av_len = SvIV(*size_ptr);
-                    if (av_count(elements) != av_len)
-                        croak("Expected an array of %lu elements; found %zd", av_len,
-                              av_count(elements));
+                if (!SvOK(ST(pos_arg)) && SvREADONLY(ST(pos_arg)) // explicit undef
+                ) {
+                    dcArgPointer(MY_CXT.cvm, NULL);
                 }
-                else
-                    av_len = av_count(elements);
-                hv_stores(hv_ptr, "size_", newSViv(av_len));
-                size_t size = _sizeof(aTHX_ * type_ptr);
-                //~ warn("av_len * size = %d * %d = %d", av_len, size, av_len * size);
-                Newxz(pointer[pos_arg], av_len * size, char);
-                l_pointer[pos_arg] = true;
-                pointers = true;
-                sv2ptr(aTHX_ type, ST(pos_arg), pointer[pos_arg], false);
-                dcArgPointer(MY_CXT.cvm, pointer[pos_arg]);
+                else {
+                    if (!SvROK(ST(pos_arg)) || SvTYPE(SvRV(ST(pos_arg))) != SVt_PVAV)
+                        croak("Type of arg %lu must be an array ref", pos_arg + 1);
+                    AV *elements = MUTABLE_AV(SvRV(ST(pos_arg)));
+                    HV *hv_ptr = MUTABLE_HV(SvRV(type));
+                    SV **type_ptr = hv_fetchs(hv_ptr, "type", 0);
+                    SV **size_ptr = hv_fetchs(hv_ptr, "size", 0);
+                    SV **ptr_ptr = hv_fetchs(hv_ptr, "pointer", 0);
+                    size_t av_len;
+                    if (SvOK(*size_ptr)) {
+                        av_len = SvIV(*size_ptr);
+                        if (av_count(elements) != av_len)
+                            croak("Expected an array of %lu elements; found %zd", av_len,
+                                  av_count(elements));
+                    }
+                    else
+                        av_len = av_count(elements);
+                    hv_stores(hv_ptr, "size_", newSViv(av_len));
+                    size_t size = _sizeof(aTHX_ * type_ptr);
+                    //~ warn("av_len * size = %d * %d = %d", av_len, size, av_len * size);
+                    Newxz(pointer[pos_arg], av_len * size, char);
+                    l_pointer[pos_arg] = true;
+                    pointers = true;
+                    sv2ptr(aTHX_ type, ST(pos_arg), pointer[pos_arg], false);
+                    dcArgPointer(MY_CXT.cvm, pointer[pos_arg]);
+                }
             } break;
             case DC_SIGCHAR_STRUCT: {
                 if (!SvROK(ST(pos_arg)) || SvTYPE(SvRV(ST(pos_arg))) != SVt_PVHV)
