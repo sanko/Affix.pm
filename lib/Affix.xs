@@ -1986,7 +1986,7 @@ PPCODE:
 // clang-format off
 
 SV *
-affix(lib, symbol, args, ret, func_name = (ix == 1) ? NULL : symbol)
+affix(lib, symbol, args, ret = sv_bless(newRV_inc(MUTABLE_SV(newHV())), gv_stashpv("Affix::Type::Void", GV_ADD)), func_name = (ix == 1) ? NULL : symbol)
     char * symbol
     AV * args
     SV * ret
