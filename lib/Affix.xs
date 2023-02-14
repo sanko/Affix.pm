@@ -686,9 +686,14 @@ SV *ptr2sv(pTHX_ DCpointer ptr, SV *type) {
         AV *RETVAL_ = newAV_mortal();
         HV *_type = MUTABLE_HV(SvRV(type));
         SV *subtype = *hv_fetchs(_type, "type", 0);
-        size_t av_len = SvIV(*hv_fetchs(_type, "size", 0));
+        SV **size = hv_fetchs(_type, "size", 0);
         size_t pos = PTR2IV(ptr);
         size_t sof = _sizeof(aTHX_ subtype);
+        size_t av_len;
+        if (SvOK(*size))
+            av_len = SvIV(*size);
+        else
+            av_len = SvIV(*hv_fetchs(_type, "size_", 0)) + 1;
         for (size_t i = 0; i < av_len; ++i) {
             av_push(RETVAL_, ptr2sv(aTHX_ INT2PTR(DCpointer, pos), subtype));
             pos += sof;
@@ -750,6 +755,8 @@ SV *ptr2sv(pTHX_ DCpointer ptr, SV *type) {
 
 void sv2ptr(pTHX_ SV *type, SV *data, DCpointer ptr, bool packed) {
     char *str = SvPVbytex_nolen(type);
+    //~ warn("sv2ptr(%c, ..., %p, %s) at %s line %d", str[0], ptr, (packed ? "true" : "false"),
+    //~ __FILE__, __LINE__);
     switch (str[0]) {
     case DC_SIGCHAR_VOID: {
         if (!SvOK(data))
@@ -886,7 +893,8 @@ void sv2ptr(pTHX_ SV *type, SV *data, DCpointer ptr, bool packed) {
         HV *hv_ptr = MUTABLE_HV(SvRV(type));
         SV **type_ptr = hv_fetchs(hv_ptr, "type", 0);
         SV **size_ptr = hv_fetchs(hv_ptr, "size", 0);
-        size_t size = SvIV(*size_ptr);
+        size_t size = SvOK(*size_ptr) ? SvIV(*size_ptr) : av_len(elements);
+        hv_stores(hv_ptr, "size_", newSViv(size));
         char *type_char = SvPVbytex_nolen(*type_ptr);
         switch (type_char[0]) {
         case DC_SIGCHAR_CHAR:
@@ -1117,10 +1125,19 @@ XS_INTERNAL(Types) {
     }; break;
     case DC_SIGCHAR_ARRAY: { // ArrayRef[Int, 5]
         AV *type_size = MUTABLE_AV(SvRV(ST(1)));
-        SV *type;
+        SV *type, *size;
         size_t array_length, array_sizeof = 0;
         bool packed = false;
         switch (av_count(type_size)) {
+        case 1: {
+            size = newSV(1);
+            type = *av_fetch(type_size, 0, 0);
+            if (!(sv_isobject(type) && sv_derived_from(type, "Affix::Type::Base")))
+                croak("Given type for '%s' is not a subclass of Affix::Type::Base",
+                      SvPV_nolen(type));
+            size_t offset = 0;
+            size_t type_sizeof = _sizeof(aTHX_ type);
+        } break;
         case 2: {
             array_length = SvUV(*av_fetch(type_size, 1, 0));
             if (array_length < 1) croak("Given size %zd is not a positive integer", array_length);
@@ -1139,13 +1156,14 @@ XS_INTERNAL(Types) {
                                                                   : AFFIX_ALIGNBYTES);
                 offset = array_sizeof;
             }
+            size = newSVuv(array_length);
         } break;
         default:
             croak("Expected a single type and array length: "
                   "ArrayRef[Int, 5]");
         }
         hv_stores(RETVAL_HV, "sizeof", newSVuv(array_sizeof));
-        hv_stores(RETVAL_HV, "size", newSVuv(array_length));
+        hv_stores(RETVAL_HV, "size", size);
         hv_stores(RETVAL_HV, "name", newSV(0));
         hv_stores(RETVAL_HV, "packed", sv_2mortal(boolSV(packed)));
         hv_stores(RETVAL_HV, "type", newSVsv(type));
@@ -1347,178 +1365,186 @@ XS_INTERNAL(Affix_call) {
     default:
         break;
     }
-    SV *value, *type;
+
     char _type;
     DCpointer pointer[items];
     bool l_pointer[items];
-    for (size_t pos_arg = 0, pos_csig = 0, pos_psig = 0; pos_arg < items;
-         ++pos_arg, ++pos_csig, ++pos_psig) {
-        value = ST(pos_arg);
-        type = *av_fetch(call->args, pos_arg, 0); // Make broad assexumptions
-        _type = call->sig[pos_csig];
-        switch (_type) {
-        case DC_SIGCHAR_VOID:
-            break;
-        case DC_SIGCHAR_BOOL:
-            dcArgBool(MY_CXT.cvm, SvTRUE(value)); // Anything can be a bool
-            break;
-        case DC_SIGCHAR_CHAR:
-            dcArgChar(MY_CXT.cvm, (char)(SvIOK(value) ? SvIV(value) : *SvPV_nolen(value)));
-            break;
-        case DC_SIGCHAR_UCHAR:
-            dcArgChar(MY_CXT.cvm, (unsigned char)(SvIOK(value) ? SvUV(value) : *SvPV_nolen(value)));
-            break;
-        case DC_SIGCHAR_SHORT:
-            dcArgShort(MY_CXT.cvm, (short)(SvIV(value)));
-            break;
-        case DC_SIGCHAR_USHORT:
-            dcArgShort(MY_CXT.cvm, (unsigned short)(SvUV(value)));
-            break;
-        case DC_SIGCHAR_INT:
-            dcArgInt(MY_CXT.cvm, (int)(SvIV(value)));
-            break;
-        case DC_SIGCHAR_UINT:
-            dcArgInt(MY_CXT.cvm, (unsigned int)(SvUV(value)));
-            break;
-        case DC_SIGCHAR_LONG:
-            dcArgLong(MY_CXT.cvm, (long)(SvIV(value)));
-            break;
-        case DC_SIGCHAR_ULONG:
-            dcArgLong(MY_CXT.cvm, (unsigned long)(SvUV(value)));
-            break;
-        case DC_SIGCHAR_LONGLONG:
-            dcArgLongLong(MY_CXT.cvm, (I64)(SvIV(value)));
-            break;
-        case DC_SIGCHAR_ULONGLONG:
-            dcArgLongLong(MY_CXT.cvm, (U64)(SvUV(value)));
-            break;
-        case DC_SIGCHAR_FLOAT:
-            dcArgFloat(MY_CXT.cvm, (float)SvNV(value));
-            break;
-        case DC_SIGCHAR_DOUBLE:
-            dcArgDouble(MY_CXT.cvm, (double)SvNV(value));
-            break;
-        case DC_SIGCHAR_POINTER: {
-            SV **subtype_ptr = hv_fetchs(MUTABLE_HV(SvRV(type)), "type", 0);
-            if (SvOK(value)) {
-                if (sv_derived_from(value, "Affix::Pointer")) {
-                    IV tmp = SvIV((SV *)SvRV(value));
-                    pointer[pos_arg] = INT2PTR(DCpointer, tmp);
-                    l_pointer[pos_arg] = false;
-                    pointers = true;
+    {
+        SV *type;
+        for (size_t pos_arg = 0, pos_csig = 0, pos_psig = 0; pos_arg < items;
+             ++pos_arg, ++pos_csig, ++pos_psig) {
+            type = *av_fetch(call->args, pos_arg, 0); // Make broad assexumptions
+            _type = call->sig[pos_csig];
+            switch (_type) {
+            case DC_SIGCHAR_VOID:
+                break;
+            case DC_SIGCHAR_BOOL:
+                dcArgBool(MY_CXT.cvm, SvTRUE(ST(pos_arg))); // Anything can be a bool
+                break;
+            case DC_SIGCHAR_CHAR:
+                dcArgChar(MY_CXT.cvm, (char)(SvIOK(ST(pos_arg)) ? SvIV(ST(pos_arg))
+                                                                : *SvPV_nolen(ST(pos_arg))));
+                break;
+            case DC_SIGCHAR_UCHAR:
+                dcArgChar(MY_CXT.cvm,
+                          (unsigned char)(SvIOK(ST(pos_arg)) ? SvUV(ST(pos_arg))
+                                                             : *SvPV_nolen(ST(pos_arg))));
+                break;
+            case DC_SIGCHAR_SHORT:
+                dcArgShort(MY_CXT.cvm, (short)(SvIV(ST(pos_arg))));
+                break;
+            case DC_SIGCHAR_USHORT:
+                dcArgShort(MY_CXT.cvm, (unsigned short)(SvUV(ST(pos_arg))));
+                break;
+            case DC_SIGCHAR_INT:
+                dcArgInt(MY_CXT.cvm, (int)(SvIV(ST(pos_arg))));
+                break;
+            case DC_SIGCHAR_UINT:
+                dcArgInt(MY_CXT.cvm, (unsigned int)(SvUV(ST(pos_arg))));
+                break;
+            case DC_SIGCHAR_LONG:
+                dcArgLong(MY_CXT.cvm, (long)(SvIV(ST(pos_arg))));
+                break;
+            case DC_SIGCHAR_ULONG:
+                dcArgLong(MY_CXT.cvm, (unsigned long)(SvUV(ST(pos_arg))));
+                break;
+            case DC_SIGCHAR_LONGLONG:
+                dcArgLongLong(MY_CXT.cvm, (I64)(SvIV(ST(pos_arg))));
+                break;
+            case DC_SIGCHAR_ULONGLONG:
+                dcArgLongLong(MY_CXT.cvm, (U64)(SvUV(ST(pos_arg))));
+                break;
+            case DC_SIGCHAR_FLOAT:
+                dcArgFloat(MY_CXT.cvm, (float)SvNV(ST(pos_arg)));
+                break;
+            case DC_SIGCHAR_DOUBLE:
+                dcArgDouble(MY_CXT.cvm, (double)SvNV(ST(pos_arg)));
+                break;
+            case DC_SIGCHAR_POINTER: {
+                SV **subtype_ptr = hv_fetchs(MUTABLE_HV(SvRV(type)), "type", 0);
+                if (SvOK(ST(pos_arg))) {
+                    if (sv_derived_from(ST(pos_arg), "Affix::Pointer")) {
+                        IV tmp = SvIV((SV *)SvRV(ST(pos_arg)));
+                        pointer[pos_arg] = INT2PTR(DCpointer, tmp);
+                        l_pointer[pos_arg] = false;
+                        pointers = true;
+                    }
+                    else {
+                        if (sv_isobject(ST(pos_arg))) croak("Unexpected pointer to blessed object");
+                        pointer[pos_arg] = safemalloc(_sizeof(aTHX_ * subtype_ptr));
+                        sv2ptr(aTHX_ * subtype_ptr, ST(pos_arg), pointer[pos_arg], false);
+                        l_pointer[pos_arg] = true;
+                        pointers = true;
+                    }
                 }
-                else {
-                    if (sv_isobject(value)) croak("Unexpected pointer to blessed object");
-                    pointer[pos_arg] = safemalloc(_sizeof(aTHX_ * subtype_ptr));
-                    sv2ptr(aTHX_ * subtype_ptr, value, pointer[pos_arg], false);
+                else if (SvREADONLY(ST(pos_arg))) { // explicit undef
+                    pointer[pos_arg] = NULL;
+                    l_pointer[pos_arg] = false;
+                }
+                else { // treat as if it's an lST(pos_arg)
+                    SV **subtype_ptr = hv_fetchs(MUTABLE_HV(SvRV(type)), "type", 0);
+                    SV *type = *subtype_ptr;
+                    size_t size = _sizeof(aTHX_ type);
+                    Newxz(pointer[pos_arg], size, char);
                     l_pointer[pos_arg] = true;
                     pointers = true;
                 }
-            }
-            else if (SvREADONLY(value)) { // explicit undef
-                pointer[pos_arg] = NULL;
-                l_pointer[pos_arg] = false;
-            }
-            else { // treat as if it's an lvalue
-                SV **subtype_ptr = hv_fetchs(MUTABLE_HV(SvRV(type)), "type", 0);
-                SV *type = *subtype_ptr;
-                size_t size = _sizeof(aTHX_ type);
-                Newxz(pointer[pos_arg], size, char);
+                dcArgPointer(MY_CXT.cvm, pointer[pos_arg]);
+            } break;
+            case DC_SIGCHAR_INSTANCEOF: { // Essentially the same as DC_SIGCHAR_POINTER
+                SV **package_ptr = hv_fetchs(MUTABLE_HV(SvRV(type)), "package", 0);
+                DCpointer ptr;
+                if (SvROK(ST(pos_arg)) &&
+                    sv_derived_from((ST(pos_arg)), (const char *)SvPVbytex_nolen(*package_ptr))) {
+                    IV tmp = SvIV((SV *)SvRV(ST(pos_arg)));
+                    ptr = INT2PTR(DCpointer, tmp);
+                }
+                else if (!SvOK(ST(pos_arg))) // Passed us an undef
+                    ptr = NULL;
+                else
+                    croak("Type of arg %lu must be an instance or subclass of %s", pos_arg + 1,
+                          SvPVbytex_nolen(*package_ptr));
+                dcArgPointer(MY_CXT.cvm, ptr);
+            } break;
+            case DC_SIGCHAR_ANY: {
+                if (!SvOK(ST(pos_arg))) sv_set_undef(ST(pos_arg));
+                dcArgPointer(MY_CXT.cvm, SvREFCNT_inc(ST(pos_arg)));
+            } break;
+            case DC_SIGCHAR_STRING: {
+                dcArgPointer(MY_CXT.cvm, !SvOK(ST(pos_arg)) ? NULL : SvPV_nolen(ST(pos_arg)));
+            } break;
+            case DC_SIGCHAR_CODE: {
+                if (SvOK(ST(pos_arg))) {
+                    CoW *hold;
+                    Newx(hold, 1, CoW);
+                    sv2ptr(aTHX_ type, ST(pos_arg), hold, false);
+                    dcArgPointer(MY_CXT.cvm, hold->cb);
+                }
+                else
+                    dcArgPointer(MY_CXT.cvm, NULL);
+            } break;
+            case DC_SIGCHAR_ARRAY: {
+                if (!SvROK(ST(pos_arg)) || SvTYPE(SvRV(ST(pos_arg))) != SVt_PVAV)
+                    croak("Type of arg %lu must be an array ref", pos_arg + 1);
+                AV *elements = MUTABLE_AV(SvRV(ST(pos_arg)));
+                HV *hv_ptr = MUTABLE_HV(SvRV(type));
+                SV **type_ptr = hv_fetchs(hv_ptr, "type", 0);
+                SV **size_ptr = hv_fetchs(hv_ptr, "size", 0);
+                SV **ptr_ptr = hv_fetchs(hv_ptr, "pointer", 0);
+                size_t av_len;
+                if (SvOK(*size_ptr)) {
+                    av_len = SvIV(*size_ptr);
+                    if (av_count(elements) != av_len)
+                        croak("Expected an array of %lu elements; found %zd", av_len,
+                              av_count(elements));
+                }
+                else
+                    av_len = av_count(elements);
+                hv_stores(hv_ptr, "size_", newSViv(av_len));
+                size_t size = _sizeof(aTHX_ * type_ptr);
+                //~ warn("av_len * size = %d * %d = %d", av_len, size, av_len * size);
+                Newxz(pointer[pos_arg], av_len * size, char);
                 l_pointer[pos_arg] = true;
                 pointers = true;
-            }
-            dcArgPointer(MY_CXT.cvm, pointer[pos_arg]);
-        } break;
-        case DC_SIGCHAR_INSTANCEOF: { // Essentially the same as DC_SIGCHAR_POINTER
-            SV **package_ptr = hv_fetchs(MUTABLE_HV(SvRV(type)), "package", 0);
-            DCpointer ptr;
-            if (SvROK(value) &&
-                sv_derived_from((value), (const char *)SvPVbytex_nolen(*package_ptr))) {
-                IV tmp = SvIV((SV *)SvRV(value));
-                ptr = INT2PTR(DCpointer, tmp);
-            }
-            else if (!SvOK(value)) // Passed us an undef
-                ptr = NULL;
-            else
-                croak("Type of arg %lu must be an instance or subclass of %s", pos_arg + 1,
-                      SvPVbytex_nolen(*package_ptr));
-            dcArgPointer(MY_CXT.cvm, ptr);
-        } break;
-        case DC_SIGCHAR_ANY: {
-            if (!SvOK(value)) sv_set_undef(value);
-            dcArgPointer(MY_CXT.cvm, SvREFCNT_inc(value));
-        } break;
-        case DC_SIGCHAR_STRING: {
-            dcArgPointer(MY_CXT.cvm, !SvOK(value) ? NULL : SvPV_nolen(value));
-        } break;
-        case DC_SIGCHAR_CODE: {
-            if (SvOK(value)) {
-                CoW *hold;
-                Newx(hold, 1, CoW);
-                sv2ptr(aTHX_ type, value, hold, false);
-                dcArgPointer(MY_CXT.cvm, hold->cb);
-            }
-            else
-                dcArgPointer(MY_CXT.cvm, NULL);
-        } break;
-        case DC_SIGCHAR_ARRAY: {
-            if (!SvROK(value) || SvTYPE(SvRV(value)) != SVt_PVAV)
-                croak("Type of arg %lu must be an array ref", pos_arg + 1);
-            AV *elements = MUTABLE_AV(SvRV(value));
-            HV *hv_ptr = MUTABLE_HV(SvRV(type));
-            SV **type_ptr = hv_fetchs(hv_ptr, "type", 0);
-            SV **size_ptr = hv_fetchs(hv_ptr, "size", 0);
-            SV **ptr_ptr = hv_fetchs(hv_ptr, "pointer", 0);
-            size_t av_len;
-            if (SvOK(*size_ptr)) {
-                av_len = SvIV(*size_ptr);
-                if (av_count(elements) != av_len)
-                    croak("Expected an array of %lu elements; found %zd", av_len,
-                          av_count(elements));
-            }
-            else
-                av_len = av_count(elements);
-            size_t size = _sizeof(aTHX_ * type_ptr);
-            //~ warn("av_len * size = %d * %d = %d", av_len, size, av_len * size);
-            DCpointer ptr = NULL;
-            if (ptr == NULL) { ptr = safemalloc(av_len * size); }
-            sv2ptr(aTHX_ type, value, ptr, false);
-            dcArgPointer(MY_CXT.cvm, ptr);
-        } break;
-        case DC_SIGCHAR_STRUCT: {
-            if (!SvROK(value) || SvTYPE(SvRV(value)) != SVt_PVHV)
-                croak("Type of arg %lu must be a hash ref", pos_arg + 1);
-            DCaggr *agg = _aggregate(aTHX_ type);
-            DCpointer ptr = safemalloc(_sizeof(aTHX_ type));
-            sv2ptr(aTHX_ type, value, ptr, false);
-            dcArgAggr(MY_CXT.cvm, agg, ptr);
-        } break;
-        case DC_SIGCHAR_ENUM:
-            dcArgInt(MY_CXT.cvm, (int)(SvIV(value)));
-            break;
-        case DC_SIGCHAR_ENUM_UINT:
-            dcArgInt(MY_CXT.cvm, (unsigned int)SvUV(value));
-            break;
-        case DC_SIGCHAR_ENUM_CHAR:
-            dcArgChar(MY_CXT.cvm, (char)(SvIOK(value) ? SvIV(value) : *SvPV_nolen(value)));
-            break;
-        case DC_SIGCHAR_CC_PREFIX: {
-            --pos_arg;
-            DCsigchar _mode = call->sig[++pos_csig];
-            DCint mode = dcGetModeFromCCSigChar(_mode);
-            dcMode(MY_CXT.cvm, mode);
-            switch (_mode) {
-            case DC_SIGCHAR_CC_ELLIPSIS:
-            case DC_SIGCHAR_CC_ELLIPSIS_VARARGS:
-                break; // TODO: Should I allow for this to reset anyway?
-            default:
-                dcReset(MY_CXT.cvm);
+                sv2ptr(aTHX_ type, ST(pos_arg), pointer[pos_arg], false);
+                dcArgPointer(MY_CXT.cvm, pointer[pos_arg]);
+            } break;
+            case DC_SIGCHAR_STRUCT: {
+                if (!SvROK(ST(pos_arg)) || SvTYPE(SvRV(ST(pos_arg))) != SVt_PVHV)
+                    croak("Type of arg %lu must be a hash ref", pos_arg + 1);
+                DCaggr *agg = _aggregate(aTHX_ type);
+                DCpointer ptr = safemalloc(_sizeof(aTHX_ type));
+                sv2ptr(aTHX_ type, ST(pos_arg), ptr, false);
+                dcArgAggr(MY_CXT.cvm, agg, ptr);
+            } break;
+            case DC_SIGCHAR_ENUM:
+                dcArgInt(MY_CXT.cvm, (int)(SvIV(ST(pos_arg))));
+                break;
+            case DC_SIGCHAR_ENUM_UINT:
+                dcArgInt(MY_CXT.cvm, (unsigned int)SvUV(ST(pos_arg)));
+                break;
+            case DC_SIGCHAR_ENUM_CHAR:
+                dcArgChar(MY_CXT.cvm, (char)(SvIOK(ST(pos_arg)) ? SvIV(ST(pos_arg))
+                                                                : *SvPV_nolen(ST(pos_arg))));
+                break;
+            case DC_SIGCHAR_CC_PREFIX: {
+                --pos_arg;
+                DCsigchar _mode = call->sig[++pos_csig];
+                DCint mode = dcGetModeFromCCSigChar(_mode);
+                dcMode(MY_CXT.cvm, mode);
+                switch (_mode) {
+                case DC_SIGCHAR_CC_ELLIPSIS:
+                case DC_SIGCHAR_CC_ELLIPSIS_VARARGS:
+                    break; // TODO: Should I allow for this to reset anyway?
+                default:
+                    dcReset(MY_CXT.cvm);
+                    break;
+                }
                 break;
             }
-            break;
-        }
-        default:
-            croak("--> Unfinished: [%c/%lu]%s", call->sig[pos_csig], pos_arg, call->sig);
+            default:
+                croak("--> Unfinished: [%c/%lu]%s", call->sig[pos_csig], pos_arg, call->sig);
+            }
         }
     }
     SV *RETVAL;
@@ -1596,7 +1622,6 @@ XS_INTERNAL(Affix_call) {
         case DC_SIGCHAR_UNION: {
             DCpointer ret_ptr = safemalloc(_sizeof(aTHX_ call->retval));
             dcCallAggr(MY_CXT.cvm, call->fptr, agg, ret_ptr);
-
             RETVAL = ptr2sv(aTHX_ ret_ptr, SvRV(call->retval));
         } break;
         case DC_SIGCHAR_ENUM:
@@ -1613,13 +1638,30 @@ XS_INTERNAL(Affix_call) {
         if (pointers) {
             for (int i = 0; i < call->sig_len; ++i) {
                 switch (call->sig[i]) {
+                case DC_SIGCHAR_ARRAY: {
+                    SV *package = *av_fetch(call->args, i, 0); // Make broad assumptions
+                    if (!SvREADONLY(ST(i))) {
+                        SV *sv = ptr2sv(aTHX_ pointer[i], package);
+                        if (SvFLAGS(ST(i)) & SVs_TEMP) { // likely a temp ref
+                            size_t av_len = av_count(MUTABLE_AV(SvRV(ST(i))));
+                            for (size_t q = 0; q < av_len; ++q) {
+                                SV **blah_ptr = av_fetch(MUTABLE_AV(SvRV(sv)), q, 1);
+                                SV *blah = *blah_ptr;
+                                sv_setsv(*av_fetch(MUTABLE_AV(SvRV(ST(i))), q, 1), blah);
+                                SvSETMAGIC(SvRV(ST(i)));
+                            }
+                        }
+                        else // scalar ref is faster :D
+                            SvSetMagicSV(ST(i), sv);
+                    }
+                } break;
                 case DC_SIGCHAR_POINTER: {
                     SV *package = *av_fetch(call->args, i, 0); // Make broad assumptions
                     if (SvOK(ST(i)) && sv_derived_from(ST(i), "Affix::Pointer")) {
                         IV tmp = SvIV((SV *)SvRV(ST(i)));
                         pointer[i] = INT2PTR(DCpointer, tmp);
                     }
-                    else if (!SvREADONLY(value)) { // not explicit undef
+                    else if (!SvREADONLY(ST(i))) { // not explicit undef
                         HV *type_hv = MUTABLE_HV(SvRV(package));
                         SV **type_ptr = hv_fetchs(type_hv, "type", 0);
                         SV *type = *type_ptr;
@@ -1631,7 +1673,6 @@ XS_INTERNAL(Affix_call) {
                         case DC_SIGCHAR_AGGREGATE:
                         case DC_SIGCHAR_STRUCT:
                         case DC_SIGCHAR_ARRAY: {
-
                             SvSetMagicSV(ST(i), ptr2sv(aTHX_ pointer[i], type));
                         } break;
                         default: {
@@ -1641,8 +1682,8 @@ XS_INTERNAL(Affix_call) {
                         }
                     }
                 } break;
-
                 default:
+                    // croak("Unhandled pointer! %c", call->sig[i]);
                     break;
                 }
                 if (l_pointer[i] && pointer[i] != NULL) { pointer[i] = NULL; }
@@ -2083,7 +2124,7 @@ CODE:
 
     CV *cv;
     STMT_START {
-        cv = newXSproto_portable(func_name, Affix_call, (char *)__FILE__, call->perl_sig);
+        cv = newXSproto_portable(func_name, Affix_call, file, call->perl_sig);
         if (cv == NULL) croak("ARG! Something went really wrong while installing a new XSUB!");
         XSANY.any_ptr = (DCpointer)call;
     }
