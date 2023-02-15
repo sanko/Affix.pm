@@ -2142,12 +2142,12 @@ CODE:
 
     CV *cv;
     STMT_START {
-        cv = newXSproto_portable(func_name, Affix_call, file, call->perl_sig);
+        cv = newXSproto_portable((ix == 0 ? func_name : NULL), Affix_call, file, call->perl_sig);
         if (cv == NULL) croak("ARG! Something went really wrong while installing a new XSUB!");
         XSANY.any_ptr = (DCpointer)call;
     }
     STMT_END;
-    RETVAL = sv_bless((func_name == NULL ? newRV_noinc(MUTABLE_SV(cv)) : newRV_inc(MUTABLE_SV(cv))),
+    RETVAL = sv_bless((ix == 1 ? newRV_noinc(MUTABLE_SV(cv)) : newRV_inc(MUTABLE_SV(cv))),
                       gv_stashpv("Affix", GV_ADD));
 }
 // clang-format off
