@@ -1986,11 +1986,10 @@ PPCODE:
 // clang-format off
 
 SV *
-affix(lib, symbol, args, ret = sv_bless(newRV_inc(MUTABLE_SV(newHV())), gv_stashpv("Affix::Type::Void", GV_ADD)), func_name = (ix == 1) ? NULL : symbol)
-    char * symbol
+affix(lib, symbol, args, ret = sv_bless(newRV_inc(MUTABLE_SV(newHV())), gv_stashpv("Affix::Type::Void", GV_ADD)))
+    SV * symbol
     AV * args
     SV * ret
-    const char * func_name
 ALIAS:
     affix = 0
     wrap  = 1
@@ -2046,7 +2045,20 @@ CODE:
     }
     Newx(call, 1, Call);
 
-    call->fptr = dlFindSymbol(lib, symbol);
+    const char *symbol_, *func_name;
+    if (SvROK(symbol) && SvTYPE(SvRV(symbol)) == SVt_PVAV) {
+        SV *symbol__ = av_shift(MUTABLE_AV(SvRV(symbol)));
+        if (!SvOK(symbol__)) croak("Expected a symbol name");
+        symbol_ = SvPV_nolen(symbol__);
+        SV *func_name__ = av_shift(MUTABLE_AV(SvRV(symbol)));
+        if (SvOK(func_name__))
+            func_name = SvPV_nolen(func_name__);
+        else
+            func_name = symbol_;
+    }
+    else { symbol_ = func_name = SvPV_nolen(symbol); }
+
+    call->fptr = dlFindSymbol(lib, symbol_);
     size_t args_len = av_count(args);
 
     if (call->fptr == NULL) { // TODO: throw a warning

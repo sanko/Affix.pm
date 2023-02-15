@@ -222,13 +222,13 @@ my $sin_stdcall  = wrap( $libfile, 'sin', [ CC_STDCALL,          Double ] => Dou
 my $sin_fastcall = wrap( $libfile, 'sin', [ CC_FASTCALL_GNU,     Double ] => Double );
 my $sin_thiscall = wrap( $libfile, 'sin', [ CC_THISCALL_GNU,     Double ] => Double );
 #
-affix( $libfile, 'sin', [Double] => Double, '_affix_sin_default' );
-affix( $libfile, 'sin', [ CC_ELLIPSIS_VARARGS, Double ] => Double, '_affix_sin_var' );
-affix( $libfile, 'sin', [ CC_ELLIPSIS,         Double ] => Double, '_affix_sin_ellipse' );
-affix( $libfile, 'sin', [ CC_CDECL,            Double ] => Double, '_affix_sin_cdecl' );
-affix( $libfile, 'sin', [ CC_STDCALL,          Double ] => Double, '_affix_sin_std' );
-affix( $libfile, 'sin', [ CC_FASTCALL_GNU,     Double ] => Double, '_affix_sin_fc' );
-affix( $libfile, 'sin', [ CC_THISCALL_GNU,     Double ] => Double, '_affix_sin_tc' );
+affix( $libfile, [ 'sin', '_affix_sin_default' ], [ CC_DEFAULT,          Double ] => Double );
+affix( $libfile, [ 'sin', '_affix_sin_var' ],     [ CC_ELLIPSIS_VARARGS, Double ] => Double );
+affix( $libfile, [ 'sin', '_affix_sin_ellipse' ], [ CC_ELLIPSIS,         Double ] => Double );
+affix( $libfile, [ 'sin', '_affix_sin_cdecl' ],   [ CC_CDECL,            Double ] => Double );
+affix( $libfile, [ 'sin', '_affix_sin_std' ],     [ CC_STDCALL,          Double ] => Double );
+affix( $libfile, [ 'sin', '_affix_sin_fc' ],      [ CC_FASTCALL_GNU,     Double ] => Double );
+affix( $libfile, [ 'sin', '_affix_sin_tc' ],      [ CC_THISCALL_GNU,     Double ] => Double );
 #
 my $ffi = FFI::Platypus->new( api => 1 );
 $ffi->lib($libfile);

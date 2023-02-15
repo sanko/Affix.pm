@@ -43,6 +43,9 @@ The basic API here is rather simple but not lacking in power.
 ```perl
 affix( 'C:\Windows\System32\user32.dll', 'pow', [Double, Double] => Double );
 warn pow( 3, 5 );
+
+affix( 'foo', ['foo', 'foobar'] => [ Str ] );
+foobar( 'Hello' );
 ```
 
 Attaches a given symbol in a named perl sub.
@@ -58,17 +61,18 @@ Parameters include:
 
     the name of the symbol to call
 
+    Optionally, you may provide an array reference with the symbol's name and the
+    name of the subroutine
+
 - `$parameters`
 
     signature defining argument types in an array
 
 - `$return`
 
-    return type
+    optional return type
 
-- `$name`
-
-    optional name of affixed sub; `$symbol_name` by default
+    default is `Void`
 
 Returns a code reference on success.
 

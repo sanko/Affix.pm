@@ -52,9 +52,21 @@ package Affix {    # 'FFI' is my middle name!
                 scalar locate_lib( $_delay{$sub}[1], $_delay{$sub}[2] ) :
                 undef;
 
-            #use Data::Dump;
-            #ddx [ $lib, $_delay{$sub}[3], $sig, $ret, $_delay{$sub}[6] ];
-            my $cv = affix( $lib, $_delay{$sub}[3], $sig, $ret, $_delay{$sub}[6] );
+            #~ use Data::Dump;
+            #~ ddx [
+            #~ $lib, (
+            #~ $_delay{$sub}[3] eq $_delay{$sub}[6] ? $_delay{$sub}[3] :
+            #~ [ $_delay{$sub}[3], $_delay{$sub}[6] ]
+            #~ ),
+            #~ $sig, $ret
+            #~ ];
+            my $cv = affix(
+                $lib, (
+                    $_delay{$sub}[3] eq $_delay{$sub}[6] ? $_delay{$sub}[3] :
+                        [ $_delay{$sub}[3], $_delay{$sub}[6] ]
+                ),
+                $sig, $ret
+            );
             Carp::croak 'Undefined subroutine &' . $_delay{$sub}[6] unless $cv;
             delete $_delay{$sub} if defined $_delay{$sub};
             return &$cv;
@@ -113,8 +125,11 @@ package Affix {    # 'FFI' is my middle name!
 
                 # TODO: call this defined sub and pass the wrapped symbol and then the passed args
                 #...;
-                return affix( locate_lib( $library, $library_version ),
-                    $symbol, $signature, $return, $full_name );
+                return affix(
+                    locate_lib( $library, $library_version ),
+                    ( $symbol eq $full_name ? $symbol : [ $symbol, $full_name ] ),
+                    $signature, $return
+                );
             }
             $_delay{$full_name}
                 = [ $package, $library, $library_version, $symbol, $signature, $return,
@@ -314,6 +329,9 @@ The basic API here is rather simple but not lacking in power.
     affix( 'C:\Windows\System32\user32.dll', 'pow', [Double, Double] => Double );
     warn pow( 3, 5 );
 
+    affix( 'foo', ['foo', 'foobar'] => [ Str ] );
+    foobar( 'Hello' );
+
 Attaches a given symbol in a named perl sub.
 
 Parameters include:
@@ -329,17 +347,18 @@ path of the library as a string or pointer returned by L<< C<dlLoadLibrary( ...
 
 the name of the symbol to call
 
+Optionally, you may provide an array reference with the symbol's name and the
+name of the subroutine
+
 =item C<$parameters>
 
 signature defining argument types in an array
 
 =item C<$return>
 
-return type
+optional return type
 
-=item C<$name>
-
-optional name of affixed sub; C<$symbol_name> by default
+default is C<Void>
 
 =back
 
