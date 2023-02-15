@@ -2063,10 +2063,10 @@ CODE:
 
     if (call->fptr == NULL) { // TODO: throw a warning
         safefree(call);
-        char *sOut;
-        dlGetLibraryPath(lib, sOut, 1024);
-        croak("Failed to locate symbol %s in %s", symbol, sOut);
-        XSRETURN_EMPTY;
+        char *sOut = (char *)"the current process";
+        if (lib != NULL) dlGetLibraryPath(lib, sOut, 1024);
+        croak("Failed to locate symbol %s in %s", symbol_, sOut);
+        XSRETURN_EMPTY; // ha
     }
 
     call->lib = lib;
