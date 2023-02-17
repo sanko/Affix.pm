@@ -51,15 +51,16 @@ extern "C" {
 #include <dyncall/dyncall/dyncall_aggregate.h>
 
 //{ii[5]Z&<iZ>}
-#define DC_SIGCHAR_CODE '&'       // 'p' but allows us to wrap CV * for the user
-#define DC_SIGCHAR_ARRAY '['      // 'A' but nicer
-#define DC_SIGCHAR_STRUCT '{'     // 'A' but nicer
-#define DC_SIGCHAR_UNION '<'      // 'A' but nicer
-#define DC_SIGCHAR_INSTANCEOF '$' // 'p' but an object or subclass of a given package
-#define DC_SIGCHAR_ANY '*'        // 'p' but it's really an SV/HV/AV
-#define DC_SIGCHAR_ENUM 'e'       // 'i' but with multiple options
-#define DC_SIGCHAR_ENUM_UINT 'E'  // 'I' but with multiple options
-#define DC_SIGCHAR_ENUM_CHAR 'o'  // 'c' but with multiple options
+#define DC_SIGCHAR_CODE '&'        // 'p' but allows us to wrap CV * for the user
+#define DC_SIGCHAR_ARRAY '['       // 'A' but nicer
+#define DC_SIGCHAR_STRUCT '{'      // 'A' but nicer
+#define DC_SIGCHAR_UNION '<'       // 'A' but nicer
+#define DC_SIGCHAR_INSTANCEOF '$'  // 'p' but an object or subclass of a given package
+#define DC_SIGCHAR_ANY '*'         // 'p' but it's really an SV/HV/AV
+#define DC_SIGCHAR_ENUM 'e'        // 'i' but with multiple options
+#define DC_SIGCHAR_ENUM_UINT 'E'   // 'I' but with multiple options
+#define DC_SIGCHAR_ENUM_CHAR 'o'   // 'c' but with multiple options
+#define DC_SIGCHAR_WIDE_STRING 'z' // 'Z' but wchar_t
 
 // MEM_ALIGNBYTES is messed up by quadmath and long doubles
 #define AFFIX_ALIGNBYTES 8
@@ -130,6 +131,7 @@ extern "C" {
 #define BOOLSIZE sizeof(bool)      // ha!
 #define XDOUBLESIZE sizeof(double) // ugh...
 #define XPTRSIZE sizeof(intptr_t)  // ugh...
+#define WCHAR_T_SIZE sizeof(wchar_t)
 
 const char *file = __FILE__;
 
@@ -276,6 +278,7 @@ char cbHandler(DCCallback *cb, DCArgs *args, DCValue *result, DCpointer userdata
     dTHXa(cbx->perl);
     dSP;
     int count;
+    char ret_c = cbx->ret;
     ENTER;
     SAVETMPS;
     PUSHMARK(SP);
@@ -349,6 +352,10 @@ char cbHandler(DCCallback *cb, DCArgs *args, DCValue *result, DCpointer userdata
                 DCpointer ptr = dcbArgPointer(args);
                 PUSHs(newSVpv((char *)ptr, 0));
             } break;
+            case DC_SIGCHAR_WIDE_STRING: {
+                DCpointer ptr = dcbArgPointer(args);
+                PUSHs(newSVpvn_utf8((char *)ptr, 0, 1));
+            } break;
             case DC_SIGCHAR_INSTANCEOF: {
                 DCpointer ptr = dcbArgPointer(args);
                 HV *blessed = MUTABLE_HV(SvRV(*av_fetch(cbx->args, i, 0)));
@@ -384,7 +391,7 @@ char cbHandler(DCCallback *cb, DCArgs *args, DCValue *result, DCpointer userdata
         SPAGAIN;
         if (count != 1) croak("Big trouble: %d returned items", count);
         SV *ret = POPs;
-        switch (cbx->ret) {
+        switch (ret_c) {
         case DC_SIGCHAR_VOID:
             break;
         case DC_SIGCHAR_BOOL:
@@ -441,11 +448,15 @@ char cbHandler(DCCallback *cb, DCArgs *args, DCValue *result, DCpointer userdata
         case DC_SIGCHAR_STRING:
             result->Z = SvPOK(ret) ? SvPVx_nolen_const(ret) : NULL;
             break;
+        case DC_SIGCHAR_WIDE_STRING:
+            result->p = SvPOK(ret) ? (DCpointer)SvPVx_nolen_const(ret) : NULL;
+            ret_c = DC_SIGCHAR_POINTER;
+            break;
         case DC_SIGCHAR_STRUCT:
         case DC_SIGCHAR_UNION:
         case DC_SIGCHAR_INSTANCEOF:
         default:
-            croak("Unhandled return from callback: %c", cbx->ret);
+            croak("Unhandled return from callback: %c", ret);
         }
     }
     PUTBACK;
@@ -453,7 +464,7 @@ char cbHandler(DCCallback *cb, DCArgs *args, DCValue *result, DCpointer userdata
     FREETMPS;
     LEAVE;
 
-    return cbx->ret;
+    return ret_c;
 }
 
 bool is_valid_class_name(SV *sv) { // Stolen from Type::Tiny::XS::Util
@@ -542,6 +553,8 @@ static size_t _sizeof(pTHX_ SV *type) {
     case DC_SIGCHAR_STRING:
     case DC_SIGCHAR_ANY:
         return XPTRSIZE;
+    case DC_SIGCHAR_WIDE_STRING:
+        return WCHAR_T_SIZE;
     case DC_SIGCHAR_INSTANCEOF:
         return _sizeof(aTHX_ _instanceof(aTHX_ type));
     default:
@@ -679,6 +692,25 @@ SV *ptr2sv(pTHX_ DCpointer ptr, SV *type) {
     case DC_SIGCHAR_DOUBLE:
         sv_setnv(RETVAL, *(double *)ptr);
         break;
+    case DC_SIGCHAR_POINTER: {
+        SV *subtype;
+        if (sv_derived_from(type, "Affix::Type::Pointer"))
+            subtype = *hv_fetchs(MUTABLE_HV(SvRV(type)), "type", 0);
+        else
+            subtype = type;
+        char *_subtype = SvPV_nolen(subtype);
+        if (_subtype[0] == DC_SIGCHAR_VOID) {
+            SV *RETVALSV = newSV(1); // sv_newmortal();
+            SvSetSV(RETVAL, sv_setref_pv(RETVALSV, "Affix::Pointer", *(DCpointer *)ptr));
+        }
+        else { SvSetSV(RETVAL, ptr2sv(aTHX_ ptr, subtype)); }
+    } break;
+    case DC_SIGCHAR_WIDE_STRING:
+#if DC__OS_Win32
+        croak("Not ready yet");
+        // sv_setsv(RETVAL, newSVpvn_utf8(*(wchar_t*)ptr, 0, 1));
+        break;
+#endif
     case DC_SIGCHAR_STRING:
         sv_setsv(RETVAL, newSVpv(*(char **)ptr, 0));
         break;
@@ -716,19 +748,6 @@ SV *ptr2sv(pTHX_ DCpointer ptr, SV *type) {
                 0);
         }
         SvSetSV(RETVAL, newRV(MUTABLE_SV(RETVAL_)));
-    } break;
-    case DC_SIGCHAR_POINTER: {
-        SV *subtype;
-        if (sv_derived_from(type, "Affix::Type::Pointer"))
-            subtype = *hv_fetchs(MUTABLE_HV(SvRV(type)), "type", 0);
-        else
-            subtype = type;
-        char *_subtype = SvPV_nolen(subtype);
-        if (_subtype[0] == DC_SIGCHAR_VOID) {
-            SV *RETVALSV = newSV(1); // sv_newmortal();
-            SvSetSV(RETVAL, sv_setref_pv(RETVALSV, "Affix::Pointer", *(DCpointer *)ptr));
-        }
-        else { SvSetSV(RETVAL, ptr2sv(aTHX_ ptr, subtype)); }
     } break;
     case DC_SIGCHAR_CODE: {
         CoW *p = (CoW *)ptr;
@@ -836,6 +855,33 @@ void sv2ptr(pTHX_ SV *type, SV *data, DCpointer ptr, bool packed) {
         double value = SvOK(data) ? SvNV(data) : 0.0f;
         Copy(&value, ptr, 1, double);
     } break;
+    case DC_SIGCHAR_POINTER: {
+        HV *hv_ptr = MUTABLE_HV(SvRV(type));
+        SV **type_ptr = hv_fetchs(hv_ptr, "type", 0);
+        DCpointer value = safemalloc(_sizeof(aTHX_ * type_ptr));
+        if (SvOK(data)) sv2ptr(aTHX_ * type_ptr, data, value, packed);
+        Copy(&value, ptr, 1, intptr_t);
+    } break;
+    case DC_SIGCHAR_WIDE_STRING:
+#if DC__OS_Win32
+    {
+        if (SvPOK(data)) {
+            const char *str = SvPVutf8_nolen(data);
+            wchar_t *ws;
+            int r = MultiByteToWideChar(CP_UTF8, 0, str, -1, NULL, 0);
+            if (!r) {
+                Zero(ptr, 1, intptr_t);
+                break;
+            }
+            Newxz(ws, r, wchar_t); // Leak!
+            MultiByteToWideChar(CP_UTF8, 0, str, -1, ws, r);
+            Copy(str, value, strlen(str), wchar_t);
+            Copy(&value, ptr, 1, intptr_t);
+        }
+        else
+            Zero(ptr, 1, intptr_t);
+    } break;
+#endif
     case DC_SIGCHAR_STRING: {
         if (SvPOK(data)) {
             const char *str = SvPV_nolen(data);
@@ -847,14 +893,7 @@ void sv2ptr(pTHX_ SV *type, SV *data, DCpointer ptr, bool packed) {
         else
             Zero(ptr, 1, intptr_t);
     } break;
-    case DC_SIGCHAR_POINTER: {
-        HV *hv_ptr = MUTABLE_HV(SvRV(type));
-        SV **type_ptr = hv_fetchs(hv_ptr, "type", 0);
-        DCpointer value = safemalloc(_sizeof(aTHX_ * type_ptr));
-        if (SvOK(data)) sv2ptr(aTHX_ * type_ptr, data, value, packed);
-        Copy(&value, ptr, 1, intptr_t);
 
-    } break;
     case DC_SIGCHAR_INSTANCEOF: {
         HV *hv_ptr = MUTABLE_HV(SvRV(type));
         SV **type_ptr = hv_fetchs(hv_ptr, "type", 0);
@@ -1834,6 +1873,7 @@ BOOT:
     TYPE(Any, DC_SIGCHAR_ANY, DC_SIGCHAR_POINTER);
     TYPE(SSize_t, DC_SIGCHAR_SSIZE_T, DC_SIGCHAR_SSIZE_T);
     TYPE(Size_t, DC_SIGCHAR_SIZE_T, DC_SIGCHAR_SIZE_T);
+    TYPE(WStr, DC_SIGCHAR_WIDE_STRING, DC_SIGCHAR_STRING);
 
     TYPE(Enum, DC_SIGCHAR_ENUM, DC_SIGCHAR_INT);
 
@@ -2273,6 +2313,7 @@ CODE:
     CLEANUP(Any);
     CLEANUP(SSize_t);
     CLEANUP(Size_t);
+    CLEANUP(WStr);
     CLEANUP(Enum);
     CLEANUP(IntEnum);
     CLEANUP(UIntEnum);
@@ -2474,6 +2515,9 @@ PPCODE:
 }
 // clang-format off
 
+DCpointer
+strdup(char * str1)
+
 BOOT:
 // clang-format on
 {
@@ -2488,13 +2532,14 @@ BOOT:
     export_function("Affix", "memset", "memory");
     export_function("Affix", "memcpy", "memory");
     export_function("Affix", "memmove", "memory");
+    export_function("Affix", "strdup", "memory");
     set_isa("Affix::Pointer", "Dyn::Call::Pointer");
 }
 // clang-format off
 
 MODULE = Affix PACKAGE = Affix::Pointer
 
-FALLBACK : TRUE
+FALLBACK: TRUE
 
 IV
 plus(DCpointer ptr, IV other, IV swap)
@@ -2565,8 +2610,9 @@ CODE:
     else
         croak("dest is not of type Affix::Pointer");
 }
-//clang-format off
+  //clang-format off
 
+#if 0
 void
 DESTROY(HV * me)
 CODE:
@@ -2581,3 +2627,5 @@ CODE:
     ptr = NULL;
 }
 // clang-format off
+
+#endif

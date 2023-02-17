@@ -12,8 +12,8 @@ package Affix {    # 'FFI' is my middle name!
     use vars qw[@EXPORT_OK @EXPORT %EXPORT_TAGS];
     our $VERSION = '0.10_06';
     use XSLoader;
-    END { _shutdown(); }
-    XSLoader::load();
+    my $ok = XSLoader::load();
+    END { _shutdown() if $ok; }
     #
     use parent 'Exporter';
     @EXPORT_OK          = sort map { @$_ = sort @$_; @$_ } values %EXPORT_TAGS;
