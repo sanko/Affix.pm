@@ -668,9 +668,10 @@ static SV *call_encoding(pTHX_ const char *method, SV *obj, SV *src, SV *check) 
     return dst;
 }
 // https://www.gnu.org/software/libunistring/manual/html_node/The-wchar_005ft-mess.html
+// TODO: store this SV* for the sake of speed
 static SV *find_encoding(pTHX) {
     char encoding[9];
-    my_snprintf(encoding, 9, "UTF-%d%cE", (sizeof(wchar_t) == 2 ? 16 : 32),
+    my_snprintf(encoding, 9, "UTF-%d%cE", (WCHAR_T_SIZE == 2 ? 16 : 32),
                 ((BYTEORDER == 0x1234 || BYTEORDER == 0x12345678) ? 'L' : 'B'));
     dSP;
     int count;
@@ -755,14 +756,11 @@ SV *ptr2sv(pTHX_ DCpointer ptr, SV *type) {
         }
         else { SvSetSV(RETVAL, ptr2sv(aTHX_ ptr, subtype)); }
     } break;
-    case DC_SIGCHAR_WIDE_STRING:
-        croak("Not ready yet");
-#if DC__OS_Win32
-        croak("Not ready yet");
-        // sv_setsv(RETVAL, newSVpvn_utf8(*(wchar_t*)ptr, 0, 1));
-
-#endif
-        break;
+    case DC_SIGCHAR_WIDE_STRING: {
+        size_t len = wcslen((const wchar_t *)ptr) * WCHAR_T_SIZE;
+        RETVAL =
+            call_encoding(aTHX_ "decode", find_encoding(aTHX), newSVpv((char *)ptr, len), NULL);
+    } break;
     case DC_SIGCHAR_STRING:
         sv_setsv(RETVAL, newSVpv(*(char **)ptr, 0));
         break;
@@ -1700,9 +1698,6 @@ XS_INTERNAL(Affix_call) {
             break;
         case DC_SIGCHAR_WIDE_STRING: {
             DCpointer ret_ptr = dcCallPointer(MY_CXT.cvm, call->fptr);
-            DumpHex(ret_ptr, 16);
-            sv_dump(call->retval);
-            sv_dump(SvRV(call->retval));
             RETVAL = ptr2sv(aTHX_ ret_ptr, (call->retval));
         } break;
         case DC_SIGCHAR_INSTANCEOF: {

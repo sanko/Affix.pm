@@ -17,9 +17,8 @@ sub check_string : Native('t/src/64_affix_wchar_t') : Signature([WStr]=>Int);
 sub get_string : Native('t/src/64_affix_wchar_t') : Signature([]=>WStr);
 #
 subtest 'sv2ptr=>ptr2sv round trip' => sub {
-    is check_string('時空'), 0, '[WStr]=>Int';
-
-    #is get_string(),           '時空', '[]=>WStr';
+    is check_string('時空'), 0,        '[WStr]=>Int';
+    is get_string(),           '時空', '[]=>WStr';
 };
 #
 done_testing;
