@@ -39,6 +39,12 @@ extern "C" {
 #include <iconv.h>
 #endif
 
+// older perls are missing wcslen
+// PERL_VERSION is deprecated but PERL_VERSION_LE, etc. do not exist pre-5.34.x
+#if /*(defined(PERL_VERSION_LE) && PERL_VERSION_LE(5, 30, '*')) ||*/ PERL_VERSION <= 30
+#include <wchar.h>
+#endif
+
 #include <dyncall.h>
 #include <dyncall_callback.h>
 #include <dynload.h>
