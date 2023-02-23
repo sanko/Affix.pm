@@ -54,9 +54,4 @@ subtest array => sub {
         is_deeply [ Affix::ptr2sv( $ptr, $type ) ], [$data], 'round trip is correct';
     };
 };
-subtest wchar_t => sub {
-    my $ptr = Affix::sv2ptr( "Hi", WStr );
-    isa_ok $ptr, 'Affix::Pointer';
-    is Affix::ptr2sv( $ptr, WStr ), 'Hi', 'round trip is correct';
-};
 done_testing;

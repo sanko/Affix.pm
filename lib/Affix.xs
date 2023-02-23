@@ -34,9 +34,9 @@ extern "C" {
 #endif
 
 #if defined(_WIN32) || defined(_WIN64)
-// Handle special Windows stuff
 #else
 #include <dlfcn.h>
+#include <iconv.h>
 #endif
 
 #include <dyncall.h>
@@ -223,9 +223,9 @@ void export_constant(const char *package, const char *name, const char *_tag, do
 
 #define DumpHex(addr, len)                                                                         \
     ;                                                                                              \
-    _DumpHex(addr, len, __FILE__, __LINE__)
+    _DumpHex(aTHX_ addr, len, __FILE__, __LINE__)
 
-void _DumpHex(const void *addr, size_t len, const char *file, int line) {
+void _DumpHex(pTHX_ const void *addr, size_t len, const char *file, int line) {
     fflush(stdout);
     int perLine = 16;
     // Silently ignore silly per-line values.
@@ -456,7 +456,7 @@ char cbHandler(DCCallback *cb, DCArgs *args, DCValue *result, DCpointer userdata
         case DC_SIGCHAR_UNION:
         case DC_SIGCHAR_INSTANCEOF:
         default:
-            croak("Unhandled return from callback: %c", ret);
+            croak("Unhandled return from callback: %c", ret_c);
         }
     }
     PUTBACK;
@@ -646,9 +646,60 @@ static DCaggr *_aggregate(pTHX_ SV *type) {
     return NULL;
 }
 
+// Snagged from Encode/Encode.xs
+static SV *call_encoding(pTHX_ const char *method, SV *obj, SV *src, SV *check) {
+    dSP;
+    I32 count;
+    SV *dst = &PL_sv_undef;
+    PUSHMARK(sp);
+    if (check) check = sv_2mortal(newSVsv(check));
+    if (!check || SvROK(check) || !SvTRUE_nomg(check)) src = sv_2mortal(newSVsv(src));
+    XPUSHs(obj);
+    XPUSHs(src);
+    XPUSHs(check ? check : &PL_sv_no);
+    PUTBACK;
+    count = call_method(method, G_SCALAR);
+    SPAGAIN;
+    if (count > 0) {
+        dst = POPs;
+        SvREFCNT_inc(dst);
+    }
+    PUTBACK;
+    return dst;
+}
+
+static SV *find_encoding(pTHX) {
+    char encoding[9];
+    my_snprintf(encoding, 9, "UTF-%d%cE", (sizeof(wchar_t) == 2 ? 16 : 32),
+                ((BYTEORDER == 0x1234 || BYTEORDER == 0x12345678) ? 'L' : 'B'));
+    warn("# encoding: %s", encoding);
+    dSP;
+    int count;
+    require_pv("Encode.pm");
+    ENTER;
+    SAVETMPS;
+    PUSHMARK(SP);
+    XPUSHs(sv_2mortal(newSVpv(encoding, 0)));
+    PUTBACK;
+    count = call_pv("Encode::find_encoding", G_SCALAR);
+    SPAGAIN;
+    if (SvTRUE(ERRSV)) {
+        warn("Error: %s\n", SvPV_nolen(ERRSV));
+        (void)POPs;
+    }
+    if (count != 1) croak("find_encoding fault: bad number of returned values: %d", count);
+    SV *encode = POPs;
+    SvREFCNT_inc(encode);
+    PUTBACK;
+    FREETMPS;
+    LEAVE;
+    return encode;
+}
+
 SV *ptr2sv(pTHX_ DCpointer ptr, SV *type) {
     SV *RETVAL = newSV(0);
     char *_type = SvPV_nolen(type);
+    //~ warn("ptr2sv(%p, %s) at %s line %d", ptr, _type, __FILE__, __LINE__);
     switch (_type[0]) {
     case DC_SIGCHAR_VOID:
         sv_setref_pv(RETVAL, "Affix::Pointer", ptr);
@@ -706,11 +757,13 @@ SV *ptr2sv(pTHX_ DCpointer ptr, SV *type) {
         else { SvSetSV(RETVAL, ptr2sv(aTHX_ ptr, subtype)); }
     } break;
     case DC_SIGCHAR_WIDE_STRING:
+        croak("Not ready yet");
 #if DC__OS_Win32
         croak("Not ready yet");
         // sv_setsv(RETVAL, newSVpvn_utf8(*(wchar_t*)ptr, 0, 1));
-        break;
+
 #endif
+        break;
     case DC_SIGCHAR_STRING:
         sv_setsv(RETVAL, newSVpv(*(char **)ptr, 0));
         break;
@@ -862,38 +915,28 @@ void sv2ptr(pTHX_ SV *type, SV *data, DCpointer ptr, bool packed) {
         if (SvOK(data)) sv2ptr(aTHX_ * type_ptr, data, value, packed);
         Copy(&value, ptr, 1, intptr_t);
     } break;
-    case DC_SIGCHAR_WIDE_STRING:
-#if DC__OS_Win32
-    {
-        if (SvPOK(data)) {
-            const char *str = SvPVutf8_nolen(data);
-            wchar_t *ws;
-            int r = MultiByteToWideChar(CP_UTF8, 0, str, -1, NULL, 0);
-            if (!r) {
-                Zero(ptr, 1, intptr_t);
-                break;
-            }
-            Newxz(ws, r, wchar_t); // Leak!
-            MultiByteToWideChar(CP_UTF8, 0, str, -1, ws, r);
-            Copy(str, value, strlen(str), wchar_t);
-            Copy(&value, ptr, 1, intptr_t);
-        }
-        else
-            Zero(ptr, 1, intptr_t);
-    } break;
-#endif
     case DC_SIGCHAR_STRING: {
         if (SvPOK(data)) {
-            const char *str = SvPV_nolen(data);
+            STRLEN len;
+            const char *str = SvPV(data, len);
             DCpointer value;
-            Newxz(value, strlen(str) + 1, char);
-            Copy(str, value, strlen(str), char);
+            Newxz(value, len + 1, char);
+            Copy(str, value, len, char);
             Copy(&value, ptr, 1, intptr_t);
         }
         else
             Zero(ptr, 1, intptr_t);
     } break;
-
+    case DC_SIGCHAR_WIDE_STRING: {
+        if (SvPOK(data) && SvUTF8(data)) {
+            SV *idk = call_encoding(aTHX_ "encode", find_encoding(aTHX), data, NULL);
+            STRLEN len;
+            DCpointer str = (DCpointer) SvPVbyte(idk, len);
+            Copy(str, ptr, len, char);
+        }
+        else
+            Zero(ptr, 1, intptr_t);
+    } break;
     case DC_SIGCHAR_INSTANCEOF: {
         HV *hv_ptr = MUTABLE_HV(SvRV(type));
         SV **type_ptr = hv_fetchs(hv_ptr, "type", 0);
@@ -1512,6 +1555,13 @@ XS_INTERNAL(Affix_call) {
             case DC_SIGCHAR_STRING: {
                 dcArgPointer(MY_CXT.cvm, !SvOK(ST(pos_arg)) ? NULL : SvPV_nolen(ST(pos_arg)));
             } break;
+            case DC_SIGCHAR_WIDE_STRING: {
+                Newxz(pointer[pos_arg], 1, wchar_t *);
+                l_pointer[pos_arg] = true;
+                pointers = true;
+                sv2ptr(aTHX_ type, ST(pos_arg), pointer[pos_arg], false);
+                dcArgPointer(MY_CXT.cvm, pointer[pos_arg]);
+            } break;
             case DC_SIGCHAR_CODE: {
                 if (SvOK(ST(pos_arg))) {
                     CoW *hold;
@@ -1649,6 +1699,13 @@ XS_INTERNAL(Affix_call) {
         case DC_SIGCHAR_STRING:
             RETVAL = newSVpv((char *)dcCallPointer(MY_CXT.cvm, call->fptr), 0);
             break;
+        case DC_SIGCHAR_WIDE_STRING: {
+            DCpointer ret_ptr = dcCallPointer(MY_CXT.cvm, call->fptr);
+            DumpHex(ret_ptr, 16);
+            sv_dump(call->retval);
+            sv_dump(SvRV(call->retval));
+            RETVAL = ptr2sv(aTHX_ ret_ptr, (call->retval));
+        } break;
         case DC_SIGCHAR_INSTANCEOF: {
             DCpointer ptr = dcCallPointer(MY_CXT.cvm, call->fptr);
             SV **package = hv_fetchs(MUTABLE_HV(SvRV(call->retval)), "package", 0);
