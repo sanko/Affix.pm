@@ -667,12 +667,11 @@ static SV *call_encoding(pTHX_ const char *method, SV *obj, SV *src, SV *check) 
     PUTBACK;
     return dst;
 }
-
+// https://www.gnu.org/software/libunistring/manual/html_node/The-wchar_005ft-mess.html
 static SV *find_encoding(pTHX) {
     char encoding[9];
     my_snprintf(encoding, 9, "UTF-%d%cE", (sizeof(wchar_t) == 2 ? 16 : 32),
                 ((BYTEORDER == 0x1234 || BYTEORDER == 0x12345678) ? 'L' : 'B'));
-    warn("# encoding: %s", encoding);
     dSP;
     int count;
     require_pv("Encode.pm");
@@ -931,7 +930,7 @@ void sv2ptr(pTHX_ SV *type, SV *data, DCpointer ptr, bool packed) {
         if (SvPOK(data) && SvUTF8(data)) {
             SV *idk = call_encoding(aTHX_ "encode", find_encoding(aTHX), data, NULL);
             STRLEN len;
-            DCpointer str = (DCpointer) SvPVbyte(idk, len);
+            DCpointer str = (DCpointer)SvPVbyte(idk, len);
             Copy(str, ptr, len, char);
         }
         else
