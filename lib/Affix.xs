@@ -835,7 +835,7 @@ void sv2ptr(pTHX_ SV *type, SV *data, DCpointer ptr, bool packed) {
     switch (str[0]) {
     case DC_SIGCHAR_VOID: {
         if (!SvOK(data))
-            Copy((DCpointer)(NULL), ptr, 1, intptr_t);
+            Zero(ptr, 1, intptr_t);
         else if (sv_derived_from(data, "Affix::Pointer")) {
             IV tmp = SvIV((SV *)SvRV(data));
             ptr = INT2PTR(DCpointer, tmp);
