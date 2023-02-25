@@ -557,10 +557,9 @@ static size_t _sizeof(pTHX_ SV *type) {
     case DC_SIGCHAR_CODE: // automatically wrapped in a DCCallback pointer
     case DC_SIGCHAR_POINTER:
     case DC_SIGCHAR_STRING:
+    case DC_SIGCHAR_WIDE_STRING:
     case DC_SIGCHAR_ANY:
         return XPTRSIZE;
-    case DC_SIGCHAR_WIDE_STRING:
-        return WCHAR_T_SIZE;
     case DC_SIGCHAR_INSTANCEOF:
         return _sizeof(aTHX_ _instanceof(aTHX_ type));
     default:
@@ -626,6 +625,7 @@ static DCaggr *_aggregate(pTHX_ SV *type) {
                 case DC_SIGCHAR_ANY:
                 case DC_SIGCHAR_CODE:
                 case DC_SIGCHAR_POINTER:
+                case DC_SIGCHAR_WIDE_STRING:
                 case DC_SIGCHAR_INSTANCEOF: {
                     dcAggrField(agg, DC_SIGCHAR_POINTER, offset, 1);
                 } break;
@@ -679,6 +679,7 @@ static SV *find_encoding(pTHX) {
     char encoding[9];
     my_snprintf(encoding, 9, "UTF-%d%cE", (WCHAR_T_SIZE == 2 ? 16 : 32),
                 ((BYTEORDER == 0x1234 || BYTEORDER == 0x12345678) ? 'L' : 'B'));
+    warn("encoding: %s", encoding);
     dSP;
     int count;
     require_pv("Encode.pm");
@@ -762,14 +763,14 @@ SV *ptr2sv(pTHX_ DCpointer ptr, SV *type) {
         }
         else { SvSetSV(RETVAL, ptr2sv(aTHX_ ptr, subtype)); }
     } break;
+    case DC_SIGCHAR_STRING:
+        sv_setsv(RETVAL, newSVpv(*(char **)ptr, 0));
+        break;
     case DC_SIGCHAR_WIDE_STRING: {
         size_t len = wcslen((const wchar_t *)ptr) * WCHAR_T_SIZE;
         RETVAL =
             call_encoding(aTHX_ "decode", find_encoding(aTHX), newSVpv((char *)ptr, len), NULL);
     } break;
-    case DC_SIGCHAR_STRING:
-        sv_setsv(RETVAL, newSVpv(*(char **)ptr, 0));
-        break;
     case DC_SIGCHAR_ARRAY: {
         AV *RETVAL_ = newAV_mortal();
         HV *_type = MUTABLE_HV(SvRV(type));
@@ -931,11 +932,14 @@ void sv2ptr(pTHX_ SV *type, SV *data, DCpointer ptr, bool packed) {
             Zero(ptr, 1, intptr_t);
     } break;
     case DC_SIGCHAR_WIDE_STRING: {
-        if (SvPOK(data) && SvUTF8(data)) {
+        if (SvPOK(data)) {
             SV *idk = call_encoding(aTHX_ "encode", find_encoding(aTHX), data, NULL);
             STRLEN len;
-            DCpointer str = (DCpointer)SvPVbyte(idk, len);
-            Copy(str, ptr, len, char);
+            char *str = SvPV(idk, len);
+            DCpointer value;
+            Newxz(value, len + WCHAR_T_SIZE, char);
+            Copy(str, value, len, char);
+            Copy(&value, ptr, 1, intptr_t);
         }
         else
             Zero(ptr, 1, intptr_t);
@@ -1047,7 +1051,6 @@ void sv2ptr(pTHX_ SV *type, SV *data, DCpointer ptr, bool packed) {
         croak("%c is not a known type in sv2ptr(...)", str[0]);
     }
     }
-
     return;
 }
 
@@ -1559,10 +1562,15 @@ XS_INTERNAL(Affix_call) {
                 dcArgPointer(MY_CXT.cvm, !SvOK(ST(pos_arg)) ? NULL : SvPV_nolen(ST(pos_arg)));
             } break;
             case DC_SIGCHAR_WIDE_STRING: {
-                Newxz(pointer[pos_arg], 1, wchar_t *);
-                l_pointer[pos_arg] = true;
-                pointers = true;
-                sv2ptr(aTHX_ type, ST(pos_arg), pointer[pos_arg], false);
+                if (SvOK(ST(pos_arg))) {
+                    l_pointer[pos_arg] = false;
+                    SV *idk = call_encoding(aTHX_ "encode", find_encoding(aTHX), ST(pos_arg), NULL);
+                    STRLEN len;
+                    char *holder = SvPV(idk, len);
+                    pointer[pos_arg] = safecalloc(len + WCHAR_T_SIZE, 1);
+                    Copy(holder, pointer[pos_arg], len, char);
+                }
+                else { Zero(pointer[pos_arg], 1, intptr_t); }
                 dcArgPointer(MY_CXT.cvm, pointer[pos_arg]);
             } break;
             case DC_SIGCHAR_CODE: {
@@ -1930,7 +1938,7 @@ BOOT:
     TYPE(Any, DC_SIGCHAR_ANY, DC_SIGCHAR_POINTER);
     TYPE(SSize_t, DC_SIGCHAR_SSIZE_T, DC_SIGCHAR_SSIZE_T);
     TYPE(Size_t, DC_SIGCHAR_SIZE_T, DC_SIGCHAR_SIZE_T);
-    TYPE(WStr, DC_SIGCHAR_WIDE_STRING, DC_SIGCHAR_STRING);
+    TYPE(WStr, DC_SIGCHAR_WIDE_STRING, DC_SIGCHAR_POINTER);
 
     TYPE(Enum, DC_SIGCHAR_ENUM, DC_SIGCHAR_INT);
 

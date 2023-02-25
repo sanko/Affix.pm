@@ -45,24 +45,24 @@ void _DumpHex(const void *addr, size_t len, const char *file, int line) {
     int i;
     unsigned char buff[perLine + 1];
     const unsigned char *pc = (const unsigned char *)addr;
-    printf("Dumping %lu bytes from %p at %s line %d\n", len, addr, file, line);
+    fprintf(stderr, "Dumping %zu bytes from %p at %s line %d\n", len, addr, file, line);
     // Length checks.
     if (len == 0) {
         warn("ZERO LENGTH");
         return;
     }
     if (len < 0) {
-        warn("NEGATIVE LENGTH: %lu", len);
+        warn("NEGATIVE LENGTH: %zu", len);
         return;
     }
     for (i = 0; i < len; i++) {
         if ((i % perLine) == 0) { // Only print previous-line ASCII buffer for
             // lines beyond first.
-            if (i != 0) printf(" | %s\n", buff);
-            printf("#  %04x ", i); // Output the offset of current line.
+            if (i != 0) fprintf(stderr, " | %s\n", buff);
+            fprintf(stderr, "#  %04x ", i); // Output the offset of current line.
         }
         // Now the hex code for the specific character.
-        printf(" %02x", pc[i]);
+        fprintf(stderr, " %02x", pc[i]);
         // And buffer a printable ASCII character for later.
         if ((pc[i] < 0x20) || (pc[i] > 0x7e)) // isprint() may be better.
             buff[i % perLine] = '.';
@@ -72,9 +72,9 @@ void _DumpHex(const void *addr, size_t len, const char *file, int line) {
     }
     // Pad out last line if not exactly perLine characters.
     while ((i % perLine) != 0) {
-        printf("   ");
+        fprintf(stderr, "   ");
         i++;
     }
-    printf(" | %s\n", buff);
+    fprintf(stderr, " | %s\n", buff);
     fflush(stdout);
 }
