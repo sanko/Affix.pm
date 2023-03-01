@@ -9,9 +9,11 @@ int demo(const wchar_t *lhs, const wchar_t *rhs) {
     setlocale(LC_ALL, "en_US.utf-8");
     int rc = wcscmp(lhs, rhs);
     const char *rel = rc < 0 ? "precedes" : rc > 0 ? "follows" : "equals";
-    warn("[%ls] %s [%ls]", lhs, rel, rhs);
-    DumpHex(lhs, 16);
-    DumpHex(rhs, 16);
+    if (rc != 0) {
+        warn("[%ls] %s [%ls] (%d)", lhs, rel, rhs, rc);
+        DumpHex(lhs, 16);
+        DumpHex(rhs, 16);
+    }
     return rc;
 }
 

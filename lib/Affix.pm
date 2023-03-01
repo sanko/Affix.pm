@@ -1,4 +1,4 @@
-package Affix {    # 'FFI' is my middle name!
+package Affix 0.10 {    # 'FFI' is my middle name!
     use strict;
     use warnings;
     no warnings 'redefine';
@@ -10,7 +10,6 @@ package Affix {    # 'FFI' is my middle name!
     use Text::ParseWords;
     use Carp qw[];
     use vars qw[@EXPORT_OK @EXPORT %EXPORT_TAGS];
-    our $VERSION = '0.10_06';
     use XSLoader;
     my $ok = XSLoader::load();
     END { _shutdown() if $ok; }
@@ -308,7 +307,7 @@ Affix - A Foreign Function Interface eXtension
     print $bar->( 'Baz', 3.14 );
 
     # bind an exported value to a Perl value
-    rivet( my $ver, 'libfoo', 'VERSION', Int );
+    pin( my $ver, 'libfoo', 'VERSION', Int );
 
 =head1 DESCRIPTION
 
@@ -554,11 +553,11 @@ to print the home directory of the current user:
 =head1 Exported Variables
 
 Variables exported by a library - also names "global" or "extern" variables -
-can be accessed using C<rivet( ... )>.
+can be accessed using C<pin( ... )>.
 
-=head2 C<rivet( ... )>
+=head2 C<pin( ... )>
 
-    rivet( $errno, 'libc', 'errno', Int );
+    pin( $errno, 'libc', 'errno', Int );
     print $errno;
     $errno = 0;
 
@@ -703,33 +702,33 @@ code and might not be public in the future.
 
 =head1 Types
 
-While Raku offers a set of native types with a fixed, and known, representation
-in memory but this is Perl so we need to do the work ourselves and design and
-build a pseudo-type system. Affix supports the fundamental types (void, int,
-etc.) and aggregates (struct, array, union).
+Raku offers a set of native types with a fixed, and known, representation in
+memory but this is Perl so we need to do the work ourselves with a pseudo-type
+system. Affix supports the fundamental types (void, int, etc.), aggregates
+(struct, array, union), and .
 
 =head2 Fundamental Types with Native Representation
 
-
-    Affix       C99/C++     Rust    C#          pack()  Raku
-    -----------------------------------------------------------------------
-    Void        void/NULL   ->()    void/NULL   -
-    Bool        _Bool       bool    bool        -       bool
-    Char        int8_t      i8      sbyte       c       int8
-    UChar       uint8_t     u8      byte        C       byte, uint8
-    Short       int16_t     i16     short       s       int16
-    UShort      uint16_t    u16     ushort      S       uint16
-    Int         int32_t     i32     int         i       int32
-    UInt        uint32_t    u32     uint        I       uint32
-    Long        int64_t     i64     long        l       int64, long
-    ULong       uint64_t    u64     ulong       L       uint64, ulong
-    LongLong    -           i128                q       longlong
-    ULongLong   -           u128                Q       ulonglong
-    Float       float       f32                 f       num32
-    Double      double      f64                 d       num64
-    SSize_t     SSize_t                                 SSize_t
-    Size_t      size_t                                  size_t
+    Affix       C99                   Rust    C#          pack()  Raku
+    ----------------------------------------------------------------------------
+    Void        void                  ->()    void/NULL   -
+    Bool        _Bool                 bool    bool        -       bool
+    Char        int8_t                i8      sbyte       c       int8
+    UChar       uint8_t               u8      byte        C       byte, uint8
+    Short       int16_t               i16     short       s       int16
+    UShort      uint16_t              u16     ushort      S       uint16
+    Int         int32_t               i32     int         i       int32
+    UInt        uint32_t              u32     uint        I       uint32
+    Long        int64_t               i64     long        l       int64, long
+    ULong       uint64_t              u64     ulong       L       uint64, ulong
+    LongLong    -/long long           i128                q       longlong
+    ULongLong   -/unsigned long long  u128                Q       ulonglong
+    Float       float                 f32                 f       num32
+    Double      double                f64                 d       num64
+    SSize_t     SSize_t                                           SSize_t
+    Size_t      size_t                                            size_t
     Str         char *
+    WStr        wchar_t
 
 Given sizes are minimums measured in bits
 
@@ -830,6 +829,11 @@ trying using C<Pointer[Char]> and doing it yourself.
 
 You'll learn a bit more about C<Pointer[...]> and other parameterized types in
 the next section.
+
+=head2 C<WStr>
+
+A null-terminated wide string is a sequence of valid wide characters, ending
+with a null character.
 
 =head1 Parameterized Types
 

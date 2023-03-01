@@ -679,7 +679,7 @@ static SV *find_encoding(pTHX) {
     char encoding[9];
     my_snprintf(encoding, 9, "UTF-%d%cE", (WCHAR_T_SIZE == 2 ? 16 : 32),
                 ((BYTEORDER == 0x1234 || BYTEORDER == 0x12345678) ? 'L' : 'B'));
-    warn("encoding: %s", encoding);
+    // warn("encoding: %s", encoding);
     dSP;
     int count;
     require_pv("Encode.pm");
@@ -1059,35 +1059,35 @@ typedef struct {
     void *ptr;
 } var_ptr;
 
-int get_rivet(pTHX_ SV *sv, MAGIC *mg) {
+int get_pin(pTHX_ SV *sv, MAGIC *mg) {
     var_ptr *ptr = (var_ptr *)mg->mg_ptr;
     SV *val = ptr2sv(aTHX_ ptr->ptr, ptr->type);
     sv_setsv(sv, val);
     return 0;
 }
 
-int set_rivet(pTHX_ SV *sv, MAGIC *mg) {
+int set_pin(pTHX_ SV *sv, MAGIC *mg) {
     var_ptr *ptr = (var_ptr *)mg->mg_ptr;
     if (SvOK(sv)) sv2ptr(aTHX_ ptr->type, sv, ptr->ptr, false);
     return 0;
 }
 
-int free_rivet(pTHX_ SV *sv, MAGIC *mg) {
+int free_pin(pTHX_ SV *sv, MAGIC *mg) {
     var_ptr *ptr = (var_ptr *)mg->mg_ptr;
     sv_2mortal(ptr->type);
     safefree(ptr);
     return 0;
 }
 
-static MGVTBL rivet_vtbl = {
-    get_rivet,  // get
-    set_rivet,  // set
-    NULL,       // len
-    NULL,       // clear
-    free_rivet, // free
-    NULL,       // copy
-    NULL,       // dup
-    NULL        // local
+static MGVTBL pin_vtbl = {
+    get_pin,  // get
+    set_pin,  // set
+    NULL,     // len
+    NULL,     // clear
+    free_pin, // free
+    NULL,     // copy
+    NULL,     // dup
+    NULL      // local
 };
 
 XS_INTERNAL(Types_wrapper) {
@@ -2018,7 +2018,7 @@ OUTPUT:
     RETVAL
 
 void
-rivet(SV *sv, lib, symbol, SV *type);
+pin(SV *sv, lib, symbol, SV *type);
     const char * symbol
 PREINIT:
 	struct ufuncs uf;
@@ -2077,7 +2077,7 @@ PPCODE:
         XSRETURN_EMPTY;
     }
     MAGIC *mg;
-    mg = sv_magicext(sv, NULL, PERL_MAGIC_ext, &rivet_vtbl, NULL, 0);
+    mg = sv_magicext(sv, NULL, PERL_MAGIC_ext, &pin_vtbl, NULL, 0);
     {
         var_ptr *_ptr;
         Newx(_ptr, 1, var_ptr);
@@ -2322,7 +2322,7 @@ BOOT :
     export_function("Affix", "sv2ptr", "utility");
     export_function("Affix", "ptr2sv", "utility");
     export_function("Affix", "DumpHex", "utility");
-    export_function("Affix", "rivet", "default");
+    export_function("Affix", "pin", "default");
     export_function("Affix", "cast", "default");
 
     export_function("Affix", "DEFAULT_ALIGNMENT", "vars");
