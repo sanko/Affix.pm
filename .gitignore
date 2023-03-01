@@ -61,3 +61,4 @@ eg/*.c
 eg/*.orig
 eg/vgcore.*
 *.orig
+eg/dev/

@@ -2,6 +2,17 @@ Revision history for Perl extension Affix.pm
 
 {{$NEXT}}
 
+    - Support for ArrayRef[] with dynamic size
+    - Support for empty Stuct[]
+    - Coerce Enum[] types with sv2ptr(...)
+    - Explicit undef values are turned into NULL in Pointer[], ArrayRef[], etc.
+    - Provide default values in Struct[]
+    - Ignore perl's PTRSIZE which might be different than the system's actual pointer size
+    - Cleanup VM on Affix::END()
+    - Simplify API around named subs
+
+0.09 2023-01-26T01:36:55Z
+
     - Structs may now contain a CodeRef
     - CodeRef, Any, etc. are now properly handled as aggregate members
     - Nesting CodeRefs used as callbacks work now
