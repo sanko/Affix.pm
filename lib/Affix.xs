@@ -706,6 +706,7 @@ static SV *find_encoding(pTHX) {
 SV *ptr2sv(pTHX_ DCpointer ptr, SV *type) {
     SV *RETVAL = newSV(0);
     char *_type = SvPV_nolen(type);
+    //~ sv_dump(type);
     //~ warn("ptr2sv(%p, %s) at %s line %d", ptr, _type, __FILE__, __LINE__);
     switch (_type[0]) {
     case DC_SIGCHAR_VOID:
@@ -811,9 +812,9 @@ SV *ptr2sv(pTHX_ DCpointer ptr, SV *type) {
         Callback *cb = (Callback *)dcbGetUserData((DCCallback *)p->cb);
         SvSetSV(RETVAL, cb->cv);
     } break;
-    case DC_SIGCHAR_INSTANCEOF: {
-        RETVAL = ptr2sv(aTHX_ ptr, _instanceof(aTHX_ type));
-    } break;
+    //~ case DC_SIGCHAR_INSTANCEOF: {
+    //~ RETVAL = ptr2sv(aTHX_ ptr, _instanceof(aTHX_ type));
+    //~ } break;
     case DC_SIGCHAR_ENUM: {
         SvSetSV(RETVAL, enum2sv(aTHX_ type, *(int *)ptr));
     }; break;
@@ -1732,7 +1733,7 @@ XS_INTERNAL(Affix_call) {
         case DC_SIGCHAR_UNION: {
             DCpointer ret_ptr = safemalloc(_sizeof(aTHX_ call->retval));
             dcCallAggr(MY_CXT.cvm, call->fptr, agg, ret_ptr);
-            RETVAL = ptr2sv(aTHX_ ret_ptr, SvRV(call->retval));
+            RETVAL = ptr2sv(aTHX_ ret_ptr, call->retval);
         } break;
         case DC_SIGCHAR_ENUM:
         case DC_SIGCHAR_ENUM_UINT: {
