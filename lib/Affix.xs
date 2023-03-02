@@ -2071,10 +2071,7 @@ PPCODE:
     }
     DCpointer ptr = dlFindSymbol(lib, symbol);
     if (ptr == NULL) { // TODO: throw a warning
-        char *sOut;
-        dlGetLibraryPath(lib, sOut, 1024);
-        croak("Failed to locate symbol %s in %s", symbol, sOut);
-        XSRETURN_EMPTY;
+        croak("Failed to locate symbol %s", symbol);
     }
     MAGIC *mg;
     mg = sv_magicext(sv, NULL, PERL_MAGIC_ext, &pin_vtbl, NULL, 0);
@@ -2168,10 +2165,7 @@ CODE:
 
     if (call->fptr == NULL) { // TODO: throw a warning
         safefree(call);
-        char *sOut = (char *)"the current process";
-        if (lib != NULL) dlGetLibraryPath(lib, sOut, 1024);
-        croak("Failed to locate symbol %s in %s", symbol_, sOut);
-        XSRETURN_EMPTY; // ha
+        croak("Failed to locate symbol %s", symbol_);
     }
 
     call->lib = lib;
