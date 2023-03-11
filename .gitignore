@@ -62,3 +62,6 @@ eg/*.orig
 eg/vgcore.*
 *.orig
 eg/dev/
+
+eg/Cookbook/_*
+lib/Affix/Cookbook.pod

@@ -2,6 +2,8 @@ Revision history for Perl extension Affix.pm
 
 {{$NEXT}}
 
+0.10 2023-03-11T04:25:59Z
+
     - Support for ArrayRef[] with dynamic size
     - Support for empty Stuct[]
     - Coerce Enum[] types with sv2ptr(...)
@@ -10,6 +12,7 @@ Revision history for Perl extension Affix.pm
     - Ignore perl's PTRSIZE which might be different than the system's actual pointer size
     - Cleanup VM on Affix::END()
     - Simplify API around named subs
+    - Support for WStr (wchar_t *, PWSTR, etc.)
 
 0.09 2023-01-26T01:36:55Z
 
