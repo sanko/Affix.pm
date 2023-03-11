@@ -311,10 +311,7 @@ Affix - A Foreign Function Interface eXtension
 
 =head1 DESCRIPTION
 
-Affix is a wrapper around L<dyncall|https://dyncall.org/>. If you're looking to
-design your own low level FFI, see L<Dyn.pm|Dyn>.
-
-But if you're just looking for a fast FFI system, keep reading.
+Affix is a wrapper around L<dyncall|https://dyncall.org/>.
 
 Note: This is experimental software and is subject to change as long as this
 disclaimer is here.
@@ -1113,7 +1110,7 @@ value.
 
 =head1 See Also
 
-Check out L<FFI::Platypus> for a more robust and mature FFI.
+Check out L<FFI::Platypus> for a more robust and mature FFI
 
 Examples found in C<eg/>.
 

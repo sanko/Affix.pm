@@ -26,10 +26,7 @@ pin( my $ver, 'libfoo', 'VERSION', Int );
 
 # DESCRIPTION
 
-Affix is a wrapper around [dyncall](https://dyncall.org/). If you're looking to
-design your own low level FFI, see [Dyn.pm](https://metacpan.org/pod/Dyn).
-
-But if you're just looking for a fast FFI system, keep reading.
+Affix is a wrapper around [dyncall](https://dyncall.org/).
 
 Note: This is experimental software and is subject to change as long as this
 disclaimer is here.
@@ -870,7 +867,7 @@ are exposed under the `Affix::Feature` package:
 
 # See Also
 
-Check out [FFI::Platypus](https://metacpan.org/pod/FFI%3A%3APlatypus) for a more robust and mature FFI.
+Check out [FFI::Platypus](https://metacpan.org/pod/FFI%3A%3APlatypus) for a more robust and mature FFI
 
 Examples found in `eg/`.
 
