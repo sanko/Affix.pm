@@ -583,13 +583,13 @@ SV *ptr2sv(pTHX_ DCpointer ptr, SV *type) {
         RETVAL = newSVpvs("");
         const char *pat = "W";
         switch (WCHAR_T_SIZE) {
-        case 1:
+        case I8SIZE:
             sv_setiv(container, (IV) * (char *)ptr);
             break;
-        case 2:
+        case SHORTSIZE:
             sv_setiv(container, (IV) * (short *)ptr);
             break;
-        case 4:
+        case INTSIZE:
             sv_setiv(container, *(int *)ptr);
             break;
         default:
@@ -756,7 +756,7 @@ void sv2ptr(pTHX_ SV *type, SV *data, DCpointer ptr, bool packed) {
         if (s != 1) croak("Failed to unpack wchar_t");
         SV *data = POPs;
         switch (WCHAR_T_SIZE) {
-        case 1:
+        case I8SIZE:
             if (SvPOK(data)) {
                 char *value = SvPV_nolen(data);
                 Copy(&value, ptr, 1, char);
@@ -766,11 +766,11 @@ void sv2ptr(pTHX_ SV *type, SV *data, DCpointer ptr, bool packed) {
                 Copy(&value, ptr, 1, char);
             }
             break;
-        case 2: {
+        case SHORTSIZE: {
             short value = SvIOK(data) ? (short)SvIV(data) : 0;
             Copy(&value, ptr, 1, short);
         } break;
-        case 4: {
+        case INTSIZE: {
             int value = SvIOK(data) ? SvIV(data) : 0;
             Copy(&value, ptr, 1, int);
         } break;
@@ -996,6 +996,27 @@ char cbHandler(DCCallback *cb, DCArgs *args, DCValue *result, DCpointer userdata
                 DCpointer ptr = dcbArgPointer(args);
                 PUSHs(newSVpvn_utf8((char *)ptr, 0, 1));
             } break;
+            case DC_SIGCHAR_WIDE_CHAR: {
+                SV *container, *RETVAL;
+                RETVAL = newSVpvs("");
+                const char *pat = "W";
+                switch (WCHAR_T_SIZE) {
+                case I8SIZE:
+                    container = newSViv((IV)dcbArgChar(args));
+                    break;
+                case SHORTSIZE:
+                    container = newSViv((IV)dcbArgShort(args));
+                    break;
+                case INTSIZE:
+                    container = newSViv((IV)dcbArgInt(args));
+                    break;
+                default:
+                    croak("Invalid wchar_t size for argument!");
+                }
+                sv_2mortal(container);
+                packlist(RETVAL, pat, pat + 1, &container, &container + 1);
+                mPUSHs(RETVAL);
+            } break;
             case DC_SIGCHAR_INSTANCEOF: {
                 DCpointer ptr = dcbArgPointer(args);
                 HV *blessed = MUTABLE_HV(SvRV(*av_fetch(cbx->args, i, 0)));
@@ -1092,12 +1113,36 @@ char cbHandler(DCCallback *cb, DCArgs *args, DCValue *result, DCpointer userdata
             result->p = SvPOK(ret) ? (DCpointer)SvPVx_nolen_const(ret) : NULL;
             ret_c = DC_SIGCHAR_POINTER;
             break;
+        case DC_SIGCHAR_WIDE_CHAR: {
+            char *eh = SvPV_nolen(ret);
+            PUTBACK;
+            const char *pat = "W";
+            SSize_t s = unpackstring(pat, pat + 1, eh, eh + WCHAR_T_SIZE + 1, SVt_PVAV);
+            SPAGAIN;
+            if (s != 1) croak("Failed to unpack wchar_t");
+            switch (WCHAR_T_SIZE) {
+            case I8SIZE:
+                result->c = (char)POPi;
+                ret_c = DC_SIGCHAR_CHAR;
+                break;
+            case SHORTSIZE:
+                result->s = (short)POPi;
+                ret_c = DC_SIGCHAR_SHORT;
+                break;
+            case INTSIZE:
+                result->i = (int)POPi;
+                ret_c = DC_SIGCHAR_INT;
+                break;
+            default:
+                croak("Invalid wchar_t size for argument!");
+            }
+        } break;
         case DC_SIGCHAR_STRUCT:
         case DC_SIGCHAR_UNION:
         case DC_SIGCHAR_INSTANCEOF:
         case DC_SIGCHAR_ANY:
             //~ result->p = SvPOK(ret) ?  sv2ptr(aTHX_ ret, _instanceof(aTHX_ cbx->retval), false):
-            //NULL; ~ ret_c = DC_SIGCHAR_POINTER; ~ break;
+            // NULL; ~ ret_c = DC_SIGCHAR_POINTER; ~ break;
         default:
             croak("Unhandled return from callback: %c", ret_c);
         }
@@ -1542,13 +1587,13 @@ XS_INTERNAL(Affix_call) {
                 SPAGAIN;
                 if (s != 1) croak("Failed to unpack wchar_t");
                 switch (WCHAR_T_SIZE) {
-                case 1:
+                case I8SIZE:
                     dcArgChar(MY_CXT.cvm, (char)POPi);
                     break;
-                case 2:
+                case SHORTSIZE:
                     dcArgShort(MY_CXT.cvm, (short)POPi);
                     break;
-                case 4:
+                case INTSIZE:
                     dcArgInt(MY_CXT.cvm, (int)POPi);
                     break;
                 default:
@@ -1792,13 +1837,13 @@ XS_INTERNAL(Affix_call) {
             RETVAL = newSVpvs("");
             const char *pat = "W";
             switch (WCHAR_T_SIZE) {
-            case 1:
+            case I8SIZE:
                 container = newSViv((char)dcCallChar(MY_CXT.cvm, call->fptr));
                 break;
-            case 2:
+            case SHORTSIZE:
                 container = newSViv((short)dcCallShort(MY_CXT.cvm, call->fptr));
                 break;
-            case 4:
+            case INTSIZE:
                 container = newSViv((int)dcCallInt(MY_CXT.cvm, call->fptr));
                 break;
             default:
@@ -2036,13 +2081,13 @@ BOOT:
     TYPE(Size_t, DC_SIGCHAR_SIZE_T, DC_SIGCHAR_SIZE_T);
 
     switch (WCHAR_T_SIZE) {
-    case 1:
+    case I8SIZE:
         TYPE(WChar, DC_SIGCHAR_WIDE_CHAR, DC_SIGCHAR_CHAR);
         break;
-    case 2:
+    case SHORTSIZE:
         TYPE(WChar, DC_SIGCHAR_WIDE_CHAR, DC_SIGCHAR_SHORT);
         break;
-    case 4:
+    case INTSIZE:
         TYPE(WChar, DC_SIGCHAR_WIDE_CHAR, DC_SIGCHAR_INT);
         break;
     default:

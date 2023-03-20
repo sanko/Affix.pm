@@ -44,3 +44,9 @@ DLLEXPORT int check_char(wchar_t chr) {
 DLLEXPORT wchar_t get_char() {
     return L'時';
 }
+
+typedef int (*wchar_t_cb)();
+
+DLLEXPORT wchar_t char_cb(wchar_t_cb cb) {
+    return cb(L'時');
+}
