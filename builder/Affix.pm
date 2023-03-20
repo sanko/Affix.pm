@@ -327,7 +327,7 @@ sub process_xs {
     push @parts, my $file_base = basename( $source, '.xs' );
     my $archdir = catdir( qw/blib arch auto/, @parts );
     my $tempdir = 'temp';
-    my $c_file  = catfile( $tempdir, "$file_base.c" );
+    my $c_file  = catfile( $tempdir, "$file_base.cxx" );
     require ExtUtils::ParseXS;
     mkpath( $tempdir, $opt{verbose}, oct '755' );
     ExtUtils::ParseXS::process_file(
