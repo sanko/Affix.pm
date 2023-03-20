@@ -28,6 +28,11 @@ SKIP: {
     }
     is check_char('時'), 1,     '[WChar]=>Int';
     is get_char(),        '時', '[]=>WChar';
+    #
+    my $ptr = sv2ptr( { w => '時' }, Struct [ w => WChar ] );
+    isa_ok $ptr, 'Affix::Pointer';
+    my $dump = ptr2sv( $ptr, Struct [ w => WChar ] );
+    is $dump->{w}, '時', 'sv2ptr(ptr2sv( { w => ...}, Struct [ w => WChar ]), ...)';
 };
 #
 done_testing;

@@ -364,6 +364,8 @@ static size_t _sizeof(pTHX_ SV *type) {
     case DC_SIGCHAR_ANY:
     case DC_SIGCHAR_INSTANCEOF:
         return XPTRSIZE;
+    case DC_SIGCHAR_WIDE_CHAR:
+        return WCHAR_T_SIZE;
     default:
         croak("Failed to gather sizeof info for unknown type: %s", _type);
         return -1;
@@ -576,6 +578,26 @@ SV *ptr2sv(pTHX_ DCpointer ptr, SV *type) {
         RETVAL =
             call_encoding(aTHX_ "decode", find_encoding(aTHX), newSVpv((char *)ptr, len), NULL);
     } break;
+    case DC_SIGCHAR_WIDE_CHAR: {
+        SV *container = newSV(0);
+        RETVAL = newSVpvs("");
+        const char *pat = "W";
+        switch (WCHAR_T_SIZE) {
+        case 1:
+            sv_setiv(container, (IV) * (char *)ptr);
+            break;
+        case 2:
+            sv_setiv(container, (IV) * (short *)ptr);
+            break;
+        case 4:
+            sv_setiv(container, *(int *)ptr);
+            break;
+        default:
+            croak("Invalid wchar_t size for argument!");
+        }
+        sv_2mortal(container);
+        packlist(RETVAL, pat, pat + 1, &container, &container + 1);
+    } break;
     case DC_SIGCHAR_ARRAY: {
         AV *RETVAL_ = newAV_mortal();
         HV *_type = MUTABLE_HV(SvRV(type));
@@ -723,6 +745,38 @@ void sv2ptr(pTHX_ SV *type, SV *data, DCpointer ptr, bool packed) {
         DCpointer value = safemalloc(_sizeof(aTHX_ * type_ptr));
         if (SvOK(data)) sv2ptr(aTHX_ * type_ptr, data, value, packed);
         Copy(&value, ptr, 1, intptr_t);
+    } break;
+    case DC_SIGCHAR_WIDE_CHAR: {
+        char *eh = SvPV_nolen(data);
+        dXSARGS;
+        PUTBACK;
+        const char *pat = "W";
+        SSize_t s = unpackstring(pat, pat + 1, eh, eh + WCHAR_T_SIZE + 1, SVt_PVAV);
+        SPAGAIN;
+        if (s != 1) croak("Failed to unpack wchar_t");
+        SV *data = POPs;
+        switch (WCHAR_T_SIZE) {
+        case 1:
+            if (SvPOK(data)) {
+                char *value = SvPV_nolen(data);
+                Copy(&value, ptr, 1, char);
+            }
+            else {
+                char value = SvIOK(data) ? SvIV(data) : 0;
+                Copy(&value, ptr, 1, char);
+            }
+            break;
+        case 2: {
+            short value = SvIOK(data) ? (short)SvIV(data) : 0;
+            Copy(&value, ptr, 1, short);
+        } break;
+        case 4: {
+            int value = SvIOK(data) ? SvIV(data) : 0;
+            Copy(&value, ptr, 1, int);
+        } break;
+        default:
+            croak("Invalid wchar_t size for argument!");
+        }
     } break;
     case DC_SIGCHAR_STRING: {
         if (SvPOK(data)) {
@@ -1484,7 +1538,7 @@ XS_INTERNAL(Affix_call) {
                 char *eh = SvPV_nolen(ST(pos_arg));
                 PUTBACK;
                 const char *pat = "W";
-                SSize_t s = unpackstring(pat, pat + 1, eh, eh + WCHAR_T_SIZE+ 1, SVt_PVAV);
+                SSize_t s = unpackstring(pat, pat + 1, eh, eh + WCHAR_T_SIZE + 1, SVt_PVAV);
                 SPAGAIN;
                 if (s != 1) croak("Failed to unpack wchar_t");
                 switch (WCHAR_T_SIZE) {
