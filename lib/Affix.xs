@@ -1484,7 +1484,7 @@ XS_INTERNAL(Affix_call) {
                 char *eh = SvPV_nolen(ST(pos_arg));
                 PUTBACK;
                 const char *pat = "W";
-                SSize_t s = unpackstring(pat, pat + 1, eh, eh + WCHAR_T_SIZE, SVt_PVAV);
+                SSize_t s = unpackstring(pat, pat + 1, eh, eh + WCHAR_T_SIZE+ 1, SVt_PVAV);
                 SPAGAIN;
                 if (s != 1) croak("Failed to unpack wchar_t");
                 switch (WCHAR_T_SIZE) {
