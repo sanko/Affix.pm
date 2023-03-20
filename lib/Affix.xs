@@ -1365,10 +1365,10 @@ XS_INTERNAL(Types) {
             if (items != 2) croak("CodeRef[ [args] => return]");
             AV *args = MUTABLE_AV(SvRV(ST(1)));
             if (av_count(args) != 2) croak("Expected a list of arguments and a return value");
-            fields = MUTABLE_AV(SvRV(*av_fetch(args, 0, 0)));
-            field_count = av_count(fields);
+            AV *cfields = MUTABLE_AV(SvRV(*av_fetch(args, 0, 0)));
+            field_count = av_count(cfields);
             for (int i = i; i < field_count; ++i) {
-                SV **type_ref = av_fetch(fields, i, 0);
+                SV **type_ref = av_fetch(cfields, i, 0);
                 if (!(sv_isobject(*type_ref) && sv_derived_from(*type_ref, "Affix::Type::Base")))
                     croak("Given type for CodeRef %d is not a subclass of "
                           "Affix::Type::Base",
