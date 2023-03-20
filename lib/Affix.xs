@@ -8,16 +8,16 @@ extern "C" {
 #define NO_XSLOCKS /* for exceptions */
 #include <XSUB.h>
 
+#ifdef __cplusplus
+} /* extern "C" */
+#endif
+
 #ifdef MULTIPLICITY
 #define storeTHX(var) (var) = aTHX
 #define dTHXfield(var) tTHX var;
 #else
 #define storeTHX(var) dNOOP
 #define dTHXfield(var)
-#endif
-
-#ifdef __cplusplus
-} /* extern "C" */
 #endif
 
 #define dcAllocMem safemalloc
@@ -63,6 +63,7 @@ extern "C" {
 #define DC_SIGCHAR_ENUM_UINT 'E'   // 'I' but with multiple options
 #define DC_SIGCHAR_ENUM_CHAR 'o'   // 'c' but with multiple options
 #define DC_SIGCHAR_WIDE_STRING 'z' // 'Z' but wchar_t
+#define DC_SIGCHAR_WIDE_CHAR 'w'   // 'c' but wchar_t
 
 // MEM_ALIGNBYTES is messed up by quadmath and long doubles
 #define AFFIX_ALIGNBYTES 8
@@ -1479,6 +1480,27 @@ XS_INTERNAL(Affix_call) {
                           (unsigned char)(SvIOK(ST(pos_arg)) ? SvUV(ST(pos_arg))
                                                              : *SvPV_nolen(ST(pos_arg))));
                 break;
+            case DC_SIGCHAR_WIDE_CHAR: {
+                char *eh = SvPV_nolen(ST(pos_arg));
+                PUTBACK;
+                const char *pat = "W";
+                SSize_t s = unpackstring(pat, pat + 1, eh, eh + WCHAR_T_SIZE, SVt_PVAV);
+                SPAGAIN;
+                if (s != 1) croak("Failed to unpack wchar_t");
+                switch (WCHAR_T_SIZE) {
+                case 1:
+                    dcArgChar(MY_CXT.cvm, (char)POPi);
+                    break;
+                case 2:
+                    dcArgShort(MY_CXT.cvm, (short)POPi);
+                    break;
+                case 4:
+                    dcArgInt(MY_CXT.cvm, (int)POPi);
+                    break;
+                default:
+                    croak("Invalid wchar_t size for argument!");
+                }
+            } break;
             case DC_SIGCHAR_SHORT:
                 dcArgShort(MY_CXT.cvm, (short)(SvIV(ST(pos_arg))));
                 break;
@@ -1711,6 +1733,26 @@ XS_INTERNAL(Affix_call) {
         case DC_SIGCHAR_STRING:
             RETVAL = newSVpv((char *)dcCallPointer(MY_CXT.cvm, call->fptr), 0);
             break;
+        case DC_SIGCHAR_WIDE_CHAR: {
+            SV *container;
+            RETVAL = newSVpvs("");
+            const char *pat = "W";
+            switch (WCHAR_T_SIZE) {
+            case 1:
+                container = newSViv((char)dcCallChar(MY_CXT.cvm, call->fptr));
+                break;
+            case 2:
+                container = newSViv((short)dcCallShort(MY_CXT.cvm, call->fptr));
+                break;
+            case 4:
+                container = newSViv((int)dcCallInt(MY_CXT.cvm, call->fptr));
+                break;
+            default:
+                croak("Invalid wchar_t size for argument!");
+            }
+            sv_2mortal(container);
+            packlist(RETVAL, pat, pat + 1, &container, &container + 1);
+        } break;
         case DC_SIGCHAR_WIDE_STRING: {
             DCpointer ret_ptr = dcCallPointer(MY_CXT.cvm, call->fptr);
             RETVAL = ptr2sv(aTHX_ ret_ptr, (call->retval));
@@ -1938,6 +1980,22 @@ BOOT:
     TYPE(Any, DC_SIGCHAR_ANY, DC_SIGCHAR_POINTER);
     TYPE(SSize_t, DC_SIGCHAR_SSIZE_T, DC_SIGCHAR_SSIZE_T);
     TYPE(Size_t, DC_SIGCHAR_SIZE_T, DC_SIGCHAR_SIZE_T);
+
+    switch (WCHAR_T_SIZE) {
+    case 1:
+        TYPE(WChar, DC_SIGCHAR_WIDE_CHAR, DC_SIGCHAR_CHAR);
+        break;
+    case 2:
+        TYPE(WChar, DC_SIGCHAR_WIDE_CHAR, DC_SIGCHAR_SHORT);
+        break;
+    case 4:
+        TYPE(WChar, DC_SIGCHAR_WIDE_CHAR, DC_SIGCHAR_INT);
+        break;
+    default:
+        // croak("Invalid wchar_t size for argument!")
+        ;
+    }
+
     TYPE(WStr, DC_SIGCHAR_WIDE_STRING, DC_SIGCHAR_POINTER);
 
     TYPE(Enum, DC_SIGCHAR_ENUM, DC_SIGCHAR_INT);
@@ -2372,6 +2430,7 @@ CODE:
     CLEANUP(Any);
     CLEANUP(SSize_t);
     CLEANUP(Size_t);
+    CLEANUP(WChar);
     CLEANUP(WStr);
     CLEANUP(Enum);
     CLEANUP(IntEnum);

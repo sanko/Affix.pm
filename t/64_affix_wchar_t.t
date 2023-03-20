@@ -16,6 +16,8 @@ compile_test_lib('64_affix_wchar_t');
 sub check_string : Native('t/src/64_affix_wchar_t') : Signature([WStr]=>Int);
 sub get_string : Native('t/src/64_affix_wchar_t') : Signature([]=>WStr);
 sub struct_string : Native('t/src/64_affix_wchar_t') : Signature([Struct[c=>Str,w => WStr]]=>Int);
+sub check_char : Native('t/src/64_affix_wchar_t') : Signature([WChar]=>Int);
+sub get_char : Native('t/src/64_affix_wchar_t') : Signature([]=>WChar);
 #
 subtest 'sv2ptr=>ptr2sv round trip' => sub {
     is check_string('時空'), 0,        '[WStr]=>Int';
@@ -24,6 +26,8 @@ SKIP: {
         skip 'no support for aggregates by value', 1 unless Affix::Feature::AggrByVal();
         is struct_string( { c => 'Spacetime', w => '時空' } ), 0, '[Struct[..., w => WStr]]=>Int';
     }
+    is check_char('時'), 1,     '[WChar]=>Int';
+    is get_char(),        '時', '[]=>WChar';
 };
 #
 done_testing;

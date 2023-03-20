@@ -36,3 +36,11 @@ DLLEXPORT int struct_string(WStruct wstruct) {
     setlocale(LC_ALL, "en_US.utf-8");
     return demo(L"時空", wstruct.w);
 }
+
+DLLEXPORT int check_char(wchar_t chr) {
+    return chr == L'時' ? 1 : -1;
+}
+
+DLLEXPORT wchar_t get_char() {
+    return L'時';
+}
