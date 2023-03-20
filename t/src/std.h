@@ -59,7 +59,7 @@ void _DumpHex(const void *addr, size_t len, const char *file, int line) {
         if ((i % perLine) == 0) { // Only print previous-line ASCII buffer for
             // lines beyond first.
             if (i != 0) fprintf(stderr, " | %s\n", buff);
-            fprintf(stderr, "#  %04lx ", i); // Output the offset of current line.
+            fprintf(stderr, "#  %04zu ", i); // Output the offset of current line.
         }
         // Now the hex code for the specific character.
         fprintf(stderr, " %02x", pc[i]);
