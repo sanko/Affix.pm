@@ -18,10 +18,10 @@ my $lib = compile_test_lib('66_affix_class');
 #
 typedef 'MyClass' => Struct [ myNum => Int, myString => Str ];
 #
-affix [ $lib, 'C' ] => [ '_Z5setupv' => 'setup' ] => [] => MyClass();
-affix $lib, [ '_ZN7MyClass5speedEi' => 'speed' ] => [] => Void;
 SKIP: {
-    skip 'Itanium support is stil eary', 2 unless $^O eq 'linux';
+    skip 'Itanium support is still early', 2 unless $^O eq 'linux';
+    affix [ $lib, 'C' ] => [ '_Z5setupv' => 'setup' ] => [] => MyClass();
+    affix $lib, [ '_ZN7MyClass5speedEi' => 'speed' ] => [] => Void;
 
     #~ warn affix $lib,          [ 'MyClass::speed' => 'speed' ] => [] => Void;
     #use Data::Dump;
