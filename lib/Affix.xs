@@ -2468,6 +2468,10 @@ CODE:
                 register_constant(name, SvPV_nolen(*value), *value);
             }
         }
+        else if (sv_derived_from(type, "Affix::Type::Struct")) {
+            HV *href = MUTABLE_HV(SvRV(type));
+            hv_stores(href, "typedef", newSVpv(name, 0));
+        }
     }
     else
         croak("Expected a subclass of Affix::Type::Base");
