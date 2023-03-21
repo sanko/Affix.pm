@@ -2,6 +2,9 @@ Revision history for Perl extension Affix.pm
 
 {{$NEXT}}
 
+    - Support for WChar
+    - Handle Itanium C++ ABI (symbol mangling)
+
 0.10 2023-03-11T04:25:59Z
 
     - Support for ArrayRef[] with dynamic size
