@@ -65,6 +65,15 @@ extern "C" {
 #define DC_SIGCHAR_WIDE_STRING 'z' // 'Z' but wchar_t
 #define DC_SIGCHAR_WIDE_CHAR 'w'   // 'c' but wchar_t
 
+#define MANGLE_C 'c'
+#define MANGLE_CPP 'C'  // https://itanium-cxx-abi.github.io/cxx-abi/abi.html#mangling
+#define MANGLE_RUST 'r' // https://rust-lang.github.io/rfcs/2603-rust-symbol-name-mangling-v0.html
+#define MANGLE_SWIFT                                                                               \
+    's'              // https://github.com/apple/swift/blob/main/docs/ABI/Mangling.rst#identifiers
+#define MANGLE_D 'd' // https://dlang.org/spec/abi.html#name_mangling
+
+// https://mikeash.com/pyblog/friday-qa-2014-08-15-swift-name-mangling.html
+
 // MEM_ALIGNBYTES is messed up by quadmath and long doubles
 #define AFFIX_ALIGNBYTES 8
 
@@ -2259,15 +2268,28 @@ CODE:
 {
     Call *call;
     DLLib *lib;
+    char mangle;
+    SV *_lib;
 
-    if (!SvOK(ST(0)))
+    if (SvROK(ST(0)) && SvTYPE(SvRV(ST(0))) == SVt_PVAV) {
+        _lib = av_shift(MUTABLE_AV(SvRV(ST(0))));
+        if (!SvOK(_lib)) croak("Expected a mangle type");
+        SV *_mangle = av_shift(MUTABLE_AV(SvRV(ST(0))));
+        mangle = SvOK(_mangle) ? (char)*SvPV_nolen(_mangle) : MANGLE_C;
+    }
+    else {
+        _lib = ST(0);
+        mangle = MANGLE_C;
+    }
+
+    if (!SvOK(_lib))
         lib = NULL;
-    else if (SvROK(ST(0)) && sv_derived_from(ST(0), "Dyn::Load::Lib")) {
-        IV tmp = SvIV((SV *)SvRV(ST(0)));
+    else if (SvROK(_lib) && sv_derived_from(_lib, "Dyn::Load::Lib")) {
+        IV tmp = SvIV((SV *)SvRV(_lib));
         lib = INT2PTR(DLLib *, tmp);
     }
     else {
-        char *lib_name = (char *)SvPV_nolen(ST(0));
+        char *lib_name = (char *)SvPV_nolen(_lib);
         // Use perl to get the actual path to the library
         {
             dSP;
@@ -2276,7 +2298,7 @@ CODE:
             SAVETMPS;
             PUSHMARK(SP);
             EXTEND(SP, 1);
-            PUSHs(ST(0));
+            PUSHs(_lib);
             PUTBACK;
             count = call_pv("Affix::locate_lib", G_SCALAR);
             SPAGAIN;
@@ -2316,6 +2338,21 @@ CODE:
             func_name = symbol_;
     }
     else { symbol_ = func_name = SvPV_nolen(symbol); }
+
+    switch (mangle) {
+    case MANGLE_C:
+        break;
+    case MANGLE_CPP:
+        break;
+    case MANGLE_RUST:
+        break;
+    case MANGLE_SWIFT:
+        break;
+    case MANGLE_D:
+        break;
+    default:
+        break;
+    }
 
     call->fptr = dlFindSymbol(lib, symbol_);
     size_t args_len = av_count(args);
