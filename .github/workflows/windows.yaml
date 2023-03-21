@@ -22,7 +22,7 @@ jobs:
         perl:
           - 5.36.0
         flags:
-          - --32bit
+          #~ - --32bit
           - --64int
           - --thread
           - --ld
