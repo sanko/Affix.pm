@@ -2451,7 +2451,7 @@ OUTPUT:
     RETVAL
 
 void
-typedef(char * name, SV * type)
+typedef(char * name, IN_OUTLIST SV * type)
 CODE:
 // clang-format on
 {
@@ -2480,6 +2480,8 @@ CODE:
         croak("Expected a subclass of Affix::Type::Base");
 }
 // clang-format off
+OUTPUT:
+    type
 
 void
 CLONE(...)
