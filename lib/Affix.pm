@@ -1,4 +1,4 @@
-package Affix 0.10 {    # 'FFI' is my middle name!
+package Affix 0.11 {    # 'FFI' is my middle name!
     use strict;
     use warnings;
     no warnings 'redefine';
@@ -279,6 +279,56 @@ package Affix 0.10 {    # 'FFI' is my middle name!
         }
         return $_lib_cache->{ $name . ';' . ( $version // '' ) }
             // Carp::croak( 'Cannot locate symbol: ' . $name );
+    }
+    #
+    {
+        # https://itanium-cxx-abi.github.io/cxx-abi/abi-mangling.html
+        # https://gcc.gnu.org/git?p=gcc.git;a=blob_plain;f=gcc/cp/mangle.cc;hb=HEAD
+        my @cache;
+        my $vp = 0;    # void *
+
+        sub _mangle_name ($$) {
+            my ( $func, $name ) = @_;
+            if ( grep { $_ eq $name } @cache ) {
+                return join '', 'S', ( grep { $cache[$_] eq $name } 0 .. $#cache ), '_';
+            }
+            push @cache, $name;
+            $name =~ s[^$func][S0_];
+            sprintf $name =~ '::' ? 'N%sE' : '%s',
+                join( '', ( map { length($_) . $_ } split '::', $name ) );
+        }
+
+        sub _mangle_type {
+            my ( $func, $type ) = @_;
+            return    #'A'
+                'P' . _mangle_type( $func, $type->{type} ) if $type->isa('Affix::Type::ArrayRef');
+            if ( $type->isa('Affix::Type::Pointer') && $type->{type}->isa('Affix::Type::Void') ) {
+                return $vp++ ? 'S_' : 'Pv';
+            }
+            return 'P' . _mangle_type( $func, $type->{type} ) if $type->isa('Affix::Type::Pointer');
+            return _mangle_name( $func, $type->{typedef} )    if $type->isa('Affix::Type::Struct');
+            CORE::state $types;
+            $types //= {
+                Char(),  'c',    # Note: signed char == 'a'
+                Bool(),  'b', Double(), 'd', Long(),  'e', Float(), 'f', UChar(),  'h', Int(),  'i',
+                UInt(),  'j', Long(),   'l', ULong(), 'm', Short(), 's', UShort(), 't', Void(), 'v',
+                WChar(), 'w', LongLong(), 'x', ULongLong(), 'y'
+            };
+            $types->{$type} // die 'Unknown type: ' . $type;
+        }
+
+        sub Itanium_mangle {
+            my ( $name, $affix ) = @_;
+            @cache = ();
+            $vp    = 0;
+            my $ret = '_Z' . sprintf $name =~ '::' ? 'N%sE' : '%s',
+                join( '', ( map { length($_) . $_ } split '::', $name ) );
+            my $args = [ Void() ];
+            for my $arg ( scalar @{ $affix->{args} } ? @{ $affix->{args} } : Void() ) {
+                $ret .= _mangle_type( $name, $arg );
+            }
+            $ret;
+        }
     }
 };
 1;

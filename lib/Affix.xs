@@ -66,13 +66,16 @@ extern "C" {
 #define DC_SIGCHAR_WIDE_CHAR 'w'   // 'c' but wchar_t
 
 #define MANGLE_C 'c'
-#define MANGLE_CPP 'C'  // https://itanium-cxx-abi.github.io/cxx-abi/abi.html#mangling
+#define MANGLE_ITANIUM 'I' // https://itanium-cxx-abi.github.io/cxx-abi/abi.html#mangling
+#define MANGLE_GCC MANGLE_ITANIUM
+#define MANGLE_MSVC MANGLE_ITANIUM
 #define MANGLE_RUST 'r' // https://rust-lang.github.io/rfcs/2603-rust-symbol-name-mangling-v0.html
 #define MANGLE_SWIFT                                                                               \
     's'              // https://github.com/apple/swift/blob/main/docs/ABI/Mangling.rst#identifiers
 #define MANGLE_D 'd' // https://dlang.org/spec/abi.html#name_mangling
 
 // https://mikeash.com/pyblog/friday-qa-2014-08-15-swift-name-mangling.html
+// https://gcc.gnu.org/git?p=gcc.git;a=blob_plain;f=gcc/cp/mangle.cc;hb=HEAD
 
 // MEM_ALIGNBYTES is messed up by quadmath and long doubles
 #define AFFIX_ALIGNBYTES 8
@@ -2342,7 +2345,7 @@ CODE:
     switch (mangle) {
     case MANGLE_C:
         break;
-    case MANGLE_CPP:
+    case MANGLE_ITANIUM:
         break;
     case MANGLE_RUST:
         break;
