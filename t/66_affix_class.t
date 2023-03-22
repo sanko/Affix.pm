@@ -29,6 +29,7 @@ my $myclass = setup();
 #ddx $myclass;
 is $myclass->{myNum},    15,          '.myNum';
 is $myclass->{myString}, 'Some text', '.myString';
+
 #system 'nm -D ' . $lib;
 #
 done_testing;

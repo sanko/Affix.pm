@@ -92,9 +92,9 @@ typedef struct {
 } Structure;
 
 DLLEXPORT
-void test_function(bool a, char b, unsigned char c, short d, unsigned short e,
-                   int f, unsigned int g, long h, unsigned long i, long long j,
-                   unsigned long long k, float l, double m, void *n, Structure o, Structure *p,
-                   void *q, void *r, void **s, Structure t) {
+void test_function(bool a, char b, unsigned char c, short d, unsigned short e, int f,
+                   unsigned int g, long h, unsigned long i, long long j, unsigned long long k,
+                   float l, double m, void *n, Structure o, Structure *p, void *q, void *r,
+                   void **s, Structure t) {
     ;
 }
