@@ -1392,7 +1392,7 @@ XS_INTERNAL(Types) {
                 croak("Given type for return value is not a subclass of "
                       "Affix::Type::Base");
             char *signature;
-            Newxz(signature, field_count + 1, char);
+            Newxz(signature, field_count + 2, char);
             for (int i = 0; i < field_count; i++) {
                 SV **type_ref = av_fetch(fields, i, 0);
                 char *str = SvPVbytex_nolen(*type_ref);
