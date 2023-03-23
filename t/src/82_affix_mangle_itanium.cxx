@@ -18,9 +18,14 @@ int MyClass::speed(int maxSpeed) {
 
 DLLEXPORT MyClass setup() {
     MyClass myObj = {.myNum = 15, .myString = "Some text"};
-
     return myObj;
 }
+
+DLLEXPORT MyClass setup(int i) {
+    MyClass myObj = {.myNum = i, .myString = "Some different text"};
+    return myObj;
+}
+
 struct jkkl {
     int i;
 };
