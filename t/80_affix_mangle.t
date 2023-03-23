@@ -7,64 +7,55 @@ typedef 'Structure'                                                    => Struct
 typedef halide_buffer_t                                                => Struct [];
 typedef 'test_namespace::test_namespace::enclosing_class::test_struct' => Struct [];
 #
-is Affix::Itanium_mangle( 'test_function', CodeRef [ [] => Int ] ), '_Z13test_functionv',
-    '_Z13test_functionv';
+is Affix::Itanium_mangle( 'test_function', [] ), '_Z13test_functionv', '_Z13test_functionv';
 is Affix::Itanium_mangle(
     'test_function',
-    CodeRef [
-        [   Bool, Char, UChar, Short, UShort, Int, UInt, Long, ULong, LongLong, ULongLong, Float,
-            Double,
-            Pointer [Void],
-            Pointer [Void]
-        ] => Int
+    [   Bool, Char, UChar, Short, UShort, Int, UInt, Long, ULong, LongLong, ULongLong, Float,
+        Double,
+        Pointer [Void],
+        Pointer [Void]
     ]
     ),
     '_Z13test_functionbchstijlmxyfdPvS_', '_Z13test_functionbchstijlmxyfdPvS_';
 is Affix::Itanium_mangle(
     'test_function',
-    CodeRef [
-        [   Bool,           Char,
-            UChar,          Short,
-            UShort,         Int,
-            UInt,           Long,
-            ULong,          LongLong,
-            ULongLong,      Float,
-            Double,         Pointer [Void],
-            Structure(),    Pointer [ Structure() ],
-            Pointer [Void], Pointer [Void],
-            Pointer [ Pointer [Void] ]
-        ] => Int
+    [   Bool,           Char,
+        UChar,          Short,
+        UShort,         Int,
+        UInt,           Long,
+        ULong,          LongLong,
+        ULongLong,      Float,
+        Double,         Pointer [Void],
+        Structure(),    Pointer [ Structure() ],
+        Pointer [Void], Pointer [Void],
+        Pointer [ Pointer [Void] ]
     ]
     ),
     '_Z13test_functionbchstijlmxyfdPv9StructurePS0_S_S_PS_',
     '_Z13test_functionbchstijlmxyfdPv9StructurePS0_S_S_PS_';
 is Affix::Itanium_mangle(
     'test_function',
-    CodeRef [
-        [   Bool,                       Char,
-            UChar,                      Short,
-            UShort,                     Int,
-            UInt,                       Long,
-            ULong,                      LongLong,
-            ULongLong,                  Float,
-            Double,                     Pointer [Void],
-            Structure(),                Pointer [ Structure() ],
-            Pointer [Void],             Pointer [Void],
-            Pointer [ Pointer [Void] ], Structure()
-        ] => Int
+    [   Bool,                       Char,
+        UChar,                      Short,
+        UShort,                     Int,
+        UInt,                       Long,
+        ULong,                      LongLong,
+        ULongLong,                  Float,
+        Double,                     Pointer [Void],
+        Structure(),                Pointer [ Structure() ],
+        Pointer [Void],             Pointer [Void],
+        Pointer [ Pointer [Void] ], Structure()
     ]
     ),
     '_Z13test_functionbchstijlmxyfdPv9StructurePS0_S_S_PS_S0_',
     '_Z13test_functionbchstijlmxyfdPv9StructurePS0_S_S_PS_S0_';
-is Affix::Itanium_mangle( 'foo::test_function', CodeRef [ [] => Int ] ),
-    '_ZN3foo13test_functionEv', '_ZN3foo13test_functionEv';
-is Affix::Itanium_mangle( 'foo::bar::test_function', CodeRef [ [] => Int ] ),
-    '_ZN3foo3bar13test_functionEv', '_ZN3foo3bar13test_functionEv';
-is Affix::Itanium_mangle( 'foo::bar::test_function', CodeRef [ [Int] => Int ] ),
-    '_ZN3foo3bar13test_functionEi', '_ZN3foo3bar13test_functionEi';
-is Affix::Itanium_mangle(
-    'foo::bar::test_function', CodeRef [ [ Int, Pointer [ halide_buffer_t() ] ] => Int ]
-    ),
+is Affix::Itanium_mangle( 'foo::test_function', [] ), '_ZN3foo13test_functionEv',
+    '_ZN3foo13test_functionEv';
+is Affix::Itanium_mangle( 'foo::bar::test_function', [] ), '_ZN3foo3bar13test_functionEv',
+    '_ZN3foo3bar13test_functionEv';
+is Affix::Itanium_mangle( 'foo::bar::test_function', [Int] ), '_ZN3foo3bar13test_functionEi',
+    '_ZN3foo3bar13test_functionEi';
+is Affix::Itanium_mangle( 'foo::bar::test_function', [ Int, Pointer [ halide_buffer_t() ] ] ),
     '_ZN3foo3bar13test_functionEiP15halide_buffer_t',
     '_ZN3foo3bar13test_functionEiP15halide_buffer_t';
 

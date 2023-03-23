@@ -10,7 +10,7 @@ use experimental 'signatures';
 $|++;
 
 # https://www.gnu.org/software/libunistring/manual/html_node/The-wchar_005ft-mess.html
-plan skip_all => 'wchar * is broken on *BSD and Solaris' if $^O =~ /(?:bsd|solaris)/i;
+#plan skip_all => 'wchar * is broken on *BSD and Solaris' if $^O =~ /(?:bsd|solaris)/i;
 #
 my $lib = compile_test_lib('66_affix_class');
 
@@ -19,7 +19,9 @@ my $lib = compile_test_lib('66_affix_class');
 typedef 'MyClass' => Struct [ myNum => Int, myString => Str ];
 #
 diag 'Itanium support is still early';
-affix [ $lib, 'C' ] => [ '_Z5setupv' => 'setup' ] => [] => MyClass();
+
+#~ affix [ $lib, 'C' ] => [ '_Z5setupv' => 'setup' ] => [] => MyClass();
+affix [ $lib, 'I' ] => 'setup' => [] => MyClass();
 
 #~ affix $lib, [ '_ZN7MyClass5speedEi' => 'speed' ] => [] => Void;
 #~ warn affix $lib,          [ 'MyClass::speed' => 'speed' ] => [] => Void;

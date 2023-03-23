@@ -307,6 +307,36 @@ bool is_valid_class_name(SV *sv) { // Stolen from Type::Tiny::XS::Util
     return RETVAL;
 }
 
+char *_mangle(pTHX_ const char *abi, const char *symbol, SV *args) {
+    char *retval;
+    {
+        dSP;
+        int count;
+        SV *err_tmp;
+        ENTER;
+        SAVETMPS;
+        PUSHMARK(SP);
+        mXPUSHp(symbol, strlen(symbol));
+        XPUSHs(args);
+        PUTBACK;
+        count = call_pv(form("Affix::%s_mangle", abi), G_SCALAR | G_EVAL | G_KEEPERR);
+        SPAGAIN;
+        err_tmp = ERRSV;
+        if (SvTRUE(err_tmp)) {
+            croak("Malformed call to %s_mangle( ... )\n", abi, SvPV_nolen(err_tmp));
+            POPs;
+        }
+        else if (count != 1) { croak("Failed to mangle %s symbol named %s", abi, abi); }
+        else {
+            retval = POPp;
+            // SvSetMagicSV(type, retval);
+        }
+        // FREETMPS;
+        LEAVE;
+    }
+    return retval;
+}
+
 // Lazy load actual type from typemap and InstanceOf[]
 SV *_instanceof(pTHX_ SV *type) {
     SV *retval;
@@ -2346,6 +2376,7 @@ CODE:
     case MANGLE_C:
         break;
     case MANGLE_ITANIUM:
+        symbol_ = _mangle(aTHX_ "Itanium", symbol_, ST(2));
         break;
     case MANGLE_RUST:
         break;

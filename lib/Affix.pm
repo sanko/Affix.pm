@@ -323,8 +323,9 @@ package Affix 0.11 {    # 'FFI' is my middle name!
             $vp    = 0;
             my $ret = '_Z' . sprintf $name =~ '::' ? 'N%sE' : '%s',
                 join( '', ( map { length($_) . $_ } split '::', $name ) );
-            my $args = [ Void() ];
-            for my $arg ( scalar @{ $affix->{args} } ? @{ $affix->{args} } : Void() ) {
+
+            #~ for my $arg ( scalar @{ $affix->{args} } ? @{ $affix->{args} } : Void() ) {
+            for my $arg ( scalar @{$affix} ? @{$affix} : Void() ) {
                 $ret .= _mangle_type( $name, $arg );
             }
             $ret;
