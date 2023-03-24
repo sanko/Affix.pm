@@ -330,6 +330,22 @@ package Affix 0.11 {    # 'FFI' is my middle name!
             }
             $ret;
         }
+
+        sub Rust_mangle {
+            my ( $name, $affix ) = @_;
+            @cache = ();
+            $vp    = 0;
+
+            # v0
+            my $ret = '_ZN' . sprintf $name =~ '::' ? 'N%sE' : '%s',
+                join( '', ( map { length($_) . $_ } split '::', $name ) );
+
+            #~ for my $arg ( scalar @{ $affix->{args} } ? @{ $affix->{args} } : Void() ) {
+            for my $arg ( scalar @{$affix} ? @{$affix} : Void() ) {
+                $ret .= _mangle_type( $name, $arg );
+            }
+            $ret;
+        }
     }
 };
 1;

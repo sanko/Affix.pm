@@ -2379,6 +2379,7 @@ CODE:
         symbol_ = _mangle(aTHX_ "Itanium", symbol_, ST(2));
         break;
     case MANGLE_RUST:
+        symbol_ = _mangle(aTHX_ "Rust", symbol_, ST(2));
         break;
     case MANGLE_SWIFT:
         break;
