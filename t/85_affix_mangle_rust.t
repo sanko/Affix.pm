@@ -14,7 +14,8 @@ $|++;
 SKIP: {
     skip 'test requires rust/cargo', 1 unless can_run('cargo');
     system 'cargo build --manifest-path=t/src/85_affix_mangle_rust/Cargo.toml --release';
-    my $lib = 't/src/85_affix_mangle_rust/target/release/libaffix_rust.' . $Config{so};
+    my $lib = 't/src/85_affix_mangle_rust/target/release/' .
+        ( $^O eq 'MSWin32' ? '' : 'lib' ) . 'affix_rust.' . $Config{so};
 
     #system 'nm ' . $lib;
     affix $lib, 'add', [ Size_t, Size_t ], Size_t;    #[no_mangle]
