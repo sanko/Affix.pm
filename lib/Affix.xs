@@ -2179,6 +2179,28 @@ BOOT:
 }
 // clang-format off
 
+AV*
+_list_symbols(DLLib * lib)
+CODE:
+// clang-format on
+{
+    RETVAL = newAV();
+    char *name;
+    Newxz(name, 1024, char);
+    int len = dlGetLibraryPath(lib, name, 1024);
+    if (len == 0) croak("Failed to get library name");
+    DLSyms *syms = dlSymsInit(name);
+    int count = dlSymsCount(syms);
+    for (int i = 0; i < count; ++i) {
+        av_push(RETVAL, newSVpv(dlSymsName(syms, i), 0));
+    }
+    dlSymsCleanup(syms);
+    safefree(name);
+    }
+    // clang-format off
+OUTPUT:
+    RETVAL
+
 DLLib *
 load_lib(const char * lib_name)
 CODE:
@@ -2936,27 +2958,3 @@ CODE:
 // clang-format off
 
 #endif
-
-MODULE = Affix PACKAGE = Affix
-
-AV*
-_list_symbols(DLLib * lib)
-CODE:
-// clang-format on
-{
-    RETVAL = newAV();
-    char *name;
-    Newxz(name, 1024, char);
-    int len = dlGetLibraryPath(lib, name, 1024);
-    if (len == 0) croak("Failed to get library name");
-    DLSyms *syms = dlSymsInit(name);
-    int count = dlSymsCount(syms);
-    for (int i = 0; i < count; ++i) {
-        av_push(RETVAL, newSVpv(dlSymsName(syms, i), 0));
-    }
-    dlSymsCleanup(syms);
-    safefree(name);
-    }
-    // clang-format off
-OUTPUT:
-    RETVAL
