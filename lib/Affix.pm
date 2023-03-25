@@ -382,14 +382,14 @@ Affix - A Foreign Function Interface eXtension
 
 =head1 DESCRIPTION
 
-Affix is a wrapper around L<dyncall|https://dyncall.org/>.
-
-Note: This is experimental software and is subject to change as long as this
-disclaimer is here.
+Affix is an L<FFI|https://en.wikipedia.org/wiki/Foreign_function_interface> to
+wrap libraries developed in other languages (C, C++, Rust, etc.) with pure
+Perl; without XS!
 
 =head1 Basic Usage
 
-The basic API here is rather simple but not lacking in power.
+The basic API is rather simple but not lacking in power. It's likely what
+you'll decide to use in your projects.
 
 =head2 C<affix( ... )>
 
@@ -397,6 +397,9 @@ The basic API here is rather simple but not lacking in power.
     warn pow( 3, 5 );
 
     affix( 'foo', ['foo', 'foobar'] => [ Str ] );
+    foobar( 'Hello' );
+
+    affix( ['foo_dylib', RUST], ['foo', 'foobar'] => [ Str ] );
     foobar( 'Hello' );
 
 Attaches a given symbol in a named perl sub.
@@ -407,8 +410,11 @@ Parameters include:
 
 =item C<$lib>
 
-path of the library as a string or pointer returned by L<< C<dlLoadLibrary( ...
-)>|Dyn::Load/C<dlLoadLibrary( ... )> >>
+path or name of the library or an explicit C<undef> to load functions from the
+main executable
+
+Optionally, you may provide an array reference with the library and an L<ABI
+hint|/"ABI Hints"> if the library was built with mangled exports
 
 =item C<$symbol_name>
 
@@ -444,8 +450,11 @@ Parameters include:
 
 =item C<$lib>
 
-pointer returned by L<< C<dlLoadLibrary( ... )>|Dyn::Load/C<dlLoadLibrary( ...
-)> >> or the path of the library as a string
+path or name of the library or an explicit C<undef> to load functions from the
+main executable
+
+Optionally, you may provide an array reference with the library and an L<ABI
+hint|/"ABI Hints"> if the library was built with mangled exports
 
 =item C<$symbol_name>
 
@@ -462,7 +471,43 @@ return type
 =back
 
 C<wrap( ... )> behaves exactly like C<affix( ... )> but returns an anonymous
-subroutine.
+subroutine and does not pollute the namespace.
+
+=head2 C<pin( ... )>
+
+    my $errno;
+    pin( $errno, 'libc', 'errno', Int );
+    print $errno;
+    $errno = 0;
+
+Variables exported by a library - also names "global" or "extern" variables -
+can be accessed using C<pin( ... )>. The above example code applies magic to
+C<$error> that binds it to the integer variable named "errno" as exported by
+the L<libc> library.
+
+Expected parameters include:
+
+=over
+
+=item C<$var>
+
+Perl scalar that will be bound to the exported variable.
+
+=item C<$lib>
+
+name or path of the symbol
+
+=item C<$symbol_name>
+
+the name of the exported variable name
+
+=item C<$type>
+
+type that data will be coerced in or out of as required
+
+=back
+
+This is likely broken on BSD but patches are welcome.
 
 =head1 C<:Native> CODE attribute
 
@@ -523,7 +568,7 @@ C<Foo::init> (instead of C<Foo::FOO_INIT>), we use the symbol trait to specify
 the name of the symbol in C<libfoo> and call the subroutine whatever we want
 (C<init> in this case).
 
-=head2 Passing and returning values
+=head2 Signatures
 
 Normal Perl signatures do not convey the type of arguments a native function
 expects and what it returns so you must define them with our final attribute:
@@ -535,44 +580,6 @@ C<:Signature>
 Here, we have declared that the function takes two 32-bit integers and returns
 a 32-bit integer. You can find the other types that you may pass L<further down
 this page|/Types>.
-
-=head1 Signatures
-
-Affix's advisory signatures are required to give us a little hint about what we
-should expect.
-
-    [ Int, ArrayRef[ Int, 100 ], Str ] => Int
-
-Arguments are defined in a list: C<[ Int, ArrayRef[ Char, 5 ], Str ]>
-
-The return value comes next: C<Int>
-
-To call the function with such a signature, your Perl would look like this:
-
-    mh $int = func( 500, [ 'a', 'b', 'x', '4', 'H' ], 'Test');
-
-See the aptly named sections entitled L<Types|/Types> for more on the possible
-types and L<Calling Conventions/Calling Conventions> for flags that may also be
-defined as part of your signature.
-
-=head1 Library Paths and Names
-
-The C<:Native> attribute, C<affix( ... )>, and C<wrap( ... )> all accept the
-library name, the full path, or a subroutine returning either of the two. When
-using the library name, the name is assumed to be prepended with lib and
-appended with C<.so> (or just appended with C<.dll> on Windows), and will be
-searched for in the paths in the C<LD_LIBRARY_PATH> (C<PATH> on Windows)
-environment variable.
-
-You can also put an incomplete path like C<'./foo'> and Affix will
-automatically put the right extension according to the platform specification.
-If you wish to suppress this expansion, simply pass the string as the body of a
-block.
-
-    sub bar :Native({ './lib/Non Standard Naming Scheme' });
-
-B<BE CAREFUL>: the C<:Native> attribute and constant might be evaluated at
-compile time.
 
 =head2 ABI/API version
 
@@ -592,6 +599,25 @@ version, some BSD code does not care for Minor.)
     sub foo2 :Native('foo', v1.2.3); # Will try to load libfoo.so.1.2.3
 
     sub pow : Native('m', v6) : Signature([Double, Double] => Double);
+
+=head2 Library Paths and Names
+
+The C<:Native> attribute, C<affix( ... )>, and C<wrap( ... )> all accept the
+library name, the full path, or a subroutine returning either of the two. When
+using the library name, the name is assumed to be prepended with lib and
+appended with C<.so> (or just appended with C<.dll> on Windows), and will be
+searched for in the paths in the C<LD_LIBRARY_PATH> (C<PATH> on Windows)
+environment variable.
+
+You can also put an incomplete path like C<'./foo'> and Affix will
+automatically put the right extension according to the platform specification.
+If you wish to suppress this expansion, simply pass the string as the body of a
+block.
+
+    sub bar :Native({ './lib/Non Standard Naming Scheme' });
+
+B<BE CAREFUL>: the C<:Native> attribute and constant might be evaluated at
+compile time.
 
 =head2 Calling into the standard library
 
@@ -617,45 +643,6 @@ to print the home directory of the current user:
     sub getpwuid : Native : Signature([Int]=>Pointer[PwStruct]);
     my $data = main::getpwuid( getuid() );
     print Dumper( ptr2sv( $data, Pointer [ PwStruct() ] ) );
-
-=head1 Exported Variables
-
-Variables exported by a library - also names "global" or "extern" variables -
-can be accessed using C<pin( ... )>.
-
-=head2 C<pin( ... )>
-
-    pin( $errno, 'libc', 'errno', Int );
-    print $errno;
-    $errno = 0;
-
-This code applies magic to C<$error> that binds it to the integer variable
-named "errno" as exported by the L<libc> library.
-
-Expected parameters include:
-
-=over
-
-=item C<$var>
-
-Perl scalar that will be bound to the exported variable.
-
-=item C<$lib>
-
-pointer returned by L<< C<dlLoadLibrary( ... )>|Dyn::Load/C<dlLoadLibrary( ...
-)> >> or the path of the library as a string
-
-=item C<$symbol_name>
-
-the name of the exported variable
-
-=item C<$type>
-
-type that data will be coerced in or out of as required
-
-=back
-
-This is likely broken on BSD. Patches welcome.
 
 =head1 Memory Functions
 
@@ -1019,6 +1006,9 @@ A blessed object of a certain type. When used as an lvalue, the result is
 properly blessed. As an rvalue, the reference is checked to be a subclass of
 the given package.
 
+Note: This "type" is in a state of development flux and might be made complete
+with L<issue #32|https://github.com/sanko/Affix.pm/issues/32>
+
 =head2 C<Any>
 
 Anything you dump here will be passed along unmodified. We hand off a pointer
@@ -1074,6 +1064,25 @@ C<Enum> but with unsigned integers.
 =head2 C<CharEnum[ ... ]>
 
 C<Enum> but with signed chars.
+
+=head1 Signatures
+
+Affix's advisory signatures are required to give us a little hint about what we
+should expect.
+
+    [ Int, ArrayRef[ Int, 100 ], Str ] => Int
+
+Arguments are defined in a list: C<[ Int, ArrayRef[ Char, 5 ], Str ]>
+
+The return value comes next: C<Int>
+
+To call the function with such a signature, your Perl would look like this:
+
+    mh $int = func( 500, [ 'a', 'b', 'x', '4', 'H' ], 'Test');
+
+See the aptly named sections entitled L<Types|/Types> for more on the possible
+types and L<Calling Conventions/Calling Conventions> for flags that may also be
+defined as part of your signature.
 
 =head1 Calling Conventions
 
@@ -1179,15 +1188,37 @@ value.
 
 =back
 
+=head1 ABI Hints
+
+Advanced languages may L<mangle the names of exported
+symbols|https://en.wikipedia.org/wiki/Name_mangling> according to their ABIs.
+Affix can handle wrap the correct symbol when provided with a language/platform
+hint.
+
+Currently supported ABIs include:
+
+=over
+
+=item C<ITANIUM> - basic C++ mangling
+
+=item C<RUST> - legacy rust mangling (current stable)
+
+=back
+
+These may be imported by name or with the C<:abi> tag and this list will grow
+as this project matures.
+
 =head1 See Also
+
+All the heavy lifting is done by L<dyncall|https://dyncall.org/>.
 
 Check out L<FFI::Platypus> for a more robust and mature FFI
 
-Examples found in C<eg/>.
+Examples found in C<eg/>
 
 L<LibUI> for a larger demo project based on Affix
 
-L<Types::Standard> for the inspiration of the advisory types system.
+L<Types::Standard> for the inspiration of the advisory types system
 
 =head1 LICENSE
 

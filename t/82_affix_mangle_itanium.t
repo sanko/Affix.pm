@@ -25,7 +25,7 @@ subtest 'setup(int i)' => sub {
     is $myclass->{myString}, 'Some different text', '.myString eq "Some different text"';
     subtest 'MyClass::speed(...)' => sub {
 
-        #my $set_speed = wrap( [ $lib, 'I' ] => 'MyClass::speed' => [Int] => Int )->(300);
+        #my $set_speed = wrap( [ $lib, ITANIUM ] => 'MyClass::speed' => [Int] => Int )->(300);
         # ddx wrap( $lib, '_ZN7MyClass5speedEi' => [MyClass(), Int] => Int );
         # TODO: package MyClass{sub speed{...} } $obj->speed;
         my $ptr = sv2ptr( $myclass, MyClass() );
