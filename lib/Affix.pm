@@ -312,7 +312,7 @@ package Affix 0.11 {    # 'FFI' is my middle name!
                 Char(),  'c',    # Note: signed char == 'a'
                 Bool(),  'b', Double(), 'd', Long(),  'e', Float(), 'f', UChar(),  'h', Int(),  'i',
                 UInt(),  'j', Long(),   'l', ULong(), 'm', Short(), 's', UShort(), 't', Void(), 'v',
-                WChar(), 'w', LongLong(), 'x', ULongLong(), 'y'
+                WChar(), 'w', LongLong(), 'x', ULongLong(), 'y', '_', '',    # Calling conventions
             };
             $types->{$type} // die 'Unknown type: ' . $type;
         }
@@ -325,8 +325,14 @@ package Affix 0.11 {    # 'FFI' is my middle name!
                 join( '', ( map { length($_) . $_ } split '::', $name ) );
 
             #~ for my $arg ( scalar @{ $affix->{args} } ? @{ $affix->{args} } : Void() ) {
-            for my $arg ( scalar @{$affix} ? @{$affix} : Void() ) {
+            my @args = scalar @{$affix} ? @{$affix} : Void();
+            while (@args) {
+                my $arg = shift @args;
                 $ret .= _mangle_type( $name, $arg );
+                if ( $arg eq '_' ) {
+                    shift @args;
+                    push @args, Void() if !@args;    # skip calling conventions
+                }
             }
             $ret;
         }
@@ -338,10 +344,10 @@ package Affix 0.11 {    # 'FFI' is my middle name!
             $symbol_cache->{$lib} //= Affix::_list_symbols($lib);
             @cache = ();
             $vp    = 0;
-            return $name if grep { $name eq $_ } @{ $symbol_cache->{$lib} };
+            return $name if grep { $name eq $_ } grep { defined $_ } @{ $symbol_cache->{$lib} };
             my $ret = qr'^_ZN(?:\d+\w+?)?' . sprintf $name =~ '::' ? '%sE' : '%s17h\w{16}E$',
                 join( '', ( map { length($_) . $_ } split '::', $name ) );
-            my @symbols = grep { $_ =~ $ret } @{ $symbol_cache->{$lib} };
+            my @symbols = grep { $_ =~ $ret } grep { defined $_ } @{ $symbol_cache->{$lib} };
             return shift @symbols;
         }
     }

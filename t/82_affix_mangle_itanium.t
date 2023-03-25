@@ -10,7 +10,7 @@ $|++;
 #
 my $lib = compile_test_lib('82_affix_mangle_itanium');
 
-#system 'nm ' . $lib;
+#~ system 'nm -D ' . $lib;
 #
 typedef 'MyClass' => Struct [ myNum => Int, myString => Str ];
 #
@@ -23,6 +23,20 @@ subtest 'setup(int i)' => sub {
     my $myclass = wrap( [ $lib, 'I' ] => 'setup' => [Int] => MyClass() )->(3);
     is $myclass->{myNum},    3,                     '.myNum == 3';
     is $myclass->{myString}, 'Some different text', '.myString eq "Some different text"';
+    subtest 'MyClass::speed(...)' => sub {
+
+        #my $set_speed = wrap( [ $lib, 'I' ] => 'MyClass::speed' => [Int] => Int )->(300);
+        # ddx wrap( $lib, '_ZN7MyClass5speedEi' => [MyClass(), Int] => Int );
+        # TODO: package MyClass{sub speed{...} } $obj->speed;
+        my $ptr = sv2ptr( $myclass, MyClass() );
+        is wrap( [ $lib, 'I' ], 'MyClass::speed' => [ CC_THISCALL, Pointer [Void] ] => Int )
+            ->($ptr), 3, 'this->speed() == 3';
+        wrap( [ $lib, 'I' ], 'MyClass::speed' => [ CC_THISCALL, Pointer [Void], Int ] => Void )
+            ->( $ptr, 400 );
+        diag 'this->speed(400)';
+        is wrap( [ $lib, 'I' ], 'MyClass::speed' => [ CC_THISCALL, Pointer [Void] ] => Int )
+            ->($ptr), 400, 'this->speed() == 400';
+    }
 };
 #
 done_testing;

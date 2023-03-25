@@ -69,13 +69,14 @@ extern "C" {
 #define MANGLE_ITANIUM 'I' // https://itanium-cxx-abi.github.io/cxx-abi/abi.html#mangling
 #define MANGLE_GCC MANGLE_ITANIUM
 #define MANGLE_MSVC MANGLE_ITANIUM
-#define MANGLE_RUST 'r' // https://rust-lang.github.io/rfcs/2603-rust-symbol-name-mangling-v0.html
+#define MANGLE_RUST 'r' // legacy
 #define MANGLE_SWIFT                                                                               \
     's'              // https://github.com/apple/swift/blob/main/docs/ABI/Mangling.rst#identifiers
 #define MANGLE_D 'd' // https://dlang.org/spec/abi.html#name_mangling
 
 // https://mikeash.com/pyblog/friday-qa-2014-08-15-swift-name-mangling.html
 // https://gcc.gnu.org/git?p=gcc.git;a=blob_plain;f=gcc/cp/mangle.cc;hb=HEAD
+// https://rust-lang.github.io/rfcs/2603-rust-symbol-name-mangling-v0.html
 
 // MEM_ALIGNBYTES is messed up by quadmath and long doubles
 #define AFFIX_ALIGNBYTES 8
@@ -1605,7 +1606,7 @@ XS_INTERNAL(Affix_call) {
         SV *type;
         for (size_t pos_arg = 0, pos_csig = 0, pos_psig = 0; pos_arg < items;
              ++pos_arg, ++pos_csig, ++pos_psig) {
-            type = *av_fetch(call->args, pos_arg, 0); // Make broad assexumptions
+            type = *av_fetch(call->args, pos_psig, 0); // Make broad assexumptions
             _type = call->sig[pos_csig];
             switch (_type) {
             case DC_SIGCHAR_VOID:
@@ -1674,6 +1675,8 @@ XS_INTERNAL(Affix_call) {
                 dcArgDouble(MY_CXT.cvm, (double)SvNV(ST(pos_arg)));
                 break;
             case DC_SIGCHAR_POINTER: {
+                //~ warn("DC_SIGCHAR_POINTER [%d,%d,%d]", pos_arg, pos_csig, pos_psig);
+                //~ sv_dump(type);
                 SV **subtype_ptr = hv_fetchs(MUTABLE_HV(SvRV(type)), "type", 0);
                 if (SvOK(ST(pos_arg))) {
                     if (sv_derived_from(ST(pos_arg), "Affix::Pointer")) {
@@ -1799,6 +1802,8 @@ XS_INTERNAL(Affix_call) {
                                                                 : *SvPV_nolen(ST(pos_arg))));
                 break;
             case DC_SIGCHAR_CC_PREFIX: {
+                //~ warn("DC_SIGCHAR_CC_PREFIX [%d,%d,%d] (%s/%s)", pos_arg, pos_csig, pos_psig,
+                //~ call->sig, call->perl_sig);
                 --pos_arg;
                 DCsigchar _mode = call->sig[++pos_csig];
                 DCint mode = dcGetModeFromCCSigChar(_mode);
@@ -1818,8 +1823,8 @@ XS_INTERNAL(Affix_call) {
             }
         }
     }
-    SV *RETVAL;
     {
+        SV *RETVAL;
         switch (call->ret) {
         case DC_SIGCHAR_VOID:
             RETVAL = newSV(0);
