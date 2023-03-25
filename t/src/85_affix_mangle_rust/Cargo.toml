@@ -9,5 +9,5 @@ authors = ["Sanko Robinson"]
 [dependencies]
 
 [lib]
-#crate-type = ["dylib"]
-crate-type = ["cdylib"]
+crate-type = ["dylib"]
+#crate-type = ["cdylib"]

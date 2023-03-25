@@ -307,7 +307,7 @@ bool is_valid_class_name(SV *sv) { // Stolen from Type::Tiny::XS::Util
     return RETVAL;
 }
 
-char *_mangle(pTHX_ const char *abi, const char *symbol, SV *args) {
+char *_mangle(pTHX_ const char *abi, SV *lib, const char *symbol, SV *args) {
     char *retval;
     {
         dSP;
@@ -316,6 +316,7 @@ char *_mangle(pTHX_ const char *abi, const char *symbol, SV *args) {
         ENTER;
         SAVETMPS;
         PUSHMARK(SP);
+        XPUSHs(lib);
         mXPUSHp(symbol, strlen(symbol));
         XPUSHs(args);
         PUTBACK;
@@ -2372,21 +2373,27 @@ CODE:
     }
     else { symbol_ = func_name = SvPV_nolen(symbol); }
 
-    switch (mangle) {
-    case MANGLE_C:
-        break;
-    case MANGLE_ITANIUM:
-        symbol_ = _mangle(aTHX_ "Itanium", symbol_, ST(2));
-        break;
-    case MANGLE_RUST:
-        symbol_ = _mangle(aTHX_ "Rust", symbol_, ST(2));
-        break;
-    case MANGLE_SWIFT:
-        break;
-    case MANGLE_D:
-        break;
-    default:
-        break;
+    {
+        SV *LIBSV;
+        LIBSV = sv_newmortal();
+        sv_setref_pv(LIBSV, "Affix::DLLib", (void *)lib);
+
+        switch (mangle) {
+        case MANGLE_C:
+            break;
+        case MANGLE_ITANIUM:
+            symbol_ = _mangle(aTHX_ "Itanium", LIBSV, symbol_, ST(2));
+            break;
+        case MANGLE_RUST:
+            symbol_ = _mangle(aTHX_ "Rust_legacy", LIBSV, symbol_, ST(2));
+            break;
+        case MANGLE_SWIFT:
+            break;
+        case MANGLE_D:
+            break;
+        default:
+            break;
+        }
     }
 
     call->fptr = dlFindSymbol(lib, symbol_);
@@ -2924,3 +2931,27 @@ CODE:
 // clang-format off
 
 #endif
+
+MODULE = Affix PACKAGE = Affix
+
+AV*
+_list_symbols(DLLib * lib)
+CODE:
+// clang-format on
+{
+    RETVAL = newAV();
+    char *name;
+    Newxz(name, 1024, char);
+    int len = dlGetLibraryPath(lib, name, 1024);
+    if (len == 0) croak("Failed to get library name");
+    DLSyms *syms = dlSymsInit(name);
+    int count = dlSymsCount(syms);
+    for (int i = 0; i < count; ++i) {
+        av_push(RETVAL, newSVpv(dlSymsName(syms, i), 0));
+    }
+    dlSymsCleanup(syms);
+    safefree(name);
+    }
+    // clang-format off
+OUTPUT:
+    RETVAL

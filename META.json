@@ -80,6 +80,7 @@
       "test" : {
          "requires" : {
             "Data::Dumper" : "0",
+            "Devel::CheckBin" : "0",
             "Math::BigInt" : "0",
             "Test::More" : "0.98"
          }

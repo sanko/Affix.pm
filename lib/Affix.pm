@@ -318,7 +318,7 @@ package Affix 0.11 {    # 'FFI' is my middle name!
         }
 
         sub Itanium_mangle {
-            my ( $name, $affix ) = @_;
+            my ( $lib, $name, $affix ) = @_;
             @cache = ();
             $vp    = 0;
             my $ret = '_Z' . sprintf $name =~ '::' ? 'N%sE' : '%s',
@@ -331,20 +331,18 @@ package Affix 0.11 {    # 'FFI' is my middle name!
             $ret;
         }
 
-        sub Rust_mangle {
-            my ( $name, $affix ) = @_;
+        # legacy
+        sub Rust_legacy_mangle {
+            my ( $lib, $name, $affix ) = @_;
+            CORE::state $symbol_cache //= ();
+            $symbol_cache->{$lib} //= Affix::_list_symbols($lib);
             @cache = ();
             $vp    = 0;
-
-            # v0
-            my $ret = '_ZN' . sprintf $name =~ '::' ? 'N%sE' : '%s',
+            return $name if grep { $name eq $_ } @{ $symbol_cache->{$lib} };
+            my $ret = qr'^_ZN(?:\d+\w+?)?' . sprintf $name =~ '::' ? '%sE' : '%s17h\w{16}E$',
                 join( '', ( map { length($_) . $_ } split '::', $name ) );
-
-            #~ for my $arg ( scalar @{ $affix->{args} } ? @{ $affix->{args} } : Void() ) {
-            for my $arg ( scalar @{$affix} ? @{$affix} : Void() ) {
-                $ret .= _mangle_type( $name, $arg );
-            }
-            $ret;
+            my @symbols = grep { $_ =~ $ret } @{ $symbol_cache->{$lib} };
+            return shift @symbols;
         }
     }
 };
