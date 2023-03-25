@@ -3,7 +3,9 @@ Revision history for Perl extension Affix.pm
 {{$NEXT}}
 
     - Support for WChar
-    - Rough, basic support for mangled symbols based on Itanium C++ ABI
+    - Rough, basic support for mangled symbols:
+        - Itanium C++ ABI
+        - Rust legacy mangling
 
 0.10 2023-03-11T04:25:59Z
 

@@ -231,6 +231,12 @@ void export_function(const char *package, const char *what, const char *tag) {
     export_function__(get_hv(form("%s::EXPORT_TAGS", package), GV_ADD), what, tag);
 }
 
+void export_constant_char(const char *package, const char *name, const char *_tag, char val) {
+    dTHX;
+    register_constant(package, name, newSVpv(&val, 1));
+    export_function(package, name, _tag);
+}
+
 void export_constant(const char *package, const char *name, const char *_tag, double val) {
     dTHX;
     register_constant(package, name, newSVnv(val));
@@ -2604,6 +2610,14 @@ BOOT :
                     0
 #endif
     );
+
+    export_constant_char("Affix", "C", "abi", MANGLE_C);
+    export_constant_char("Affix", "ITANIUM", "abi", MANGLE_ITANIUM);
+    export_constant_char("Affix", "GCC", "abi", MANGLE_GCC);
+    export_constant_char("Affix", "MSVC", "abi", MANGLE_MSVC);
+    export_constant_char("Affix", "RUST", "abi", MANGLE_RUST);
+    export_constant_char("Affix", "SWIFT", "abi", MANGLE_SWIFT);
+    export_constant_char("Affix", "D", "abi", MANGLE_D);
 }
 // clang-format off
 

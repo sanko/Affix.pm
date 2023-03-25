@@ -23,7 +23,7 @@ SKIP: {
     affix $lib, 'add', [ Size_t, Size_t ], Size_t;    #[no_mangle]
     is add( 5, 4 ), 9, 'add(5, 4) == 9';
     #
-    affix [ $lib, 'r' ], mod => [ Int, Int ] => Int;
+    affix [ $lib, RUST ], mod => [ Int, Int ] => Int;
     is mod( 5, 3 ), 2, 'mod(5, 3) == 2';
     #
     diag 'might fail to clean up on Win32 because we have not released the lib yet... this is fine'
