@@ -21,11 +21,15 @@ use Archive::Tar;
 use IO::File;
 use IO::Uncompress::Unzip qw($UnzipError);
 use File::stat;
+use Config;
 #
 my $libver;
-my $CFLAGS = ' ';
+my $CFLAGS = $Config{osname} eq 'MSWin32' ? '' :
 
-# = ' -DNDEBUG -DBOOST_DISABLE_ASSERTS -O2 -ffast-math -funroll-loops -fno-align-functions -fno-align-loops';
+    #' -O2 -fno-omit-frame-pointer '; # 4338/s
+    #' -O2 -fno-align-functions -fno-align-loops '; # 4251/s
+   # ' -DNDEBUG -DBOOST_DISABLE_ASSERTS -O2 -ffast-math -funroll-loops -fno-align-functions -fno-align-loops ';
+        ' -DNDEBUG -DBOOST_DISABLE_ASSERTS -O2 -ffast-math -fno-align-functions -fno-align-loops -fno-omit-frame-pointer ';
 my $LDFLAGS = ' ';    # https://wiki.freebsd.org/LinkTimeOptimization
 #
 sub write_file {
@@ -306,8 +310,7 @@ sub alien {
                 chdir $kid->absolute->stringify;
                 warn($_) && system($_ )
                     for './configure --prefix=' .
-                    $pre->absolute,    # . ' CFLAGS="-Ofast" LDFLAGS="-Ofast"',
-                    'make', 'make install';
+                    $pre->absolute . ' CFLAGS="-Ofast" LDFLAGS="-Ofast" ', 'make', 'make install';
                 chdir $cwd->stringify;
             }
             else {
