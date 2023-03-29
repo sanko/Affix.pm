@@ -2102,7 +2102,8 @@ BOOT:
 #endif
 {
     MY_CXT_INIT;
-    MY_CXT.cvm = dcNewCallVM(4096);
+    SV *vmsize = get_sv("Affix::VMSize", 0);
+    MY_CXT.cvm = dcNewCallVM(vmsize == NULL ? 4096 : SvIV(vmsize));
 }
 {
     (void)newXSproto_portable("Affix::Type", Types_type, file, "$");

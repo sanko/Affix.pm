@@ -11,6 +11,8 @@ package Affix 0.11 {    # 'FFI' is my middle name!
     use Carp qw[];
     use vars qw[@EXPORT_OK @EXPORT %EXPORT_TAGS];
     use XSLoader;
+
+    #~ our $VMSize = 2; # defaults to 4096; passed to dcNewCallVM( ... )
     my $ok = XSLoader::load();
     END { _shutdown() if $ok; }
     #
