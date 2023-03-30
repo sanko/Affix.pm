@@ -180,6 +180,7 @@ typedef struct {
     AV *args;
     SV *retval;
     bool reset;
+    char abi;
 } Call;
 
 typedef struct {
@@ -2396,6 +2397,7 @@ CODE:
         }
     }
     Newx(call, 1, Call);
+    call->abi = mangle;
 
     const char *symbol_, *func_name;
     if (SvROK(symbol) && SvTYPE(SvRV(symbol)) == SVt_PVAV) {
