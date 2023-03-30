@@ -848,8 +848,12 @@ are exposed under the `Affix::Feature` package:
 # Stack Size
 
 You may control the max size of the internal stack that will be allocated and
-used to bind the arguments to by setting the `$Affix::VMSize` variable before
-binding your first symbol.
+used to bind the arguments to by setting the `$VMSize` variable before using
+Affix.
+
+```
+BEGIN{ $Affix::VMSize = 2 ** 16; }
+```
 
 This value is `4096` by default.
 
@@ -858,54 +862,11 @@ This value is `4096` by default.
 The best example of use might be [LibUI](https://metacpan.org/pod/LibUI). Brief examples will be found in
 `eg/`. Very short examples might find their way here.
 
-## Microsoft Windows
-
-Here is an example of a Windows API call:
-
-```perl
-use Affix;
-sub MessageBoxA :Native('user32') :Signature([Int, Str, Str, Int] => Int);
-MessageBoxA(0, "We have NativeCall", "ohai", 64);
-```
-
-## Short tutorial on calling a C function
-
-This is an example for calling a standard function and using the returned
-information.
-
-`getaddrinfo` is a POSIX standard function for obtaining network information
-about a network node, e.g., `google.com`. It is an interesting function to
-look at because it illustrates a number of the elements of Affix.
-
-The Linux manual provides the following information about the C callable
-function:
-
-```
-int getaddrinfo(const char *node, const char *service,
-   const struct addrinfo *hints,
-   struct addrinfo **res);
-```
-
-The function returns a response code 0 for success and 1 for error. The data
-are extracted from a linked list of `addrinfo` elements, with the first
-element pointed to by `res`.
-
-From the table of Affix types we know that an `int` is `Int`. We also know
-that a `char *` is best expressed with `Str`. But `addrinfo` is a structure,
-which means we will need to write our own type class. However, the function
-declaration is straightforward:
-
-```
-TODO
-```
-
 # See Also
 
 All the heavy lifting is done by [dyncall](https://dyncall.org/).
 
 Check out [FFI::Platypus](https://metacpan.org/pod/FFI%3A%3APlatypus) for a more robust and mature FFI
-
-Examples found in `eg/`
 
 [LibUI](https://metacpan.org/pod/LibUI) for a larger demo project based on Affix
 

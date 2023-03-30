@@ -1173,8 +1173,10 @@ value.
 =head1 Stack Size
 
 You may control the max size of the internal stack that will be allocated and
-used to bind the arguments to by setting the C<$Affix::VMSize> variable before
-binding your first symbol.
+used to bind the arguments to by setting the C<$VMSize> variable before using
+Affix.
+
+    BEGIN{ $Affix::VMSize = 2 ** 16; }
 
 This value is C<4096> by default.
 
@@ -1183,48 +1185,11 @@ This value is C<4096> by default.
 The best example of use might be L<LibUI>. Brief examples will be found in
 C<eg/>. Very short examples might find their way here.
 
-=head2 Microsoft Windows
-
-Here is an example of a Windows API call:
-
-    use Affix;
-    sub MessageBoxA :Native('user32') :Signature([Int, Str, Str, Int] => Int);
-    MessageBoxA(0, "We have NativeCall", "ohai", 64);
-
-=head2 Short tutorial on calling a C function
-
-This is an example for calling a standard function and using the returned
-information.
-
-C<getaddrinfo> is a POSIX standard function for obtaining network information
-about a network node, e.g., C<google.com>. It is an interesting function to
-look at because it illustrates a number of the elements of Affix.
-
-The Linux manual provides the following information about the C callable
-function:
-
-    int getaddrinfo(const char *node, const char *service,
-       const struct addrinfo *hints,
-       struct addrinfo **res);
-
-The function returns a response code 0 for success and 1 for error. The data
-are extracted from a linked list of C<addrinfo> elements, with the first
-element pointed to by C<res>.
-
-From the table of Affix types we know that an C<int> is C<Int>. We also know
-that a C<char *> is best expressed with C<Str>. But C<addrinfo> is a structure,
-which means we will need to write our own type class. However, the function
-declaration is straightforward:
-
-    TODO
-
 =head1 See Also
 
 All the heavy lifting is done by L<dyncall|https://dyncall.org/>.
 
 Check out L<FFI::Platypus> for a more robust and mature FFI
-
-Examples found in C<eg/>
 
 L<LibUI> for a larger demo project based on Affix
 
