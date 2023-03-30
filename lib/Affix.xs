@@ -65,14 +65,24 @@ extern "C" {
 #define DC_SIGCHAR_WIDE_STRING 'z' // 'Z' but wchar_t
 #define DC_SIGCHAR_WIDE_CHAR 'w'   // 'c' but wchar_t
 
+// TODO
+#define DC_SIGCHAR_CLASS 't'        // C++ class
+#define DC_SIGCHAR_CLASS_METHOD 'm' // C++ class method
+#define DC_SIGCHAR_OPAQUE '?'       // unknown padding in struct/class
+#define DC_SIGCHAR_ELLIPSIS 'e'     // variadic function
+
 #define MANGLE_C 'c'
-#define MANGLE_CPP 'C'  // https://itanium-cxx-abi.github.io/cxx-abi/abi.html#mangling
-#define MANGLE_RUST 'r' // https://rust-lang.github.io/rfcs/2603-rust-symbol-name-mangling-v0.html
+#define MANGLE_ITANIUM 'I' // https://itanium-cxx-abi.github.io/cxx-abi/abi.html#mangling
+#define MANGLE_GCC MANGLE_ITANIUM
+#define MANGLE_MSVC MANGLE_ITANIUM
+#define MANGLE_RUST 'r' // legacy
 #define MANGLE_SWIFT                                                                               \
     's'              // https://github.com/apple/swift/blob/main/docs/ABI/Mangling.rst#identifiers
 #define MANGLE_D 'd' // https://dlang.org/spec/abi.html#name_mangling
 
 // https://mikeash.com/pyblog/friday-qa-2014-08-15-swift-name-mangling.html
+// https://gcc.gnu.org/git?p=gcc.git;a=blob_plain;f=gcc/cp/mangle.cc;hb=HEAD
+// https://rust-lang.github.io/rfcs/2603-rust-symbol-name-mangling-v0.html
 
 // MEM_ALIGNBYTES is messed up by quadmath and long doubles
 #define AFFIX_ALIGNBYTES 8
@@ -170,6 +180,7 @@ typedef struct {
     AV *args;
     SV *retval;
     bool reset;
+    char abi;
 } Call;
 
 typedef struct {
@@ -225,6 +236,12 @@ void export_function__(HV *_export, const char *what, const char *_tag) {
 void export_function(const char *package, const char *what, const char *tag) {
     dTHX;
     export_function__(get_hv(form("%s::EXPORT_TAGS", package), GV_ADD), what, tag);
+}
+
+void export_constant_char(const char *package, const char *name, const char *_tag, char val) {
+    dTHX;
+    register_constant(package, name, newSVpv(&val, 1));
+    export_function(package, name, _tag);
 }
 
 void export_constant(const char *package, const char *name, const char *_tag, double val) {
@@ -302,6 +319,37 @@ bool is_valid_class_name(SV *sv) { // Stolen from Type::Tiny::XS::Util
     }
     else { RETVAL = SvNIOKp(sv) ? TRUE : FALSE; }
     return RETVAL;
+}
+
+char *_mangle(pTHX_ const char *abi, SV *lib, const char *symbol, SV *args) {
+    char *retval;
+    {
+        dSP;
+        int count;
+        SV *err_tmp;
+        ENTER;
+        SAVETMPS;
+        PUSHMARK(SP);
+        XPUSHs(lib);
+        mXPUSHp(symbol, strlen(symbol));
+        XPUSHs(args);
+        PUTBACK;
+        count = call_pv(form("Affix::%s_mangle", abi), G_SCALAR | G_EVAL | G_KEEPERR);
+        SPAGAIN;
+        err_tmp = ERRSV;
+        if (SvTRUE(err_tmp)) {
+            croak("Malformed call to %s_mangle( ... )\n", abi, SvPV_nolen(err_tmp));
+            POPs;
+        }
+        else if (count != 1) { croak("Failed to mangle %s symbol named %s", abi, abi); }
+        else {
+            retval = POPp;
+            // SvSetMagicSV(type, retval);
+        }
+        // FREETMPS;
+        LEAVE;
+    }
+    return retval;
 }
 
 // Lazy load actual type from typemap and InstanceOf[]
@@ -1389,7 +1437,7 @@ XS_INTERNAL(Types) {
                 croak("Given type for return value is not a subclass of "
                       "Affix::Type::Base");
             char *signature;
-            Newxz(signature, field_count + 1, char);
+            Newxz(signature, field_count + 2, char);
             for (int i = 0; i < field_count; i++) {
                 SV **type_ref = av_fetch(fields, i, 0);
                 char *str = SvPVbytex_nolen(*type_ref);
@@ -1571,7 +1619,7 @@ XS_INTERNAL(Affix_call) {
         SV *type;
         for (size_t pos_arg = 0, pos_csig = 0, pos_psig = 0; pos_arg < items;
              ++pos_arg, ++pos_csig, ++pos_psig) {
-            type = *av_fetch(call->args, pos_arg, 0); // Make broad assexumptions
+            type = *av_fetch(call->args, pos_psig, 0); // Make broad assexumptions
             _type = call->sig[pos_csig];
             switch (_type) {
             case DC_SIGCHAR_VOID:
@@ -1640,6 +1688,8 @@ XS_INTERNAL(Affix_call) {
                 dcArgDouble(MY_CXT.cvm, (double)SvNV(ST(pos_arg)));
                 break;
             case DC_SIGCHAR_POINTER: {
+                //~ warn("DC_SIGCHAR_POINTER [%d,%d,%d]", pos_arg, pos_csig, pos_psig);
+                //~ sv_dump(type);
                 SV **subtype_ptr = hv_fetchs(MUTABLE_HV(SvRV(type)), "type", 0);
                 if (SvOK(ST(pos_arg))) {
                     if (sv_derived_from(ST(pos_arg), "Affix::Pointer")) {
@@ -1765,6 +1815,8 @@ XS_INTERNAL(Affix_call) {
                                                                 : *SvPV_nolen(ST(pos_arg))));
                 break;
             case DC_SIGCHAR_CC_PREFIX: {
+                //~ warn("DC_SIGCHAR_CC_PREFIX [%d,%d,%d] (%s/%s)", pos_arg, pos_csig, pos_psig,
+                //~ call->sig, call->perl_sig);
                 --pos_arg;
                 DCsigchar _mode = call->sig[++pos_csig];
                 DCint mode = dcGetModeFromCCSigChar(_mode);
@@ -1784,8 +1836,8 @@ XS_INTERNAL(Affix_call) {
             }
         }
     }
-    SV *RETVAL;
     {
+        SV *RETVAL;
         switch (call->ret) {
         case DC_SIGCHAR_VOID:
             RETVAL = newSV(0);
@@ -1832,11 +1884,9 @@ XS_INTERNAL(Affix_call) {
             RETVAL = newSVnv((double)dcCallDouble(MY_CXT.cvm, call->fptr));
             break;
         case DC_SIGCHAR_POINTER: {
-            SV *RETVALSV;
-            RETVALSV = newSV(1);
+            RETVAL = newSV(1);
             DCpointer ptr = dcCallPointer(MY_CXT.cvm, call->fptr);
-            sv_setref_pv(RETVALSV, "Affix::Pointer", ptr);
-            RETVAL = RETVALSV;
+            sv_setref_pv(RETVAL, "Affix::Pointer", ptr);
         } break;
         case DC_SIGCHAR_STRING:
             RETVAL = newSVpv((char *)dcCallPointer(MY_CXT.cvm, call->fptr), 0);
@@ -1951,8 +2001,7 @@ XS_INTERNAL(Affix_call) {
             }
         }
         if (call->ret == DC_SIGCHAR_VOID) XSRETURN_EMPTY;
-        RETVAL = sv_2mortal(RETVAL);
-        ST(0) = RETVAL;
+        ST(0) = sv_2mortal(RETVAL);
         XSRETURN(1);
     }
 }
@@ -2057,7 +2106,8 @@ BOOT:
 #endif
 {
     MY_CXT_INIT;
-    MY_CXT.cvm = dcNewCallVM(4096);
+    SV *vmsize = get_sv("Affix::VMSize", 0);
+    MY_CXT.cvm = dcNewCallVM(vmsize == NULL ? 4096 : SvIV(vmsize));
 }
 {
     (void)newXSproto_portable("Affix::Type", Types_type, file, "$");
@@ -2139,6 +2189,28 @@ BOOT:
     export_function("Affix", "AUTOLOAD", "default");
 }
 // clang-format off
+
+AV*
+_list_symbols(DLLib * lib)
+CODE:
+// clang-format on
+{
+    RETVAL = newAV();
+    char *name;
+    Newxz(name, 1024, char);
+    int len = dlGetLibraryPath(lib, name, 1024);
+    if (len == 0) croak("Failed to get library name");
+    DLSyms *syms = dlSymsInit(name);
+    int count = dlSymsCount(syms);
+    for (int i = 0; i < count; ++i) {
+        av_push(RETVAL, newSVpv(dlSymsName(syms, i), 0));
+    }
+    dlSymsCleanup(syms);
+    safefree(name);
+    }
+    // clang-format off
+OUTPUT:
+    RETVAL
 
 DLLib *
 load_lib(const char * lib_name)
@@ -2325,6 +2397,7 @@ CODE:
         }
     }
     Newx(call, 1, Call);
+    call->abi = mangle;
 
     const char *symbol_, *func_name;
     if (SvROK(symbol) && SvTYPE(SvRV(symbol)) == SVt_PVAV) {
@@ -2339,19 +2412,27 @@ CODE:
     }
     else { symbol_ = func_name = SvPV_nolen(symbol); }
 
-    switch (mangle) {
-    case MANGLE_C:
-        break;
-    case MANGLE_CPP:
-        break;
-    case MANGLE_RUST:
-        break;
-    case MANGLE_SWIFT:
-        break;
-    case MANGLE_D:
-        break;
-    default:
-        break;
+    {
+        SV *LIBSV;
+        LIBSV = sv_newmortal();
+        sv_setref_pv(LIBSV, "Affix::DLLib", (void *)lib);
+
+        switch (mangle) {
+        case MANGLE_C:
+            break;
+        case MANGLE_ITANIUM:
+            symbol_ = _mangle(aTHX_ "Itanium", LIBSV, symbol_, ST(2));
+            break;
+        case MANGLE_RUST:
+            symbol_ = _mangle(aTHX_ "Rust_legacy", LIBSV, symbol_, ST(2));
+            break;
+        case MANGLE_SWIFT:
+            break;
+        case MANGLE_D:
+            break;
+        default:
+            break;
+        }
     }
 
     call->fptr = dlFindSymbol(lib, symbol_);
@@ -2448,7 +2529,7 @@ OUTPUT:
     RETVAL
 
 void
-typedef(char * name, SV * type)
+typedef(char * name, IN_OUTLIST SV * type)
 CODE:
 // clang-format on
 {
@@ -2463,7 +2544,7 @@ CODE:
             SV **values_ref = hv_fetch(href, "values", 6, 0);
             AV *values = MUTABLE_AV(SvRV(*values_ref));
             HV *_stash = gv_stashpv(name, TRUE);
-            for (int i = 0; i < av_count(values); i++) {
+            for (int i = 0; i < av_count(values); ++i) {
                 SV **value = av_fetch(MUTABLE_AV(values), i, 0);
                 register_constant(name, SvPV_nolen(*value), *value);
             }
@@ -2477,6 +2558,8 @@ CODE:
         croak("Expected a subclass of Affix::Type::Base");
 }
 // clang-format off
+OUTPUT:
+    type
 
 void
 CLONE(...)
@@ -2533,6 +2616,14 @@ BOOT :
                     0
 #endif
     );
+
+    export_constant_char("Affix", "C", "abi", MANGLE_C);
+    export_constant_char("Affix", "ITANIUM", "abi", MANGLE_ITANIUM);
+    export_constant_char("Affix", "GCC", "abi", MANGLE_GCC);
+    export_constant_char("Affix", "MSVC", "abi", MANGLE_MSVC);
+    export_constant_char("Affix", "RUST", "abi", MANGLE_RUST);
+    export_constant_char("Affix", "SWIFT", "abi", MANGLE_SWIFT);
+    export_constant_char("Affix", "D", "abi", MANGLE_D);
 }
 // clang-format off
 

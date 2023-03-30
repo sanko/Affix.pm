@@ -28,5 +28,5 @@ select = **/*.{pl,pm,pod}
 ;select = **/*.{pl,pl.in,pm,pod}
 
 [ClangFormat]
-select = **/*.{cpp,h,c,xs,xsh}
+select = **/*.{cpp,cxx,h,c,xs,xsh}
 ignore = **/ppport.h
