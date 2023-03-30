@@ -25,11 +25,7 @@ use Config;
 #
 my $libver;
 my $CFLAGS = $Config{osname} eq 'MSWin32' ? '' :
-
-    #' -O2 -fno-omit-frame-pointer '; # 4338/s
-    #' -O2 -fno-align-functions -fno-align-loops '; # 4251/s
-   # ' -DNDEBUG -DBOOST_DISABLE_ASSERTS -O2 -ffast-math -funroll-loops -fno-align-functions -fno-align-loops ';
-        ' -DNDEBUG -DBOOST_DISABLE_ASSERTS -O2 -ffast-math -fno-align-functions -fno-align-loops -fno-omit-frame-pointer ';
+    ' -DNDEBUG -DBOOST_DISABLE_ASSERTS -O2 -ffast-math -fno-align-functions -fno-align-loops -fno-omit-frame-pointer ';
 my $LDFLAGS = ' ';    # https://wiki.freebsd.org/LinkTimeOptimization
 #
 sub write_file {

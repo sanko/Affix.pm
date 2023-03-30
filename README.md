@@ -815,6 +815,44 @@ When used in ["Signatures" in signatures](https://metacpan.org/pod/signatures#Si
 argument stack to be reset. The exception is `CC_ELLIPSIS_VARARGS` which is
 used prior to binding varargs of variadic functions.
 
+# ABI Hints
+
+Advanced languages may [mangle the names of exported
+symbols](https://en.wikipedia.org/wiki/Name_mangling) according to their ABIs.
+Affix can handle wrap the correct symbol when provided with a language/platform
+hint.
+
+Currently supported ABIs include:
+
+- `ITANIUM` - basic C++ mangling (https://itanium-cxx-abi.github.io/cxx-abi/abi.html#mangling)
+- `RUST` - legacy rust mangling (current stable)
+
+These may be imported by name or with the `:abi` tag and this list will grow
+as this project matures.
+
+# Platform Support
+
+Not all features of dyncall are supported on all platforms, for those, the
+underlying library defines macros you can use to detect support. These values
+are exposed under the `Affix::Feature` package:
+
+- `Affix::Feature::Syscall()`
+
+    If true, your platform supports a syscall calling conventions.
+
+- `Affix::Feature::AggrByVal()`
+
+    If true, your platform supports passing around aggregates (struct, union) by
+    value.
+
+# Stack Size
+
+You may control the max size of the internal stack that will be allocated and
+used to bind the arguments to by setting the `$Affix::VMSize` variable before
+binding your first symbol.
+
+This value is `4096` by default.
+
 # Examples
 
 The best example of use might be [LibUI](https://metacpan.org/pod/LibUI). Brief examples will be found in
@@ -860,36 +898,6 @@ declaration is straightforward:
 ```
 TODO
 ```
-
-# Features
-
-Not all features of dyncall are supported on all platforms, for those, the
-underlying library defines macros you can use to detect support. These values
-are exposed under the `Affix::Feature` package:
-
-- `Affix::Feature::Syscall()`
-
-    If true, your platform supports a syscall calling conventions.
-
-- `Affix::Feature::AggrByVal()`
-
-    If true, your platform supports passing around aggregates (struct, union) by
-    value.
-
-# ABI Hints
-
-Advanced languages may [mangle the names of exported
-symbols](https://en.wikipedia.org/wiki/Name_mangling) according to their ABIs.
-Affix can handle wrap the correct symbol when provided with a language/platform
-hint.
-
-Currently supported ABIs include:
-
-- `ITANIUM` - basic C++ mangling
-- `RUST` - legacy rust mangling (current stable)
-
-These may be imported by name or with the `:abi` tag and this list will grow
-as this project matures.
 
 # See Also
 

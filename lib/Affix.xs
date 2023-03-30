@@ -65,6 +65,12 @@ extern "C" {
 #define DC_SIGCHAR_WIDE_STRING 'z' // 'Z' but wchar_t
 #define DC_SIGCHAR_WIDE_CHAR 'w'   // 'c' but wchar_t
 
+// TODO
+#define DC_SIGCHAR_CLASS 't'        // C++ class
+#define DC_SIGCHAR_CLASS_METHOD 'm' // C++ class method
+#define DC_SIGCHAR_OPAQUE '?'       // unknown padding in struct/class
+#define DC_SIGCHAR_ELLIPSIS 'e'     // variadic function
+
 #define MANGLE_C 'c'
 #define MANGLE_ITANIUM 'I' // https://itanium-cxx-abi.github.io/cxx-abi/abi.html#mangling
 #define MANGLE_GCC MANGLE_ITANIUM
@@ -1877,11 +1883,9 @@ XS_INTERNAL(Affix_call) {
             RETVAL = newSVnv((double)dcCallDouble(MY_CXT.cvm, call->fptr));
             break;
         case DC_SIGCHAR_POINTER: {
-            SV *RETVALSV;
-            RETVALSV = newSV(1);
+            RETVAL = newSV(1);
             DCpointer ptr = dcCallPointer(MY_CXT.cvm, call->fptr);
-            sv_setref_pv(RETVALSV, "Affix::Pointer", ptr);
-            RETVAL = RETVALSV;
+            sv_setref_pv(RETVAL, "Affix::Pointer", ptr);
         } break;
         case DC_SIGCHAR_STRING:
             RETVAL = newSVpv((char *)dcCallPointer(MY_CXT.cvm, call->fptr), 0);
@@ -1996,8 +2000,7 @@ XS_INTERNAL(Affix_call) {
             }
         }
         if (call->ret == DC_SIGCHAR_VOID) XSRETURN_EMPTY;
-        RETVAL = sv_2mortal(RETVAL);
-        ST(0) = RETVAL;
+        ST(0) = sv_2mortal(RETVAL);
         XSRETURN(1);
     }
 }
@@ -2539,7 +2542,7 @@ CODE:
             SV **values_ref = hv_fetch(href, "values", 6, 0);
             AV *values = MUTABLE_AV(SvRV(*values_ref));
             HV *_stash = gv_stashpv(name, TRUE);
-            for (int i = 0; i < av_count(values); i++) {
+            for (int i = 0; i < av_count(values); ++i) {
                 SV **value = av_fetch(MUTABLE_AV(values), i, 0);
                 register_constant(name, SvPV_nolen(*value), *value);
             }

@@ -1131,6 +1131,53 @@ When used in L<signatures/Signatures>, most of these cause the internal
 argument stack to be reset. The exception is C<CC_ELLIPSIS_VARARGS> which is
 used prior to binding varargs of variadic functions.
 
+=head1 ABI Hints
+
+Advanced languages may L<mangle the names of exported
+symbols|https://en.wikipedia.org/wiki/Name_mangling> according to their ABIs.
+Affix can handle wrap the correct symbol when provided with a language/platform
+hint.
+
+Currently supported ABIs include:
+
+=over
+
+=item C<ITANIUM> - basic C++ mangling (https://itanium-cxx-abi.github.io/cxx-abi/abi.html#mangling)
+
+=item C<RUST> - legacy rust mangling (current stable)
+
+=back
+
+These may be imported by name or with the C<:abi> tag and this list will grow
+as this project matures.
+
+=head1 Platform Support
+
+Not all features of dyncall are supported on all platforms, for those, the
+underlying library defines macros you can use to detect support. These values
+are exposed under the C<Affix::Feature> package:
+
+=over
+
+=item C<Affix::Feature::Syscall()>
+
+If true, your platform supports a syscall calling conventions.
+
+=item C<Affix::Feature::AggrByVal()>
+
+If true, your platform supports passing around aggregates (struct, union) by
+value.
+
+=back
+
+=head1 Stack Size
+
+You may control the max size of the internal stack that will be allocated and
+used to bind the arguments to by setting the C<$Affix::VMSize> variable before
+binding your first symbol.
+
+This value is C<4096> by default.
+
 =head1 Examples
 
 The best example of use might be L<LibUI>. Brief examples will be found in
@@ -1170,45 +1217,6 @@ which means we will need to write our own type class. However, the function
 declaration is straightforward:
 
     TODO
-
-=head1 Features
-
-Not all features of dyncall are supported on all platforms, for those, the
-underlying library defines macros you can use to detect support. These values
-are exposed under the C<Affix::Feature> package:
-
-=over
-
-=item C<Affix::Feature::Syscall()>
-
-If true, your platform supports a syscall calling conventions.
-
-=item C<Affix::Feature::AggrByVal()>
-
-If true, your platform supports passing around aggregates (struct, union) by
-value.
-
-=back
-
-=head1 ABI Hints
-
-Advanced languages may L<mangle the names of exported
-symbols|https://en.wikipedia.org/wiki/Name_mangling> according to their ABIs.
-Affix can handle wrap the correct symbol when provided with a language/platform
-hint.
-
-Currently supported ABIs include:
-
-=over
-
-=item C<ITANIUM> - basic C++ mangling
-
-=item C<RUST> - legacy rust mangling (current stable)
-
-=back
-
-These may be imported by name or with the C<:abi> tag and this list will grow
-as this project matures.
 
 =head1 See Also
 
