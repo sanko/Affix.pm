@@ -288,6 +288,7 @@ package Affix 0.12 {    # 'FFI' is my middle name!
         # https://gcc.gnu.org/git?p=gcc.git;a=blob_plain;f=gcc/cp/mangle.cc;hb=HEAD
         my @cache;
         my $vp = 0;    # void *
+        my %symbol_cache;
 
         sub _mangle_name ($$) {
             my ( $func, $name ) = @_;
@@ -342,14 +343,13 @@ package Affix 0.12 {    # 'FFI' is my middle name!
         # legacy
         sub Rust_legacy_mangle {
             my ( $lib, $name, $affix ) = @_;
-            CORE::state $symbol_cache //= ();
-            $symbol_cache->{$lib} //= Affix::_list_symbols($lib);
+            $symbol_cache{$lib} //= Affix::_list_symbols($lib);
             @cache = ();
             $vp    = 0;
-            return $name if grep { $name eq $_ } grep { defined $_ } @{ $symbol_cache->{$lib} };
+            return $name if grep { $name eq $_ } grep { defined $_ } @{ $symbol_cache{$lib} };
             my $ret = qr'^_ZN(?:\d+\w+?)?' . sprintf $name =~ '::' ? '%sE' : '%s17h\w{16}E$',
                 join( '', ( map { length($_) . $_ } split '::', $name ) );
-            my @symbols = grep { $_ =~ $ret } grep { defined $_ } @{ $symbol_cache->{$lib} };
+            my @symbols = grep { $_ =~ $ret } grep { defined $_ } @{ $symbol_cache{$lib} };
             return shift @symbols;
         }
     }

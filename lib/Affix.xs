@@ -69,7 +69,6 @@ extern "C" {
 #define DC_SIGCHAR_CLASS 't'        // C++ class
 #define DC_SIGCHAR_CLASS_METHOD 'm' // C++ class method
 #define DC_SIGCHAR_OPAQUE '?'       // unknown padding in struct/class
-#define DC_SIGCHAR_ELLIPSIS 'e'     // variadic function
 
 #define MANGLE_C 'c'
 #define MANGLE_ITANIUM 'I' // https://itanium-cxx-abi.github.io/cxx-abi/abi.html#mangling
@@ -101,6 +100,13 @@ extern "C" {
 #define DC_SIGCHAR_SIZE_T DC_SIGCHAR_ULONGLONG
 #endif
 
+/* Useful but undefined in perlapi */
+#define FLOATSIZE sizeof(float)
+#define BOOLSIZE sizeof(bool)      // ha!
+#define XDOUBLESIZE sizeof(double) // ugh...
+#define XPTRSIZE sizeof(intptr_t)  // ugh...
+#define WCHAR_T_SIZE sizeof(wchar_t)
+
 /* portability stuff not supported by ppport.h yet */
 
 #ifndef STATIC_INLINE /* from 5.13.4 */
@@ -111,32 +117,32 @@ extern "C" {
 #endif
 #endif /* STATIC_INLINE */
 
-#ifndef newSVpvs_share
-#define newSVpvs_share(s) Perl_newSVpvn_share(aTHX_ STR_WITH_LEN(s), 0U)
-#endif
+//~ #ifndef newSVpvs_share
+//~ #define newSVpvs_share(s) Perl_newSVpvn_share(aTHX_ STR_WITH_LEN(s), 0U)
+//~ #endif
 
-#ifndef get_cvs
-#define get_cvs(name, flags) get_cv(name, flags)
-#endif
+//~ #ifndef get_cvs
+//~ #define get_cvs(name, flags) get_cv(name, flags)
+//~ #endif
 
-#ifndef GvNAME_get
-#define GvNAME_get GvNAME
-#endif
-#ifndef GvNAMELEN_get
-#define GvNAMELEN_get GvNAMELEN
-#endif
+//~ #ifndef GvNAME_get
+//~ #define GvNAME_get GvNAME
+//~ #endif
+//~ #ifndef GvNAMELEN_get
+//~ #define GvNAMELEN_get GvNAMELEN
+//~ #endif
 
-#ifndef CvGV_set
-#define CvGV_set(cv, gv) (CvGV(cv) = (gv))
-#endif
+//~ #ifndef CvGV_set
+//~ #define CvGV_set(cv, gv) (CvGV(cv) = (gv))
+//~ #endif
 
-/* general utility */
+//~ /* general utility */
 
-#if PERL_BCDVERSION >= 0x5008005
-#define LooksLikeNumber(x) looks_like_number(x)
-#else
-#define LooksLikeNumber(x) (SvPOKp(x) ? looks_like_number(x) : (I32)SvNIOKp(x))
-#endif
+//~ #if PERL_BCDVERSION >= 0x5008005
+//~ #define LooksLikeNumber(x) looks_like_number(x)
+//~ #else
+//~ #define LooksLikeNumber(x) (SvPOKp(x) ? looks_like_number(x) : (I32)SvNIOKp(x))
+//~ #endif
 
 // added in perl 5.35.7?
 #ifndef sv_setbool_mg
@@ -145,15 +151,8 @@ extern "C" {
 
 #define newAV_mortal() (AV *)sv_2mortal((SV *)newAV())
 #define newHV_mortal() (HV *)sv_2mortal((SV *)newHV())
-#define newRV_inc_mortal(sv) sv_2mortal(newRV_inc(sv))
-#define newRV_noinc_mortal(sv) sv_2mortal(newRV_noinc(sv))
-
-/* Useful but undefined in perlapi */
-#define FLOATSIZE sizeof(float)
-#define BOOLSIZE sizeof(bool)      // ha!
-#define XDOUBLESIZE sizeof(double) // ugh...
-#define XPTRSIZE sizeof(intptr_t)  // ugh...
-#define WCHAR_T_SIZE sizeof(wchar_t)
+//~ #define newRV_inc_mortal(sv) sv_2mortal(newRV_inc(sv))
+//~ #define newRV_noinc_mortal(sv) sv_2mortal(newRV_noinc(sv))
 
 const char *file = __FILE__;
 
@@ -220,8 +219,10 @@ void register_constant(const char *package, const char *name, SV *value) {
     newCONSTSUB(_stash, (char *)name, value);
 }
 
-void export_function__(HV *_export, const char *what, const char *_tag) {
-    dTHX;
+#define export_function(package, what, tag)                                                        \
+    _export_function(aTHX_ get_hv(form("%s::EXPORT_TAGS", package), GV_ADD), what, tag)
+
+void _export_function(pTHX_ HV *_export, const char *what, const char *_tag) {
     SV **tag = hv_fetch(_export, _tag, strlen(_tag), TRUE);
     if (tag && SvOK(*tag) && SvROK(*tag) && (SvTYPE(SvRV(*tag))) == SVt_PVAV)
         av_push((AV *)SvRV(*tag), newSVpv(what, 0));
@@ -231,11 +232,6 @@ void export_function__(HV *_export, const char *what, const char *_tag) {
         av_push((AV *)av, newSVpv(what, 0));
         tag = hv_store(_export, _tag, strlen(_tag), newRV_noinc(av), 0);
     }
-}
-
-void export_function(const char *package, const char *what, const char *tag) {
-    dTHX;
-    export_function__(get_hv(form("%s::EXPORT_TAGS", package), GV_ADD), what, tag);
 }
 
 void export_constant_char(const char *package, const char *name, const char *_tag, char val) {
@@ -250,9 +246,7 @@ void export_constant(const char *package, const char *name, const char *_tag, do
     export_function(package, name, _tag);
 }
 
-#define DumpHex(addr, len)                                                                         \
-    ;                                                                                              \
-    _DumpHex(aTHX_ addr, len, __FILE__, __LINE__)
+#define DumpHex(addr, len) _DumpHex(aTHX_ addr, len, __FILE__, __LINE__)
 
 void _DumpHex(pTHX_ const void *addr, size_t len, const char *file, int line) {
     fflush(stdout);
@@ -1284,6 +1278,7 @@ XS_INTERNAL(Types) {
     dXSI32;
     dMY_CXT;
     char *package = (char *)SvPV_nolen(ST(0));
+    //~ warn("package: %s", package);
     HV *RETVAL_HV = newHV();
     switch (ix) {
     case DC_SIGCHAR_ENUM:
@@ -1464,6 +1459,7 @@ XS_INTERNAL(Types) {
             hv_stores(RETVAL_HV, "signature", newSVpv(signature, field_count + 2));
         }
     } break;
+    case DC_SIGCHAR_CLASS:
     case DC_SIGCHAR_STRUCT:
     case DC_SIGCHAR_UNION: {
         if (items == 2) {
@@ -1483,7 +1479,7 @@ XS_INTERNAL(Types) {
                     croak("Given type for '%s' is not a subclass of Affix::Type::Base",
                           SvPV_nolen(key));
                 size_t __sizeof = _sizeof(aTHX_ type);
-                if (ix == DC_SIGCHAR_STRUCT) {
+                if (ix == DC_SIGCHAR_STRUCT || ix == DC_SIGCHAR_CLASS) {
                     size += packed ? 0
                                    : padding_needed_for(size, AFFIX_ALIGNBYTES > __sizeof
                                                                   ? __sizeof
@@ -1506,7 +1502,7 @@ XS_INTERNAL(Types) {
                 av_push(fields, newRV(sv_field));
             }
 
-            if (ix == DC_SIGCHAR_STRUCT) {
+            if (ix == DC_SIGCHAR_STRUCT || ix == DC_SIGCHAR_CLASS) {
                 if (!packed && size > AFFIX_ALIGNBYTES * 2)
                     size += padding_needed_for(size, AFFIX_ALIGNBYTES);
             }
@@ -1514,8 +1510,10 @@ XS_INTERNAL(Types) {
             hv_stores(RETVAL_HV, "fields", newRV(MUTABLE_SV(fields)));
         }
         else
-            croak("%s[...] expected an even a list of elements",
-                  ix == DC_SIGCHAR_STRUCT ? "Struct" : "Union");
+            croak("%s[...] expected an even a list of elements", ix == DC_SIGCHAR_STRUCT ? "Struct"
+                                                                 : ix == DC_SIGCHAR_CLASS
+                                                                     ? "Class"
+                                                                     : "Union");
     } break;
     case DC_SIGCHAR_POINTER: {
         AV *fields = MUTABLE_AV(SvRV(ST(1)));
@@ -1539,12 +1537,35 @@ XS_INTERNAL(Types) {
         else
             croak("%s is not a known type", SvPVbytex_nolen(*package_ptr));
     } break;
-    case DC_SIGCHAR_ANY: {
+    case DC_SIGCHAR_VOID:
+    case DC_SIGCHAR_BOOL:
+    case DC_SIGCHAR_CHAR:
+    case DC_SIGCHAR_UCHAR:
+    case DC_SIGCHAR_SHORT:
+    case DC_SIGCHAR_USHORT:
+    case DC_SIGCHAR_INT:
+    case DC_SIGCHAR_UINT:
+    case DC_SIGCHAR_LONG:
+    case DC_SIGCHAR_ULONG:
+    case DC_SIGCHAR_LONGLONG:
+    case DC_SIGCHAR_ULONGLONG:
+    case DC_SIGCHAR_DOUBLE:
+    case DC_SIGCHAR_FLOAT:
+    case DC_SIGCHAR_STRING:
+    case DC_SIGCHAR_ANY:
+    case DC_SIGCHAR_WIDE_CHAR: {
         break;
     } break;
+
+    //~ case DC_SIGCHAR_CC_ELLIPSIS:
+    case DC_SIGCHAR_CC_ELLIPSIS_VARARGS:
+        //~ case DC_SIGCHAR_CC_THISCALL:
+        { break; }
+        break;
     default:
         if (items > 1)
             croak("Too many arguments for subroutine '%s' (got %d; expected 0)", package, items);
+        // croak("Unknown type: %c (%s)", ix, package);
         break;
     }
 
@@ -2180,6 +2201,10 @@ BOOT:
     TYPE(CC_ARM_ARM, DC_SIGCHAR_CC_PREFIX, DC_SIGCHAR_CC_ARM_ARM);
     TYPE(CC_ARM_THUMB, DC_SIGCHAR_CC_PREFIX, DC_SIGCHAR_CC_ARM_THUMB);
     TYPE(CC_SYSCALL, DC_SIGCHAR_CC_PREFIX, DC_SIGCHAR_CC_SYSCALL);
+
+    //
+    TYPE(Class, DC_SIGCHAR_CLASS, DC_SIGCHAR_STRUCT);
+    TYPE(Method, DC_SIGCHAR_CLASS_METHOD, DC_SIGCHAR_CODE);
 
     // Enum[]?
     export_function("Affix", "typedef", "types");
