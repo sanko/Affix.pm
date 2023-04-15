@@ -317,26 +317,19 @@ sub alien {
     }
 }
 
-sub process_xs {
+sub process_cxx {
     my ( $source, %opt ) = @_;
     die "Can't build xs files under --pureperl-only\n" if $opt{'pureperl-only'};
     my $DEBUG = 0;
     warn $@ if $@;
     my ( undef, @parts ) = splitdir( dirname($source) );
-    push @parts, my $file_base = basename( $source, '.xs' );
+    push @parts, my $file_base = basename( $source, '.cxx' );
     my $archdir = catdir( qw/blib arch auto/, @parts );
-    my $tempdir = 'temp';
+    my $tempdir = 'lib';
     my $c_file  = catfile( $tempdir, "$file_base.cxx" );
+    warn $c_file;
     require ExtUtils::ParseXS;
     mkpath( $tempdir, $opt{verbose}, oct '755' );
-    ExtUtils::ParseXS::process_file(
-        prototypes  => 1,
-        linenumbers => 1,
-        'C++'       => 1,
-        filename    => $source,
-        prototypes  => 1,
-        output      => $c_file
-    );
     my $version = $opt{meta}->version;
     require ExtUtils::CBuilder;
     my $builder = ExtUtils::CBuilder->new( config => ( $opt{config}->values_set ) );
@@ -400,7 +393,7 @@ my %actions = (
         make_executable($_) for values %scripts;
         mkpath( catdir(qw/blib arch/), $opt{verbose} );
         alien(%opt);
-        process_xs( $_, %opt ) for find( qr/.xs$/, 'lib' );
+        process_cxx( $_, %opt ) for find( qr/.cxx$/, 'lib' );
         if ( $opt{install_paths}->install_destination('bindoc') &&
             $opt{install_paths}->is_default_installable('bindoc') ) {
             manify(
