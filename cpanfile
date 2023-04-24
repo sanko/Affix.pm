@@ -3,7 +3,6 @@ requires 'File::Spec';
 requires 'Config';
 requires 'XSLoader';
 requires 'Sub::Util';
-requires 'Text::ParseWords';
 requires 'Attribute::Handlers';
 #
 on 'test' => sub {

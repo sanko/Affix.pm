@@ -3,31 +3,33 @@ package Affix 0.12 {    # 'FFI' is my middle name!
     use warnings;
     no warnings 'redefine';
     use File::Spec::Functions qw[rel2abs canonpath curdir path];
-    use File::Basename        qw[dirname];
+    use File::Basename        qw[basename dirname];
     use File::Find            qw[find];
     use Config;
     use Sub::Util qw[subname];
-    use Text::ParseWords;
-    use Carp qw[];
-    use vars qw[@EXPORT_OK @EXPORT %EXPORT_TAGS];
+    use Carp      qw[];
+    use vars      qw[@EXPORT_OK @EXPORT %EXPORT_TAGS];
     use XSLoader;
 
-    #~ our $VMSize = 2; # defaults to 4096; passed to dcNewCallVM( ... )
+    #~ our $VMSize = 1024; # defaults to 8192; passed to dcNewCallVM( ... )
     my $ok = XSLoader::load();
-    END { _shutdown() if $ok; }
     #
     use parent 'Exporter';
-    @EXPORT_OK          = sort map { @$_ = sort @$_; @$_ } values %EXPORT_TAGS;
-    $EXPORT_TAGS{'all'} = \@EXPORT_OK;    # When you want to import everything
+    $EXPORT_TAGS{sugar} = [qw[MODIFY_CODE_ATTRIBUTES AUTOLOAD]];
 
+    #~ @EXPORT_OK          = sort map { @$_ = sort @$_; @$_ } values %EXPORT_TAGS;
+    #~ $EXPORT_TAGS{'all'} = \@EXPORT_OK;    # When you want to import everything
     #@{ $EXPORT_TAGS{'enum'} }             # Merge these under a single tag
     #    = sort map { defined $EXPORT_TAGS{$_} ? @{ $EXPORT_TAGS{$_} } : () }
     #    qw[types?]
     #    if 1 < scalar keys %EXPORT_TAGS;
-    @EXPORT    # Export these tags (if prepended w/ ':') or functions by default
-        = sort map { m[^:(.+)] ? @{ $EXPORT_TAGS{$1} } : $_ } qw[:default :types]
-        if keys %EXPORT_TAGS > 1;
-    @{ $EXPORT_TAGS{all} } = our @EXPORT_OK = map { @{ $EXPORT_TAGS{$_} } } keys %EXPORT_TAGS;
+    #~ use Data::Dump;
+    @EXPORT = @{ $EXPORT_TAGS{types} };    #, @{ $EXPORT_TAGS{default} // () };
+    @{ $EXPORT_TAGS{all} } = @EXPORT_OK = map { @{ $EXPORT_TAGS{$_} } } keys %EXPORT_TAGS;
+
+    #~ ddx \@EXPORT_OK;
+    #~ ddx \@EXPORT;
+    #~ ddx \%EXPORT_TAGS;
     #
     my %_delay;
 
@@ -89,13 +91,12 @@ package Affix 0.12 {    # 'FFI' is my middle name!
         #ddx \@_;
         my ( $library, $library_version, $signature, $return, $symbol, $full_name );
         for my $attribute (@attributes) {
-            if ( $attribute =~ m[^Native(?:\(\s*(.+)\s*\)\s*)?$] ) {
-                ( $library, $library_version ) = Text::ParseWords::parse_line( '\s*,\s*', 1, $1 );
-                $library //= ();
+            if ( $attribute =~ m[^Native\((["'])(.+)\1(?:,\s*(.+))?\)$] ) {
+                $library = $2 // ();
 
                 #warn $library;
                 #warn $library_version;
-                $library_version //= 0;
+                $library_version = $3 // 0;
             }
             elsif ( $attribute =~ m[^Symbol\(\s*(['"])?\s*(.+)\s*\1\s*\)$] ) {
                 $symbol = $2;
@@ -141,7 +142,30 @@ package Affix 0.12 {    # 'FFI' is my middle name!
     our $OS = $^O;
 
     sub locate_lib {
-        my ( $name, $version ) = @_;
+        my ( $library, $version ) = @_;
+        $library // return;
+        return $library                  if -f $library && !defined $version;
+        return "$library." . $Config{so} if -f "$library." . $Config{so};
+        CORE::state $_lib_cache;
+        return $_lib_cache->{$library}{ $version // 0 }
+            if defined $_lib_cache->{$library}{ $version // 0 };
+        my $is_win    = $OS eq 'MSWin32';
+        my $is_darwin = $OS eq 'darwin';
+        my $basename  = basename($library);
+        my $full_path = $library eq $basename;
+        my $dirname   = dirname($library);
+        $basename .= ".$version" if $is_darwin && defined $version;
+        my $prefix        = $is_win ? '' : 'lib';
+        my $platform_name = "$prefix$basename." . $Config{so};
+        $platform_name .= '.' . $version if defined $version && !$is_win && !$is_darwin;
+        $full_path = -f rel2abs($platform_name) ? rel2abs($platform_name) : $platform_name;
+        $_lib_cache->{$library}{ $version // 0 } = $full_path;
+        return $full_path;
+
+=pod
+
+=begin old
+
         CORE::state $_lib_cache;
         ( $name, $version ) = @$name if ref $name eq 'ARRAY';
         {
@@ -172,17 +196,16 @@ package Affix 0.12 {    # 'FFI' is my middle name!
                 else {
                     require Win32;
 
-# https://docs.microsoft.com/en-us/windows/win32/dlls/dynamic-link-library-search-order#search-order-for-desktop-applications
-                    my @dirs = grep {-d} (
-                        dirname( rel2abs($^X) ),                                # 1. exe dir
-                        Win32::GetFolderPath( Win32::CSIDL_SYSTEM() ),          # 2. sys dir
-                        Win32::GetFolderPath( Win32::CSIDL_WINDOWS() ),         # 4. win dir
-                        rel2abs(curdir),                                        # 5. cwd
-                        path(),                                                 # 6. $ENV{PATH}
-                        map { split /[:;]/, ( $ENV{$_} ) } grep { $ENV{$_} }    # X. User defined
-                            qw[LD_LIBRARY_PATH DYLD_LIBRARY_PATH DYLD_FALLBACK_LIBRARY_PATH]
-                    );
-                    my @retval;
+#
+https://docs.microsoft.com/en-us/windows/win32/dlls/dynamic-link-library-search-order#search-order-for-desktop-applications
+                    my @dirs = grep {-d} (                         dirname(
+rel2abs($^X) ),                                # 1. exe dir
+Win32::GetFolderPath( Win32::CSIDL_SYSTEM() ),          # 2. sys dir
+Win32::GetFolderPath( Win32::CSIDL_WINDOWS() ),         # 4. win dir        
+rel2abs(curdir),         # 5. cwd path(),                  # 6. $ENV{PATH}     
+                   map { split /[:;]/, ( $ENV{$_} ) } grep { $ENV{$_} }    # X.
+User defined qw[LD_LIBRARY_PATH DYLD_LIBRARY_PATH DYLD_FALLBACK_LIBRARY_PATH]  
+   );              my @retval;
 
                     #warn $_ for sort { lc $a cmp lc $b } @dirs;
                     find(
@@ -281,6 +304,11 @@ package Affix 0.12 {    # 'FFI' is my middle name!
         }
         return $_lib_cache->{ $name . ';' . ( $version // '' ) }
             // Carp::croak( 'Cannot locate symbol: ' . $name );
+
+=end old
+
+=cut
+
     }
     #
     {
@@ -761,10 +789,10 @@ code and might not be public in the future.
 
 Raku offers a set of native types with a fixed, and known, representation in
 memory but this is Perl so we need to do the work ourselves with a pseudo-type
-system. Affix supports the fundamental types (void, int, etc.), aggregates
-(struct, array, union), and .
+system. Affix supports the fundamental types (void, int, etc.) and aggregates
+(struct, array, union.
 
-=head2 Fundamental Types with Native Representation
+=head2 Fundamental Types
 
     Affix       C99                   Rust    C#          pack()  Raku
     ----------------------------------------------------------------------------
@@ -794,13 +822,13 @@ Given sizes are minimums measured in bits
 The C<Void> type corresponds to the C C<void> type. It is generally found in
 typed pointers representing the equivalent to the C<void *> pointer in C.
 
-    sub malloc :Native :Signature([Size_t] => Pointer[Void]);
+    affix undef, 'malloc', [Size_t] => Pointer[Void];
     my $data = malloc( 32 );
 
-As the example shows, it's represented by a parameterized C<Pointer[ ... ]>
-type, using as parameter whatever the original pointer is pointing to (in this
-case, C<void>). This role represents native pointers, and can be used wherever
-they need to be represented in a Perl script.
+As the example above shows, it's represented by a parameterized C<Pointer[ ...
+]> type, using as parameter whatever the original pointer is pointing to (in
+this case, C<void>). This role represents native pointers, and can be used
+wherever they need to be represented in a Perl script.
 
 In addition, you may place a C<Void> in your signature to skip a passed
 argument.
