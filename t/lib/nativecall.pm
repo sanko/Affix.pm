@@ -18,7 +18,7 @@ package t::lib::nativecall {
     #~ diag $Config{ccname};
     #~ diag $Config{ccsymbols};
     #
-    sub compile_test_lib ( $name, $aggs = '' ) {
+    sub compile_test_lib ( $name, $aggs = '', $keep = 0 ) {
         my $c_file = path( grep { -f $_ } "t/src/$name.cxx", "t/src/$name.c" )->canonpath;
         my $o_file = path( "t/src/$name" . $Config{_o} )->canonpath;
         my $l_file = path( "t/src/$name." . $Config{so} )->canonpath;
@@ -50,7 +50,7 @@ package t::lib::nativecall {
             }
         }
         plan skip_all => 'Failed to build test lib' if !-f $l_file;
-        push @cleanup, $o_file, $l_file;
+        push @cleanup, $o_file, $l_file unless $keep;
         $l_file;
     }
 

@@ -3,6 +3,12 @@ use Test::More 0.98;
 use lib '../lib', 'lib';
 use Affix;
 #
+subtest 'types' => sub {
+    isa_ok $_, 'Affix::Type::Base'
+        for Void, Char, UChar, WChar, Short, UShort, Int, UInt, Long, ULong, LongLong, ULongLong,
+        Size_t, SSize_t, Float, Double, Str, WStr, Pointer [Int], CodeRef [ [] => Str ],
+        Struct [ i => Str, j => Long ], Union [ u => Int, x => Double ];
+};
 subtest 'coderef' => sub {
     my $ptr = Affix::sv2ptr( sub { pass 'coderef called'; return 'Okay' }, CodeRef [ [] => Str ] );
     isa_ok $ptr, 'Affix::Pointer';

@@ -1,7 +1,7 @@
 #include "std.h"
 
 DLLEXPORT int TakeInt(int x) {
-    if (x == 42) return 1;
+    if (x == -42) return 1;
     return 0;
 }
 DLLEXPORT int TakeUInt(unsigned int x) {
@@ -40,6 +40,15 @@ DLLEXPORT int TakeAFloatNaN(float x) {
 
 DLLEXPORT int TakeAString(char *pass_msg) {
     if (0 == strcmp(pass_msg, "ok 6 - passed a string")) return 6;
+    return 0;
+}
+
+static int pass = 0;
+DLLEXPORT int TakeAStringThenNull(int64_t dummy, char *pass_msg) {
+    pass++;
+    if ((pass % 2 == 0) && pass_msg != NULL && 0 == strcmp(pass_msg, "ok 6 - passed a string"))
+        return 6;
+    if ((pass % 2 == 1) && pass_msg == NULL) return 6;
     return 0;
 }
 

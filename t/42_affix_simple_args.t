@@ -7,42 +7,43 @@ use File::Spec;
 use t::lib::nativecall;
 use experimental 'signatures';
 $|++;
+# rakudo/t/04-nativecall/02-simple-args.t
+my $lib = compile_test_lib('42_simple_args');
 #
-compile_test_lib('42_simple_args');
+subtest 'Int' => sub {
+    is wrap( $lib, 'TakeInt',       [Int]  => Int )->(-42), 1, '[Int] => Int';
+    is wrap( $lib, 'TakeUInt',      [UInt] => Int )->(42),  1, '[UInt] => Int';
+    is wrap( $lib, 'TakeTwoShorts', [ Short, Short ] => Long )->( 10, 20 ), 2,
+        '[Short, Short] => Long';
+    is wrap( $lib, 'AssortedIntArgs', [ Long, Short, Char ] => Long )->( 101, 102, chr 103 ), 3,
+        '[Long, Short, Char] => Long';
+};
+subtest 'Float' => sub {
+    is wrap( $lib, 'TakeADouble',    [Double] => Int )->(-6.9e0), 4, '[Double] => Int';
+    is wrap( $lib, 'TakeADoubleNaN', [Double] => Int )->('NaN'),  4, '[Double] => Int (NaN)';
+    is wrap( $lib, 'TakeAFloat',     [Float]  => Int )->(4.2e0),  5, '[Float] => Int';
+    is wrap( $lib, 'TakeAFloatNaN',  [Float]  => Int )->('NaN'),  5, '[Float] => Int (NaN)';
+};
+subtest 'String' => sub {4
+    is wrap( $lib, 'TakeAString', [Str] => Int )->('ok 6 - passed a string'), 6, '[Str] => Int';
+    #
+    affix $lib, 'TakeAStringThenNull', [ Long, Str ] => Int;
 
-# Int related
-sub TakeInt : Native('t/src/42_simple_args') : Signature([Int]=>Int);
-sub TakeUInt : Native('t/src/42_simple_args') : Signature([UInt]=>Int);
-sub TakeTwoShorts : Native('t/src/42_simple_args') : Signature([Short, Short] => Long);
-sub AssortedIntArgs : Native('t/src/42_simple_args') : Signature([Long, Short, Char]=>Long);
-#
-is TakeInt(42),                          1, 'passed int 42';
-is TakeUInt(42),                         1, 'passed int 42';
-is TakeTwoShorts( 10, 20 ),              2, 'passed two shorts';
-is AssortedIntArgs( 101, 102, chr 103 ), 3, 'passed an int32, int16 and int8';
+    # Loop is important to test the dispatcher!
+    is TakeAStringThenNull( 0, $_ ), 6, 'defined/undefined works on the same callsite'
+        for undef, 'ok 6 - passed a string';
+    #
+    affix( $lib, 'SetString',   [Str] => Int );
+    affix( $lib, 'CheckString', []    => Int );
+    subtest 'Explicitly managing strings' => sub {
+        my $str = 'ok 7 - checked previously passed string';
 
-# Float related
-sub TakeADouble : Native('t/src/42_simple_args') : Signature([Double]=>Int);
-sub TakeADoubleNaN : Native('t/src/42_simple_args') : Signature([Double]=>Int);
-sub TakeAFloat : Native('t/src/42_simple_args') : Signature([Float]=>Int);
-sub TakeAFloatNaN : Native('t/src/42_simple_args') : Signature([Float]=>Int);
-is TakeADouble(-6.9e0),   4, 'passed a double';
-is TakeADoubleNaN('NaN'), 4, 'passed a NaN (double)';
-is TakeAFloat(4.2e0),     5, 'passed a float';
-is TakeAFloatNaN('NaN'),  5, 'passed a NaN (float)';
-
-# String related
-sub TakeAString : Native('t/src/42_simple_args') : Signature([Str]=>Int);
-is TakeAString('ok 6 - passed a string'), 6, 'passed a string';
-
-# Explicitly managing strings
-sub SetString : Native('t/src/42_simple_args') : Signature([Str]=>Int);
-sub CheckString : Native('t/src/42_simple_args') : Signature([]=>Int);
-my $str = 'ok 7 - checked previously passed string';
-
-#explicitly-manage($str); # https://docs.raku.org/routine/explicitly-manage
-SetString($str);
-is CheckString(), 7, 'checked previously passed string';
+        # https://docs.raku.org/language/nativecall.html#sub_explicitly-manage
+        SetString($str);
+        is CheckString(), 7, 'checked previously passed string';
+    }
+};
+__END__
 
 # Make sure wrapped subs work
 sub wrapped : Native('t/src/42_simple_args') : Signature([Int]=>Int);
