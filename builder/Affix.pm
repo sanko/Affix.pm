@@ -68,7 +68,7 @@ sub alien {
         if (1) {
             my $make = $opt{config}->get('make');
             my $configure
-                = './configure --prefix=' . $pre->absolute . ' CFLAGS="-fPIC ' .
+                = 'sh ./configure --prefix=' . $pre->absolute . ' CFLAGS="-fPIC ' .
                 ( $opt{config}->get('osname') =~ /bsd/ ? '' : $CFLAGS ) . '" LDFLAGS="' .
                 ( $opt{config}->get('osname') =~ /bsd/ ? '' : $LDFLAGS ) . '"';
             if ( $opt{config}->get('osname') eq 'MSWin32' ) {
@@ -305,7 +305,7 @@ sub alien {
                 my $pre = Path::Tiny->cwd->child( qw[blib arch auto], $opt{meta}->name )->absolute;
                 chdir $kid->absolute->stringify;
                 warn($_) && system($_ )
-                    for './configure --prefix=' .
+                    for 'sh ./configure --prefix=' .
                     $pre->absolute . ' CFLAGS="-Ofast" LDFLAGS="-Ofast" ', 'make', 'make install';
                 chdir $cwd->stringify;
             }
@@ -344,7 +344,7 @@ sub process_cxx {
             [ curdir, dirname($source), $pre->child( $opt{meta}->name, 'include' )->stringify ],
         extra_compiler_flags => (
             '-fPIC ' . ( $opt{config}->get('osname') =~ /bsd/ ? '' : $CFLAGS ) .
-                ( $DEBUG ? ' -ggdb3 ' : '' )
+                ( $DEBUG ? ' -ggdb3 -g -Wall' : '' )
         )
     );
     require DynaLoader;

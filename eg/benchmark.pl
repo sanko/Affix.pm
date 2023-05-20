@@ -221,8 +221,7 @@ my $hand_rolled = DynFFI->obj( DynFFI::func( DynFFI::load($libfile), 'sin' ), 'd
 #
 my $sin_default = wrap( $libfile, 'sin', [Double] => Double );
 affix( $libfile, [ 'sin', '_affix_sin_default' ], [Double] => Double );
-
-#~ Affix::affix_2( $libfile, [ 'sin', '_affix2_sin_default' ], [Double] => Double );
+Affix::affix_2( $libfile, [ 'sin', '_affix2_sin_default' ], [Double] => Double );
 #
 my $ffi = FFI::Platypus->new( api => 1 );
 $ffi->lib($libfile);
@@ -235,8 +234,7 @@ my $sin = sin 500;
     die 'oops' if $hand_rolled->(500) != $sin;
     die 'oops' if $sin_default->(500) != $sin;
     die 'oops' if _affix_sin_default(500) != $sin;
-
-    #~ die 'oops' if _affix2_sin_default(500) != $sin;
+    die 'oops' if _affix2_sin_default(500) != $sin;
     die 'oops' if ffi_sin(500) != $sin;
     die 'oops' if $ffi_func->(500) != $sin;
     die 'oops' if inline_c_sin(500) != $sin;
@@ -245,11 +243,11 @@ my $sin = sin 500;
 my $depth = 1000;
 cmpthese(
     timethese(
-        -30,
-        {   dyn_hand_rolled => sub {
-                my $x = 0;
-                while ( $x < $depth ) { my $n = $hand_rolled->($x); $x++ }
-            },
+        -30, {
+            #~ dyn_hand_rolled => sub {
+            #~ my $x = 0;
+            #~ while ( $x < $depth ) { my $n = $hand_rolled->($x); $x++ }
+            #~ },
             perl => sub {
                 my $x = 0;
                 while ( $x < $depth ) { my $n = sin($x); $x++ }
@@ -258,11 +256,10 @@ cmpthese(
                 my $x = 0;
                 while ( $x < $depth ) { my $n = _affix_sin_default($x); $x++ }
             },
-
-            #~ affix2_sub => sub {
-            #~ my $x = 0;
-            #~ while ( $x < $depth ) { my $n = _affix2_sin_default($x); $x++ }
-            #~ },
+            affix2_sub => sub {
+                my $x = 0;
+                while ( $x < $depth ) { my $n = _affix2_sin_default($x); $x++ }
+            },
             affix_coderef => sub {
                 my $x = 0;
                 while ( $x < $depth ) { my $n = $sin_default->($x); $x++ }

@@ -11,11 +11,15 @@ $|++;
 # https://www.gnu.org/software/libunistring/manual/html_node/The-wchar_005ft-mess.html
 plan skip_all => 'wchar * is broken on *BSD and Solaris' if $^O =~ /(?:bsd|solaris)/i;
 #
-compile_test_lib('64_affix_wchar_t');
-sub check_string : Native('t/src/64_affix_wchar_t') : Signature([WStr]=>Int);
+my $lib = compile_test_lib('64_affix_wchar_t');
+
+#~ sub check_string : Native('t/src/64_affix_wchar_t') : Signature([WStr]=>Int);
+Affix::hit_it( $lib, 'check_string', [20] => 6 );
 sub get_string : Native('t/src/64_affix_wchar_t') : Signature([]=>WStr);
 sub struct_string : Native('t/src/64_affix_wchar_t') : Signature([Struct[c=>Str,w => WStr]]=>Int);
-sub check_char : Native('t/src/64_affix_wchar_t') : Signature([WChar]=>Int);
+
+#~ sub check_char : Native('t/src/64_affix_wchar_t') : Signature([WChar]=>Int);
+Affix::hit_it( $lib, 'check_char', [46] => 6 );
 sub get_char : Native('t/src/64_affix_wchar_t') : Signature([]=>WChar);
 sub char_cb : Native('t/src/64_affix_wchar_t') : Signature([CodeRef[[WChar]=>WChar]]=>WChar);
 #
