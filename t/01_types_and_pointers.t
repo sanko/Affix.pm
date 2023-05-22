@@ -3,15 +3,15 @@ use Test::More 0.98;
 use lib '../lib', 'lib';
 use Affix;
 #
-use Data::Dump;
-ddx Struct [ i => Str, j => Long ];
-ddx Union [ u => Int, x => Double ];
-ddx Array [ Int, 10 ];
+#~ use Data::Dump;
+#~ ddx Struct [ i => Str, j => Long ];
+#~ ddx Union [ u => Int, x => Double ];
+#~ ddx Array [ Int, 10 ];
 subtest 'types' => sub {
     isa_ok $_, 'Affix::Type::Base'
         for Void, Char, UChar, WChar, Short, UShort, Int, UInt, Long, ULong, LongLong, ULongLong,
         Size_t, SSize_t, Float, Double, Str, WStr, Pointer [Int], CodeRef [ [] => Str ],
-        Struct [ i => Str, j => Long ], Union [ u => Int, x => Double ], Array [ Int, 10 ];
+        Struct [ i => Str, j => Long ], Union [ u => Int, x => Double ], ArrayRef [ Int, 10 ];
 };
 subtest 'coderef' => sub {
     my $ptr = ( CodeRef [ [] => Str ] )->marshal( sub { pass 'coderef called'; return 'Okay' }, );
@@ -29,15 +29,15 @@ subtest 'coderef' => sub {
     };
 };
 subtest array => sub {
-    subtest 'Array [ Int, 3 ]' => sub {
-        my $type = Array [ Int, 3 ];
+    subtest 'ArrayRef [ Int, 3 ]' => sub {
+        my $type = ArrayRef [ Int, 3 ];
         my $data = [ 5, 10, 15 ];
         my $ptr  = $type->marshal($data);
         isa_ok $ptr, 'Affix::Pointer';
         is_deeply [ $type->unmarshal($ptr) ], [$data], 'round trip is correct';
     };
-    subtest 'Array [ CodeRef [ [Str] => Str ], 3 ]' => sub {
-        my $type = Array [ CodeRef [ [Str] => Str ], 3 ];
+    subtest 'ArrayRef [ CodeRef [ [Str] => Str ], 3 ]' => sub {
+        my $type = ArrayRef [ CodeRef [ [Str] => Str ], 3 ];
         my $ptr  = $type->marshal(
             [   sub { is shift, 'one',   'proper args passed to 1st'; 'One' },
                 sub { is shift, 'two',   'proper args passed to 2nd'; 'Two' },
@@ -51,8 +51,8 @@ subtest array => sub {
         is $cv->[1]->('two'),   'Two',   'proper return value from 2nd';
         is $cv->[2]->('three'), 'Three', 'proper return value from 3rd';
     };
-    subtest 'Array [ Struct [ alpha => Str, numeric => Int ], 3 ]' => sub {
-        my $type = Array [ Struct [ alpha => Str, numeric => Int ], 3 ];
+    subtest 'ArrayRef [ Struct [ alpha => Str, numeric => Int ], 3 ]' => sub {
+        my $type = ArrayRef [ Struct [ alpha => Str, numeric => Int ], 3 ];
         my $data = [
             { alpha => 'Smooth',   numeric => 4 },
             { alpha => 'Move',     numeric => 2 },
@@ -75,9 +75,10 @@ subtest union => sub {
         $ptr  = $type->marshal($data);
         isa_ok $ptr, 'Affix::Pointer';
         is_deeply $type->unmarshal($ptr)->{i}, 6, 'round trip is correct';
-        Affix::DumpHex( $ptr, 16 );
-        use Data::Dump;
-        ddx $type->unmarshal($ptr);
+
+        #~ Affix::DumpHex( $ptr, 16 );
+        #~ use Data::Dump;
+        #~ ddx $type->unmarshal($ptr);
     };
 
     #~ subtest 'Array [ CodeRef [ [Str] => Str ], 3 ]' => sub {
@@ -108,3 +109,4 @@ subtest union => sub {
     #~ };
 };
 done_testing;
+exit 0

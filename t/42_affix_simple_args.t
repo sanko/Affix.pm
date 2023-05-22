@@ -7,6 +7,7 @@ use File::Spec;
 use t::lib::nativecall;
 use experimental 'signatures';
 $|++;
+
 # rakudo/t/04-nativecall/02-simple-args.t
 my $lib = compile_test_lib('42_simple_args');
 #
@@ -24,7 +25,7 @@ subtest 'Float' => sub {
     is wrap( $lib, 'TakeAFloat',     [Float]  => Int )->(4.2e0),  5, '[Float] => Int';
     is wrap( $lib, 'TakeAFloatNaN',  [Float]  => Int )->('NaN'),  5, '[Float] => Int (NaN)';
 };
-subtest 'String' => sub {4
+subtest 'String' => sub {
     is wrap( $lib, 'TakeAString', [Str] => Int )->('ok 6 - passed a string'), 6, '[Str] => Int';
     #
     affix $lib, 'TakeAStringThenNull', [ Long, Str ] => Int;
@@ -43,7 +44,10 @@ subtest 'String' => sub {4
         is CheckString(), 7, 'checked previously passed string';
     }
 };
-__END__
+
+=pod
+
+=begin future
 
 # Make sure wrapped subs work
 sub wrapped : Native('t/src/42_simple_args') : Signature([Int]=>Int);
@@ -92,4 +96,9 @@ is TakeSSizeT(-42), 14, 'passed ssize_t -42';
 #    },
 #);
 #is TakeInt($arg), 1, 'Proxy works';
+
+=end future
+
+=cut
+
 done_testing;

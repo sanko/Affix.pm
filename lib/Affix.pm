@@ -2,7 +2,7 @@ package Affix 0.12 {    # 'FFI' is my middle name!
     use strict;
     use warnings;
     no warnings 'redefine';
-    use File::Spec::Functions qw[rel2abs canonpath curdir path];
+    use File::Spec::Functions qw[rel2abs canonpath curdir path catdir];
     use File::Basename        qw[basename dirname];
     use File::Find            qw[find];
     use Config;
@@ -16,22 +16,19 @@ package Affix 0.12 {    # 'FFI' is my middle name!
     #
     use parent 'Exporter';
     $EXPORT_TAGS{sugar} = [qw[MODIFY_CODE_ATTRIBUTES AUTOLOAD]];
+    @EXPORT             = ( @{ $EXPORT_TAGS{types} }, @{ $EXPORT_TAGS{default} } );
+    @EXPORT_OK          = sort map { @$_ = sort @$_; @$_ } values %EXPORT_TAGS;
+    $EXPORT_TAGS{'all'} = \@EXPORT_OK;
 
-    #~ @EXPORT_OK          = sort map { @$_ = sort @$_; @$_ } values %EXPORT_TAGS;
-    #~ $EXPORT_TAGS{'all'} = \@EXPORT_OK;    # When you want to import everything
-    #@{ $EXPORT_TAGS{'enum'} }             # Merge these under a single tag
-    #    = sort map { defined $EXPORT_TAGS{$_} ? @{ $EXPORT_TAGS{$_} } : () }
-    #    qw[types?]
-    #    if 1 < scalar keys %EXPORT_TAGS;
     #~ use Data::Dump;
-    @EXPORT = @{ $EXPORT_TAGS{types} };    #, @{ $EXPORT_TAGS{default} // () };
-    @{ $EXPORT_TAGS{all} } = @EXPORT_OK = map { @{ $EXPORT_TAGS{$_} } } keys %EXPORT_TAGS;
-
     #~ ddx \@EXPORT_OK;
     #~ ddx \@EXPORT;
     #~ ddx \%EXPORT_TAGS;
     #
     my %_delay;
+
+    #~ our @CARP_NOT = [__PACKAGE__];
+    BEGIN { $Carp::Internal{ (__PACKAGE__) }++ }
 
     sub AUTOLOAD {
         my $self = $_[0];           # Not shift, using goto.
@@ -87,15 +84,19 @@ package Affix 0.12 {    # 'FFI' is my middle name!
     sub MODIFY_CODE_ATTRIBUTES {
         my ( $package, $code, @attributes ) = @_;
 
-        #use Data::Dump;
-        #ddx \@_;
+        #~ use Data::Dump;
+        #~ ddx \@_;
         my ( $library, $library_version, $signature, $return, $symbol, $full_name );
         for my $attribute (@attributes) {
-            if ( $attribute =~ m[^Native\((["'])(.+)\1(?:,\s*(.+))?\)$] ) {
+            if (
+                $attribute =~ m[^Native\((["']?)(.+?)\1(?:,\s*(.+))?\)$]
+
+                # m[/^\bNative\s+(?:(\w+)\s*,\s*(\d+))?$/]
+            ) {
                 $library = $2 // ();
 
-                #warn $library;
-                #warn $library_version;
+                #~ warn $library;
+                #~ warn $library_version;
                 $library_version = $3 // 0;
             }
             elsif ( $attribute =~ m[^Symbol\(\s*(['"])?\s*(.+)\s*\1\s*\)$] ) {
@@ -142,8 +143,21 @@ package Affix 0.12 {    # 'FFI' is my middle name!
     our $OS = $^O;
 
     sub locate_lib {
+
+        #~ use Data::Dump;
+        #~ ddx \@_;
         my ( $library, $version ) = @_;
         $library // return;
+        {
+            my ($caller) = caller;
+            my $level = 0;
+            while ( $caller eq __PACKAGE__ ) {
+                ($caller) = caller( ++$level );
+                last if !$caller;
+            }
+            my $ref = $caller->can($library);
+            ( $library, $version ) = $ref->($version) if $ref
+        }
         return $library                  if -f $library && !defined $version;
         return "$library." . $Config{so} if -f "$library." . $Config{so};
         CORE::state $_lib_cache;
@@ -152,14 +166,20 @@ package Affix 0.12 {    # 'FFI' is my middle name!
         my $is_win    = $OS eq 'MSWin32';
         my $is_darwin = $OS eq 'darwin';
         my $basename  = basename($library);
-        my $full_path = $library eq $basename;
-        my $dirname   = dirname($library);
+        my $full_path;    # = $library eq $basename;
+        my $dirname = dirname($library);
         $basename .= ".$version" if $is_darwin && defined $version;
         my $prefix        = $is_win ? '' : 'lib';
         my $platform_name = "$prefix$basename." . $Config{so};
         $platform_name .= '.' . $version if defined $version && !$is_win && !$is_darwin;
-        $full_path = -f rel2abs($platform_name) ? rel2abs($platform_name) : $platform_name;
-        $_lib_cache->{$library}{ $version // 0 } = $full_path;
+
+        for my $path ( '', split ' ', $Config{libsdirs} ) {
+            my $try = rel2abs( catdir( $path, $platform_name ) );
+            if ( -f $try ) {
+                $_lib_cache->{$library}{ $version // 0 } = $full_path = $try;
+                last;
+            }
+        }
         return $full_path;
 
 =pod
@@ -201,11 +221,11 @@ https://docs.microsoft.com/en-us/windows/win32/dlls/dynamic-link-library-search-
                     my @dirs = grep {-d} (                         dirname(
 rel2abs($^X) ),                                # 1. exe dir
 Win32::GetFolderPath( Win32::CSIDL_SYSTEM() ),          # 2. sys dir
-Win32::GetFolderPath( Win32::CSIDL_WINDOWS() ),         # 4. win dir        
-rel2abs(curdir),         # 5. cwd path(),                  # 6. $ENV{PATH}     
-                   map { split /[:;]/, ( $ENV{$_} ) } grep { $ENV{$_} }    # X.
-User defined qw[LD_LIBRARY_PATH DYLD_LIBRARY_PATH DYLD_FALLBACK_LIBRARY_PATH]  
-   );              my @retval;
+Win32::GetFolderPath( Win32::CSIDL_WINDOWS() ),         # 4. win dir
+rel2abs(curdir),         # 5. cwd path(),                  # 6. $ENV{PATH} map
+{ split /[:;]/, ( $ENV{$_} ) } grep { $ENV{$_} }    # X. User defined
+qw[LD_LIBRARY_PATH DYLD_LIBRARY_PATH DYLD_FALLBACK_LIBRARY_PATH]    );   my
+@retval;
 
                     #warn $_ for sort { lc $a cmp lc $b } @dirs;
                     find(

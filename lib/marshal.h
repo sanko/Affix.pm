@@ -156,7 +156,6 @@ SV *ptr2sv(pTHX_ DCpointer ptr, SV *type_sv) {
         SvSetSV(RETVAL, newRV(MUTABLE_SV(RETVAL_)));
     } break;
     case AFFIX_ARG_CUNION: {
-        PING;
         HV *RETVAL_ = newHV_mortal();
 
         if (0) {
@@ -252,8 +251,7 @@ void sv2ptr(pTHX_ SV *type_sv, SV *data, DCpointer ptr, bool packed) {
     SV *RETVAL = newSV(0);
     int16_t type = SvIV(type_sv);
     //~ warn("sv2ptr(%s (%d), ..., %p, %s) at %s line %d", type_as_str(type), type, ptr,
-         //~ (packed ? "true" : "false"), __FILE__, __LINE__);
-    //~ PING;
+    //~ (packed ? "true" : "false"), __FILE__, __LINE__);
     switch (type & AFFIX_ARG_TYPE_MASK) {
     case AFFIX_ARG_VOID: {
         if (!SvOK(data))
@@ -298,13 +296,10 @@ void sv2ptr(pTHX_ SV *type_sv, SV *data, DCpointer ptr, bool packed) {
         unsigned short value = SvUOK(data) ? (unsigned short)SvIV(data) : 0;
         Copy(&value, ptr, 1, unsigned short);
     } break;
-    //~ case AFFIX_ARG_ENUM:
     case AFFIX_ARG_INT: {
         int value = SvIOK(data) ? SvIV(data) : 0;
         Copy(&value, ptr, 1, int);
-        PING
     } break;
-    //~ case AFFIX_ARG_ENUM_UINT:
     case AFFIX_ARG_UINT: {
         unsigned int value = SvUOK(data) ? SvUV(data) : 0;
         Copy(&value, ptr, 1, unsigned int);
@@ -406,51 +401,30 @@ Zero(ptr, 1, intptr_t);
 //~ Copy(&value, ptr, 1, intptr_t);
 //~ } break;*/
     case AFFIX_ARG_CSTRUCT: {
-        PING;
         size_t size = _sizeof(aTHX_ type_sv);
         if (SvOK(data)) {
-            PING;
             if (SvTYPE(SvRV(data)) != SVt_PVHV) croak("Expected a hash reference");
             HV *hv_type = MUTABLE_HV(SvRV(type_sv));
             HV *hv_data = MUTABLE_HV(SvRV(data));
-            PING;
             SV **sv_fields = hv_fetchs(hv_type, "fields", 0);
             SV **sv_packed = hv_fetchs(hv_type, "packed", 0);
             AV *av_fields = MUTABLE_AV(SvRV(*sv_fields));
-            PING;
             int field_count = av_count(av_fields);
             for (int i = 0; i < field_count; ++i) {
-                PING;
                 SV **field = av_fetch(av_fields, i, 0);
-                DD(*field);
-
-                PING;
                 AV *name_type = MUTABLE_AV(SvRV(*field));
-                PING;
                 SV **name_ptr = av_fetch(name_type, 0, 0);
-                PING;
                 SV **type_ptr = av_fetch(name_type, 1, 0);
-                PING;
                 char *key = SvPVbytex_nolen(*name_ptr);
                 SV **_data = hv_fetch(hv_data, key, strlen(key), 1);
-                PING;
-
                 if (_data != NULL) {
-                    PING;
                     size_t fdsa = _offsetof(aTHX_ * type_ptr);
-                    PING;
                     int fdsafe = PTR2IV(ptr);
-                    PING;
                     DCpointer blah = INT2PTR(DCpointer, PTR2IV(ptr) + _offsetof(aTHX_ * type_ptr));
-                    PING;
-
                     sv2ptr(aTHX_ * type_ptr, *_data,
                            INT2PTR(DCpointer, PTR2IV(ptr) + _offsetof(aTHX_ * type_ptr)), packed);
-                    PING;
                 }
-                PING;
             }
-            PING;
         }
     } break;
     case AFFIX_ARG_CUNION: {
@@ -516,12 +490,11 @@ Zero(ptr, 1, intptr_t);
             size_t el_len = _sizeof(aTHX_ * type_ptr);
             size_t pos = 0; // override
             for (size_t i = 0; i < size; ++i) {
-                warn("int[%d] of %d", i, size);
+                //~ warn("int[%d] of %d", i, size);
                 //~ warn("Putting index %d into pointer plus %d", i, pos);
                 sv2ptr(aTHX_ * type_ptr, *(av_fetch(elements, i, 0)),
                        INT2PTR(DCpointer, PTR2IV(ptr) + pos), packed);
-                pos += (el_len);
-                PING
+                pos += el_len;
             }
         }
 
@@ -529,7 +502,7 @@ Zero(ptr, 1, intptr_t);
         }
     } break;
     case AFFIX_ARG_CALLBACK: {
-        DD(type_sv);
+        //~ DD(type_sv);
         DCCallback *cb = NULL;
         HV *field = MUTABLE_HV(SvRV(type_sv)); // Make broad assumptions
         // SV **sig = hv_fetchs(field, "signature", 0);

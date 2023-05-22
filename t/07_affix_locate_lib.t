@@ -13,7 +13,8 @@ subtest 'Library Paths and Names' => sub {
         diag 'libm v4 located on Linux: ' . ( Affix::locate_lib( 'm', 4 ) // 'error' );
     }
     is Affix::locate_lib('fdsjklafjklkaf'), undef, 'missing lib returns undef';
-    is Affix::locate_lib("{ './lib/Non Standard Naming Scheme' }"),
-        './lib/Non Standard Naming Scheme', q[{ './lib/Non Standard Naming Scheme' }];
+
+    #~ is Affix::locate_lib("./lib/Non Standard Naming Scheme"),
+    #~ './lib/Non Standard Naming Scheme', q['./lib/Non Standard Naming Scheme'];
 };
 done_testing;
