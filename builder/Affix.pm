@@ -27,6 +27,7 @@ my $libver;
 my $CFLAGS = $Config{osname} eq 'MSWin32' ? '' :
     ' -DNDEBUG -DBOOST_DISABLE_ASSERTS -O2 -ffast-math -fno-align-functions -fno-align-loops -fno-omit-frame-pointer ';
 my $LDFLAGS = ' ';    # https://wiki.freebsd.org/LinkTimeOptimization
+my $DEBUG   = 0;
 #
 sub write_file {
     my ( $filename, $content ) = @_;
@@ -320,8 +321,7 @@ sub alien {
 sub process_cxx {
     my ( $source, %opt ) = @_;
     die "Can't build xs files under --pureperl-only\n" if $opt{'pureperl-only'};
-    my $DEBUG = 0;
-    warn $@ if $@;
+    warn $@                                            if $@;
     my ( undef, @parts ) = splitdir( dirname($source) );
     push @parts, my $file_base = basename( $source, '.cxx' );
     my $archdir = catdir( qw/blib arch auto/, @parts );

@@ -54,11 +54,11 @@ package Affix 0.12 {    # 'FFI' is my middle name!
 
             #~ use Data::Dump;
             #~ ddx [
-            #~ $lib, (
-            #~ $_delay{$sub}[3] eq $_delay{$sub}[6] ? $_delay{$sub}[3] :
-            #~ [ $_delay{$sub}[3], $_delay{$sub}[6] ]
-            #~ ),
-            #~ $sig, $ret
+            #~     $lib, (
+            #~         $_delay{$sub}[3] eq $_delay{$sub}[6] ? $_delay{$sub}[3] :
+            #~             [ $_delay{$sub}[3], $_delay{$sub}[6] ]
+            #~     ),
+            #~     $sig, $ret
             #~ ];
             my $cv = affix(
                 $lib, (
@@ -81,6 +81,21 @@ package Affix 0.12 {    # 'FFI' is my middle name!
         Carp::croak("Undefined subroutine &$sub called");
     }
     #
+    #~ use Attribute::Handlers;
+    #~ my %name;
+    #~ sub cache {
+    #~ return $name{$_[2]}||*{$_[1]}{NAME};
+    #~ }
+    #~ sub UNIVERSAL::Name :ATTR {
+    #~ $name{$_[2]} = $_[4];
+    #~ }
+    #~ sub UNIVERSAL::Purpose :ATTR {
+    #~ print STDERR "Purpose of ", &name, " is $_[4]\n";
+    #~ }
+    #~ sub UNIVERSAL::Unit :ATTR {
+    #~ print STDERR &name, " measured in $_[4]\n";
+    #~ }
+    #~ sub dump_cache{use Data::Dump; ddx \%name;}
     sub MODIFY_CODE_ATTRIBUTES {
         my ( $package, $code, @attributes ) = @_;
 

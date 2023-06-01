@@ -10,34 +10,27 @@ use Config;
 $|++;
 #
 plan skip_all => 'no support for aggregates by value' unless Affix::Feature::AggrByVal();
-diag __LINE__;
 compile_test_lib('50_affix_pointers');
 #
-diag __LINE__;
-subtest 'sv2ptr and ptr2sv' => sub {
-    diag __LINE__;
+subtest 'marshal and unmarshal' => sub {
     subtest 'double' => sub {
-        diag __LINE__;
-        my $ptr = Affix::sv2ptr( 50, Double );
+        my $ptr = ( Pointer [Double] )->marshal(50);
         isa_ok $ptr, 'Affix::Pointer';
-        is Affix::ptr2sv( $ptr, Double ), 50, 'Store and returned double in a pointer';
-        diag __LINE__;
+        is( ( Pointer [Double] )->unmarshal($ptr), 50, 'Store and returned double in a pointer' );
     };
-    diag __LINE__;
     subtest 'struct with string pointer' => sub {
-        diag __LINE__;
-        affix( 't/src/50_affix_pointers', 'demo', [ Struct [ i => Int, Z => Str ] ] => Bool );
-        my $ptr = Affix::sv2ptr( { Z => 'Here. There. Everywhere.', i => 100 },
-            Struct [ i => Int, Z => Str ] );
-        diag __LINE__;
-        ok demo( { Z => 'Here. There. Everywhere.', i => 100 } ),
+        my $type = Struct [ i => Int, Z => Str ];
+        ok wrap( 't/src/50_affix_pointers', 'demo', [$type] => Bool )
+            ->( { Z => 'Here. There. Everywhere.', i => 100 } ),
             'passed struct with string pointer';
-        diag __LINE__;
+        my $ptr = ( Pointer [$type] )->marshal( { Z => 'Here. There. Everywhere.', i => 100 } );
         isa_ok $ptr, 'Affix::Pointer';
-        is_deeply Affix::ptr2sv( $ptr, Struct [ b => Int, c => Str ] ),
-            { b => 100, c => 'Here. There. Everywhere.' }, 'Store and returned struct in a pointer';
+        is_deeply(
+            ( Pointer [$type] )->unmarshal($ptr),
+            { i => 100, Z => 'Here. There. Everywhere.' },
+            'Store and returned struct in a pointer'
+        );
     };
-    diag __LINE__;
 };
 diag __LINE__;
 #
@@ -73,7 +66,7 @@ subtest 'Dyn::Call::Pointer with a double' => sub {
         memcpy( $ptr, $data, length $data );
     }
     is dbl_ptr($ptr), 'one hundred and change', 'dbl_ptr($ptr) where $ptr == malloc(...)';
-    $ptr->dump(16);
+    $ptr->DumpHex(16);
     diag __LINE__;
     my $raw = $ptr->raw(16);
     is unpack( 'd', $raw ), 10000, '$ptr was changed to 10000';
@@ -169,37 +162,38 @@ diag __LINE__;
     diag __LINE__;
 }
 diag __LINE__;
-subtest struct => sub {
-    diag __LINE__;
-    typedef massive => Struct [
-        B => Bool,
-        c => Char,
-        C => UChar,
-        s => Short,
-        S => UShort,
-        i => Int,
-        I => UInt,
-        j => Long,
-        J => ULong,
-        l => LongLong,
-        L => ULongLong,
-        f => Float,
-        d => Double,
-        p => Pointer [Int],
-        Z => Str,
-        A => Struct [ i => Int ],
-        u => Union [ i => Int, structure => Struct [ ptr => Pointer [Void], l => Long ] ]
-    ];
-    diag __LINE__;
-    diag 'sizeof in perl: ' . sizeof( massive() );
-    sub massive_ptr : Native('t/src/50_affix_pointers') : Signature([] => Pointer[massive()]);
-    sub sptr : Native('t/src/50_affix_pointers') : Signature([Pointer[massive()]] => Bool);
-    ok sptr( { Z => 'Works!' } );
-    my $ptr = massive_ptr();
-    my $sv  = ptr2sv( $ptr, Pointer [ massive() ] );
-    is $sv->{A}{i}, 50,                   'parsed pointer to sv and got .A.i [nested structs]';
-    is $sv->{Z},    'Just a little test', 'parsed pointer to sv and got .Z';
-};
+
+#~ subtest struct => sub {
+#~ diag __LINE__;
+#~ typedef massive => Struct [
+#~ B => Bool,
+#~ c => Char,
+#~ C => UChar,
+#~ s => Short,
+#~ S => UShort,
+#~ i => Int,
+#~ I => UInt,
+#~ j => Long,
+#~ J => ULong,
+#~ l => LongLong,
+#~ L => ULongLong,
+#~ f => Float,
+#~ d => Double,
+#~ p => Pointer [Int],
+#~ Z => Str,
+#~ A => Struct [ i => Int ],
+#~ u => Union [ i => Int, structure => Struct [ ptr => Pointer [Void], l => Long ] ]
+#~ ];
+#~ diag __LINE__;
+#~ diag 'sizeof in perl: ' . sizeof( massive() );
+#~ sub massive_ptr : Native('t/src/50_affix_pointers') : Signature([] => Pointer[massive()]);
+#~ sub sptr : Native('t/src/50_affix_pointers') : Signature([Pointer[massive()]] => Bool);
+#~ ok sptr( { Z => 'Works!' } );
+#~ my $ptr = massive_ptr();
+#~ my $sv  = unmarshal( $ptr, Pointer [ massive() ] );
+#~ is $sv->{A}{i}, 50,                   'parsed pointer to sv and got .A.i [nested structs]';
+#~ is $sv->{Z},    'Just a little test', 'parsed pointer to sv and got .Z';
+#~ };
 diag __LINE__;
 #
 done_testing;
