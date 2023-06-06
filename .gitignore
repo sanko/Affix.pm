@@ -9,6 +9,7 @@
 /carton.lock
 /.carton/
 /local/
+.vs*
 
 nytprof.out
 nytprof/
@@ -68,3 +69,4 @@ lib/Affix/Cookbook.pod
 
 t/src/85_affix_mangle_rust/Cargo.lock
 t/src/85_affix_mangle_rust/target/
+t/_*

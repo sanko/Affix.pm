@@ -1,6 +1,6 @@
 use strict;
 no warnings 'portable';
-use Affix qw[:all];
+use Affix qw[:memory :default :types];
 use Test::More 0.98;
 BEGIN { chdir '../' if !-d 't'; }
 use lib '../lib', '../blib/arch', '../blib/lib', 'blib/arch', 'blib/lib', '../../', '.';
@@ -10,33 +10,11 @@ use Config;
 $|++;
 #
 plan skip_all => 'no support for aggregates by value' unless Affix::Feature::AggrByVal();
-compile_test_lib('50_affix_pointers');
+my $lib = compile_test_lib('50_affix_pointers');
 #
-subtest 'marshal and unmarshal' => sub {
-    subtest 'double' => sub {
-        my $ptr = ( Pointer [Double] )->marshal(50);
-        isa_ok $ptr, 'Affix::Pointer';
-        is( ( Pointer [Double] )->unmarshal($ptr), 50, 'Store and returned double in a pointer' );
-    };
-    subtest 'struct with string pointer' => sub {
-        my $type = Struct [ i => Int, Z => Str ];
-        ok wrap( 't/src/50_affix_pointers', 'demo', [$type] => Bool )
-            ->( { Z => 'Here. There. Everywhere.', i => 100 } ),
-            'passed struct with string pointer';
-        my $ptr = ( Pointer [$type] )->marshal( { Z => 'Here. There. Everywhere.', i => 100 } );
-        isa_ok $ptr, 'Affix::Pointer';
-        is_deeply(
-            ( Pointer [$type] )->unmarshal($ptr),
-            { i => 100, Z => 'Here. There. Everywhere.' },
-            'Store and returned struct in a pointer'
-        );
-    };
-};
-diag __LINE__;
-#
-sub pointer_test : Native('t/src/50_affix_pointers') :
-    Signature([Pointer[Double], ArrayRef [ Int, 5 ], Int, CodeRef [ [ Int, Int ] => Double ] ] => Double);
-sub dbl_ptr : Native('t/src/50_affix_pointers') : Signature([Pointer[Double]] => Str);
+affix $lib, pointer_test =>
+    [ Pointer [Double], ArrayRef [ Int, 5 ], Int, CodeRef [ [ Int, Int ] => Double ] ] => Double;
+affix $lib, dbl_ptr => [ Pointer [Double] ] => Str;
 #
 diag __LINE__;
 subtest 'scalar ref' => sub {
@@ -64,13 +42,16 @@ subtest 'Dyn::Call::Pointer with a double' => sub {
         diag __LINE__;
         my $data = pack 'd', 100.04;
         memcpy( $ptr, $data, length $data );
+        $ptr->dump(16);
+        warn( ( Pointer [Double] )->unmarshal($ptr) );
     }
     is dbl_ptr($ptr), 'one hundred and change', 'dbl_ptr($ptr) where $ptr == malloc(...)';
-    $ptr->DumpHex(16);
+    $ptr->dump(16);
     diag __LINE__;
     my $raw = $ptr->raw(16);
     is unpack( 'd', $raw ), 10000, '$ptr was changed to 10000';
     free $ptr;
+    warn;
     diag __LINE__;
 };
 diag __LINE__;
@@ -89,7 +70,7 @@ subtest 'ref Dyn::Call::Pointer with a double (should croak)' => sub {
             $Config{uselongdouble} ? 9876.54299999999967 :
             9876.543 ), '$ptr is still 9';
     diag __LINE__;
-    DumpHex( $ptr, 16 );
+    Affix::DumpHex( $ptr, 16 );
     diag __LINE__;
     free $ptr;
 };
@@ -104,6 +85,8 @@ diag __LINE__;
         sub {
             diag __LINE__;
             pass('our coderef was called');
+            use Data::Dump;
+            ddx \@_;
             is_deeply \@_, [ 4, 8 ], '... and given correct arguments';
             diag __LINE__;
             50.25;

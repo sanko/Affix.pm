@@ -221,7 +221,6 @@ my $hand_rolled = DynFFI->obj( DynFFI::func( DynFFI::load($libfile), 'sin' ), 'd
 #
 my $sin_default = wrap( $libfile, 'sin', [Double] => Double );
 affix( $libfile, [ 'sin', '_affix_sin_default' ], [Double] => Double );
-Affix::affix_2( $libfile, [ 'sin', '_affix2_sin_default' ], [Double] => Double );
 #
 my $ffi = FFI::Platypus->new( api => 1 );
 $ffi->lib($libfile);
@@ -234,7 +233,6 @@ my $sin = sin 500;
     die 'oops' if $hand_rolled->(500) != $sin;
     die 'oops' if $sin_default->(500) != $sin;
     die 'oops' if _affix_sin_default(500) != $sin;
-    die 'oops' if _affix2_sin_default(500) != $sin;
     die 'oops' if ffi_sin(500) != $sin;
     die 'oops' if $ffi_func->(500) != $sin;
     die 'oops' if inline_c_sin(500) != $sin;
@@ -255,10 +253,6 @@ cmpthese(
             affix_sub => sub {
                 my $x = 0;
                 while ( $x < $depth ) { my $n = _affix_sin_default($x); $x++ }
-            },
-            affix2_sub => sub {
-                my $x = 0;
-                while ( $x < $depth ) { my $n = _affix2_sin_default($x); $x++ }
             },
             affix_coderef => sub {
                 my $x = 0;
@@ -288,3 +282,16 @@ affix_sub       3556/s        492%            277%     17%        --          -2
 affix_coderef   4425/s        637%            369%     46%       24%            --          -3% -39%
 inline_c_sin    4561/s        659%            383%     50%       28%            3%           -- -37%
 perl            7211/s       1100%            664%    137%      103%           63%          58%   --
+affix_coderef: 30.1508 wallclock secs (30.10 usr +  0.00 sys = 30.10 CPU) @ 4202.72/s (n=126502)
+ affix_sub: 30.4273 wallclock secs (30.39 usr +  0.00 sys = 30.39 CPU) @ 3913.16/s (n=118921)
+ffi_coderef: 30.5979 wallclock secs (30.54 usr +  0.00 sys = 30.54 CPU) @ 550.10/s (n=16800)
+   ffi_sub: 30.1475 wallclock secs (30.11 usr +  0.00 sys = 30.11 CPU) @ 2634.74/s (n=79332)
+inline_c_sin: 30.1313 wallclock secs (30.09 usr +  0.00 sys = 30.09 CPU) @ 4910.57/s (n=147759)
+      perl: 30.749 wallclock secs (30.71 usr +  0.00 sys = 30.71 CPU) @ 7899.84/s (n=242604)
+                Rate ffi_coderef ffi_sub affix_sub affix_coderef inline_c_sin perl
+ffi_coderef    550/s          --    -79%      -86%          -87%         -89% -93%
+ffi_sub       2635/s        379%      --      -33%          -37%         -46% -67%
+affix_sub     3913/s        611%     49%        --           -7%         -20% -50%
+affix_coderef 4203/s        664%     60%        7%            --         -14% -47%
+inline_c_sin  4911/s        793%     86%       25%           17%           -- -38%
+perl          7900/s       1336%    200%      102%           88%          61%   --

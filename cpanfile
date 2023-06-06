@@ -4,6 +4,9 @@ requires 'Config';
 requires 'XSLoader';
 requires 'Sub::Util';
 requires 'Attribute::Handlers';
+
+# TODO: remove this!!!!
+requires 'Data::Dump';
 #
 on 'test' => sub {
     requires 'Test::More' => 0.98;
