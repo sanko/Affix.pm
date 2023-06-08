@@ -43,6 +43,30 @@ DLLEXPORT size_t s_pointer() {
     return sizeof(void *);
 }
 
+struct struct_ {
+    int i;
+    float f;
+    int a[7];
+    char c;
+    char *z;
+};
+
+DLLEXPORT size_t s_struct() {
+    return sizeof(struct struct_);
+}
+
+union union_
+{
+    int i;
+    float f;
+    int a[7];
+    char c;
+    char *z;
+};
+
+DLLEXPORT size_t s_union() {
+    return sizeof(union union_);
+}
 DLLEXPORT size_t s_pointer_array() {
     return sizeof(void *[1]);
 }

@@ -13,22 +13,26 @@ subtest 'fundamental types' => sub {
 
     #diag sizeof(Double);
     #die;
-    is sizeof(Bool),             wrap( $lib, 's_bool',     [], Size_t )->(),  'sizeof(Bool)';
-    is sizeof(Char),             wrap( $lib, 's_char',     [], Size_t )->(),  'sizeof(Char)';
-    is sizeof(Short),            wrap( $lib, 's_short',    [], Size_t )->(),  'sizeof(Short)';
-    is sizeof(Int),              wrap( $lib, 's_int',      [], Size_t )->(),  'sizeof(Int)';
-    is sizeof(Long),             wrap( $lib, 's_long',     [], Size_t )->(),  'sizeof(Long)';
-    is sizeof(LongLong),         wrap( $lib, 's_longlong', [], Size_t )->(),  'sizeof(LongLong)';
-    is sizeof(Float),            wrap( $lib, 's_float',    [], Size_t )->(),  'sizeof(Float)';
-    is sizeof(Double),           wrap( $lib, 's_double',   [], Size_t )->(),  'sizeof(Double)';
-    is sizeof(SSize_t),          wrap( $lib, 's_ssize_t',  [], SSize_t )->(), 'sizeof(SSize_t)';
-    is sizeof(Size_t),           wrap( $lib, 's_size_t',   [], Size_t )->(),  'sizeof(Size_t)';
-    is sizeof( Pointer [Void] ), wrap( $lib, 's_pointer', [], Size_t )->(), 'sizeof(Pointer[Void])';
+    is sizeof(Bool),     Affix::wrap( $lib, 's_bool',     [], Size_t )->(),  'sizeof(Bool)';
+    is sizeof(Char),     Affix::wrap( $lib, 's_char',     [], Size_t )->(),  'sizeof(Char)';
+    is sizeof(Short),    Affix::wrap( $lib, 's_short',    [], Size_t )->(),  'sizeof(Short)';
+    is sizeof(Int),      Affix::wrap( $lib, 's_int',      [], Size_t )->(),  'sizeof(Int)';
+    is sizeof(Long),     Affix::wrap( $lib, 's_long',     [], Size_t )->(),  'sizeof(Long)';
+    is sizeof(LongLong), Affix::wrap( $lib, 's_longlong', [], Size_t )->(),  'sizeof(LongLong)';
+    is sizeof(Float),    Affix::wrap( $lib, 's_float',    [], Size_t )->(),  'sizeof(Float)';
+    is sizeof(Double),   Affix::wrap( $lib, 's_double',   [], Size_t )->(),  'sizeof(Double)';
+    is sizeof(SSize_t),  Affix::wrap( $lib, 's_ssize_t',  [], SSize_t )->(), 'sizeof(SSize_t)';
+    is sizeof(Size_t),   Affix::wrap( $lib, 's_size_t',   [], Size_t )->(),  'sizeof(Size_t)';
+    is sizeof( Pointer [Void] ), Affix::wrap( $lib, 's_pointer', [], Size_t )->(),
+        'sizeof(Pointer[Void])';
+    is sizeof( Struct [ i => Int, f => Float, a => ArrayRef [ Int, 7 ], c => Char, z => Str ] ),
+        Affix::wrap( $lib, 's_struct', [], Size_t )->(), 'sizeof(Struct[...])';
+    is sizeof( Union [ i => Int, f => Float, a => ArrayRef [ Int, 7 ], c => Char, z => Str ] ),
+        Affix::wrap( $lib, 's_union', [], Size_t )->(), 'sizeof(Union[...])';
 };
 
-#done_testing;
 #exit;
-typedef massive => Struct [
+Affix::typedef massive => Struct [
     B => Bool,
     c => Char,
     C => UChar,
@@ -52,9 +56,10 @@ typedef massive => Struct [
 #diag Dumper massive();
 subtest 'array' => sub {
     is sizeof( ArrayRef [ Char, 3 ] ), 3, 'sizeof(ArrayRef [ Char, 3 ])';
-    is sizeof( ArrayRef [ Pointer [Void], 1 ] ), wrap( $lib, 's_pointer_array', [], Size_t )->(),
+    is sizeof( ArrayRef [ Pointer [Void], 1 ] ),
+        Affix::wrap( $lib, 's_pointer_array', [], Size_t )->(),
         'sizeof(ArrayRef [ Pointer[Void], 1 ])';
-    is sizeof( ArrayRef [ Str, 3 ] ), wrap( $lib, 's_string_array', [], Size_t )->(),
+    is sizeof( ArrayRef [ Str, 3 ] ), Affix::wrap( $lib, 's_string_array', [], Size_t )->(),
         'sizeof(ArrayRef [ Str, 3 ])';
 };
 subtest 'aggregates' => sub {
@@ -71,21 +76,23 @@ subtest 'aggregates' => sub {
 
         #use Data::Dumper;
         #diag Dumper $struct1;
-        is sizeof($struct1), wrap( $lib, 's_struct1', [], Size_t )->(), 'sizeof(struct1)';
-        is sizeof($struct2), wrap( $lib, 's_struct2', [], Size_t )->(), 'sizeof(struct2)';
-        is sizeof($struct3), wrap( $lib, 's_struct3', [], Size_t )->(), 'sizeof(struct3)';
-        is sizeof($struct4), wrap( $lib, 's_struct4', [], Size_t )->(), 'sizeof(struct4)';
-        is sizeof($struct5), wrap( $lib, 's_struct5', [], Size_t )->(), 'sizeof(struct5)';
+        is sizeof($struct1), Affix::wrap( $lib, 's_struct1', [], Size_t )->(), 'sizeof(struct1)';
+        is sizeof($struct2), Affix::wrap( $lib, 's_struct2', [], Size_t )->(), 'sizeof(struct2)';
+        is sizeof($struct3), Affix::wrap( $lib, 's_struct3', [], Size_t )->(), 'sizeof(struct3)';
+        is sizeof($struct4), Affix::wrap( $lib, 's_struct4', [], Size_t )->(), 'sizeof(struct4)';
+        is sizeof($struct5), Affix::wrap( $lib, 's_struct5', [], Size_t )->(), 'sizeof(struct5)';
     SKIP: {
             #skip 'perl defined bad var sizes with -Duselongdouble before 5.36.x', 2
             #    if ( $Config{uselongdouble} || $Config{usequadmath} ) && $^V lt v5.36.1;
-            is sizeof($struct6),    wrap( $lib, 's_struct6', [], Size_t )->(), 'sizeof(struct6)';
-            is sizeof( massive() ), wrap( $lib, 's_massive', [], Size_t )->(), 'sizeof(massive)';
+            is sizeof($struct6), Affix::wrap( $lib, 's_struct6', [], Size_t )->(),
+                'sizeof(struct6)';
+            is sizeof( massive() ), Affix::wrap( $lib, 's_massive', [], Size_t )->(),
+                'sizeof(massive)';
         }
 
         #diag Dumper $struct7;
-        is sizeof($struct7), wrap( $lib, 's_struct7', [], Size_t )->(), 'sizeof(struct7)';
-        is sizeof($struct8), wrap( $lib, 's_struct8', [], Size_t )->(), 'sizeof(struct8)';
+        is sizeof($struct7), Affix::wrap( $lib, 's_struct7', [], Size_t )->(), 'sizeof(struct7)';
+        is sizeof($struct8), Affix::wrap( $lib, 's_struct8', [], Size_t )->(), 'sizeof(struct8)';
     };
     subtest 'arrays' => sub {
 
@@ -94,7 +101,7 @@ subtest 'aggregates' => sub {
             my $array1 = ArrayRef [ Struct [ d => Double, c => ArrayRef [ Int, 4 ] ], $length ];
 
             #diag Dumper $array1;
-            is sizeof($array1), wrap( $lib, 's_array1', [Int], Size_t )->($length),
+            is sizeof($array1), Affix::wrap( $lib, 's_array1', [Int], Size_t )->($length),
                 'sizeof(array1) [' . $length . ']';
         }
     };
@@ -103,33 +110,33 @@ subtest 'aggregates' => sub {
         my $union2 = Union [ i => Int, s => $struct1, d => Float ];
         my $union3 = Union [ i => Int, s => $struct3, d => Float ];
         my $union4 = Union [ i => Int, s => ArrayRef [ $struct1, 5 ], d => Float ];
-        is sizeof($union1), wrap( $lib, 's_union1', [], Size_t )->(), 'sizeof(union1)';
-        is sizeof($union2), wrap( $lib, 's_union2', [], Size_t )->(), 'sizeof(union2)';
+        is sizeof($union1), Affix::wrap( $lib, 's_union1', [], Size_t )->(), 'sizeof(union1)';
+        is sizeof($union2), Affix::wrap( $lib, 's_union2', [], Size_t )->(), 'sizeof(union2)';
     SKIP: {
             #skip 'perl defined bad var sizes with -Duselongdouble before 5.36.x', 2
             #    if ( $Config{uselongdouble} || $Config{usequadmath} ) && $^V lt v5.36.1;
-            is sizeof($union3), wrap( $lib, 's_union3', [], Size_t )->(), 'sizeof(union3)';
-            is sizeof($union4), wrap( $lib, 's_union4', [], Size_t )->(), 'sizeof(union4)';
+            is sizeof($union3), Affix::wrap( $lib, 's_union3', [], Size_t )->(), 'sizeof(union3)';
+            is sizeof($union4), Affix::wrap( $lib, 's_union4', [], Size_t )->(), 'sizeof(union4)';
         }
     };
-    is sizeof( Pointer [Void] ), wrap( $lib, 's_voidptr', [], Size_t )->(), 'sizeof(void *)';
+    is sizeof( Pointer [Void] ), Affix::wrap( $lib, 's_voidptr', [], Size_t )->(), 'sizeof(void *)';
 };
 subtest 'offsetof' => sub {
-    is offsetof( massive(), 'B' ), wrap( $lib, 'o_B', [], Size_t )->(), 'offsetof(..., "B")';
-    is offsetof( massive(), 'c' ), wrap( $lib, 'o_c', [], Size_t )->(), 'offsetof(..., "c")';
-    is offsetof( massive(), 'C' ), wrap( $lib, 'o_C', [], Size_t )->(), 'offsetof(..., "C")';
-    is offsetof( massive(), 's' ), wrap( $lib, 'o_s', [], Size_t )->(), 'offsetof(..., "s")';
-    is offsetof( massive(), 'S' ), wrap( $lib, 'o_S', [], Size_t )->(), 'offsetof(..., "S")';
-    is offsetof( massive(), 'i' ), wrap( $lib, 'o_i', [], Size_t )->(), 'offsetof(..., "i")';
-    is offsetof( massive(), 'I' ), wrap( $lib, 'o_I', [], Size_t )->(), 'offsetof(..., "I")';
-    is offsetof( massive(), 'j' ), wrap( $lib, 'o_j', [], Size_t )->(), 'offsetof(..., "j")';
-    is offsetof( massive(), 'J' ), wrap( $lib, 'o_J', [], Size_t )->(), 'offsetof(..., "J")';
-    is offsetof( massive(), 'l' ), wrap( $lib, 'o_l', [], Size_t )->(), 'offsetof(..., "l")';
-    is offsetof( massive(), 'L' ), wrap( $lib, 'o_L', [], Size_t )->(), 'offsetof(..., "L")';
-    is offsetof( massive(), 'f' ), wrap( $lib, 'o_f', [], Size_t )->(), 'offsetof(..., "f")';
-    is offsetof( massive(), 'd' ), wrap( $lib, 'o_d', [], Size_t )->(), 'offsetof(..., "d")';
-    is offsetof( massive(), 'p' ), wrap( $lib, 'o_p', [], Size_t )->(), 'offsetof(..., "p")';
-    is offsetof( massive(), 'Z' ), wrap( $lib, 'o_Z', [], Size_t )->(), 'offsetof(..., "Z")';
+    is offsetof( massive(), 'B' ), Affix::wrap( $lib, 'o_B', [], Size_t )->(), 'offsetof(..., "B")';
+    is offsetof( massive(), 'c' ), Affix::wrap( $lib, 'o_c', [], Size_t )->(), 'offsetof(..., "c")';
+    is offsetof( massive(), 'C' ), Affix::wrap( $lib, 'o_C', [], Size_t )->(), 'offsetof(..., "C")';
+    is offsetof( massive(), 's' ), Affix::wrap( $lib, 'o_s', [], Size_t )->(), 'offsetof(..., "s")';
+    is offsetof( massive(), 'S' ), Affix::wrap( $lib, 'o_S', [], Size_t )->(), 'offsetof(..., "S")';
+    is offsetof( massive(), 'i' ), Affix::wrap( $lib, 'o_i', [], Size_t )->(), 'offsetof(..., "i")';
+    is offsetof( massive(), 'I' ), Affix::wrap( $lib, 'o_I', [], Size_t )->(), 'offsetof(..., "I")';
+    is offsetof( massive(), 'j' ), Affix::wrap( $lib, 'o_j', [], Size_t )->(), 'offsetof(..., "j")';
+    is offsetof( massive(), 'J' ), Affix::wrap( $lib, 'o_J', [], Size_t )->(), 'offsetof(..., "J")';
+    is offsetof( massive(), 'l' ), Affix::wrap( $lib, 'o_l', [], Size_t )->(), 'offsetof(..., "l")';
+    is offsetof( massive(), 'L' ), Affix::wrap( $lib, 'o_L', [], Size_t )->(), 'offsetof(..., "L")';
+    is offsetof( massive(), 'f' ), Affix::wrap( $lib, 'o_f', [], Size_t )->(), 'offsetof(..., "f")';
+    is offsetof( massive(), 'd' ), Affix::wrap( $lib, 'o_d', [], Size_t )->(), 'offsetof(..., "d")';
+    is offsetof( massive(), 'p' ), Affix::wrap( $lib, 'o_p', [], Size_t )->(), 'offsetof(..., "p")';
+    is offsetof( massive(), 'Z' ), Affix::wrap( $lib, 'o_Z', [], Size_t )->(), 'offsetof(..., "Z")';
 };
 
 #diag Dumper massive();

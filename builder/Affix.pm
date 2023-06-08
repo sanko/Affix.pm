@@ -65,12 +65,14 @@ sub alien {
         my $cwd   = Path::Tiny->cwd->absolute;
         my $pre   = Path::Tiny->cwd->child( qw[blib arch auto], $opt{meta}->name )->absolute;
         chdir $kid->absolute->stringify;
-        warn Path::Tiny->cwd->absolute;
         if (1) {
             my $make = $opt{config}->get('make');
             my $configure
-                = 'sh ./configure --prefix=' . $pre->absolute . ' CFLAGS="-fPIC ' .
-                ( $opt{config}->get('osname') =~ /bsd/ ? '' : $CFLAGS ) . '" LDFLAGS="' .
+                = 'sh ./configure --prefix=' .
+                $pre->absolute .
+                ' CFLAGS="-fPIC ' .
+                ( $opt{config}->get('osname') =~ /bsd/ ? '' : $CFLAGS ) .
+                '" LDFLAGS="' .
                 ( $opt{config}->get('osname') =~ /bsd/ ? '' : $LDFLAGS ) . '"';
             if ( $opt{config}->get('osname') eq 'MSWin32' ) {
                 require Devel::CheckBin;
@@ -127,7 +129,7 @@ sub alien {
             }
             else {
                 $make = $opt{config}->get('make');
-                warn($_) && system($_ ) for $configure, $make, $make . ' install';
+                system($_ ) for $configure, $make, $make . ' install';
             }
         }
         else {    # Future, maybe...
@@ -307,7 +309,8 @@ sub alien {
                 chdir $kid->absolute->stringify;
                 warn($_) && system($_ )
                     for 'sh ./configure --prefix=' .
-                    $pre->absolute . ' CFLAGS="-Ofast" LDFLAGS="-Ofast" ', 'make', 'make install';
+                    $pre->absolute .
+                    ' CFLAGS="-Ofast" LDFLAGS="-Ofast" ', 'make', 'make install';
                 chdir $cwd->stringify;
             }
             else {
@@ -327,7 +330,6 @@ sub process_cxx {
     my $archdir = catdir( qw/blib arch auto/, @parts );
     my $tempdir = 'lib';
     my $c_file  = catfile( $tempdir, "$file_base.cxx" );
-    warn $c_file;
     require ExtUtils::ParseXS;
     mkpath( $tempdir, $opt{verbose}, oct '755' );
     my $version = $opt{meta}->version;
@@ -335,7 +337,6 @@ sub process_cxx {
     my $builder = ExtUtils::CBuilder->new( config => ( $opt{config}->values_set ) );
     my $pre     = Path::Tiny->cwd->child(qw[blib arch auto])->absolute;
     my $obj     = $builder->object_file($c_file);
-    warn $pre->child( $opt{meta}->name, 'include' )->stringify;
     my $ob_file = $builder->compile(
         'C++'        => 1,
         source       => $c_file,
@@ -343,8 +344,9 @@ sub process_cxx {
         include_dirs =>
             [ curdir, dirname($source), $pre->child( $opt{meta}->name, 'include' )->stringify ],
         extra_compiler_flags => (
-            '-fPIC ' . ( $opt{config}->get('osname') =~ /bsd/ ? '' : $CFLAGS ) .
-                ( $DEBUG ? ' -ggdb3 -g -Wall' : '' )
+            '-fPIC ' .
+                ( $opt{config}->get('osname') =~ /bsd/ ? '' : $CFLAGS ) .
+                ( $DEBUG                               ? ' -ggdb3 -g -Wall -Wextra -pedantic' : '' )
         )
     );
     require DynaLoader;
@@ -361,7 +363,8 @@ sub process_cxx {
     return $builder->link(
         extra_linker_flags => (
             ( $opt{config}->get('osname') =~ /bsd/ ? '' : $LDFLAGS ) . ' -L' .
-                dirname($source) . ' -L' . $pre->child( $opt{meta}->name, 'lib' )->stringify .
+                dirname($source) . ' -L' .
+                $pre->child( $opt{meta}->name, 'lib' )->stringify .
                 ' -ldyncall_s -ldyncallback_s -ldynload_s'
         ),
         objects     => [$ob_file],

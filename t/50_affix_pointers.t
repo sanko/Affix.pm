@@ -51,7 +51,6 @@ subtest 'Dyn::Call::Pointer with a double' => sub {
     my $raw = $ptr->raw(16);
     is unpack( 'd', $raw ), 10000, '$ptr was changed to 10000';
     free $ptr;
-    warn;
     diag __LINE__;
 };
 diag __LINE__;
@@ -85,8 +84,6 @@ diag __LINE__;
         sub {
             diag __LINE__;
             pass('our coderef was called');
-            use Data::Dump;
-            ddx \@_;
             is_deeply \@_, [ 4, 8 ], '... and given correct arguments';
             diag __LINE__;
             50.25;
