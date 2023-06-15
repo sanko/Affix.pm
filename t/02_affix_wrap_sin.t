@@ -7,14 +7,6 @@ use Config;
 $|++;
 #
 my $libfile = Affix::locate_lib( $^O eq 'MSWin32' ? 'ntdll.dll' : ( 'm', 6 ) );
-
-#  "/usr/lib/system/libsystem_c.dylib", /* macos - note: not on fs w/ macos >= 11.0.1 */
-#    "/usr/lib/libc.dylib",
-#    "/boot/system/lib/libroot.so",       /* Haiku */
-#    "\\ReactOS\\system32\\msvcrt.dll",   /* ReactOS */
-#    "C:\\ReactOS\\system32\\msvcrt.dll",
-#    "\\Windows\\system32\\msvcrt.dll",   /* Windows */
-#    "C:\\Windows\\system32\\msvcrt.dll"
 skip 'Cannot find math lib: ' . $libfile, 8 if $^O ne 'MSWin32' && !-f $libfile;
 diag 'Loading ' . $libfile . ' ...';
 my $sin = Affix::wrap( $libfile, 'sin', [Double], Double );

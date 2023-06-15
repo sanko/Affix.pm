@@ -3,10 +3,13 @@ use Test::More 0.98;
 use lib '../lib', 'lib';
 use Affix;
 use utf8;
+$|++;
 
 #~ use Test2::V0;
 #~ Test2::Tools::Encoding::set_encoding('utf8');
 binmode $_, "encoding(UTF-8)" for Test::More->builder->output, Test::More->builder->failure_output;
+diag unpack 'W', '赤';
+diag ord '赤';
 
 #~ binmode(STDOUT, "encoding(UTF-8)");
 #~ binmode(STDERR, "encoding(UTF-8)");
@@ -44,8 +47,15 @@ subtest pointers => sub {
     subtest 'Pointer[Char]' => sub {
         {
             my $ptr = ( Pointer [Char] )->marshal('Abcd');
+            $ptr->dump(16);
             is( ( Pointer [Char] )->unmarshal($ptr),        'Abcd',   'Abcd in and out' );
             is( int( ( Pointer [Char] )->unmarshal($ptr) ), ord('A'), 'Abcd in and out (int)' );
+        }
+        {
+            my $ptr = ( Pointer [Char] )->marshal( 'Abcd' x 64 );
+            $ptr->dump(16);
+            is( ( Pointer [Char] )->unmarshal($ptr),        'Abcd' x 64, 'Abcd in and out' );
+            is( int( ( Pointer [Char] )->unmarshal($ptr) ), ord('A'),    'Abcd in and out (int)' );
         }
         {
             my $ptr = ( Pointer [Char] )->marshal( ord 'A' );
@@ -59,6 +69,7 @@ subtest pointers => sub {
     subtest 'Pointer[UChar]' => sub {
         {
             my $ptr = ( Pointer [UChar] )->marshal('Abcd');
+            $ptr->dump(30);
             is( ( Pointer [UChar] )->unmarshal($ptr),        'Abcd',   'Abcd in and out' );
             is( int( ( Pointer [UChar] )->unmarshal($ptr) ), ord('A'), 'Abcd in and out (int)' );
         }
@@ -73,6 +84,8 @@ subtest pointers => sub {
     };
     subtest 'Pointer[WChar]' => sub {
         my $ptr = ( Pointer [WChar] )->marshal('赤');
+        pass 'dummy';
+        $ptr->dump(16);
         is( ( Pointer [WChar] )->unmarshal($ptr), '赤', 'wide char in and out' );
     };
     subtest 'Pointer[Short]' => sub {
@@ -218,15 +231,11 @@ subtest pointers => sub {
     subtest 'Pointer[WStr]' => sub {
         my $type = Pointer [WStr];
         for my $str (
-            '赤',                                     '時空',
-            'こんにちは、世界',                'Привет, мир!',
-            '안녕하세요, 세계!',                'مرحبا بالعالم!',
-            'नमस्ते दुनिया! ', '',
+            '赤',          '時空',             'こんにちは、世界',        'Привет, мир!',
+            '안녕하세요, 세계!', 'مرحبا بالعالم!', 'नमस्ते दुनिया! ', '',
             undef
         ) {
             my $ptr = $type->marshal($str);
-
-            #~
             is $type->unmarshal($ptr), $str, defined $str ? $str eq '' ? "''" : $str : 'undef';
         }
     };
@@ -239,9 +248,13 @@ subtest pointers => sub {
         is $ref->(), 55, 'return value from callback (55)';
     };
     subtest 'Pointer[Struct[...]]' => sub {
+        pass 'dummy';
         my $type = Pointer [ Struct [ i => Str, j => Long ] ];
-        my $ptr  = $type->marshal( { i => 'String', j => 10000 } );
-        my $ref  = $type->unmarshal($ptr);
+        diag Affix::sizeof(Long);
+        diag Affix::sizeof( Struct [ i => Str, j => Long ] );
+        my $ptr = $type->marshal( { i => 'String', j => 10000 } );
+        $ptr->dump(31);
+        my $ref = $type->unmarshal($ptr);
         isa_ok $ref , 'HASH';
         is_deeply $ref, { i => 'String', j => 10000 }, 'same hash is returned';
     };

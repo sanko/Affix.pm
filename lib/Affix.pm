@@ -180,15 +180,24 @@ package Affix 0.12 {    # 'FFI' is my middle name!
             if defined $_lib_cache->{$library}{ $version // 0 };
         my $is_win    = $OS eq 'MSWin32';
         my $is_darwin = $OS eq 'darwin';
-        my $basename  = basename($library);
+        require Win32 if $is_win;
+        my $basename = basename($library);
         my $full_path;    # = $library eq $basename;
         my $dirname = dirname($library);
         $basename .= ".$version" if $is_darwin && defined $version;
-        my $prefix        = $is_win ? '' : 'lib';
-        my $platform_name = "$prefix$basename." . $Config{so};
+        my $prefix = $is_win ? '' : 'lib';
+        my $platform_name
+            = "$prefix$basename" . ( $basename =~ /$Config{so}$/ ? '' : '.' . $Config{so} );
         $platform_name .= '.' . $version if defined $version && !$is_win && !$is_darwin;
 
-        for my $path ( '', split ' ', $Config{libsdirs} ) {
+        for my $path (
+            '',
+            $is_win ? (
+                Win32::GetFolderPath( Win32::CSIDL_SYSTEM() ),
+                Win32::GetFolderPath( Win32::CSIDL_WINDOWS() ) . '\SYSWOW64'
+            ) :
+            ( split ' ', $Config{libsdirs} )
+        ) {
             my $try = rel2abs( catdir( $path, $platform_name ) );
             if ( -f $try ) {
                 $_lib_cache->{$library}{ $version // 0 } = $full_path = $try;
