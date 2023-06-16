@@ -115,8 +115,8 @@ DLLEXPORT char *cb_A(struct A a) {
 typedef char *(*sub)();
 typedef char *(*CV_Z)(char *, sub code);
 DLLEXPORT char *cb_CV_Z(CV_Z cb, sub code) {
-    warn("# here at %s line %d", __FILE__, __LINE__);
+    //~ warn("# here at %s line %d", __FILE__, __LINE__);
     (*code)();
-    warn("# here at %s line %d", __FILE__, __LINE__);
+    //~ warn("# here at %s line %d", __FILE__, __LINE__);
     return ((*cb)("Ready!", code));
 }

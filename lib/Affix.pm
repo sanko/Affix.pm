@@ -187,7 +187,7 @@ package Affix 0.12 {    # 'FFI' is my middle name!
         $basename .= ".$version" if $is_darwin && defined $version;
         my $prefix = $is_win ? '' : 'lib';
         my $platform_name
-            = "$prefix$basename" . ( $basename =~ /$Config{so}$/ ? '' : '.' . $Config{so} );
+            = "$prefix$basename" . ( $basename =~ /\.$Config{so}$/ ? '' : '.' . $Config{so} );
         $platform_name .= '.' . $version if defined $version && !$is_win && !$is_darwin;
 
         for my $path (

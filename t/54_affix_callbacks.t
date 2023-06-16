@@ -19,7 +19,7 @@ diag $lib;
 #~ ddx CodeRef [ [ Double, Str, Bool ] => Bool ];
 #~ }
 #
-is wrap( $lib, 'cb_pii_i', [ CodeRef [ [ Pointer [Void], Int, Int ] => Int ] ] => Int )->(
+is Affix::wrap( $lib, 'cb_pii_i', [ CodeRef [ [ Pointer [Void], Int, Int ] => Int ] ] => Int )->(
     sub {
         is_deeply( \@_, [ undef, 100, 200 ], '[ Pointer [Void], Int, Int ]' );
         return 4;
@@ -27,7 +27,7 @@ is wrap( $lib, 'cb_pii_i', [ CodeRef [ [ Pointer [Void], Int, Int ] => Int ] ] =
     ),
     4,
     '    => Int';
-ok !!wrap( $lib, 'cb_dZb_b', [ CodeRef [ [ Double, Str, Bool ] => Bool ] ] => Bool )->(
+ok !!Affix::wrap( $lib, 'cb_dZb_b', [ CodeRef [ [ Double, Str, Bool ] => Bool ] ] => Bool )->(
     sub {
         is_deeply(
             \@_,
@@ -45,98 +45,98 @@ ok !!wrap( $lib, 'cb_dZb_b', [ CodeRef [ [ Double, Str, Bool ] => Bool ] ] => Bo
     }
     ),
     '    => Bool';
-is wrap( $lib, 'cb_v_v', [ CodeRef [ [Void] => Void ] ] => Void )->(
+is Affix::wrap( $lib, 'cb_v_v', [ CodeRef [ [Void] => Void ] ] => Void )->(
     sub {
         is_deeply( \@_, [], '[ Void ]' );
         return;
     }
     ),
     undef, '    => Void';
-ok wrap( $lib, 'cb_b_b', [ CodeRef [ [Bool] => Bool ] ] => Bool )->(
+ok Affix::wrap( $lib, 'cb_b_b', [ CodeRef [ [Bool] => Bool ] ] => Bool )->(
     sub {
         is_deeply( \@_, [ !0 ], '[ Bool ]' );
         return 1;
     }
     ),
     '    => Bool [true]';
-ok !wrap( $lib, 'cb_b_b', [ CodeRef [ [Bool] => Bool ] ] => Bool )->(
+ok !Affix::wrap( $lib, 'cb_b_b', [ CodeRef [ [Bool] => Bool ] ] => Bool )->(
     sub {
         is_deeply( \@_, [ !0 ], '[ Bool ]' );
         return 0;
     }
     ),
     '    => Bool [false]';
-is wrap( $lib, 'cb_c_c', [ CodeRef [ [Char] => Char ] ] => Char )->(
+is Affix::wrap( $lib, 'cb_c_c', [ CodeRef [ [Char] => Char ] ] => Char )->(
     sub {
         is_deeply( \@_, [ -ord 'A' ], '[ Char ]' );
         return -ord 'B';
     }
     ),
     -ord 'B', '    => Char';
-is wrap( $lib, 'cb_C_C', [ CodeRef [ [UChar] => UChar ] ] => UChar )->(
+is Affix::wrap( $lib, 'cb_C_C', [ CodeRef [ [UChar] => UChar ] ] => UChar )->(
     sub {
         is_deeply( \@_, [ ord 'Q' ], '[ UChar ]' );
         return ord 'Z';
     }
     ),
     ord 'Z', '    => UChar';
-is wrap( $lib, 'cb_s_s', [ CodeRef [ [Short] => Short ] ] => Short )->(
+is Affix::wrap( $lib, 'cb_s_s', [ CodeRef [ [Short] => Short ] ] => Short )->(
     sub {
         is_deeply( \@_, [-8], '[ Short ]' );
         return -49;
     }
     ),
     -49, '    => Short';
-is wrap( $lib, 'cb_S_S', [ CodeRef [ [UShort] => UShort ] ] => UShort )->(
+is Affix::wrap( $lib, 'cb_S_S', [ CodeRef [ [UShort] => UShort ] ] => UShort )->(
     sub {
         is_deeply( \@_, [16], '[ UShort ]' );
         return 32;
     }
     ),
     32, '    => UShort';
-is wrap( $lib, 'cb_i_i', [ CodeRef [ [Int] => Int ] ] => Int )->(
+is Affix::wrap( $lib, 'cb_i_i', [ CodeRef [ [Int] => Int ] ] => Int )->(
     sub {
         is_deeply( \@_, [-20], '[ Int ]' );
         return -88;
     }
     ),
     -88, '    => Int';
-is wrap( $lib, 'cb_I_I', [ CodeRef [ [UInt] => UInt ] ] => UInt )->(
+is Affix::wrap( $lib, 'cb_I_I', [ CodeRef [ [UInt] => UInt ] ] => UInt )->(
     sub {
         is_deeply( \@_, [44], '[ UInt ]' );
         return 32;
     }
     ),
     32, '    => UInt';
-is wrap( $lib, 'cb_j_j', [ CodeRef [ [Long] => Long ] ] => Long )->(
+is Affix::wrap( $lib, 'cb_j_j', [ CodeRef [ [Long] => Long ] ] => Long )->(
     sub {
         is_deeply( \@_, [-3219], '[ Long ]' );
         return -76;
     }
     ),
     -76, '    => Long';
-is wrap( $lib, 'cb_J_J', [ CodeRef [ [ULong] => ULong ] ] => ULong )->(
+is Affix::wrap( $lib, 'cb_J_J', [ CodeRef [ [ULong] => ULong ] ] => ULong )->(
     sub {
         is_deeply( \@_, [8990], '[ ULong ]' );
         return 32;
     }
     ),
     32, '    => ULong';
-is wrap( $lib, 'cb_l_l', [ CodeRef [ [LongLong] => LongLong ] ] => LongLong )->(
+is Affix::wrap( $lib, 'cb_l_l', [ CodeRef [ [LongLong] => LongLong ] ] => LongLong )->(
     sub {
         is_deeply( \@_, [-47923], '[ LongLong ]' );
         return -760093;
     }
     ),
     -760093, '    => LongLong';
-is wrap( $lib, 'cb_L_L', [ CodeRef [ [ULongLong] => ULongLong ] ] => ULongLong )->(
+is Affix::wrap( $lib, 'cb_L_L', [ CodeRef [ [ULongLong] => ULongLong ] ] => ULongLong )->(
     sub {
         is_deeply( \@_, [93294], '[ ULongLong ]' );
         return 32232;
     }
     ),
     32232, '    => ULongLong';
-is wrap( $lib, 'cb_f_f', [ CodeRef [ [Float] => Float ] ] => Float )->(
+is Affix::wrap( $lib, 'cb_f_f', [ CodeRef [ [Float] => Float ] ] => Float )->(
     sub {
         is_deeply(
             \@_,
@@ -150,7 +150,7 @@ is wrap( $lib, 'cb_f_f', [ CodeRef [ [Float] => Float ] ] => Float )->(
     }
     ),
     -100.5, '    => Float';
-is wrap( $lib, 'cb_d_d', [ CodeRef [ [Double] => Double ] ] => Double )->(
+is Affix::wrap( $lib, 'cb_d_d', [ CodeRef [ [Double] => Double ] ] => Double )->(
     sub {
         is_deeply(
             \@_,
@@ -166,7 +166,7 @@ is wrap( $lib, 'cb_d_d', [ CodeRef [ [Double] => Double ] ] => Double )->(
     ( $Config{usequadmath} ? 0.400000000000000022204460492503131 :
         $Config{uselongdouble} ? 0.400000000000000022 :
         .4 ), '    => Double';
-is wrap( $lib, 'cb_Z_Z', [ CodeRef [ [Str] => Str ] ] => Str )->(
+is Affix::wrap( $lib, 'cb_Z_Z', [ CodeRef [ [Str] => Str ] ] => Str )->(
     sub {
         is_deeply( \@_, ['Ready!'], '[ Str ]' );
         return 'Go!';
@@ -174,7 +174,7 @@ is wrap( $lib, 'cb_Z_Z', [ CodeRef [ [Str] => Str ] ] => Str )->(
     ),
     'Go!', '    => Str';
 #
-is wrap( $lib, 'cb_A', [ Struct [ cb => CodeRef [ [Str] => Str ], i => Int ] ] => Str )->(
+is Affix::wrap( $lib, 'cb_A', [ Struct [ cb => CodeRef [ [Str] => Str ], i => Int ] ] => Str )->(
     {   cb => sub {
             is_deeply( \@_, ['Ready!'], '[ Str ]' );
             return 'Go!';
@@ -186,7 +186,7 @@ is wrap( $lib, 'cb_A', [ Struct [ cb => CodeRef [ [Str] => Str ], i => Int ] ] =
 #
 Affix::typedef cv => CodeRef [ [] => Str ];
 my $cv = sub { pass 'Callback!'; };
-is wrap( $lib, 'cb_CV_Z', [ CodeRef [ [ Str, cv() ] => Str ], cv() ] => Str )->(
+is Affix::wrap( $lib, 'cb_CV_Z', [ CodeRef [ [ Str, cv() ] => Str ], cv() ] => Str )->(
     sub {
         is_deeply( \@_, [ 'Ready!', $cv ], '[ Str, CodeRef ]' );
         return 'Go!';

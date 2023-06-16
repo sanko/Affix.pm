@@ -48,7 +48,7 @@ extern "C" {
 #define newXS_deffile(a, b) Perl_newXS_deffile(aTHX_ a, b)
 
 #define dcAllocMem safemalloc
-#define dcFreeMem Safefree
+#define dcFreeMem safefree
 
 #ifndef av_count
 #define av_count(av) (AvFILL(av) + 1)
@@ -78,7 +78,11 @@ extern "C" {
 #include <dyncall/dyncall/dyncall_aggregate.h>
 
 const char *file = __FILE__;
-#define PING warn("Ping at %s line %d", __FILE__, __LINE__);
+#if DEGUG
+#define PING warn_nocontext("Ping at %s line %d", __FILE__, __LINE__);
+#else
+#define PING ;
+#endif
 
 /* globals */
 #define MY_CXT_KEY "Affix::_guts" XS_VERSION
@@ -663,9 +667,10 @@ char cbHandler(DCCallback *cb, DCArgs *args, DCValue *result, DCpointer userdata
         case DC_SIGCHAR_POINTER: {
             DCpointer ptr = dcbArgPointer(args);
             SV *__type = *av_fetch(cbx->args, i, 0);
-            char *_type = SvPV_nolen(__type);
-            warn("Pointer");
-            switch (_type[0]) { // true type
+            int _type = SvIV(__type);
+            //~ warn("Pointer to...");
+            //~ sv_dump(__type);
+            switch (_type) { // true type
             case AFFIX_ARG_VOID: {
                 SV *s = ptr2sv(aTHX_ ptr, __type);
                 mPUSHs(s);
@@ -679,7 +684,7 @@ char cbHandler(DCCallback *cb, DCArgs *args, DCValue *result, DCpointer userdata
                 break;
             }
         } break;
-        case AFFIX_ARG_ASCIISTR: {
+        case DC_SIGCHAR_STRING: {
             DCpointer ptr = dcbArgPointer(args);
             PUSHs(newSVpv((char *)ptr, 0));
         } break;
@@ -792,9 +797,9 @@ char cbHandler(DCCallback *cb, DCArgs *args, DCValue *result, DCpointer userdata
             else
                 result->p = NULL; // ha.
         } break;
-        //~ case DC_SIGCHAR_STRING:
-        //~ result->Z = SvPOK(ret) ? SvPVx_nolen_const(ret) : NULL;
-        //~ break;
+        case DC_SIGCHAR_STRING:
+            result->Z = SvPOK(ret) ? SvPVx_nolen_const(ret) : NULL;
+            break;
         //~ case DC_SIGCHAR_WIDE_STRING:
         //~ result->p = SvPOK(ret) ? (DCpointer)SvPVx_nolen_const(ret) : NULL;
         //~ ret_c = DC_SIGCHAR_POINTER;
@@ -821,26 +826,34 @@ typedef struct { // Used in CUnion and pin()
     SV *type_sv;
 } var_ptr;
 
-char *locate_lib(pTHX_ char *lib, int ver) {
+char *locate_lib(pTHX_ char *_lib, int ver) {
     // Use perl to get the actual path to the library
     dSP;
     int count;
+    char *retval;
+    Newxz(retval, 0, char);
     ENTER;
     SAVETMPS;
     PUSHMARK(SP);
-    mXPUSHp(lib, strlen(lib));
+    mXPUSHp(_lib, strlen(_lib));
     if (ver) mXPUSHn(ver);
     PUTBACK;
     count = call_pv("Affix::locate_lib", G_SCALAR);
     SPAGAIN;
     if (count == 1) {
         SV *ret = POPs;
-        if (SvOK(ret)) strcpy(lib, SvPVx_nolen(ret));
+        if (SvOK(ret)) {
+            STRLEN len;
+            char *__lib = SvPVx(ret, len);
+            Renew(retval, len + 1, char);
+            memzero(retval, len + 1);
+            Copy(__lib, retval, len, char);
+        }
     }
     PUTBACK;
     FREETMPS;
     LEAVE;
-    return lib;
+    return retval;
 }
 
 #ifdef _WIN32
@@ -899,7 +912,7 @@ XS_INTERNAL(Affix_pin) {
         lib = INT2PTR(DLLib *, tmp);
     }
     else {
-        char *_libpath = locate_lib(aTHX_ SvPV_nolen(ST(1)), 0);
+        const char *_libpath = locate_lib(aTHX_ SvPV_nolen(ST(1)), 0);
         lib =
 #if defined(_WIN32) || defined(_WIN64)
             dlLoadLibrary(_libpath);
@@ -1205,6 +1218,109 @@ XS_INTERNAL(Affix_Type_Union) {
     ST(0) = sv_2mortal(
         sv_bless(newRV_inc(MUTABLE_SV(RETVAL_HV)), gv_stashpv("Affix::Type::Union", GV_ADD)));
     XSRETURN(1);
+}
+
+XS_INTERNAL(Affix_Type_Enum) {
+    dXSARGS;
+    PERL_UNUSED_VAR(items);
+    HV *RETVAL_HV = newHV();
+
+    {
+        AV *vals = MUTABLE_AV(SvRV(ST(0)));
+        AV *values = newAV_mortal();
+        SV *current_value = newSViv(0);
+        for (int i = 0; i < av_count(vals); ++i) {
+            SV *name = newSV(0);
+            SV **item = av_fetch(vals, i, 0);
+            if (SvROK(*item)) {
+                if (SvTYPE(SvRV(*item)) == SVt_PVAV) {
+                    AV *cast = MUTABLE_AV(SvRV(*item));
+                    if (av_count(cast) == 2) {
+                        name = *av_fetch(cast, 0, 0);
+                        current_value = *av_fetch(cast, 1, 0);
+                        if (!SvIOK(current_value)) { // C-like enum math like: enum { a,
+                                                     // b, c = a+b}
+                            char *eval = NULL;
+                            size_t pos = 0;
+                            size_t size = 1024;
+                            Newxz(eval, size, char);
+                            for (int i = 0; i < av_count(values); i++) {
+                                SV *e = *av_fetch(values, i, 0);
+                                char *str = SvPV_nolen(e);
+                                char *line;
+                                if (SvIOK(e)) {
+                                    int num = SvIV(e);
+                                    line = form("sub %s(){%d}", str, num);
+                                }
+                                else {
+                                    char *chr = SvPV_nolen(e);
+                                    line = form("sub %s(){'%s'}", str, chr);
+                                }
+                                // size_t size = pos + strlen(line);
+                                size = (strlen(eval) > (size + strlen(line))) ? size + strlen(line)
+                                                                              : size;
+                                Renewc(eval, size, char, char);
+                                Copy(line, INT2PTR(DCpointer, PTR2IV(eval) + pos), strlen(line) + 1,
+                                     char);
+                                pos += strlen(line);
+                            }
+                            current_value = eval_pv(form("package Affix::Enum::eval{no warnings "
+                                                         "qw'redefine reserved';%s%s}",
+                                                         eval, SvPV_nolen(current_value)),
+                                                    1);
+                            safefree(eval);
+                        }
+                    }
+                }
+                else { croak("Enum element must be a [key => value] pair"); }
+            }
+            else
+                sv_setsv(name, *item);
+            {
+                SV *TARGET = newSV(1);
+                { // Let's make enum values dualvars just 'cause; snagged from
+                  // Scalar::Util
+                    SV *num = newSVsv(current_value);
+                    (void)SvUPGRADE(TARGET, SVt_PVNV);
+                    sv_copypv(TARGET, name);
+                    if (SvNOK(num) || SvPOK(num) || SvMAGICAL(num)) {
+                        SvNV_set(TARGET, SvNV(num));
+                        SvNOK_on(TARGET);
+                    }
+#ifdef SVf_IVisUV
+                    else if (SvUOK(num)) {
+                        SvUV_set(TARGET, SvUV(num));
+                        SvIOK_on(TARGET);
+                        SvIsUV_on(TARGET);
+                    }
+#endif
+                    else {
+                        SvIV_set(TARGET, SvIV(num));
+                        SvIOK_on(TARGET);
+                    }
+                    if (PL_tainting && (SvTAINTED(num) || SvTAINTED(name))) SvTAINTED_on(TARGET);
+                }
+                av_push(values, newSVsv(TARGET));
+            }
+            sv_inc(current_value);
+        }
+        hv_stores(RETVAL_HV, "values", newRV_inc(MUTABLE_SV(values)));
+    }
+
+    ST(0) = sv_2mortal(
+        sv_bless(newRV_inc(MUTABLE_SV(RETVAL_HV)), gv_stashpv("Affix::Type::Enum", GV_ADD)));
+    XSRETURN(1);
+}
+
+// I might need to cram more context into these in a future version so I'm wrapping them this way
+XS_INTERNAL(Affix_Type_IntEnum) {
+    Affix_Type_Enum(aTHX_ cv);
+}
+XS_INTERNAL(Affix_Type_UIntEnum) {
+    Affix_Type_Enum(aTHX_ cv);
+}
+XS_INTERNAL(Affix_Type_CharEnum) {
+    Affix_Type_Enum(aTHX_ cv);
 }
 
 XS_INTERNAL(Types_return_typedef) {
@@ -1736,29 +1852,52 @@ XS_INTERNAL(Affix_affix) {
         croak_xs_usage(cv,
                        "lib, symbol, arg_types, ret_type, resolve_lib_name, calling_convention");
     SV *RETVAL;
-    CallBody *ret;
-    Newx(ret, 1, CallBody);
-    DLLib *lib;
-    if (!SvOK(ST(0)))
-        lib = NULL;
+    CallBody *ret = (CallBody *)safemalloc(sizeof(CallBody));
+
+    /*
+struct CallBody {
+int16_t call_conv;
+size_t num_args;
+int16_t *arg_types;
+int16_t ret_type;
+char *lib_name;
+DLLib *lib_handle;
+char *sym_name;
+void *entry_point;
+AV *arg_info;
+SV *ret_info;
+SV *resolve_lib_name;
+};
+*/
+
+    char *prototype = NULL;
+    char *name = NULL;
+
+    if (!SvOK(ST(0))) {
+        ret->lib_handle = NULL;
+        ret->lib_name = NULL;
+    }
     else if (SvROK(ST(0)) && sv_derived_from(ST(0), "Affix::Lib")) {
         IV tmp = SvIV(MUTABLE_SV(SvRV(ST(0))));
-        lib = INT2PTR(DLLib *, tmp);
+        ret->lib_handle = INT2PTR(DLLib *, tmp);
+        ret->lib_name = NULL;
     }
     else {
-        ret->lib_name = locate_lib(aTHX_ SvPV_nolen(ST(0)), 0);
-        lib =
+        STRLEN len;
+        char *_name = SvPV(ST(0), len);
+        ret->lib_name = locate_lib(aTHX_ _name, 0);
+
+        ret->lib_handle =
 #if defined(_WIN32) || defined(_WIN64)
             dlLoadLibrary(ret->lib_name);
 #else
             (DLLib *)dlopen(ret->lib_name, RTLD_LAZY /* RTLD_NOW|RTLD_GLOBAL */);
 #endif
-        if (!lib) {
+        if (!ret->lib_handle) {
             croak("Failed to load %s: %s", ret->lib_name, dlerror());
         }
     }
 
-    char *name = NULL;
     if (LIKELY(ix != 1)) {
         if (UNLIKELY(SvROK(ST(1)) && SvTYPE(SvRV(ST(1))) == SVt_PVAV)) {
             // [ symbol, rename ]
@@ -1774,7 +1913,6 @@ XS_INTERNAL(Affix_affix) {
     else
         ret->sym_name = (char *)(SvPOK(ST(1)) ? SvPV_nolen(ST(1)) : NULL);
 
-    char *prototype;
     {
         AV *av;
         SV **ssv;
@@ -1819,11 +1957,11 @@ XS_INTERNAL(Affix_affix) {
     ret->ret_info = newSVsv(ST(3));
     ret->resolve_lib_name = SvOK(ST(4)) ? newSVsv(ST(4)) : newSV(0);
     ret->call_conv = SvOK(ST(5)) ? SvIV(ST(5)) : DC_CALL_C_DEFAULT;
-    ret->lib_handle = lib;
     ret->entry_point = dlFindSymbol(ret->lib_handle, ret->sym_name);
     //~ warn("entry_point: %p, sym_name: %s, as: %s, prototype: %s, ix: %d", ret->entry_point,
     //~ ret->sym_name, name, prototype, ix);
     //~ DD(MUTABLE_SV(ret->arg_info));
+
     STMT_START {
         cv = newXSproto_portable(name, Affix_trigger, file, prototype);
         if (UNLIKELY(cv == NULL))
@@ -1831,11 +1969,12 @@ XS_INTERNAL(Affix_affix) {
         XSANY.any_ptr = (DCpointer)ret;
     }
     STMT_END;
+
     RETVAL = sv_bless((UNLIKELY(ix == 1) ? newRV_noinc(MUTABLE_SV(cv)) : newRV_inc(MUTABLE_SV(cv))),
                       gv_stashpv("Affix", GV_ADD));
 
     ST(0) = sv_2mortal(RETVAL);
-    safefree(prototype);
+    if (prototype) safefree(prototype);
 
     XSRETURN(1);
 }
@@ -1857,7 +1996,34 @@ XS_INTERNAL(Affix_DESTROY) {
         }
     }
     STMT_END;
-    Safefree(ptr);
+    /*
+            struct CallBody {
+int16_t call_conv;
+size_t num_args;
+int16_t *arg_types;
+int16_t ret_type;
+char *lib_name;
+DLLib *lib_handle;
+char *sym_name;
+void *entry_point;
+AV *arg_info;
+SV *ret_info;
+SV *resolve_lib_name;
+};
+            */
+    if (ptr->lib_handle != NULL) {
+        dlFreeLibrary(ptr->lib_handle);
+        ptr->lib_handle = NULL;
+    }
+    //~ if(ptr->lib_name!=NULL){
+    //~ Safefree(ptr->lib_name);
+    //~ ptr->lib_name = NULL;
+    //~ }
+
+    //~ if(ptr->entry_point)
+    //~ Safefree(ptr->entry_point);
+    if (ptr) { Safefree(ptr); }
+
     XSRETURN_EMPTY;
 }
 
@@ -1886,8 +2052,8 @@ XS_INTERNAL(Affix_Type_Pointer_marshal) {
     SV *type = *hv_fetchs(MUTABLE_HV(SvRV(ST(0))), "type", 0);
     SV *data = ST(1);
     // DCpointer RETVAL = safemalloc(_sizeof(aTHX_ type));
-    //	warn("RETVAL is %d bytes", _sizeof(aTHX_ type));
-    DCpointer RETVAL = sv2ptr(aTHX_ type, data, NULL, false);
+    warn("RETVAL should be %d bytes", _sizeof(aTHX_ type));
+    DCpointer RETVAL = sv2ptr(aTHX_ type, data, RETVAL, false);
     {
         SV *RETVALSV;
         RETVALSV = sv_newmortal();
@@ -2546,6 +2712,7 @@ extern "C"
     TYPE(Void, AFFIX_ARG_VOID, DC_SIGCHAR_VOID);
     TYPE(Bool, AFFIX_ARG_BOOL, DC_SIGCHAR_BOOL);
     TYPE(Char, AFFIX_ARG_CHAR, DC_SIGCHAR_CHAR);
+    EXT_TYPE(CharEnum, AFFIX_ARG_CHAR, DC_SIGCHAR_CHAR);
     TYPE(UChar, AFFIX_ARG_UCHAR, DC_SIGCHAR_CHAR);
     switch (WCHAR_T_SIZE) {
     case I8SIZE:
@@ -2563,7 +2730,10 @@ extern "C"
     TYPE(Short, AFFIX_ARG_SHORT, DC_SIGCHAR_SHORT);
     TYPE(UShort, AFFIX_ARG_USHORT, DC_SIGCHAR_SHORT);
     TYPE(Int, AFFIX_ARG_INT, DC_SIGCHAR_INT);
+    EXT_TYPE(Enum, AFFIX_ARG_INT, DC_SIGCHAR_INT);
+    EXT_TYPE(IntEnum, AFFIX_ARG_INT, DC_SIGCHAR_INT);
     TYPE(UInt, AFFIX_ARG_UINT, DC_SIGCHAR_INT);
+    EXT_TYPE(UIntEnum, AFFIX_ARG_UINT, DC_SIGCHAR_UINT);
     TYPE(Long, AFFIX_ARG_LONG, DC_SIGCHAR_LONG);
     TYPE(ULong, AFFIX_ARG_ULONG, DC_SIGCHAR_LONG);
     TYPE(LongLong, AFFIX_ARG_LONGLONG, DC_SIGCHAR_LONGLONG);
@@ -2631,6 +2801,7 @@ extern "C"
     (void)newXSproto_portable("Affix::sv_dump", Affix_sv_dump, file, "$");
 
     (void)newXSproto_portable("Affix::typedef", Affix_typedef, file, "$$");
+    export_function("Affix", "typedef", "all");
 
     (void)newXSproto_portable("Affix::Type::Pointer::marshal", Affix_Type_Pointer_marshal, file,
                               "$$");
@@ -3016,8 +3187,7 @@ SV *ptr2sv(pTHX_ DCpointer ptr, SV *type_sv) {
 
 void *sv2ptr(pTHX_ SV *type_sv, SV *data, DCpointer ptr, bool packed) {
     int16_t type = SvIV(type_sv);
-    if (ptr == NULL) ptr= safemalloc(_sizeof(aTHX_ type_sv));
-
+    if (ptr == NULL) ptr = safemalloc(_sizeof(aTHX_ type_sv));
     //~ warn("sv2ptr(%s (%d), ..., %p, %s) at %s line %d", type_as_str(type), type, ptr,
     //~ (packed ? "true" : "false"), __FILE__, __LINE__);
     switch (type) {
