@@ -358,7 +358,7 @@ void _DumpHex(pTHX_ const void *addr, size_t len, const char *file, int line) {
         if ((i % perLine) == 0) { // Only print previous-line ASCII buffer for
             // lines beyond first.
             if (i != 0) printf(" | %s\n", buff);
-            printf("#  %zu ", i); // Output the offset of current line.
+            printf("#  %03zu ", i); // Output the offset of current line.
         }
         // Now the hex code for the specific character.
         printf(" %02x", pc[i]);
@@ -454,10 +454,27 @@ static size_t _sizeof(pTHX_ SV *type) {
         return DOUBLE_SIZE;
     case AFFIX_ARG_CSTRUCT:
     case AFFIX_ARG_CUNION:
-    case AFFIX_ARG_CARRAY:
-        // sv_dump(type);
-        // DD(type);
         return SvUV(*hv_fetchs(MUTABLE_HV(SvRV(type)), "sizeof", 0));
+    case AFFIX_ARG_CARRAY:
+        if (LIKELY(hv_exists(MUTABLE_HV(SvRV(type)), "sizeof", 6)))
+            return SvUV(*hv_fetchs(MUTABLE_HV(SvRV(type)), "sizeof", 0));
+        {
+            size_t type_alignof = _alignof(aTHX_ * hv_fetchs(MUTABLE_HV(SvRV(type)), "type", 0));
+            size_t array_length = SvUV(*hv_fetchs(MUTABLE_HV(SvRV(type)), "dyn_size", 0));
+            bool packed = SvTRUE(*hv_fetchs(MUTABLE_HV(SvRV(type)), "packed", 0));
+            size_t type_sizeof = _sizeof(aTHX_ * hv_fetchs(MUTABLE_HV(SvRV(type)), "type", 0));
+            size_t array_sizeof = 0;
+            for (size_t i = 0; i < array_length; ++i) {
+                array_sizeof += type_sizeof;
+                array_sizeof += packed ? 0
+                                       : padding_needed_for(array_sizeof, type_alignof > type_sizeof
+                                                                              ? type_sizeof
+                                                                              : type_alignof);
+            }
+            return array_sizeof;
+        }
+        croak("Do some math!");
+        return 0;
     case AFFIX_ARG_CALLBACK: // automatically wrapped in a DCCallback pointer
     case AFFIX_ARG_CPOINTER:
     case AFFIX_ARG_ASCIISTR:
@@ -1082,41 +1099,42 @@ XS_INTERNAL(Affix_Type_ArrayRef) {
     HV *RETVAL_HV = newHV();
     AV *fields = MUTABLE_AV(SvRV(ST(0)));
     size_t fields_count = av_count(fields);
-    if (fields_count == 2) {
-        SV *type, *size;
-        size_t array_length, array_sizeof = 0;
-        bool packed = false;
-        {
-            type = *av_fetch(fields, 0, 0);
-            if (!(sv_isobject(type) && sv_derived_from(type, "Affix::Type::Base")))
-                croak("ArrayRef[...] expects a type that is a subclass of Affix::Type::Base");
-            hv_stores(RETVAL_HV, "type", SvREFCNT_inc(type));
+    SV *type;
+    size_t array_length, array_sizeof = 0;
+    bool packed = false;
+    {
+        type = *av_fetch(fields, 0, 0);
+        if (!(sv_isobject(type) && sv_derived_from(type, "Affix::Type::Base")))
+            croak("ArrayRef[...] expects a type that is a subclass of Affix::Type::Base");
+        hv_stores(RETVAL_HV, "type", SvREFCNT_inc(type));
+    }
+    size_t type_alignof = _alignof(aTHX_ type);
+    if (UNLIKELY(fields_count == 1)) {
+        // wait for dynamic _sizeof(...) calculation
+    }
+    else if (fields_count == 2) {
+        array_length = SvUV(*av_fetch(fields, 1, 0));
+        size_t type_sizeof = _sizeof(aTHX_ type);
+        for (size_t i = 0; i < array_length; ++i) {
+            array_sizeof += type_sizeof;
+            array_sizeof += packed ? 0
+                                   : padding_needed_for(array_sizeof, type_alignof > type_sizeof
+                                                                          ? type_sizeof
+                                                                          : type_alignof);
         }
-        size_t type_alignof = _alignof(aTHX_ type);
-
-        if (fields_count == 2) {
-            array_length = SvUV(*av_fetch(fields, 1, 0));
-            size_t type_sizeof = _sizeof(aTHX_ type);
-            for (size_t i = 0; i < array_length; ++i) {
-                array_sizeof += type_sizeof;
-                array_sizeof += packed ? 0
-                                       : padding_needed_for(array_sizeof, type_alignof > type_sizeof
-                                                                              ? type_sizeof
-                                                                              : type_alignof);
-            }
-            size = newSVuv(array_length);
-        }
-        else { size = newSV(0); }
         hv_stores(RETVAL_HV, "sizeof", newSVuv(array_sizeof));
-        hv_stores(RETVAL_HV, "align", newSVuv(type_alignof));
-        hv_stores(RETVAL_HV, "size", size);
-        hv_stores(RETVAL_HV, "name", newSV(0));
-        hv_stores(RETVAL_HV, "packed", boolSV(packed));
-        ST(0) = sv_2mortal(sv_bless(newRV_inc(MUTABLE_SV(RETVAL_HV)),
-                                    gv_stashpv("Affix::Type::ArrayRef", GV_ADD)));
+        hv_stores(RETVAL_HV, "size", newSVuv(array_length));
     }
     else
         croak("ArrayRef[...] expects a type and size. e.g ArrayRef[Int, 50]");
+
+    hv_stores(RETVAL_HV, "align", newSVuv(type_alignof));
+    hv_stores(RETVAL_HV, "name", newSV(0));
+    hv_stores(RETVAL_HV, "packed", boolSV(packed));
+
+    ST(0) = sv_2mortal(
+        sv_bless(newRV_inc(MUTABLE_SV(RETVAL_HV)), gv_stashpv("Affix::Type::ArrayRef", GV_ADD)));
+
     XSRETURN(1);
 }
 
@@ -1229,7 +1247,7 @@ XS_INTERNAL(Affix_Type_Enum) {
         AV *vals = MUTABLE_AV(SvRV(ST(0)));
         AV *values = newAV_mortal();
         SV *current_value = newSViv(0);
-        for (int i = 0; i < av_count(vals); ++i) {
+        for (size_t i = 0; i < av_count(vals); ++i) {
             SV *name = newSV(0);
             SV **item = av_fetch(vals, i, 0);
             if (SvROK(*item)) {
@@ -1239,13 +1257,13 @@ XS_INTERNAL(Affix_Type_Enum) {
                         name = *av_fetch(cast, 0, 0);
                         current_value = *av_fetch(cast, 1, 0);
                         if (!SvIOK(current_value)) { // C-like enum math like: enum { a,
-                                                     // b, c = a+b}
+                            // b, c = a+b}
                             char *eval = NULL;
                             size_t pos = 0;
                             size_t size = 1024;
                             Newxz(eval, size, char);
-                            for (int i = 0; i < av_count(values); i++) {
-                                SV *e = *av_fetch(values, i, 0);
+                            for (size_t j = 0; j < av_count(values); j++) {
+                                SV *e = *av_fetch(values, j, 0);
                                 char *str = SvPV_nolen(e);
                                 char *line;
                                 if (SvIOK(e)) {
@@ -1278,8 +1296,9 @@ XS_INTERNAL(Affix_Type_Enum) {
                 sv_setsv(name, *item);
             {
                 SV *TARGET = newSV(1);
-                { // Let's make enum values dualvars just 'cause; snagged from
-                  // Scalar::Util
+                {
+                    // Let's make enum values dualvars just 'cause; snagged from
+                    // Scalar::Util
                     SV *num = newSVsv(current_value);
                     (void)SvUPGRADE(TARGET, SVt_PVNV);
                     sv_copypv(TARGET, name);
@@ -1526,39 +1545,38 @@ extern "C" void Affix_trigger(pTHX_ CV *cv) {
         //~ croak("Unhandled arg type at %s line %d", __FILE__, __LINE__);
         break;
         case AFFIX_ARG_CARRAY: {
+
             if (!SvOK(ST(i)) && SvREADONLY(ST(i)) // explicit undef
             ) {
                 dcArgPointer(MY_CXT.cvm, NULL);
             }
             else {
                 if (!free_ptrs) Newxz(free_ptrs, num_args, DCpointer);
+
                 // free_ptrs = (void **)safemalloc(num_args * sizeof(void *));
                 if (!SvROK(ST(i)) || SvTYPE(SvRV(ST(i))) != SVt_PVAV)
                     croak("Type of arg %d must be an array ref", i + 1);
+
                 AV *elements = MUTABLE_AV(SvRV(ST(i)));
                 SV **type = av_fetch(ptr->arg_info, i, 0);
                 HV *hv_ptr = MUTABLE_HV(SvRV(SvRV(*type)));
-                //~ SV **type_ptr = hv_fetchs(hv_ptr, "type", 0);
-                SV **size_ptr = hv_fetchs(hv_ptr, "size", 0);
-
-                //~ SV **ptr_ptr =
-                //~ hv_exists(hv_ptr, "pointer", 7) ?
-                //~ hv_fetchs(hv_ptr, "pointer", 0)
-                //~ newSvRV(newSV(0));
                 size_t av_len;
-                if (SvOK(*size_ptr)) {
-                    av_len = SvIV(*size_ptr);
+                if (hv_exists(hv_ptr, "size", 4)) {
+                    av_len = SvIV(*hv_fetchs(hv_ptr, "size", 0));
                     if (av_count(elements) != av_len)
                         croak("Expected an array of %lu elements; found %ld", av_len,
                               av_count(elements));
                 }
-                else
+                else {
                     av_len = av_count(elements);
+                    hv_stores(hv_ptr, "dyn_size", newSVuv(av_len));
+                }
+
                 //~ hv_stores(hv_ptr, "sizeof", newSViv(av_len));
                 size_t size = _sizeof(aTHX_(SvRV(*type)));
-                Newxz(free_ptrs[num_ptrs], av_len * size, char);
+                Newxz(free_ptrs[num_ptrs], size, char);
                 sv2ptr(aTHX_ SvRV(*type), ST(i), free_ptrs[num_ptrs], false);
-                dcArgPointer(MY_CXT.cvm, free_ptrs[num_ptrs]);
+                dcArgPointer(MY_CXT.cvm, free_ptrs[num_ptrs++]);
                 num_ptrs++;
             }
         } break;
@@ -1801,6 +1819,22 @@ extern "C" void Affix_trigger(pTHX_ CV *cv) {
         for (i = 0; LIKELY(i < items); ++i) {
             if (LIKELY(!SvREADONLY(ST(i)))) { // explicit undef
                 switch (arg_types[i]) {
+                case AFFIX_ARG_CARRAY: {
+                    SV *sv = ptr2sv(aTHX_ free_ptrs[p++], SvRV(*av_fetch(ptr->arg_info, i, 0)));
+                    if (SvFLAGS(ST(i)) & SVs_TEMP) { // likely a temp ref
+                        AV *av = MUTABLE_AV(SvRV(sv));
+                        av_clear(MUTABLE_AV(SvRV(ST(i))));
+                        size_t av_len = av_count(av);
+                        for (size_t q = 0; q < av_len; ++q) {
+                            sv_setsv(*av_fetch(MUTABLE_AV(SvRV(ST(i))), q, 1), *av_fetch(av, q, 0));
+                        }
+                        SvSETMAGIC(SvRV(ST(i)));
+                    }
+                    else { // scalar ref is faster :D
+                        SvSetMagicSV(ST(i), sv);
+                    }
+
+                } break;
                 case AFFIX_ARG_CPOINTER: {
                     if (sv_derived_from((ST(i)), "Affix::Pointer")) {
                         ;
@@ -1855,20 +1889,20 @@ XS_INTERNAL(Affix_affix) {
     CallBody *ret = (CallBody *)safemalloc(sizeof(CallBody));
 
     /*
-struct CallBody {
-int16_t call_conv;
-size_t num_args;
-int16_t *arg_types;
-int16_t ret_type;
-char *lib_name;
-DLLib *lib_handle;
-char *sym_name;
-void *entry_point;
-AV *arg_info;
-SV *ret_info;
-SV *resolve_lib_name;
-};
-*/
+    struct CallBody {
+    int16_t call_conv;
+    size_t num_args;
+    int16_t *arg_types;
+    int16_t ret_type;
+    char *lib_name;
+    DLLib *lib_handle;
+    char *sym_name;
+    void *entry_point;
+    AV *arg_info;
+    SV *ret_info;
+    SV *resolve_lib_name;
+    };
+    */
 
     char *prototype = NULL;
     char *name = NULL;
@@ -1947,7 +1981,7 @@ SV *resolve_lib_name;
                 prototype[x] = '$';
             }
             else {
-                PING;
+
                 //~ croak("Arg # %d is an invalid or unknown type", x);
                 ret->arg_types[x] = (int16_t)AFFIX_ARG_VOID;
             }
@@ -1998,18 +2032,18 @@ XS_INTERNAL(Affix_DESTROY) {
     STMT_END;
     /*
             struct CallBody {
-int16_t call_conv;
-size_t num_args;
-int16_t *arg_types;
-int16_t ret_type;
-char *lib_name;
-DLLib *lib_handle;
-char *sym_name;
-void *entry_point;
-AV *arg_info;
-SV *ret_info;
-SV *resolve_lib_name;
-};
+    int16_t call_conv;
+    size_t num_args;
+    int16_t *arg_types;
+    int16_t ret_type;
+    char *lib_name;
+    DLLib *lib_handle;
+    char *sym_name;
+    void *entry_point;
+    AV *arg_info;
+    SV *ret_info;
+    SV *resolve_lib_name;
+    };
             */
     if (ptr->lib_handle != NULL) {
         dlFreeLibrary(ptr->lib_handle);
@@ -3122,21 +3156,23 @@ SV *ptr2sv(pTHX_ DCpointer ptr, SV *type_sv) {
             sv_set_undef(RETVAL);
     } break;
     case AFFIX_ARG_CARRAY: {
+
         AV *RETVAL_ = newAV_mortal();
         HV *_type = MUTABLE_HV(SvRV(type_sv));
+
         SV *subtype = *hv_fetchs(_type, "type", 0);
         SV **size = hv_fetchs(_type, "size", 0);
+        if (size == NULL) size = hv_fetchs(_type, "dyn_size", 0);
+
         size_t pos = PTR2IV(ptr);
         size_t sof = _sizeof(aTHX_ subtype);
-        size_t av_len;
-        if (SvOK(*size))
-            av_len = SvIV(*size);
-        else
-            av_len = SvIV(*hv_fetchs(_type, "size_", 0)) + 1;
+
+        size_t av_len = SvIV(*size);
         for (size_t i = 0; i < av_len; ++i) {
             av_push(RETVAL_, ptr2sv(aTHX_ INT2PTR(DCpointer, pos), subtype));
             pos += sof;
         }
+
         SvSetSV(RETVAL, newRV(MUTABLE_SV(RETVAL_)));
     } break;
     case AFFIX_ARG_CSTRUCT: {
@@ -3388,12 +3424,19 @@ void *sv2ptr(pTHX_ SV *type_sv, SV *data, DCpointer ptr, bool packed) {
     } break;
     case AFFIX_ARG_CARRAY: {
         AV *elements = MUTABLE_AV(SvRV(data));
+
         HV *hv_ptr = MUTABLE_HV(SvRV(type_sv));
+
         SV **type_ptr = hv_fetchs(hv_ptr, "type", 0);
+
         SV **size_ptr = hv_fetchs(hv_ptr, "size", 0);
-        size_t size = SvOK(*size_ptr) ? SvIV(*size_ptr) : av_len(elements) + 1;
+        hv_stores(hv_ptr, "dyn_size", newSVuv(av_count(elements)));
+
+        size_t size = size_ptr != NULL && SvOK(*size_ptr) ? SvIV(*size_ptr) : av_count(elements);
+
         // hv_stores(hv_ptr, "size", newSViv(size));
         char *type_char = SvPVbytex_nolen(*type_ptr);
+
         switch (type_char[0]) {
         case AFFIX_ARG_CHAR:
         case AFFIX_ARG_UCHAR: {
@@ -3411,12 +3454,14 @@ void *sv2ptr(pTHX_ SV *type_sv, SV *data, DCpointer ptr, bool packed) {
         }
         // fall through
         default: {
+
             if (SvOK(SvRV(data)) && SvTYPE(SvRV(data)) != SVt_PVAV) croak("Expected an array");
-            if (SvOK(*size_ptr)) {
+            if (size_ptr != NULL && SvOK(*size_ptr)) {
                 size_t av_len = av_count(elements);
                 if (av_len != size)
                     croak("Expected and array of %zu elements; found %zu", size, av_len);
             }
+
             size_t el_len = _sizeof(aTHX_ * type_ptr);
             size_t pos = 0; // override
             for (size_t i = 0; i < size; ++i) {

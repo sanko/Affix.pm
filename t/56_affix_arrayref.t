@@ -9,25 +9,25 @@ use t::lib::nativecall;
 # Cribbed from FFI::Platypus example
 my $lib = compile_test_lib('56_affix_arrayref');
 #
-affix $lib, array_reverse   => [ ArrayRef [Int], Int ], Int;
 affix $lib, array_reverse10 => [ ArrayRef [ Int, 10 ] ], Int;
+affix $lib, array_reverse   => [ ArrayRef [Int], Int ], Int;
 affix $lib, array_sum       => [ ArrayRef [Int] ], Int;
 #
 subtest 'ArrayRef[Int, 10]' => sub {
     my @a = ( 1 .. 10 );
-    is array_reverse10( \@a ), 15, 'array_reverse10( \@a )';
+    is array_reverse10( \@a ), 55, 'array_reverse10( \@a )';
     is_deeply \@a, [ 10, 9, 8, 7, 6, 5, 4, 3, 2, 1 ], 'contents reversed';
 };
 subtest 'ArrayRef[Int]' => sub {
     {
         my @a = ( 1 .. 20 );
-        is array_reverse( \@a, 20 ), 55, 'array_reverse( \@a, 20 )';
+        is array_reverse( \@a, 20 ), 210, 'array_reverse( \@a, 20 )';
         is_deeply \@a, [ 20, 19, 18, 17, 16, 15, 14, 13, 12, 11, 10, 9, 8, 7, 6, 5, 4, 3, 2, 1 ],
             'contents reversed';
     }
     {
         my $a = [ 1 .. 20 ];
-        is array_reverse( $a, 20 ), 55, 'array_reverse( $a, 20 )';
+        is array_reverse( $a, 20 ), 210, 'array_reverse( $a, 20 )';
         is_deeply $a, [ 20, 19, 18, 17, 16, 15, 14, 13, 12, 11, 10, 9, 8, 7, 6, 5, 4, 3, 2, 1 ],
             'contents reversed';
     }
