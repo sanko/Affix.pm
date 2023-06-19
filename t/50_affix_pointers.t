@@ -35,7 +35,7 @@ subtest 'undefined scalar ref' => sub {
     diag __LINE__;
 };
 diag __LINE__;
-subtest 'Dyn::Call::Pointer with a double' => sub {
+subtest 'Affix::Pointer with a double' => sub {
     diag __LINE__;
     my $ptr = calloc( 1, 16 );
     {
@@ -54,7 +54,7 @@ subtest 'Dyn::Call::Pointer with a double' => sub {
     diag __LINE__;
 };
 diag __LINE__;
-subtest 'ref Dyn::Call::Pointer with a double (should croak)' => sub {
+subtest 'ref Affix::Pointer with a double (should croak)' => sub {
     diag __LINE__;
     my $ptr = calloc( 1, 16 );
     {
@@ -91,6 +91,7 @@ diag __LINE__;
         ),
         900, 'making call to test various types of pointers';
     diag __LINE__;
+    diag ref $ptr;
     is $ptr, 100.5, 'Pointer[Double] was updated!';
 }
 diag __LINE__;
@@ -132,11 +133,11 @@ diag __LINE__;
         ),
         ( $Config{usequadmath} ? 18.3382499999999986073362379102036 :
             $Config{uselongdouble} ? 18.3382499999999986 :
-            18.33825 ), 'making call with Dyn::Call::Pointer object with packed data';
+            18.33825 ), 'making call with Affix::Pointer object with packed data';
     is unpack( 'd', $ptr ),
         ( $Config{usequadmath} ? 3.49299999999999988276044859958347 :
             $Config{uselongdouble} ? 3.49299999999999988 :
-            3.493 ), 'Dyn::Call::Pointer updated';
+            3.493 ), 'Affix::Pointer updated';
     diag __LINE__;
     free $ptr;
     diag __LINE__;

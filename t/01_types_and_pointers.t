@@ -10,9 +10,6 @@ $|++;
 binmode $_, "encoding(UTF-8)" for Test::More->builder->output, Test::More->builder->failure_output;
 diag unpack 'W', '赤';
 diag ord '赤';
-
-#~ binmode(STDOUT, "encoding(UTF-8)");
-#~ binmode(STDERR, "encoding(UTF-8)");
 #
 subtest types => sub {
     isa_ok $_, 'Affix::Type::Base'

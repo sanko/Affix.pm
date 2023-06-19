@@ -6,6 +6,7 @@ use lib '../lib', '../blib/arch', '../blib/lib', 'blib/arch', 'blib/lib', '../..
 use Affix qw[:all];
 use File::Spec;
 use t::lib::nativecall;
+binmode $_, "encoding(UTF-8)" for Test::More->builder->output, Test::More->builder->failure_output;
 $|++;
 
 # https://www.gnu.org/software/libunistring/manual/html_node/The-wchar_005ft-mess.html
@@ -36,15 +37,16 @@ is Affix::wrap( $lib, 'kr',     [WStr] => Int )->('안녕하세요, 세계!'), 0
 is Affix::wrap( $lib, 'get_kr', [] => WStr )->(), '안녕하세요, 세계!', "korean returned!";
 #
 my $type = Struct [ w => WChar ];
-
-#~ my $ptr = $type->marshal( { w => '時' }  );
-#~ isa_ok $ptr, 'Affix::Pointer';
-#~ my $dump = ptr2sv( $ptr, Struct [ w => WChar ] );
-#~ is $dump->{w}, '時', 'sv2ptr(ptr2sv( { w => ...}, Struct [ w => WChar ]), ...)';
-diag int CodeRef [ [WChar] => WChar ];
 subtest '[CodeRef[[WChar]=>WChar]]=>WChar' => sub {
-    is char_cb( sub { is shift, '時', 'wchar_t passed to callback'; '空' } ), '空',
-        'wchar_t returned from callback';
+    is char_cb(
+        sub {
+            my $wc = shift;
+            is $wc,     '時', 'wchar_t passed to callback (natural)';
+            is int $wc, 26178, 'wchar_t passed to callback (dualvar)';
+            '空';
+        }
+        ),
+        '空', 'wchar_t returned from callback';
 };
 #
 done_testing;

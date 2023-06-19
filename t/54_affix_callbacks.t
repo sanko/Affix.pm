@@ -68,7 +68,8 @@ ok !Affix::wrap( $lib, 'cb_b_b', [ CodeRef [ [Bool] => Bool ] ] => Bool )->(
     '    => Bool [false]';
 is Affix::wrap( $lib, 'cb_c_c', [ CodeRef [ [Char] => Char ] ] => Char )->(
     sub {
-        is_deeply( \@_, [ -ord 'A' ], '[ Char ]' );
+        my $arg = shift;
+        is( int $arg, -ord 'A', '[ Char ]' );
         return -ord 'B';
     }
     ),
