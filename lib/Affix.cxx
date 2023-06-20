@@ -258,13 +258,6 @@ int type_as_dc(int type) {
     }
 }
 
-/* Useful but undefined in perlapi */
-#define FLOAT_SIZE sizeof(float)
-#define BOOL_SIZE sizeof(bool)         // ha!
-#define DOUBLE_SIZE sizeof(double)     // ugh...
-#define INTPTR_T_SIZE sizeof(intptr_t) // ugh...
-#define WCHAR_T_SIZE sizeof(wchar_t)
-
 /* Alignment. */
 #if 1
 // HAVE_ALIGNOF
@@ -350,8 +343,8 @@ void _DumpHex(pTHX_ const void *addr, size_t len, const char *file, int line) {
     // Silently ignore silly per-line values.
     if (perLine < 4 || perLine > 64) perLine = 16;
     size_t i;
-    unsigned char buff[perLine + 1];
-    const unsigned char *pc = (const unsigned char *)addr;
+    U8 buff[perLine + 1];
+    const U8 *pc = (const U8 *)addr;
     printf("Dumping %lu bytes from %p at %s line %d\n", len, addr, file, line);
     // Length checks.
     if (len == 0) croak("ZERO LENGTH");
@@ -647,22 +640,23 @@ char cbHandler(DCCallback *cb, DCArgs *args, DCValue *result, DCpointer userdata
             mPUSHs(boolSV(dcbArgBool(args)));
             break;
         case DC_SIGCHAR_CHAR:
-            //~ {
-            //~ char c = (char)dcbArgChar(args);
-            //~ SV *w = newSVpv(&c, 1);
-            //~ SvIVX(w) = SvIV(newSViv(c));
-            //~ SvIOK_on(w);
-            //~ mPUSHs(w);
-            //~ }
-            mPUSHi((IV)dcbArgChar(args));
-            break;
-        case DC_SIGCHAR_UCHAR:
-            mPUSHu((UV)dcbArgChar(args));
-            break;
+        case DC_SIGCHAR_UCHAR: {
+            char *c = (char *)safemalloc(sizeof(char) * 2);
+            c[0] = dcbArgChar(args);
+            c[1] = 0;
+            SV *w = newSVpv(c, 1);
+            SvUPGRADE(w, SVt_PVNV);
+            SvIVX(w) = SvIV(newSViv(c[0]));
+            SvIOK_on(w);
+            mPUSHs(w);
+        } break;
         case AFFIX_ARG_WCHAR: {
-            wchar_t c = (wchar_t)dcbArgLong(args);
-            SV *w = wchar2utf(aTHX_ & c, 1);
-            SvIVX(w) = SvIV(newSViv(c));
+            wchar_t *c = (wchar_t *)safemalloc(WCHAR_T_SIZE * 2);
+            c[0] = (wchar_t)dcbArgLong(args);
+            c[1] = 0;
+            SV *w = wchar2utf(aTHX_ c, 1);
+            SvUPGRADE(w, SVt_PVNV);
+            SvIVX(w) = SvIV(newSViv(c[0]));
             SvIOK_on(w);
             mPUSHs(w);
         } break;
@@ -704,7 +698,7 @@ char cbHandler(DCCallback *cb, DCArgs *args, DCValue *result, DCpointer userdata
             //~ sv_dump(__type);
             switch (_type) { // true type
             case AFFIX_ARG_WCHAR: {
-                //~ SV *wchar2utf(pTHX_ const wchar_t *str, int len);
+                //~ SV *wchar2utf(pTHX_ wchar_t *str, int len);
                 mPUSHs(ptr2sv(aTHX_ ptr, newSViv(_type)));
             } break;
             case AFFIX_ARG_VOID: {
@@ -769,7 +763,6 @@ char cbHandler(DCCallback *cb, DCArgs *args, DCValue *result, DCpointer userdata
     }
 
     PUTBACK;
-
     if (cbx->ret == DC_SIGCHAR_VOID) {
         count = call_sv(cbx->cv, G_VOID);
         SPAGAIN;
@@ -795,8 +788,8 @@ char cbHandler(DCCallback *cb, DCArgs *args, DCValue *result, DCpointer userdata
             ret_c = DC_SIGCHAR_LONG; // Fake it
             if (SvPOK(ret)) {
                 STRLEN len;
-                char *str = SvPVx(ret, len);
-                result->L = utf2wchar(str, len)[0];
+                (void)SvPVx(ret, len);
+                result->L = utf2wchar(aTHX_ ret, len)[0];
             }
             else { result->L = 0; }
         } break;
@@ -1480,7 +1473,7 @@ extern "C" void Affix_trigger(pTHX_ CV *cv) {
             dcArgChar(MY_CXT.cvm, (char)(SvIOK(ST(i)) ? SvIV(ST(i)) : *SvPV_nolen(ST(i))));
             break;
         case AFFIX_ARG_UCHAR:
-            dcArgChar(MY_CXT.cvm, (unsigned char)(SvIOK(ST(i)) ? SvUV(ST(i)) : *SvPV_nolen(ST(i))));
+            dcArgChar(MY_CXT.cvm, (U8)(SvIOK(ST(i)) ? SvUV(ST(i)) : *SvPV_nolen(ST(i))));
             break;
         case AFFIX_ARG_WCHAR: {
             if (SvOK(ST(i))) {
@@ -1741,7 +1734,7 @@ extern "C" void Affix_trigger(pTHX_ CV *cv) {
         break;
     case AFFIX_ARG_UCHAR:
         // TODO: Make dualvar
-        RETVAL = newSVuv((unsigned char)dcCallChar(MY_CXT.cvm, ptr->entry_point));
+        RETVAL = newSVuv((U8)dcCallChar(MY_CXT.cvm, ptr->entry_point));
         break;
     case AFFIX_ARG_WCHAR: {
         SV *container;
@@ -2570,7 +2563,7 @@ XS_INTERNAL(Affix_memcmp) {
                 IV tmp = SvIV((SV *)(ST(1)));
                 rhs = INT2PTR(DCpointer, tmp);
             }
-            else if (SvPOK(ST(1))) { rhs = (DCpointer)(unsigned char *)SvPV_nolen(ST(1)); }
+            else if (SvPOK(ST(1))) { rhs = (DCpointer)(U8 *)SvPV_nolen(ST(1)); }
             else
                 croak("dest is not of type Affix::Pointer");
             RETVAL = memcmp(lhs, rhs, count);
@@ -2634,7 +2627,7 @@ XS_INTERNAL(Affix_memcpy) {
         IV tmp = SvIV((SV *)(ST(1)));
         src = INT2PTR(DCpointer, tmp);
     }
-    else if (SvPOK(ST(1))) { src = (DCpointer)(unsigned char *)SvPV_nolen(ST(1)); }
+    else if (SvPOK(ST(1))) { src = (DCpointer)(U8 *)SvPV_nolen(ST(1)); }
     else
         croak("dest is not of type Affix::Pointer");
     RETVAL = CopyD(src, dest, nitems, char);
@@ -2673,7 +2666,7 @@ XS_INTERNAL(Affix_memmove) {
         IV tmp = SvIV((SV *)(ST(1)));
         src = INT2PTR(DCpointer, tmp);
     }
-    else if (SvPOK(ST(1))) { src = (DCpointer)(unsigned char *)SvPV_nolen(ST(1)); }
+    else if (SvPOK(ST(1))) { src = (DCpointer)(U8 *)SvPV_nolen(ST(1)); }
     else
         croak("dest is not of type Affix::Pointer");
 
@@ -3032,82 +3025,13 @@ extern "C"
     Perl_xs_boot_epilog(aTHX_ ax);
 }
 
-SV *wchar2utf(pTHX_ const wchar_t *str, int len) {
-#if _WIN32
-    size_t outlen = WideCharToMultiByte(CP_UTF8, 0, str, len, NULL, 0, NULL, NULL);
-    char *r = (char *)safecalloc(outlen + 1, sizeof(char));
-    WideCharToMultiByte(CP_UTF8, 0, str, len, r, outlen, NULL, NULL);
-#else
-    char *r = (char *)safemalloc((len + 1) * WCHAR_T_SIZE);
-    char *p = r;
-    while (len--) {
-        unsigned int w = *str++;
-        if (w <= 0x7f) { *p++ = w; }
-        else if (w <= 0x7ff) {
-            *p++ = 0xc0 | (w >> 6);
-            *p++ = 0x80 | (w & 0x3f);
-        }
-        else if (w <= 0xffff) {
-            *p++ = 0xe0 | (w >> 12);
-            *p++ = 0x80 | ((w >> 6) & 0x3f);
-            *p++ = 0x80 | (w & 0x3f);
-        }
-        else {
-            *p++ = 0xf0 | (w >> 18);
-            *p++ = 0x80 | ((w >> 12) & 0x3f);
-            *p++ = 0x80 | ((w >> 6) & 0x3f);
-            *p++ = 0x80 | (w & 0x3f);
-        }
-    }
-    *p++ = 0;
-#endif
-    SV *RETVAL = newSVpvn_utf8(r, strlen(r), true);
-    safefree((DCpointer)r);
-    return RETVAL;
-}
-
-wchar_t *utf2wchar(const char *str, int len) {
-    wchar_t *r = (wchar_t *)safemalloc((len + 1) * WCHAR_T_SIZE);
-#ifdef _WIN32
-    MultiByteToWideChar(CP_UTF8, MB_PRECOMPOSED, str, -1, r, len + 1);
-#else
-    wchar_t *p = r;
-    for (unsigned char *s = (unsigned char *)str; s < (unsigned char *)str + len; s++) {
-        unsigned char c = *s;
-
-        if (c < 0x80) { *p++ = c; }
-        else if (c >= 0xc2 && c <= 0xdf && s[1] & 0xc0) {
-            *p++ = ((c & 0x1f) << 6) | (s[1] & 0x3f);
-            s++;
-        }
-        else if (c == 0xe0 && s[1] >= 0xa0 && s[1] <= 0xbf ||
-                 c >= 0xe1 && c <= 0xec && s[1] >= 0x80 && s[1] <= 0xbf ||
-                 c == 0xed && s[1] >= 0x80 && s[1] <= 0x9f ||
-                 c >= 0xee && c <= 0xef && s[1] >= 0x80 && s[1] <= 0xbf) {
-            *p++ = ((c & 0x0f) << 12) | ((s[1] & 0x3f) << 6) | (s[2] & 0x3f);
-            s += 2;
-        }
-        else if (c == 0xf0 && s[1] >= 0x90 && s[1] <= 0xbf ||
-                 c >= 0xf1 && c <= 0xf3 && s[1] >= 0x80 && s[1] <= 0xbf ||
-                 c == 0xf4 && s[1] >= 0x80 && s[1] <= 0x8f) {
-            *p++ =
-                ((c & 0x07) << 18) | ((s[1] & 0x3f) << 12) | ((s[2] & 0x3f) << 6) | (s[3] & 0x3f);
-            s += 3;
-        }
-        else { *p++ = 0xfffd; }
-    }
-    *p = 0;
-#endif
-    return r;
-}
-
 SV *ptr2sv(pTHX_ DCpointer ptr, SV *type_sv) {
     //~ DumpHex(ptr, _sizeof(type_sv));
     if (ptr == NULL) return newSV(0);
     SV *RETVAL = newSV(1); // sv_newmortal();
     int16_t type = SvIV(type_sv);
     //~ {
-    warn("ptr2sv(%p, %s) at %s line %d", ptr, type_as_str(type), __FILE__, __LINE__);
+    //~ warn("ptr2sv(%p, %s) at %s line %d", ptr, type_as_str(type), __FILE__, __LINE__);
     //~ if (type != AFFIX_ARG_VOID) {
     //~ size_t l = _sizeof(type_sv);
     //~ DumpHex(ptr, l);
@@ -3128,8 +3052,8 @@ SV *ptr2sv(pTHX_ DCpointer ptr, SV *type_sv) {
         SvIOK_on(RETVAL);
         break;
     case AFFIX_ARG_WCHAR: {
-        if (wcslen((const wchar_t *)ptr)) {
-            RETVAL = wchar2utf(aTHX_(const wchar_t *) ptr, wcslen((const wchar_t *)ptr));
+        if (wcslen((wchar_t *)ptr)) {
+            RETVAL = wchar2utf(aTHX_(wchar_t *) ptr, wcslen((wchar_t *)ptr));
         }
     } break;
     case AFFIX_ARG_SHORT:
@@ -3180,8 +3104,8 @@ SV *ptr2sv(pTHX_ DCpointer ptr, SV *type_sv) {
         if (*(char **)ptr) sv_setsv(RETVAL, newSVpv(*(char **)ptr, 0));
         break;
     case AFFIX_ARG_UTF16STR: {
-        if (wcslen((const wchar_t *)ptr)) {
-            RETVAL = wchar2utf(aTHX_ * (const wchar_t **)ptr, wcslen(*(const wchar_t **)ptr));
+        if (wcslen((wchar_t *)ptr)) {
+            RETVAL = wchar2utf(aTHX_ * (wchar_t **)ptr, wcslen(*(wchar_t **)ptr));
         }
         else
             sv_set_undef(RETVAL);
@@ -3306,8 +3230,8 @@ void *sv2ptr(pTHX_ SV *type_sv, SV *data, DCpointer ptr, bool packed) {
     case AFFIX_ARG_WCHAR: {
         if (SvPOK(data)) {
             STRLEN len;
-            const char *str_ = SvPVutf8(data, len);
-            wchar_t *value = utf2wchar(str_, len + 1);
+            (void)SvPVutf8(data, len);
+            wchar_t *value = utf2wchar(aTHX_ data, len + 1);
             len = wcslen(value);
             Renew(ptr, len + 1, wchar_t);
             Copy(value, ptr, len + 1, wchar_t);
@@ -3387,8 +3311,8 @@ void *sv2ptr(pTHX_ SV *type_sv, SV *data, DCpointer ptr, bool packed) {
     case AFFIX_ARG_UTF16STR: {
         if (SvPOK(data)) {
             STRLEN len;
-            const char *str_ = SvPVutf8(data, len);
-            wchar_t *str = utf2wchar(str_, len + 1);
+            (void)SvPVutf8(data, len);
+            wchar_t *str = utf2wchar(aTHX_ data, len + 1);
 
             //~ DumpHex(str, strlen(str_));
             DCpointer value;
