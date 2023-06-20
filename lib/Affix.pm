@@ -156,205 +156,108 @@ package Affix 0.12 {    # 'FFI' is my middle name!
         return;
     }
     our $OS = $^O;
+    my $is_win = $OS eq 'MSWin32';
+    my $is_mac = $OS eq 'darwin';
+    my $is_bsd = $OS =~ /bsd/;
+    my $is_sun = $OS =~ /(solaris|sunos)/;
 
-    sub locate_lib {
-
-        #~ use Data::Dump;
-        #~ ddx \@_;
-        my ( $library, $version ) = @_;
-        $library // return;
-        {
-            my ($caller) = caller;
-            my $level = 0;
-            while ( $caller eq __PACKAGE__ ) {
-                ($caller) = caller( ++$level );
-                last if !$caller;
-            }
-            my $ref = $caller->can($library);
-            ( $library, $version ) = $ref->($version) if $ref
-        }
-        return $library                  if -f $library && !defined $version;
-        return "$library." . $Config{so} if -f "$library." . $Config{so};
-        CORE::state $_lib_cache;
-        return $_lib_cache->{$library}{ $version // 0 }
-            if defined $_lib_cache->{$library}{ $version // 0 };
-        my $is_win    = $OS eq 'MSWin32';
-        my $is_darwin = $OS eq 'darwin';
-        require Win32 if $is_win;
-        my $basename = basename($library);
-        my $full_path;    # = $library eq $basename;
-        my $dirname = dirname($library);
-        $basename .= ".$version" if $is_darwin && defined $version;
-        my $prefix = $is_win ? '' : 'lib';
-        my $platform_name
-            = "$prefix$basename" . ( $basename =~ /\.$Config{so}$/ ? '' : '.' . $Config{so} );
-        $platform_name .= '.' . $version if defined $version && !$is_win && !$is_darwin;
-
-        for my $path (
-            '',
-            $is_win ? (
-                Win32::GetFolderPath( Win32::CSIDL_SYSTEM() ),
-                Win32::GetFolderPath( Win32::CSIDL_WINDOWS() ) . '\SYSWOW64'
-            ) :
-            ( split ' ', $Config{libsdirs} )
-        ) {
-            my $try = rel2abs( catdir( $path, $platform_name ) );
-            if ( -f $try ) {
-                $_lib_cache->{$library}{ $version // 0 } = $full_path = $try;
-                last;
-            }
-        }
-        return $full_path;
-
-=pod
-
-=begin old
-
-        CORE::state $_lib_cache;
-        ( $name, $version ) = @$name if ref $name eq 'ARRAY';
-        {
-            my $i   = -1;
-            my $pkg = __PACKAGE__;
-            ($pkg) = caller( ++$i ) while $pkg eq __PACKAGE__;    # Dig out of the hole first
-            my $ok = $pkg->can($name);
-            $name = $ok->() if $ok;
-        }
-        $name // return ();                                       # NULL
-        return $name if -e $name;
-        return $2    if $name =~ m[{\s*(['"])(.+)\1\s*}];
-
-        #$name = eval $name;
-        $name =~ s[['"]][]g;
-        #
-        ($version) = version->parse($version)->stringify =~ m[^v?(.+)$];
-
-        # warn $version;
-        $version = $version ? qr[\.${version}] : qr/([\.\d]*)?/;
-        if ( !defined $_lib_cache->{ $name . ';' . ( $version // '' ) } ) {
-            if ( $OS eq 'MSWin32' ) {
-                my $p;
-                $name =~ s[\.dll$][];
-                if ( -e $name . '.dll' ) {
-                    $p = rel2abs canonpath( $name . '.dll' );
-                }
-                else {
-                    require Win32;
-
-#
-https://docs.microsoft.com/en-us/windows/win32/dlls/dynamic-link-library-search-order#search-order-for-desktop-applications
-                    my @dirs = grep {-d} (                         dirname(
-rel2abs($^X) ),                                # 1. exe dir
-Win32::GetFolderPath( Win32::CSIDL_SYSTEM() ),          # 2. sys dir
-Win32::GetFolderPath( Win32::CSIDL_WINDOWS() ),         # 4. win dir
-rel2abs(curdir),         # 5. cwd path(),                  # 6. $ENV{PATH} map
-{ split /[:;]/, ( $ENV{$_} ) } grep { $ENV{$_} }    # X. User defined
-qw[LD_LIBRARY_PATH DYLD_LIBRARY_PATH DYLD_FALLBACK_LIBRARY_PATH]    );   my
-@retval;
-
-                    #warn $_ for sort { lc $a cmp lc $b } @dirs;
-                    find(
-                        {   wanted => sub {
-                                $File::Find::prune = 1
-                                    if !grep { $_ eq $File::Find::name } @dirs;    # no depth
-                                push @retval, $_ if m{[/\\]${name}(-${version})?\.dll$}i;
-                            },
-                            no_chdir => 1
-                        },
-                        @dirs
-                    );
-                    return if !@retval;
-                    $p = rel2abs pop @retval;
-                }
-                $_lib_cache->{ $name . ';' . ( $version // '' ) } = $p;
-            }
-            elsif ( $OS eq 'darwin' ) {
-                my $p;
-                if    ( -f $name . '.so' )     { $p = rel2abs $name . '.so' }
-                elsif ( -f $name . '.dylib' )  { $p = rel2abs $name . '.dylib' }
-                elsif ( -f $name . '.bundle' ) { $p = rel2abs $name . '.bundle' }
-                elsif ( $name =~ /\.so$/ )     { $p = rel2abs $name }
-                else {
-# https://developer.apple.com/library/archive/documentation/DeveloperTools/Conceptual/DynamicLibraries/100-Articles/UsingDynamicLibraries.html
-                    my @dirs = grep { -d $_ } (
-                        dirname( rel2abs($^X) ),    # 0. exe dir
-                        rel2abs(curdir),            # 0. cwd
-                        path(),                     # 0. $ENV{PATH}
-                        map { rel2abs($_) }
-                            qw[. ./lib/ ~/lib /usr/local/lib /usr/lib /System/Library/dyld/],
-                        map      { split /[:;]/, ( $ENV{$_} ) }
-                            grep { $ENV{$_} }
-                            qw[LD_LIBRARY_PATH LC_LOAD_DYLIB DYLD_LIBRARY_PATH DYLD_FALLBACK_LIBRARY_PATH]
-                    );
-                    my @retval;
-                    find(
-                        {   wanted => sub {
-                                $File::Find::prune = 1
-                                    if !grep { $_ eq $File::Find::name } @dirs;    # no depth
-                                push @retval, $_
-                                    if /\b(?:lib)?${name}${version}\.(so|bundle|dylib)$/;
-                            },
-                            no_chdir => 1
-                        },
-                        @dirs
-                    );
-                    return if !@retval;
-                    $p = rel2abs pop @retval;
-                }
-                $p = readlink $p if -l $p;
-                $_lib_cache->{ $name . ';' . ( $version // '' ) } = $p;
+    sub locate_libs {
+        my ( $lib, $version ) = @_;
+        CORE::state $libdirs;
+        if ( !defined $libdirs ) {
+            if ($is_win) {
+                require Win32;
+                $libdirs = [
+                    Win32::GetFolderPath( Win32::CSIDL_SYSTEM() ),
+                    Win32::GetFolderPath( Win32::CSIDL_WINDOWS() ),
+                ];
             }
             else {
-                my $p;
-                if    ( -f $name )                     { $p = rel2abs $name }
-                elsif ( -f $name . '.' . $Config{so} ) { $p = rel2abs $name . '.' . $Config{so} }
-                else {
-                    my $ext = $Config{so};
-                    my @libs;
-
-               # warn $name . '.' . $ext . $version;
-               #\b(?:lib)?${name}(?:-[\d\.]+)?\.${ext}${version}
-               #my @lines = map { [/^\t(.+)\s\((.+)\)\s+=>\s+(.+)$/] }
-               #    grep {/\b(?:lib)?${name}(?:-[\d\.]+)?\.${ext}(?:\.${version})?$/} `ldconfig -p`;
-               #push @retval, map { $_->[2] } grep { -f $_->[2] } @lines;
-                    my @dirs = grep { -d $_ } (
-                        dirname( rel2abs($^X) ),    # 0. exe dir
-                        rel2abs(curdir),            # 0. cwd
-                        path(),                     # 0. $ENV{PATH}
-                        map { rel2abs($_) }
-                            qw[. ./lib ~/lib /usr/local/lib /usr/lib /lib64 /lib /System/Library/dyld],
-                        map      { split /[:;]/, ( $ENV{$_} ) }
-                            grep { $ENV{$_} }
-                            qw[LD_LIBRARY_PATH DYLD_LIBRARY_PATH DYLD_FALLBACK_LIBRARY_PATH]
-                    );
-                    my @retval;
-                    find(
-                        {   wanted => sub {
-                                $File::Find::prune = 1
-                                    if !grep { $_ eq $File::Find::name } @dirs;    # no depth
-                                push @retval, $_
-                                    if /\b(?:lib)?${name}(?:-[\d\.]+)?\.${ext}${version}$/;
-                                push @retval, $_ if /\b(?:lib)?${name}(?:-[\d\.]+)?\.${ext}$/;
-                            },
-                            no_chdir => 1
-                        },
-                        @dirs
-                    );
-                    return if !@retval;
-                    $p = rel2abs pop @retval;
-                }
-                $p = readlink $p if -l $p;
-                $_lib_cache->{ $name . ';' . ( $version // '' ) } = rel2abs $p;
+                $libdirs = [
+                    ( split ' ', $Config{libsdirs} ),
+                    map      { warn $ENV{$_}; split /[:;]/, ( $ENV{$_} ) }
+                        grep { $ENV{$_} }
+                        qw[LD_LIBRARY_PATH DYLD_LIBRARY_PATH DYLD_FALLBACK_LIBRARY_PATH]
+                ];
             }
+            no warnings qw[once];
+            require DynaLoader;
+            $libdirs = [
+                grep { -d $_ } map { rel2abs($_) } qw[. ./lib ~/lib /usr/local/lib /usr/lib /lib],
+                @DynaLoader::dl_library_path, @$libdirs
+            ];
         }
-        return $_lib_cache->{ $name . ';' . ( $version // '' ) }
-            // Carp::croak( 'Cannot locate symbol: ' . $name );
 
-=end old
+        #~ warn join ', ', @$libdirs;
+        CORE::state $regex;
+        if ( !defined $regex ) {
+            $regex = $is_win ?
+                qr/^
+        (?:lib)?(?<name>\w+?)
+        (?:[_-](?<version>[0-9\-\._]+))?_*
+        \.$Config{so}
+        $/ix :
+                $is_mac ?
+                qr/^
+        (?:lib)?(?<name>\w+?)
+        (?:\.(?<version>[0-9]+(?:\.[0-9]+)*))?
+        \.(?:so|dylib|bundle)
+        $/x :    # assume *BSD or linux
+                qr/^
+        (?:lib)?(?<name>\w+?)
+        \.$Config{so}
+        (?:\.(?<version>[0-9]+(?:\.[0-9]+)*))?
+        $/x;
+        }
+        my @store;
 
-=cut
+        #~ warn;
+        #~ warn $regex;
+        warn join ', ', @$libdirs;
+        find(
+            sub {
+                $File::Find::prune = 1 if !grep { $_ eq $File::Find::name } @$libdirs;
+                return                 if -d $_;
+                return unless $_ =~ $regex;
 
+                #~ use Data::Dump;
+                #~ warn $File::Find::name;
+                #~ ddx %+;
+                push @store, { %+, path => $File::Find::name }
+                    if defined $+{name}                                                          &&
+                    ( $+{name} eq $lib )                                                         &&
+                    ( defined $version ? defined( $+{version} ) && $version == $+{version} : 1 ) &&
+                    -B $File::Find::name;
+            },
+            @$libdirs
+        );
+
+        #~ warn;
+        @store;
     }
-    #
+
+    sub locate_lib {
+        my ( $name, $version ) = @_;
+        return $name if -e $name;
+        CORE::state $cache;
+        return $cache->{$name}{ $version // 0 }->{path} if defined $cache->{$name}{ $version // 0 };
+        if ( !$version ) {
+            return $cache->{$name}{0}{path} = rel2abs($name) if -e rel2abs($name);
+            return $cache->{$name}{0}{path} = rel2abs( $name . '.' . $Config{so} )
+                if -e rel2abs( $name . '.' . $Config{so} );
+        }
+        my @libs = locate_libs( $name, $version );
+
+        #~ warn;
+        #~ use Data::Dump;
+        #~ ddx $cache;
+        #~ ddx \@libs;
+        if (@libs) {
+            ( $cache->{$name}{ $version // 0 } ) = @libs;
+            return $cache->{$name}{ $version // 0 }->{path};
+        }
+        ();
+    }
     {
         # https://itanium-cxx-abi.github.io/cxx-abi/abi-mangling.html
         # https://gcc.gnu.org/git?p=gcc.git;a=blob_plain;f=gcc/cp/mangle.cc;hb=HEAD

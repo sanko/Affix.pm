@@ -2,10 +2,10 @@ use strict;
 use Test::More 0.98;
 BEGIN { chdir '../' if !-d 't'; }
 use lib '../lib', 'lib', '../blib/arch', '../blib/lib', 'blib/arch', 'blib/lib', '../../', '.';
-use Affix qw[:sugar];
+use Affix;
 #
-sub pow : Native(get_lib) : Signature([Double, Double]=>Double);
-plan skip_all => 'I know nothing about macOS' if $^O eq 'darwin';
+#~ plan skip_all => 'I know nothing about macOS' if $^O eq 'darwin';
+Affix::affix( get_lib(), 'pow', [ Double, Double ], Double );
 is pow( 2, 10 ), 1024, 'pow( 2, 10 ) == 1024';
 done_testing;
 

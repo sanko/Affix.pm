@@ -868,8 +868,7 @@ char *locate_lib(pTHX_ char *_lib, int ver) {
     // Use perl to get the actual path to the library
     dSP;
     int count;
-    char *retval;
-    Newxz(retval, 0, char);
+    char *retval = NULL;
     ENTER;
     SAVETMPS;
     PUSHMARK(SP);
@@ -883,8 +882,7 @@ char *locate_lib(pTHX_ char *_lib, int ver) {
         if (SvOK(ret)) {
             STRLEN len;
             char *__lib = SvPVx(ret, len);
-            Renew(retval, len + 1, char);
-            memzero(retval, len + 1);
+            Newxz(retval, len + 1, char);
             Copy(__lib, retval, len, char);
         }
     }
