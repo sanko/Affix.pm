@@ -183,7 +183,9 @@ package Affix 0.12 {    # 'FFI' is my middle name!
             no warnings qw[once];
             require DynaLoader;
             $libdirs = [
-                grep { -d $_ } map { rel2abs($_) } qw[. ./lib ~/lib /usr/local/lib /usr/lib /lib],
+                grep    { -d $_ }
+                    map { rel2abs($_) }
+                    qw[. ./lib ~/lib /usr/local/lib /usr/lib /lib /usr/lib/system],
                 @DynaLoader::dl_library_path, @$libdirs
             ];
         }
@@ -213,7 +215,7 @@ package Affix 0.12 {    # 'FFI' is my middle name!
 
         #~ warn;
         #~ warn $regex;
-        warn join ', ', @$libdirs;
+        #~ warn join ', ', @$libdirs;
         find(
             sub {
                 $File::Find::prune = 1 if !grep { $_ eq $File::Find::name } @$libdirs;

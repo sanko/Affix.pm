@@ -1936,7 +1936,6 @@ XS_INTERNAL(Affix_affix) {
         STRLEN len;
         char *_name = SvPV(ST(0), len);
         ret->lib_name = locate_lib(aTHX_ _name, 0);
-
         ret->lib_handle =
 #if defined(_WIN32) || defined(_WIN64)
             dlLoadLibrary(ret->lib_name);
@@ -1960,8 +1959,7 @@ XS_INTERNAL(Affix_affix) {
         }
         else { name = ret->sym_name = (char *)(SvPOK(ST(1)) ? SvPV_nolen(ST(1)) : NULL); }
     }
-    else
-        ret->sym_name = (char *)(SvPOK(ST(1)) ? SvPV_nolen(ST(1)) : NULL);
+    else { ret->sym_name = (char *)(SvPOK(ST(1)) ? SvPV_nolen(ST(1)) : NULL); }
 
     {
         AV *av;
@@ -2006,12 +2004,11 @@ XS_INTERNAL(Affix_affix) {
     ret->ret_type = (int16_t)(SvOK(ST(3)) ? SvIV(ST(3)) : AFFIX_ARG_VOID);
     ret->ret_info = newSVsv(ST(3));
     ret->resolve_lib_name = SvOK(ST(4)) ? newSVsv(ST(4)) : newSV(0);
-    ret->call_conv = SvOK(ST(5)) ? SvIV(ST(5)) : DC_CALL_C_DEFAULT;
+    ret->call_conv = UNLIKELY(items == 5 && SvIOK(ST(5))) ? SvIV(ST(5)) : DC_CALL_C_DEFAULT;
     ret->entry_point = dlFindSymbol(ret->lib_handle, ret->sym_name);
     //~ warn("entry_point: %p, sym_name: %s, as: %s, prototype: %s, ix: %d", ret->entry_point,
     //~ ret->sym_name, name, prototype, ix);
     //~ DD(MUTABLE_SV(ret->arg_info));
-
     STMT_START {
         cv = newXSproto_portable(name, Affix_trigger, file, prototype);
         if (UNLIKELY(cv == NULL))
@@ -2019,7 +2016,6 @@ XS_INTERNAL(Affix_affix) {
         XSANY.any_ptr = (DCpointer)ret;
     }
     STMT_END;
-
     RETVAL = sv_bless((UNLIKELY(ix == 1) ? newRV_noinc(MUTABLE_SV(cv)) : newRV_inc(MUTABLE_SV(cv))),
                       gv_stashpv("Affix", GV_ADD));
 
@@ -2747,10 +2743,7 @@ XS_INTERNAL(Affix_strdup) {
         XSANY.any_i32 = (int)AFFIX_CHAR;                                                           \
     }
 
-#ifdef __cplusplus
-extern "C"
-#endif
-    XS_EXTERNAL(boot_Affix) {
+XS_EXTERNAL(boot_Affix) {
     dVAR;
     dXSBOOTARGSXSAPIVERCHK;
     PERL_UNUSED_VAR(items);
