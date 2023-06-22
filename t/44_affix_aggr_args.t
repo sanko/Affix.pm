@@ -4,7 +4,7 @@ BEGIN { chdir '../' if !-d 't'; }
 use lib '../lib', '../blib/arch', '../blib/lib', 'blib/arch', 'blib/lib', '../../', '.';
 use Affix;
 use File::Spec;
-use t::lib::nativecall;
+use t::lib::helper;
 use experimental 'signatures';
 $|++;
 plan skip_all => 'no support for aggregates by value' unless Affix::Feature::AggrByVal();

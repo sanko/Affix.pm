@@ -4,7 +4,7 @@ BEGIN { chdir '../' if !-d 't'; }
 use lib '../lib', 'lib', '../blib/arch', '../blib/lib', 'blib/arch', 'blib/lib', '../../', '.';
 use Affix qw[:types affix wrap typedef];
 $|++;
-use t::lib::nativecall;
+use t::lib::helper;
 #
 compile_test_lib('55_affix_enum');
 #

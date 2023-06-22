@@ -5,7 +5,7 @@ use Test::More 0.98;
 BEGIN { chdir '../' if !-d 't'; }
 use lib '../lib', '../blib/arch', '../blib/lib', 'blib/arch', 'blib/lib', '../../', '.';
 use File::Spec;
-use t::lib::nativecall;
+use t::lib::helper;
 use Config;
 $|++;
 #

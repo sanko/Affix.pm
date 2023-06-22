@@ -1,4 +1,4 @@
-package t::lib::nativecall {
+package t::lib::helper {
     use strict;
     use warnings;
     use Test::More;

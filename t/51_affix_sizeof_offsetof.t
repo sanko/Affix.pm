@@ -6,7 +6,7 @@ use Affix;
 use Config;
 $|++;
 #
-use t::lib::nativecall;
+use t::lib::helper;
 #
 my $lib = compile_test_lib('51_affix_sizeof_offsetof');
 subtest 'fundamental types' => sub {

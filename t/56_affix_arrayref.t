@@ -4,7 +4,7 @@ BEGIN { chdir '../' if !-d 't'; }
 use lib '../lib', 'lib', '../blib/arch', '../blib/lib', 'blib/arch', 'blib/lib', '../../', '.';
 use Affix;
 $|++;
-use t::lib::nativecall;
+use t::lib::helper;
 
 # Cribbed from FFI::Platypus example
 my $lib = compile_test_lib('56_affix_arrayref');

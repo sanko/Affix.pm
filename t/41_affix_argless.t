@@ -4,7 +4,7 @@ BEGIN { chdir '../' if !-d 't'; }
 use lib '../lib', '../blib/arch', '../blib/lib', 'blib/arch', 'blib/lib', '../../', '.';
 use Affix qw[:all];
 use File::Spec;
-use t::lib::nativecall;
+use t::lib::helper;
 #
 diag compile_test_lib('41_argless');
 #

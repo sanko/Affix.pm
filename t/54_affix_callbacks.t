@@ -6,7 +6,7 @@ use Affix;
 use Config;
 $|++;
 #
-use t::lib::nativecall;
+use t::lib::helper;
 #
 plan skip_all => 'no support for aggregates by value' unless Affix::Feature::AggrByVal();
 #

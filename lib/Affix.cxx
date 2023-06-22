@@ -151,7 +151,7 @@ START_MY_CXT
 #define AFFIX_UNMARSHAL_KIND_RETURN -2
 #define AFFIX_UNMARSHAL_KIND_NATIVECAST -3
 
-#include "marshal.h"
+#include "Affix.h"
 
 const char *type_as_str(int type) {
     switch (type) {
@@ -1019,6 +1019,29 @@ SIMPLE_TYPE(Double);
 SIMPLE_TYPE(Str);
 SIMPLE_TYPE(WStr);
 
+#define CC(TYPE)                                                                                   \
+    XS_INTERNAL(Affix_CC_##TYPE) {                                                                 \
+        dXSARGS;                                                                                   \
+        PERL_UNUSED_VAR(items);                                                                    \
+        ST(0) = sv_2mortal(sv_bless(newRV_inc(MUTABLE_SV(newHV())),                                \
+                                    gv_stashpv("Affix::Type::CC::" #TYPE, GV_ADD)));               \
+        XSRETURN(1);                                                                               \
+    }
+
+CC(DEFAULT);
+CC(THISCALL);
+CC(THISCALL_MS);
+CC(THISCALL_GNU);
+CC(CDECL);
+CC(ELLIPSIS);
+CC(ELLIPSIS_VARARGS);
+CC(SYSCALL);
+CC(STDCALL);
+CC(FASTCALL_MS);
+CC(FASTCALL_GNU);
+CC(ARM_ARM);
+CC(ARM_THUMB);
+
 XS_INTERNAL(Affix_Type_Pointer) {
     dXSARGS;
     PERL_UNUSED_VAR(items);
@@ -1445,7 +1468,7 @@ extern "C" void Affix_trigger(pTHX_ CV *cv) {
     char **free_strs = NULL;
     void **free_ptrs = NULL;
 
-    int num_args = ptr->num_args, i;
+    int num_args = ptr->num_args, i, p;
     int num_strs = 0, num_ptrs = 0;
     int16_t *arg_types = ptr->arg_types;
     bool void_ret = false;
@@ -1454,14 +1477,63 @@ extern "C" void Affix_trigger(pTHX_ CV *cv) {
     dcReset(MY_CXT.cvm);
 
     if (UNLIKELY(items != num_args)) {
-        if (UNLIKELY(items > num_args)) croak("Too many arguments");
-        croak("Not enough arguments");
+        if (UNLIKELY(items > num_args))
+            croak("Too many arguments; wanted %d, found %d", num_args, items);
+        croak("Not enough arguments; wanted %d, found %d", num_args, items);
     }
-    for (i = 0; LIKELY(i < num_args); ++i) {
-        //~ warn("%d of %d == %s (%d)", i + 1, num_args, type_as_str(ptr->arg_types[i]),
-        //~ (arg_types[i] & AFFIX_ARG_TYPE_MASK));
+    for (i = 0, p = 0; LIKELY(i < num_args); ++i, ++p) {
+        //~ warn("%d of %d == %s (%d/%d)", i + 1, num_args, type_as_str(arg_types[p]),
+        //~ (arg_types[p] & AFFIX_ARG_TYPE_MASK), arg_types[p]);
         //~ sv_dump(ST(i));
-        switch (arg_types[i]) {
+        switch (arg_types[p]) {
+        case DC_SIGCHAR_CC_PREFIX: {
+            // TODO: Not a fan of this entire section
+            SV *cc = *av_fetch(ptr->arg_info, i, 0);
+            char mode = DC_SIGCHAR_CC_DEFAULT;
+            if (sv_derived_from(cc, "Affix::Type::CC::DEFALT")) { mode = DC_SIGCHAR_CC_DEFAULT; }
+            else if (UNLIKELY(sv_derived_from(cc, "Affix::Type::CC::THISCALL"))) {
+                mode = DC_SIGCHAR_CC_THISCALL;
+            }
+            else if (UNLIKELY(sv_derived_from(cc, "Affix::Type::CC::ELLIPSIS"))) {
+                mode = DC_SIGCHAR_CC_ELLIPSIS;
+            }
+            else if (UNLIKELY(sv_derived_from(cc, "Affix::Type::CC::ELLIPSIS_VARARGS"))) {
+                mode = DC_SIGCHAR_CC_ELLIPSIS_VARARGS;
+            }
+            else if (UNLIKELY(sv_derived_from(cc, "Affix::Type::CC::CDECL"))) {
+                mode = DC_SIGCHAR_CC_CDECL;
+            }
+            else if (UNLIKELY(sv_derived_from(cc, "Affix::Type::CC::STDCALL"))) {
+                mode = DC_SIGCHAR_CC_STDCALL;
+            }
+            else if (UNLIKELY(sv_derived_from(cc, "Affix::Type::CC::FASTCALL_MS"))) {
+                mode = DC_SIGCHAR_CC_FASTCALL_MS;
+            }
+            else if (UNLIKELY(sv_derived_from(cc, "Affix::Type::CC::FASTCALL_GNU"))) {
+                mode = DC_SIGCHAR_CC_FASTCALL_GNU;
+            }
+            else if (UNLIKELY(sv_derived_from(cc, "Affix::Type::CC::THISCALL_MS"))) {
+                mode = DC_SIGCHAR_CC_THISCALL_MS;
+            }
+            else if (UNLIKELY(sv_derived_from(cc, "Affix::Type::CC::THISCALL_GNU"))) {
+                mode = DC_SIGCHAR_CC_THISCALL_GNU;
+            }
+            else if (UNLIKELY(sv_derived_from(cc, "Affix::Type::CC::ARM_ARM "))) {
+                mode = DC_SIGCHAR_CC_ARM_ARM;
+            }
+            else if (UNLIKELY(sv_derived_from(cc, "Affix::Type::CC::ARM_THUMB"))) {
+                mode = DC_SIGCHAR_CC_ARM_THUMB;
+            }
+            else if (UNLIKELY(sv_derived_from(cc, "Affix::Type::CC::SYSCALL"))) {
+                mode = DC_SIGCHAR_CC_SYSCALL;
+            }
+            else { croak("Unknown calling convention"); }
+            dcMode(MY_CXT.cvm, dcGetModeFromCCSigChar(mode));
+            if (mode != DC_SIGCHAR_CC_ELLIPSIS && mode != DC_SIGCHAR_CC_ELLIPSIS_VARARGS) {
+                dcReset(MY_CXT.cvm);
+            }
+            i--;
+        } break;
         case AFFIX_ARG_VOID: // skip?
             break;
         case AFFIX_ARG_BOOL:
@@ -1968,14 +2040,16 @@ XS_INTERNAL(Affix_affix) {
         if (LIKELY(SvROK(ST(2)) && (SvTYPE(SvRV(ST(2))) == SVt_PVAV)))
             av = (AV *)SvRV(ST(2));
         else { croak("rv was not an AV ref"); }
-        ret->num_args = av_len(av) + 1;
-        Newxz(prototype, ret->num_args, char);
+        size_t expected_args = av_len(av) + 1;
+        Newxz(prototype, expected_args, char);
         ret->arg_info = newAV();
-        Newxz(ret->arg_types, ret->num_args, int16_t);
+        Newxz(ret->arg_types, expected_args, int16_t);
         if (ret->arg_types == NULL) { croak("unable to malloc int array"); }
-        for (x = 0; x < ret->num_args; ++x) {
+        ret->num_args = 0;
+        for (x = 0; x < expected_args; ++x) {
             ssv = av_fetch(av, x, 0);
             if (LIKELY(ssv != NULL) && SvROK(*ssv) && sv_derived_from(*ssv, "Affix::Type::Base")) {
+                ret->num_args++;
                 switch (SvIV(*ssv)) {
                 case AFFIX_ARG_CPOINTER: {
                     SV *sv = *hv_fetchs(MUTABLE_HV(SvRV(*ssv)), "type", 0);
@@ -1990,6 +2064,11 @@ XS_INTERNAL(Affix_affix) {
                 case AFFIX_ARG_CPPSTRUCT: {
                     av_store(ret->arg_info, x, newRV_inc(*ssv));
                 } break;
+                case DC_SIGCHAR_CC_PREFIX: {
+                    av_store(ret->arg_info, x, *ssv);
+                    ret->num_args--; // Do not count as an arg
+                    break;
+                }
                 }
                 ret->arg_types[x] = (int16_t)SvIV(*ssv);
                 prototype[x] = '$';
@@ -2743,6 +2822,28 @@ XS_INTERNAL(Affix_strdup) {
         XSANY.any_i32 = (int)AFFIX_CHAR;                                                           \
     }
 
+#define CC_TYPE(NAME, DC_CHAR)                                                                     \
+    {                                                                                              \
+        set_isa("Affix::Type::CC::" #NAME, "Affix::Type::Base");                                   \
+        /* Allow type constructors to be overridden */                                             \
+        cv = get_cv("Affix::" #NAME, 0);                                                           \
+        if (cv == NULL) {                                                                          \
+            cv = newXSproto_portable("Affix::CC_" #NAME, Affix_CC_##NAME, file, "");               \
+            XSANY.any_i32 = (int)DC_CHAR;                                                          \
+        }                                                                                          \
+        export_function("Affix", "CC_" #NAME, "types");                                            \
+        export_function("Affix", "CC_" #NAME, "cc");                                               \
+        /* types objects can stringify to sigchars */                                              \
+        cv = newXSproto_portable("Affix::Type::CC::" #NAME "::(\"\"", Affix_Type_asint, file,      \
+                                 ";$");                                                            \
+        XSANY.any_i32 = (int)DC_SIGCHAR_CC_PREFIX;                                                 \
+        /* Making a sub named "Affix::Type::Int::()" allows the package */                         \
+        /* to be findable via fetchmethod(), and causes */                                         \
+        /* overload::Overloaded("Affix::Type::Int") to return true. */                             \
+        (void)newXSproto_portable("Affix::Type::CC::" #NAME "::()", Affix_Type_asint, file, ";$"); \
+        XSANY.any_i32 = (int)DC_SIGCHAR_CC_PREFIX;                                                 \
+    }
+
 XS_EXTERNAL(boot_Affix) {
     dVAR;
     dXSBOOTARGSXSAPIVERCHK;
@@ -2821,6 +2922,20 @@ XS_EXTERNAL(boot_Affix) {
     /*
     #define AFFIX_ARG_CPPSTRUCT 44
     */
+
+    CC_TYPE(DEFAULT, DC_SIGCHAR_CC_DEFAULT);
+    CC_TYPE(THISCALL, DC_SIGCHAR_CC_THISCALL);
+    CC_TYPE(ELLIPSIS, DC_SIGCHAR_CC_ELLIPSIS);
+    CC_TYPE(ELLIPSIS_VARARGS, DC_SIGCHAR_CC_ELLIPSIS_VARARGS);
+    CC_TYPE(CDECL, DC_SIGCHAR_CC_CDECL);
+    CC_TYPE(STDCALL, DC_SIGCHAR_CC_STDCALL);
+    CC_TYPE(FASTCALL_MS, DC_SIGCHAR_CC_FASTCALL_MS);
+    CC_TYPE(FASTCALL_GNU, DC_SIGCHAR_CC_FASTCALL_GNU);
+    CC_TYPE(THISCALL_MS, DC_SIGCHAR_CC_THISCALL_MS);
+    CC_TYPE(THISCALL_GNU, DC_SIGCHAR_CC_THISCALL_GNU);
+    CC_TYPE(ARM_ARM, DC_SIGCHAR_CC_ARM_ARM);
+    CC_TYPE(ARM_THUMB, DC_SIGCHAR_CC_ARM_THUMB);
+    CC_TYPE(SYSCALL, DC_SIGCHAR_CC_SYSCALL);
 
     //~ (void)newXSproto_portable("Affix::_list_symbols", XS_Affix__list_symbols, file, "$");
 
@@ -2908,20 +3023,6 @@ XS_EXTERNAL(boot_Affix) {
 
     //~ TYPE(CharEnum, AFFIX_ARG_ENUM_CHAR, AFFIX_ARG_CHAR);
     //~ set_isa("Affix::Type::CharEnum", "Affix::Type::Enum");
-
-    //~ TYPE(CC_DEFAULT, AFFIX_ARG_CC_PREFIX, AFFIX_ARG_CC_DEFAULT);
-    //~ TYPE(CC_THISCALL, AFFIX_ARG_CC_PREFIX, AFFIX_ARG_CC_THISCALL);
-    //~ TYPE(CC_ELLIPSIS, AFFIX_ARG_CC_PREFIX, AFFIX_ARG_CC_ELLIPSIS);
-    //~ TYPE(CC_ELLIPSIS_VARARGS, AFFIX_ARG_CC_PREFIX, AFFIX_ARG_CC_ELLIPSIS_VARARGS);
-    //~ TYPE(CC_CDECL, AFFIX_ARG_CC_PREFIX, AFFIX_ARG_CC_CDECL);
-    //~ TYPE(CC_STDCALL, AFFIX_ARG_CC_PREFIX, AFFIX_ARG_CC_STDCALL);
-    //~ TYPE(CC_FASTCALL_MS, AFFIX_ARG_CC_PREFIX, AFFIX_ARG_CC_FASTCALL_MS);
-    //~ TYPE(CC_FASTCALL_GNU, AFFIX_ARG_CC_PREFIX, AFFIX_ARG_CC_FASTCALL_GNU);
-    //~ TYPE(CC_THISCALL_MS, AFFIX_ARG_CC_PREFIX, AFFIX_ARG_CC_THISCALL_MS);
-    //~ TYPE(CC_THISCALL_GNU, AFFIX_ARG_CC_PREFIX, AFFIX_ARG_CC_THISCALL_GNU);
-    //~ TYPE(CC_ARM_ARM, AFFIX_ARG_CC_PREFIX, AFFIX_ARG_CC_ARM_ARM);
-    //~ TYPE(CC_ARM_THUMB, AFFIX_ARG_CC_PREFIX, AFFIX_ARG_CC_ARM_THUMB);
-    //~ TYPE(CC_SYSCALL, AFFIX_ARG_CC_PREFIX, AFFIX_ARG_CC_SYSCALL);
 
     //~ //
     //~ TYPE(Class, AFFIX_ARG_CLASS, AFFIX_ARG_CSTRUCT);

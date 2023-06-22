@@ -4,7 +4,7 @@ use Test::More 0.98;
 BEGIN { chdir '../' if !-d 't'; }
 use lib '../lib', '../blib/arch', '../blib/lib', 'blib/arch', 'blib/lib', '../../', '.';
 use Affix qw[:all];
-use t::lib::nativecall;
+use t::lib::helper;
 use experimental 'signatures';
 use Devel::CheckBin;
 use Config;
@@ -18,8 +18,11 @@ SKIP: {
     skip 'test requires rust/cargo', 2 unless can_run('cargo');
     diag 'building crate as dylib';
     system 'cargo build --manifest-path=t/src/85_affix_mangle_rust/Cargo.toml --release --quiet';
-    my $lib = 't/src/85_affix_mangle_rust/target/release/' .
-        ( $^O eq 'MSWin32' ? '' : 'lib' ) . 'affix_rust.' . $Config{so};
+    my $lib
+        = 't/src/85_affix_mangle_rust/target/release/' .
+        ( $^O eq 'MSWin32' ? '' : 'lib' ) .
+        'affix_rust.' .
+        $Config{so};
     affix $lib, 'add', [ Size_t, Size_t ], Size_t;    #[no_mangle]
     is add( 5, 4 ), 9, 'add(5, 4) == 9';
     #
