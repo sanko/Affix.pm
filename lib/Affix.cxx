@@ -2101,9 +2101,9 @@ XS_INTERNAL(Affix_Type_Pointer_marshal) {
     if (items != 2) croak_xs_usage(cv, "type, data");
     SV *type = *hv_fetchs(MUTABLE_HV(SvRV(ST(0))), "type", 0);
     SV *data = ST(1);
-    // DCpointer RETVAL = safemalloc(_sizeof(aTHX_ type));
+    DCpointer RETVAL = NULL; // = safemalloc(1);
     //~ warn("RETVAL should be %d bytes", _sizeof(aTHX_ type));
-    DCpointer RETVAL = sv2ptr(aTHX_ type, data, RETVAL, false);
+    RETVAL = sv2ptr(aTHX_ type, data, RETVAL, false);
     {
         SV *RETVALSV;
         RETVALSV = sv_newmortal();
