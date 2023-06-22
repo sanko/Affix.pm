@@ -1,6 +1,8 @@
 use strict;
 use warnings;
-use Affix;
+BEGIN { chdir '../' if !-d 't'; }
+use lib '../lib', 'lib', '../blib/arch', '../blib/lib', 'blib/arch', 'blib/lib', '../../', '.';
+use Affix qw[typedef :types];
 use Test::More;
 #
 typedef 'Structure'                                                    => Struct [];
