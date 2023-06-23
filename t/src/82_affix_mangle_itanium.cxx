@@ -20,6 +20,7 @@ void MyClass::speed(int maxSpeed) {
 
 DLLEXPORT MyClass setup() {
     MyClass myObj = {.myNum = 15, .myString = "Some text"};
+    myObj.myString = (const char *)malloc(10);
     return myObj;
 }
 

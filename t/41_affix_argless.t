@@ -6,18 +6,19 @@ use Affix qw[:all];
 use File::Spec;
 use t::lib::helper;
 #
-diag compile_test_lib('41_argless');
+diag compile_test_lib('41_affix_argless');
 #
-sub Nothing : Native('t/src/41_argless');
-sub Argless : Native('t/src/41_argless') : Signature([]=>Int);
-sub ArglessChar : Native('t/src/41_argless') : Signature([]=>Char);
-sub ArglessLongLong : Native('t/src/41_argless') : Signature([]=>LongLong);
-sub ArglessIntPointer : Native('t/src/41_argless') : Signature([]=>Pointer[Int]) :
+sub Nothing : Native('t/src/41_affix_argless');
+sub Argless : Native('t/src/41_affix_argless') : Signature([]=>Int);
+sub ArglessChar : Native('t/src/41_affix_argless') : Signature([]=>Char);
+sub ArglessLongLong : Native('t/src/41_affix_argless') : Signature([]=>LongLong);
+sub ArglessIntPointer : Native('t/src/41_affix_argless') : Signature([]=>Pointer[Int]) :
     Symbol('ArglessPointer');    # Pointer[int32]
-sub ArglessVoidPointer : Native('t/src/41_argless') : Signature([]=>Pointer[Void]) :
+sub ArglessVoidPointer : Native('t/src/41_affix_argless') : Signature([]=>Pointer[Void]) :
     Symbol('ArglessPointer');    # Pointer[int32]
-sub ArglessUTF8String : Native('t/src/41_argless') : Signature([]=>Str);
-sub short : Native('t/src/41_argless') : Signature([]=>Short) : Symbol('long_and_complicated_name');
+sub ArglessUTF8String : Native('t/src/41_affix_argless') : Signature([]=>Str);
+sub short : Native('t/src/41_affix_argless') : Signature([]=>Short) :
+    Symbol('long_and_complicated_name');
 #
 Nothing();
 pass 'survived the call';
@@ -31,7 +32,7 @@ is ArglessUTF8String(), 'Just a string', 'called argless function returning stri
 is short(),             3,               'called long_and_complicated_name';
 
 sub test_native_closure() {
-    my sub Argless : Native('t/src/41_argless') : Signature([]=>Int) { }
+    my sub Argless : Native('t/src/41_affix_argless') : Signature([]=>Int) { }
     is Argless(), 2, 'called argless closure';
 }
 

@@ -2,6 +2,14 @@
 #ifndef AFFIX_H_SEEN
 #define AFFIX_H_SEEN
 
+#define MANGLE_C 'c'
+#define MANGLE_ITANIUM 'I' // https://itanium-cxx-abi.github.io/cxx-abi/abi.html#mangling
+#define MANGLE_GCC MANGLE_ITANIUM
+#define MANGLE_MSVC MANGLE_ITANIUM
+#define MANGLE_RUST 'r' // legacy
+#define MANGLE_SWIFT                                                                               \
+    's'              // https://github.com/apple/swift/blob/main/docs/ABI/Mangling.rst#identifiers
+#define MANGLE_D 'd' // https://dlang.org/spec/abi.html#name_mangling
 /* Useful but undefined in perlapi */
 #define FLOAT_SIZE sizeof(float)
 #define BOOL_SIZE sizeof(bool)         // ha!

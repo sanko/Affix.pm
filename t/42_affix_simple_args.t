@@ -9,7 +9,7 @@ use experimental 'signatures';
 $|++;
 
 # rakudo/t/04-nativecall/02-simple-args.t
-my $lib = compile_test_lib('42_simple_args');
+my $lib = compile_test_lib('42_affix_simple_args');
 #
 subtest 'Int' => sub {
     is wrap( $lib, 'TakeInt',       [Int]  => Int )->(-42), 1, '[Int] => Int';
@@ -50,13 +50,13 @@ subtest 'String' => sub {
 =begin future
 
 # Make sure wrapped subs work
-sub wrapped : Native('t/src/42_simple_args') : Signature([Int]=>Int);
+sub wrapped : Native('t/src/42_affix_simple_args') : Signature([Int]=>Int);
 sub wrapper ($arg) { is wrapped($arg), 8, 'wrapped sub' }
 wrapper(42);
 TODO: {
     #local $TODO = 'Some platforms choke on 64bit math';
     # 64-bit integer
-    sub TakeInt64 : Native('t/src/42_simple_args') : Signature([LongLong]=>Int);
+    sub TakeInt64 : Native('t/src/42_affix_simple_args') : Signature([LongLong]=>Int);
     {
         use Math::BigInt;
         is TakeInt64( Math::BigInt->new('0xFFFFFFFFFF') ), 9, 'passed int64 0xFFFFFFFFFF';
@@ -64,9 +64,9 @@ TODO: {
 }
 
 # Unsigned integers.
-sub TakeUint8 : Native('t/src/42_simple_args') : Signature([UChar]=>Int);
-sub TakeUint16 : Native('t/src/42_simple_args') : Signature([UShort]=>Int);
-sub TakeUint32 : Native('t/src/42_simple_args') : Signature([ULong]=>Int);
+sub TakeUint8 : Native('t/src/42_affix_simple_args') : Signature([UChar]=>Int);
+sub TakeUint16 : Native('t/src/42_affix_simple_args') : Signature([UShort]=>Int);
+sub TakeUint32 : Native('t/src/42_affix_simple_args') : Signature([ULong]=>Int);
 SKIP: {
     #skip 'Cannot test TakeUint8(0xFE) on OS X with -O3', 1 if $^O eq 'darwin';
     #
@@ -81,9 +81,9 @@ SKIP: {
 #skip("Cannot test TakeUint16(0xFFFE) with clang without -O0");
 is TakeUint16(0xFFFE),     11, 'passed uint16 0xFFFE';
 is TakeUint32(0xFFFFFFFE), 12, 'passed uint32 0xFFFFFFFE';
-sub TakeSizeT : Native('t/src/42_simple_args') : Signature([Int]=>ULong);
+sub TakeSizeT : Native('t/src/42_affix_simple_args') : Signature([Int]=>ULong);
 is TakeSizeT(42), 13, 'passed size_t 42';
-sub TakeSSizeT : Native('t/src/42_simple_args') : Signature([Int]=>ULong);
+sub TakeSSizeT : Native('t/src/42_affix_simple_args') : Signature([Int]=>ULong);
 is TakeSSizeT(-42), 14, 'passed ssize_t -42';
 
 # https://docs.raku.org/type/Proxy - Sort of like a magical tied hash?

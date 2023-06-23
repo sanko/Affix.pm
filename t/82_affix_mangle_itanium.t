@@ -9,13 +9,32 @@ use experimental 'signatures';
 $|++;
 #
 my $lib = compile_test_lib('82_affix_mangle_itanium');
-
-#~ system 'nm -D ' . $lib;
+system 'nm -D ' . $lib;
 #
 typedef 'MyClass' => Struct [ myNum => Int, myString => Str ];
+warn $lib;
+use Data::Dump;
+ddx MyClass();
+my $pointer = ( Pointer [ MyClass() ] )->marshal( { myNum => 5, myString => 'Hi!' } );
+warn $pointer;
+ddx( ( Pointer [ MyClass() ] )->unmarshal($pointer) );
 #
+warn Affix::Itanium_mangle( $lib, 'setup', [] );
 subtest 'setup()' => sub {
-    my $myclass = wrap( [ $lib, ITANIUM ] => 'setup' => [] => MyClass() )->();
+    my $myclass = wrap(
+
+        #~ [ $lib, ITANIUM ]
+        $lib =>
+
+            #~ 'setup'
+            '_Z5setupv' => [] => MyClass()
+    )->();
+    warn;
+    use Data::Dump;
+    warn ref $myclass;
+    warn join ',', keys %$myclass;
+    warn $myclass->{myNum};
+    warn $myclass->{myString};
     is $myclass->{myNum},    15,          '.myNum == 15';
     is $myclass->{myString}, 'Some text', '.myString eq "Some text"';
 };

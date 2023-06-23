@@ -323,6 +323,13 @@ void _export_function(pTHX_ HV *_export, const char *what, const char *_tag) {
         tag = hv_store(_export, _tag, strlen(_tag), newRV_noinc(av), 0);
     }
 }
+
+void export_constant_char(const char *package, const char *name, const char *_tag, char val) {
+    dTHX;
+    register_constant(package, name, newSVpv(&val, 1));
+    export_function(package, name, _tag);
+}
+
 void export_constant(const char *package, const char *name, const char *_tag, double val) {
     dTHX;
     register_constant(package, name, newSVnv(val));
@@ -1472,9 +1479,18 @@ extern "C" void Affix_trigger(pTHX_ CV *cv) {
     int num_strs = 0, num_ptrs = 0;
     int16_t *arg_types = ptr->arg_types;
     bool void_ret = false;
+    DCaggr *agg = NULL;
 
     //~ dcMode(MY_CXT.cvm, ptr->call_conv);
     dcReset(MY_CXT.cvm);
+
+    switch (ptr->ret_type) {
+    case AFFIX_ARG_CUNION:
+    case AFFIX_ARG_CSTRUCT: {
+        agg = _aggregate(aTHX_ ptr->ret_info);
+        dcBeginCallAggr(MY_CXT.cvm, agg);
+    } break;
+    }
 
     if (UNLIKELY(items != num_args)) {
         if (UNLIKELY(items > num_args))
@@ -1875,6 +1891,14 @@ extern "C" void Affix_trigger(pTHX_ CV *cv) {
             RETVAL = newRV_noinc(ptr2sv(aTHX_ p, type));
         }
     } break;
+    case AFFIX_ARG_CUNION:
+    case AFFIX_ARG_CSTRUCT: {
+        //~ warn ("        _sizeof(aTHX_ ptr->ret_info): %d",_sizeof(aTHX_ ptr->ret_info));
+        DCpointer p = safemalloc(_sizeof(aTHX_ ptr->ret_info));
+        dcCallAggr(MY_CXT.cvm, ptr->entry_point, agg, p);
+        RETVAL = ptr2sv(aTHX_ p, ptr->ret_info);
+        dcFreeAggr(agg);
+    } break;
     default:
         sv_dump(ptr->ret_info);
         DD(ptr->ret_info);
@@ -2088,6 +2112,8 @@ XS_INTERNAL(Affix_affix) {
     //~ warn("entry_point: %p, sym_name: %s, as: %s, prototype: %s, ix: %d", ret->entry_point,
     //~ ret->sym_name, name, prototype, ix);
     //~ DD(MUTABLE_SV(ret->arg_info));
+    if (!ret->entry_point)
+        croak("Failed to locate symbol named '%s' in %s", ret->sym_name, ret->lib_name);
     STMT_START {
         cv = newXSproto_portable(name, Affix_trigger, file, prototype);
         if (UNLIKELY(cv == NULL))
@@ -3125,13 +3151,13 @@ XS_EXTERNAL(boot_Affix) {
 #endif
     );
 
-    //~ export_constant_char("Affix", "C", "abi", MANGLE_C);
-    //~ export_constant_char("Affix", "ITANIUM", "abi", MANGLE_ITANIUM);
-    //~ export_constant_char("Affix", "GCC", "abi", MANGLE_GCC);
-    //~ export_constant_char("Affix", "MSVC", "abi", MANGLE_MSVC);
-    //~ export_constant_char("Affix", "RUST", "abi", MANGLE_RUST);
-    //~ export_constant_char("Affix", "SWIFT", "abi", MANGLE_SWIFT);
-    //~ export_constant_char("Affix", "D", "abi", MANGLE_D);
+    export_constant_char("Affix", "C", "abi", MANGLE_C);
+    export_constant_char("Affix", "ITANIUM", "abi", MANGLE_ITANIUM);
+    export_constant_char("Affix", "GCC", "abi", MANGLE_GCC);
+    export_constant_char("Affix", "MSVC", "abi", MANGLE_MSVC);
+    export_constant_char("Affix", "RUST", "abi", MANGLE_RUST);
+    export_constant_char("Affix", "SWIFT", "abi", MANGLE_SWIFT);
+    export_constant_char("Affix", "D", "abi", MANGLE_D);
     //~ }
 
     //~ {
