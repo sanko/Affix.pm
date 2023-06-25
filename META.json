@@ -82,7 +82,9 @@
             "Data::Dumper" : "0",
             "Devel::CheckBin" : "0",
             "Math::BigInt" : "0",
-            "Test::More" : "0.98"
+            "Test::Fatal" : "0",
+            "Test::More" : "0.98",
+            "Test::Warnings" : "0"
          }
       }
    },

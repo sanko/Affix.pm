@@ -93,6 +93,9 @@ typedef struct {
 
 START_MY_CXT
 
+// Settings
+#define TIE_MAGIC 0 // If true, aggregate values are tied and magical
+
 /* Native argument types */
 #define AFFIX_ARG_VOID 0
 #define AFFIX_ARG_BOOL 1
@@ -553,9 +556,11 @@ static DCaggr *_aggregate(pTHX_ SV *type) {
     case AFFIX_ARG_CARRAY:
     case AFFIX_ARG_VMARRAY:
     case AFFIX_ARG_CUNION: {
+        PING;
         HV *hv_type = MUTABLE_HV(SvRV(type));
         SV **agg_ = hv_fetch(hv_type, "aggregate", 9, 0);
         if (agg_ != NULL) {
+            PING;
             SV *agg = *agg_;
             if (sv_derived_from(agg, "Affix::Aggregate")) {
                 IV tmp = SvIV((SV *)SvRV(agg));
@@ -565,6 +570,7 @@ static DCaggr *_aggregate(pTHX_ SV *type) {
                 croak("Oh, no...");
         }
         else {
+            PING;
             SV **idk_wtf = hv_fetchs(MUTABLE_HV(SvRV(type)), "fields", 0);
             //~ if (t == AFFIX_ARG_CSTRUCT) {
             //~ SV **sv_packed = hv_fetchs(MUTABLE_HV(SvRV(type)), "packed", 0);
@@ -572,6 +578,7 @@ static DCaggr *_aggregate(pTHX_ SV *type) {
             AV *idk_arr = MUTABLE_AV(SvRV(*idk_wtf));
             size_t field_count = av_count(idk_arr);
             DCaggr *agg = dcNewAggr(field_count, size);
+            PING;
             for (size_t i = 0; i < field_count; ++i) {
                 SV **field_ptr = av_fetch(idk_arr, i, 0);
                 AV *field = MUTABLE_AV(SvRV(*field_ptr));
@@ -590,6 +597,7 @@ static DCaggr *_aggregate(pTHX_ SV *type) {
                     dcAggrField(agg, type_as_dc(_t), offset, array_len);
                 } break;
                 default: {
+                    warn("  dcAggrField(agg, %c, %d, 1);", type_as_dc(_t), offset);
                     dcAggrField(agg, type_as_dc(_t), offset, 1);
                 } break;
                 }
@@ -609,6 +617,7 @@ static DCaggr *_aggregate(pTHX_ SV *type) {
         break;
     }
     }
+    PING;
     return NULL;
 }
 
@@ -658,7 +667,8 @@ char cbHandler(DCCallback *cb, DCArgs *args, DCValue *result, DCpointer userdata
             mPUSHs(w);
         } break;
         case AFFIX_ARG_WCHAR: {
-            wchar_t *c = (wchar_t *)safemalloc(WCHAR_T_SIZE * 2);
+            wchar_t *c;
+            Newx(c, 2, wchar_t);
             c[0] = (wchar_t)dcbArgLong(args);
             c[1] = 0;
             SV *w = wchar2utf(aTHX_ c, 1);
@@ -1453,8 +1463,9 @@ XS_INTERNAL(Affix_load_lib) {
 }
 
 /* Affix::affix(...) and Affix::wrap(...) System */
-struct CallBody {
+struct Affix {
     int16_t call_conv;
+    U8 abi;
     size_t num_args;
     int16_t *arg_types;
     int16_t ret_type;
@@ -1471,7 +1482,7 @@ extern "C" void Affix_trigger(pTHX_ CV *cv) {
     dXSARGS;
     dMY_CXT;
 
-    CallBody *ptr = (CallBody *)XSANY.any_ptr;
+    Affix *ptr = (Affix *)XSANY.any_ptr;
     char **free_strs = NULL;
     void **free_ptrs = NULL;
 
@@ -1622,10 +1633,10 @@ extern "C" void Affix_trigger(pTHX_ CV *cv) {
         case AFFIX_ARG_UTF8STR:
         case AFFIX_ARG_UTF16STR: {
             if (SvOK(ST(i))) {
-                if (!free_ptrs) free_ptrs = (void **)safemalloc(num_args * sizeof(void *));
+                if (!free_ptrs) Newxz(free_ptrs, num_args, DCpointer);
                 Newxz(free_ptrs[num_ptrs], _sizeof(aTHX_ newSViv(AFFIX_ARG_UTF16STR)), char);
                 sv2ptr(aTHX_ newSViv(AFFIX_ARG_UTF16STR), ST(i), free_ptrs[num_ptrs], false);
-                dcArgPointer(MY_CXT.cvm, *(void **)(free_ptrs[num_ptrs++]));
+                dcArgPointer(MY_CXT.cvm, *(DCpointer *)(free_ptrs[num_ptrs++]));
             }
             else { dcArgPointer(MY_CXT.cvm, NULL); }
         } break;
@@ -1635,7 +1646,7 @@ extern "C" void Affix_trigger(pTHX_ CV *cv) {
                 dcArgPointer(MY_CXT.cvm, NULL);
             }
             else {
-                if (!free_ptrs) free_ptrs = (void **)safemalloc(num_args * sizeof(void *));
+                if (!free_ptrs) Newxz(free_ptrs, num_args, DCpointer);
                 if (!SvROK(ST(i)) || SvTYPE(SvRV(ST(i))) != SVt_PVHV)
                     croak("Type of arg %d must be an hash ref", i + 1);
                 //~ AV *elements = MUTABLE_AV(SvRV(ST(i)));
@@ -1708,7 +1719,7 @@ extern "C" void Affix_trigger(pTHX_ CV *cv) {
                 dcArgPointer(MY_CXT.cvm, INT2PTR(DCpointer, tmp));
             }
             else {
-                if (!free_ptrs) free_ptrs = (void **)safemalloc(num_args * INTPTR_T_SIZE);
+                if (!free_ptrs) Newxz(free_ptrs, num_args, DCpointer);
                 SV **type = av_fetch(ptr->arg_info, i, 0);
                 if (type == NULL) croak("No idea");
                 switch (SvIV(*type)) {
@@ -1991,18 +2002,220 @@ extern "C" void Affix_trigger(pTHX_ CV *cv) {
     XSRETURN(1);
 }
 
+char *_mangle(pTHX_ const char *abi, SV *lib, const char *symbol, SV *args) {
+    char *retval;
+    {
+        dSP;
+        int count;
+        SV *err_tmp;
+        ENTER;
+        SAVETMPS;
+        PUSHMARK(SP);
+        XPUSHs(lib);
+        mXPUSHp(symbol, strlen(symbol));
+        XPUSHs(args);
+        PUTBACK;
+        count = call_pv(form("Affix::%s_mangle", abi), G_SCALAR | G_EVAL | G_KEEPERR);
+        SPAGAIN;
+        err_tmp = ERRSV;
+        if (SvTRUE(err_tmp)) {
+            croak("Malformed call to %s_mangle( ... )\n", abi, SvPV_nolen(err_tmp));
+            POPs;
+        }
+        else if (count != 1) { croak("Failed to mangle %s symbol named %s", abi, abi); }
+        else {
+            retval = POPp;
+            // SvSetMagicSV(type, retval);
+        }
+        // FREETMPS;
+        LEAVE;
+    }
+    return retval;
+}
+
 XS_INTERNAL(Affix_affix) {
     dXSARGS;
     dXSI32;
-    if (items < 1 || items > 6)
-        croak_xs_usage(cv,
-                       "lib, symbol, arg_types, ret_type, resolve_lib_name, calling_convention");
+    PING;
+    if (items != 4) croak_xs_usage(cv, "$lib, $symbol, @arg_types, $ret_type");
     SV *RETVAL;
-    CallBody *ret = (CallBody *)safemalloc(sizeof(CallBody));
+    Affix *ret;
+    Newx(ret, 1, Affix);
+
+    // Dumb defaults
+    ret->abi = (U8)AFFIX_ABI_C;
+    ret->num_args = 0;
+    ret->arg_info = newAV();
+
+    char *prototype = NULL;
+    char *name = NULL;
+    {
+        SV *lib;
+
+        // affix($lib, ..., ..., ...)
+        // affix([$lib, ABI_C], ..., ..., ...)
+        // wrap($lib, ..., ...., ...
+        // wrap([$lib, ABI_C], ..., ...., ...
+        {
+            if (UNLIKELY(SvROK(ST(0)) && SvTYPE(SvRV(ST(0))) == SVt_PVAV)) {
+                AV *tmp = MUTABLE_AV(SvRV(ST(0)));
+                size_t tmp_len = av_count(tmp);
+                // Non-fatal
+                if (UNLIKELY(!(tmp_len == 1 || tmp_len == 2))) { warn("Expected a lib and ABI"); }
+                lib = *av_fetch(tmp, 0, false);
+                //
+                SV **ptr_abi = av_fetch(tmp, 1, false);
+                if (ptr_abi == NULL || !SvOK(*ptr_abi)) { croak("Expected a lib and ABI"); }
+                else {
+                    U8 abi = (U8)*SvPV_nolen(*ptr_abi);
+                    switch (abi) {
+                    case AFFIX_ABI_C:
+                    case AFFIX_ABI_ITANIUM:
+                    case AFFIX_ABI_RUST:
+                        ret->abi = abi;
+                        break;
+                    case AFFIX_ABI_SWIFT:
+                    case AFFIX_ABI_D:
+                    default:
+                        croak("Unknown or unsupported ABI");
+                    }
+                }
+            }
+            else { lib = newSVsv(ST(0)); }
+            //
+            ret->lib_name = locate_lib(aTHX_ SvPV_nolen(lib), 0);
+            ret->lib_handle =
+#if defined(_WIN32) || defined(_WIN64)
+                dlLoadLibrary(ret->lib_name);
+#else
+                (DLLib *)dlopen(ret->lib_name, RTLD_LAZY /* RTLD_NOW|RTLD_GLOBAL */);
+#endif
+            if (!ret->lib_handle) {
+                croak("Failed to load %s: %s", ret->lib_name, dlerror());
+            }
+        }
+
+        // affix(..., ..., [Int], ...)
+        // wrap(..., ..., [], ...)
+        {
+            STMT_START {
+                SV *const xsub_tmp_sv = ST(2);
+                SvGETMAGIC(xsub_tmp_sv);
+                if (SvROK(xsub_tmp_sv) && SvTYPE(SvRV(xsub_tmp_sv)) == SVt_PVAV) {
+                    AV *tmp_args = (AV *)SvRV(xsub_tmp_sv);
+                    size_t args_len = av_count(tmp_args);
+                    SV **tmp_arg;
+                    Newxz(ret->arg_types, args_len, int16_t); // TODO: safefree
+                    Newxz(prototype, args_len, char);
+                    for (size_t i = 0; i < args_len; ++i) {
+                        SV **tmp_arg = av_fetch(tmp_args, i, false);
+                        if (LIKELY(SvROK(*tmp_arg) &&
+                                   sv_derived_from(*tmp_arg, "Affix::Type::Base"))) {
+                            if (UNLIKELY(sv_derived_from(*tmp_arg, "Affix::Type::CC"))) {}
+                            else {
+                                ++ret->num_args;
+                                //~ ret->arg_types[i] = SvIV(*tmp_arg);
+
+                                switch (SvIV(*tmp_arg)) {
+                                case AFFIX_ARG_CPOINTER: {
+                                    SV *sv = *hv_fetchs(MUTABLE_HV(SvRV(*tmp_arg)), "type", 0);
+                                    av_store(ret->arg_info, i, sv);
+                                    break;
+                                }
+                                case AFFIX_ARG_CARRAY:
+                                case AFFIX_ARG_VMARRAY:
+                                case AFFIX_ARG_CSTRUCT:
+                                case AFFIX_ARG_CALLBACK:
+                                case AFFIX_ARG_CUNION:
+                                case AFFIX_ARG_CPPSTRUCT: {
+                                    av_store(ret->arg_info, i, newRV_inc(*tmp_arg));
+                                } break;
+                                case DC_SIGCHAR_CC_PREFIX: {
+                                    av_store(ret->arg_info, i, *tmp_arg);
+                                    ret->num_args--; // Do not count as an arg
+                                    break;
+                                }
+                                }
+                                ret->arg_types[i] = (int16_t)SvIV(*tmp_arg);
+                                prototype[i] = '$';
+                            }
+                            av_push(ret->arg_info, newSVsv(*tmp_arg));
+                        }
+                        else { croak("Unexpected arg type in slot %d", i + 1); }
+                    }
+                }
+                else { croak("Expected a list of argument types as an array ref"); }
+            }
+            STMT_END;
+        }
+
+        // affix(..., $symbol, ..., ...)
+        // affix(..., [$symbol, $name], ..., ...)
+        // wrap(..., $symbol, ..., ...)
+        {
+            if (UNLIKELY(SvROK(ST(1)) && SvTYPE(SvRV(ST(1))) == SVt_PVAV)) {
+                AV *tmp = MUTABLE_AV(SvRV(ST(1)));
+                size_t tmp_len = av_count(tmp);
+                if (tmp_len != 2) { croak("Expected a lib and ABI"); }
+                if (ix == 1 && tmp_len > 1) {
+                    warn("wrap( ... ) isn't expecting a name and has ignored it");
+                }
+                else if (tmp_len != 2) { croak("Expected a symbol and name"); }
+                SV **name_ptr = av_fetch(tmp, 0, false);
+                if (UNLIKELY(name_ptr == NULL || !SvPOK(*name_ptr))) {
+                    croak("Undefined symbol name");
+                }
+                ret->sym_name = SvPV_nolen(*name_ptr);
+                name = SvPV_nolen(*av_fetch(tmp, 1, false));
+            }
+            else if (UNLIKELY(!SvPOK(ST(1)))) { croak("Undefined symbol name"); }
+            else { name = ret->sym_name = SvPV_nolen(ST(1)); }
+
+            {
+                SV *LIBSV;
+                LIBSV = sv_newmortal();
+                sv_setref_pv(LIBSV, "Affix::Lib", (void *)ret->lib_handle);
+
+                switch (ret->abi) {
+                case AFFIX_ABI_C:
+                    break;
+                case AFFIX_ABI_ITANIUM:
+                    ret->sym_name = _mangle(aTHX_ "Itanium", LIBSV, ret->sym_name, ST(2));
+                    break;
+                case AFFIX_ABI_RUST:
+                    ret->sym_name = _mangle(aTHX_ "Rust_legacy", LIBSV, ret->sym_name, ST(2));
+                    break;
+                case AFFIX_ABI_SWIFT:
+                case AFFIX_ABI_D:
+                    croak("Unhandled ABI. Patches welcome");
+                    break;
+                default:
+                    croak("Unknown ABI. Patches welcome");
+                    break;
+                }
+            }
+        }
+
+        // affix(..., ..., ..., $ret)
+        // wrap(..., ..., ..., $ret)
+        if (LIKELY(SvROK(ST(3)) && sv_derived_from(ST(3), "Affix::Type::Base"))) {
+            ret->ret_info = newSVsv(ST(3));
+            ret->ret_type = SvIV(ST(3));
+        }
+        else { croak("Unknown return type"); }
+    }
+
+    ret->entry_point = dlFindSymbol(ret->lib_handle, ret->sym_name);
+
+    //~ warn("lib: %p, entry_point: %p, sym_name: %s, as: %s, prototype: %s, ix: %d, abi: %c: ",
+    //~ ret->lib_handle, ret->entry_point, ret->sym_name, name, prototype, ix, ret->abi);
+    //~ DD(MUTABLE_SV(ret->arg_info));
+    //~ DD(ret->ret_info);
 
     /*
-    struct CallBody {
+    struct Affix {
     int16_t call_conv;
+    U8 abi;
     size_t num_args;
     int16_t *arg_types;
     int16_t ret_type;
@@ -2015,107 +2228,10 @@ XS_INTERNAL(Affix_affix) {
     SV *resolve_lib_name;
     };
     */
-
-    char *prototype = NULL;
-    char *name = NULL;
-
-    if (!SvOK(ST(0))) {
-        ret->lib_handle = NULL;
-        ret->lib_name = NULL;
-    }
-    else if (SvROK(ST(0)) && sv_derived_from(ST(0), "Affix::Lib")) {
-        IV tmp = SvIV(MUTABLE_SV(SvRV(ST(0))));
-        ret->lib_handle = INT2PTR(DLLib *, tmp);
-        ret->lib_name = NULL;
-    }
-    else {
-        STRLEN len;
-        char *_name = SvPV(ST(0), len);
-        ret->lib_name = locate_lib(aTHX_ _name, 0);
-        ret->lib_handle =
-#if defined(_WIN32) || defined(_WIN64)
-            dlLoadLibrary(ret->lib_name);
-#else
-            (DLLib *)dlopen(ret->lib_name, RTLD_LAZY /* RTLD_NOW|RTLD_GLOBAL */);
-#endif
-        if (!ret->lib_handle) {
-            croak("Failed to load %s: %s", ret->lib_name, dlerror());
-        }
-    }
-
-    if (LIKELY(ix != 1)) {
-        if (UNLIKELY(SvROK(ST(1)) && SvTYPE(SvRV(ST(1))) == SVt_PVAV)) {
-            // [ symbol, rename ]
-            AV *av;
-            av = (AV *)SvRV(ST(1));
-            SV **_sym = av_fetch(av, 0, 0);
-            SV **_name = av_fetch(av, 1, 0);
-            ret->sym_name = (char *)(SvPOK(*_sym) ? SvPV_nolen(*_sym) : NULL);
-            name = (char *)(SvPOK(*_name) ? SvPV_nolen(*_name) : NULL);
-        }
-        else { name = ret->sym_name = (char *)(SvPOK(ST(1)) ? SvPV_nolen(ST(1)) : NULL); }
-    }
-    else { ret->sym_name = (char *)(SvPOK(ST(1)) ? SvPV_nolen(ST(1)) : NULL); }
-
-    {
-        AV *av;
-        SV **ssv;
-        size_t x;
-        if (LIKELY(SvROK(ST(2)) && (SvTYPE(SvRV(ST(2))) == SVt_PVAV)))
-            av = (AV *)SvRV(ST(2));
-        else { croak("rv was not an AV ref"); }
-        size_t expected_args = av_len(av) + 1;
-        Newxz(prototype, expected_args, char);
-        ret->arg_info = newAV();
-        Newxz(ret->arg_types, expected_args, int16_t);
-        if (ret->arg_types == NULL) { croak("unable to malloc int array"); }
-        ret->num_args = 0;
-        for (x = 0; x < expected_args; ++x) {
-            ssv = av_fetch(av, x, 0);
-            if (LIKELY(ssv != NULL) && SvROK(*ssv) && sv_derived_from(*ssv, "Affix::Type::Base")) {
-                ret->num_args++;
-                switch (SvIV(*ssv)) {
-                case AFFIX_ARG_CPOINTER: {
-                    SV *sv = *hv_fetchs(MUTABLE_HV(SvRV(*ssv)), "type", 0);
-                    av_store(ret->arg_info, x, sv);
-                    break;
-                }
-                case AFFIX_ARG_CARRAY:
-                case AFFIX_ARG_VMARRAY:
-                case AFFIX_ARG_CSTRUCT:
-                case AFFIX_ARG_CALLBACK:
-                case AFFIX_ARG_CUNION:
-                case AFFIX_ARG_CPPSTRUCT: {
-                    av_store(ret->arg_info, x, newRV_inc(*ssv));
-                } break;
-                case DC_SIGCHAR_CC_PREFIX: {
-                    av_store(ret->arg_info, x, *ssv);
-                    ret->num_args--; // Do not count as an arg
-                    break;
-                }
-                }
-                ret->arg_types[x] = (int16_t)SvIV(*ssv);
-                prototype[x] = '$';
-            }
-            else {
-
-                //~ croak("Arg # %d is an invalid or unknown type", x);
-                ret->arg_types[x] = (int16_t)AFFIX_ARG_VOID;
-            }
-        }
-    }
-    ret->ret_type = (int16_t)(SvOK(ST(3)) ? SvIV(ST(3)) : AFFIX_ARG_VOID);
-    ret->ret_info = newSVsv(ST(3));
-    ret->resolve_lib_name = SvOK(ST(4)) ? newSVsv(ST(4)) : newSV(0);
-    ret->call_conv = UNLIKELY(items == 5 && SvIOK(ST(5))) ? SvIV(ST(5)) : DC_CALL_C_DEFAULT;
-    ret->entry_point = dlFindSymbol(ret->lib_handle, ret->sym_name);
-    //~ warn("entry_point: %p, sym_name: %s, as: %s, prototype: %s, ix: %d", ret->entry_point,
-    //~ ret->sym_name, name, prototype, ix);
-    //~ DD(MUTABLE_SV(ret->arg_info));
     if (!ret->entry_point)
         croak("Failed to locate symbol named '%s' in %s", ret->sym_name, ret->lib_name);
     STMT_START {
-        cv = newXSproto_portable(name, Affix_trigger, file, prototype);
+        cv = newXSproto_portable(ix == 0 ? name : NULL, Affix_trigger, file, prototype);
         if (UNLIKELY(cv == NULL))
             croak("ARG! Something went really wrong while installing a new XSUB!");
         XSANY.any_ptr = (DCpointer)ret;
@@ -2133,7 +2249,7 @@ XS_INTERNAL(Affix_affix) {
 XS_INTERNAL(Affix_DESTROY) {
     dXSARGS;
     PERL_UNUSED_VAR(items);
-    CallBody *ptr;
+    Affix *ptr;
     CV *THIS;
     STMT_START {
         HV *st;
@@ -2143,13 +2259,14 @@ XS_INTERNAL(Affix_DESTROY) {
         THIS = sv_2cv(xsub_tmp_sv, &st, &gvp, 0);
         {
             CV *cv = THIS;
-            ptr = (CallBody *)XSANY.any_ptr;
+            ptr = (Affix *)XSANY.any_ptr;
         }
     }
     STMT_END;
     /*
-            struct CallBody {
+    struct Affix {
     int16_t call_conv;
+    U8 abi;
     size_t num_args;
     int16_t *arg_types;
     int16_t ret_type;
@@ -2809,47 +2926,6 @@ XS_INTERNAL(Affix_strdup) {
 
 // Bootstap
 
-// Bootstap
-#define EXT_TYPEXXX(NAME, AFFIX_CHAR, DC_CHAR)                                                     \
-    {                                                                                              \
-        set_isa("Affix::Type::" #NAME, "Affix::Type::Base");                                       \
-        /* Allow type constructors to be overridden */                                             \
-        cv = get_cv("Affix::" #NAME, 0);                                                           \
-        if (cv == NULL) {                                                                          \
-            cv = newXSproto_portable("Affix::" #NAME, Affix_Type_##NAME, file, "$");               \
-            XSANY.any_i32 = (int)AFFIX_CHAR;                                                       \
-        }                                                                                          \
-        export_function("Affix", #NAME, "types");                                                  \
-        /* types objects can stringify to sigchars */                                              \
-        cv = newXSproto_portable("Affix::Type::" #NAME "::(\"\"", Affix_Type_asint, file, ";$");   \
-        XSANY.any_i32 = (int)AFFIX_CHAR;                                                           \
-        /* Making a sub named "Affix::Type::Int::()" allows the package */                         \
-        /* to be findable via fetchmethod(), and causes */                                         \
-        /* overload::Overloaded("Affix::Type::Int") to return true. */                             \
-        (void)newXSproto_portable("Affix::Type::" #NAME "::()", Affix_Type_asint, file, ";$");     \
-        XSANY.any_i32 = (int)AFFIX_CHAR;                                                           \
-    }
-
-#define TYPEXXX(NAME, AFFIX_CHAR, DC_CHAR)                                                         \
-    {                                                                                              \
-        set_isa("Affix::Type::" #NAME, "Affix::Type::Base");                                       \
-        /* Allow type constructors to be overridden */                                             \
-        cv = get_cv("Affix::" #NAME, 0);                                                           \
-        if (cv == NULL) {                                                                          \
-            cv = newXSproto_portable("Affix::" #NAME, Affix_Type_##NAME, file, "");                \
-            XSANY.any_i32 = (int)AFFIX_CHAR;                                                       \
-        }                                                                                          \
-        export_function("Affix", #NAME, "types");                                                  \
-        /* types objects can stringify to sigchars */                                              \
-        cv = newXSproto_portable("Affix::Type::" #NAME "::(\"\"", Affix_Type_asint, file, ";$");   \
-        XSANY.any_i32 = (int)AFFIX_CHAR;                                                           \
-        /* Making a sub named "Affix::Type::Int::()" allows the package */                         \
-        /* to be findable via fetchmethod(), and causes */                                         \
-        /* overload::Overloaded("Affix::Type::Int") to return true. */                             \
-        (void)newXSproto_portable("Affix::Type::" #NAME "::()", Affix_Type_asint, file, ";$");     \
-        XSANY.any_i32 = (int)AFFIX_CHAR;                                                           \
-    }
-
 #define EXT_TYPE(NAME, AFFIX_CHAR, DC_CHAR)                                                        \
     {                                                                                              \
         set_isa("Affix::Type::" #NAME, "Affix::Type::Base");                                       \
@@ -2916,7 +2992,7 @@ XS_INTERNAL(Affix_strdup) {
 
 #define CC_TYPE(NAME, DC_CHAR)                                                                     \
     {                                                                                              \
-        set_isa("Affix::Type::CC::" #NAME, "Affix::Type::Base");                                   \
+        set_isa("Affix::Type::CC::" #NAME, "Affix::Type::CC");                                     \
         /* Allow type constructors to be overridden */                                             \
         cv = get_cv("Affix::" #NAME, 0);                                                           \
         if (cv == NULL) {                                                                          \
@@ -3014,7 +3090,7 @@ XS_EXTERNAL(boot_Affix) {
     /*
     #define AFFIX_ARG_CPPSTRUCT 44
     */
-
+    set_isa("Affix::Type::CC", "Affix::Type::Base");
     CC_TYPE(DEFAULT, DC_SIGCHAR_CC_DEFAULT);
     CC_TYPE(THISCALL, DC_SIGCHAR_CC_THISCALL);
     CC_TYPE(ELLIPSIS, DC_SIGCHAR_CC_ELLIPSIS);
@@ -3038,18 +3114,14 @@ XS_EXTERNAL(boot_Affix) {
     (void)newXSproto_portable("Affix::unpin", Affix_unpin, file, "$");
     export_function("Affix", "unpin", "default");
     //
-    cv = newXSproto_portable("Affix::affix", Affix_affix, file, "$$$;$");
+    cv = newXSproto_portable("Affix::affix", Affix_affix, file, "$$@$");
     XSANY.any_i32 = 0;
     export_function("Affix", "affix", "default");
-    cv = newXSproto_portable("Affix::wrap", Affix_affix, file, "$$$;$");
+    cv = newXSproto_portable("Affix::wrap", Affix_affix, file, "$$@$");
     XSANY.any_i32 = 1;
     export_function("Affix", "wrap", "all");
     (void)newXSproto_portable("Affix::DESTROY", Affix_DESTROY, file, "$");
 
-    //~ cv = newXSproto_portable("Affix::affix", XS_Affix_affix, file, "$$$;$");
-    //~ XSANY.any_i32 = 0;
-    //~ cv = newXSproto_portable("Affix::wrap", XS_Affix_affix, file, "$$$;$");
-    //~ XSANY.any_i32 = 1;
     //~ (void)newXSproto_portable("Affix::typedef", XS_Affix_typedef, file, "$$");
     //~ (void)newXSproto_portable("Affix::CLONE", XS_Affix_CLONE, file, ";@");
 
@@ -3151,13 +3223,13 @@ XS_EXTERNAL(boot_Affix) {
 #endif
     );
 
-    export_constant_char("Affix", "C", "abi", MANGLE_C);
-    export_constant_char("Affix", "ITANIUM", "abi", MANGLE_ITANIUM);
-    export_constant_char("Affix", "GCC", "abi", MANGLE_GCC);
-    export_constant_char("Affix", "MSVC", "abi", MANGLE_MSVC);
-    export_constant_char("Affix", "RUST", "abi", MANGLE_RUST);
-    export_constant_char("Affix", "SWIFT", "abi", MANGLE_SWIFT);
-    export_constant_char("Affix", "D", "abi", MANGLE_D);
+    export_constant_char("Affix", "ABI_C", "abi", AFFIX_ABI_C);
+    export_constant_char("Affix", "ABI_ITANIUM", "abi", AFFIX_ABI_ITANIUM);
+    export_constant_char("Affix", "ABI_GCC", "abi", AFFIX_ABI_GCC);
+    export_constant_char("Affix", "ABI_MSVC", "abi", AFFIX_ABI_MSVC);
+    export_constant_char("Affix", "ABI_RUST", "abi", AFFIX_ABI_RUST);
+    export_constant_char("Affix", "ABI_SWIFT", "abi", AFFIX_ABI_SWIFT);
+    export_constant_char("Affix", "ABI_D", "abi", AFFIX_ABI_D);
     //~ }
 
     //~ {
@@ -3210,7 +3282,6 @@ XS_EXTERNAL(boot_Affix) {
 }
 
 SV *ptr2sv(pTHX_ DCpointer ptr, SV *type_sv) {
-    //~ DumpHex(ptr, _sizeof(type_sv));
     if (ptr == NULL) return newSV(0);
     SV *RETVAL = newSV(1); // sv_newmortal();
     int16_t type = SvIV(type_sv);
@@ -3295,7 +3366,6 @@ SV *ptr2sv(pTHX_ DCpointer ptr, SV *type_sv) {
             sv_set_undef(RETVAL);
     } break;
     case AFFIX_ARG_CARRAY: {
-
         AV *RETVAL_ = newAV_mortal();
         HV *_type = MUTABLE_HV(SvRV(type_sv));
 
@@ -3315,6 +3385,7 @@ SV *ptr2sv(pTHX_ DCpointer ptr, SV *type_sv) {
         SvSetSV(RETVAL, newRV(MUTABLE_SV(RETVAL_)));
     } break;
     case AFFIX_ARG_CSTRUCT: {
+#if TIE_MAGIC
         HV *RETVAL_ = newHV_mortal();
         SV *p = newSV(0);
         sv_setref_pv(p, "Affix::Pointer::Unmanaged", ptr);
@@ -3324,6 +3395,23 @@ SV *ptr2sv(pTHX_ DCpointer ptr, SV *type_sv) {
         sv_bless(tie, gv_stashpv("Affix::Struct", TRUE));
         hv_magic(RETVAL_, tie, PERL_MAGIC_tied);
         SvSetSV(RETVAL, newRV(MUTABLE_SV(RETVAL_)));
+#else
+        HV *RETVAL_ = newHV_mortal();
+        HV *_type = MUTABLE_HV(SvRV(type_sv));
+        AV *fields = MUTABLE_AV(SvRV(*hv_fetchs(_type, "fields", 0)));
+
+        size_t field_count = av_count(fields);
+        for (size_t i = 0; i < field_count; ++i) {
+            AV *field = MUTABLE_AV(SvRV(*av_fetch(fields, i, 0)));
+            SV *name = *av_fetch(field, 0, 0);
+            SV *subtype = *av_fetch(field, 1, 0);
+            (void)hv_store_ent(
+                RETVAL_, name,
+                ptr2sv(aTHX_ INT2PTR(DCpointer, PTR2IV(ptr) + _offsetof(aTHX_ subtype)), subtype),
+                0);
+        }
+        SvSetSV(RETVAL, newRV(MUTABLE_SV(RETVAL_)));
+#endif
     } break;
     case AFFIX_ARG_CUNION: {
         HV *RETVAL_ = newHV_mortal();

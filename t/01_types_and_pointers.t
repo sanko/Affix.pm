@@ -4,6 +4,8 @@ use lib '../lib', 'lib';
 use Affix;
 use utf8;
 $|++;
+diag unpack 'C', pack 'C', ord '-A';
+diag unpack 'c', pack 'c', ord '-A';
 
 #~ use Test2::V0;
 #~ Test2::Tools::Encoding::set_encoding('utf8');

@@ -15,18 +15,18 @@ $|++;
 #~ warn $lib;
 #~ system 'nm -D --demangle ' . $lib;
 SKIP: {
-    skip 'test requires rust/cargo', 2 unless can_run('cargo');
-    diag 'building crate as dylib';
-    system 'cargo build --manifest-path=t/src/85_affix_mangle_rust/Cargo.toml --release --quiet';
+    skip 'test requires rust/cargo', 4 unless can_run('cargo');
     my $lib
         = 't/src/85_affix_mangle_rust/target/release/' .
         ( $^O eq 'MSWin32' ? '' : 'lib' ) .
         'affix_rust.' .
         $Config{so};
-    affix $lib, 'add', [ Size_t, Size_t ], Size_t;    #[no_mangle]
+    diag 'Building dylib ' . $lib;
+    system 'cargo build --manifest-path=t/src/85_affix_mangle_rust/Cargo.toml --release --quiet';
+    ok affix( $lib, 'add', [ Size_t, Size_t ], Size_t ), 'bound rust function with #[no_mangle]';
     is add( 5, 4 ), 9, 'add(5, 4) == 9';
     #
-    affix [ $lib, RUST ], mod => [ Int, Int ] => Int;
+    ok affix( [ $lib, RUST ], mod => [ Int, Int ] => Int ), 'bound mangled rust function';
     is mod( 5, 3 ), 2, 'mod(5, 3) == 2';
     #
     diag 'might fail to clean up on Win32 because we have not released the lib yet... this is fine'

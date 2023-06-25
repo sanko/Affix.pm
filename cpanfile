@@ -10,6 +10,8 @@ requires 'Data::Dump';
 #
 on 'test' => sub {
     requires 'Test::More' => 0.98;
+    requires 'Test::Fatal';
+    requires 'Test::Warnings';
     requires 'Data::Dumper';
     requires 'Math::BigInt';
     requires 'Devel::CheckBin';
