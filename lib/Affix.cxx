@@ -886,26 +886,28 @@ char *locate_lib(pTHX_ char *_lib, int ver) {
     dSP;
     int count;
     char *retval = NULL;
-    ENTER;
-    SAVETMPS;
-    PUSHMARK(SP);
-    mXPUSHp(_lib, strlen(_lib));
-    if (ver) mXPUSHn(ver);
-    PUTBACK;
-    count = call_pv("Affix::locate_lib", G_SCALAR);
-    SPAGAIN;
-    if (count == 1) {
-        SV *ret = POPs;
-        if (SvOK(ret)) {
-            STRLEN len;
-            char *__lib = SvPVx(ret, len);
-            Newxz(retval, len + 1, char);
-            Copy(__lib, retval, len, char);
+    if (_lib != NULL) {
+        ENTER;
+        SAVETMPS;
+        PUSHMARK(SP);
+        mXPUSHp(_lib, strlen(_lib));
+        if (ver) mXPUSHn(ver);
+        PUTBACK;
+        count = call_pv("Affix::locate_lib", G_SCALAR);
+        SPAGAIN;
+        if (count == 1) {
+            SV *ret = POPs;
+            if (SvOK(ret)) {
+                STRLEN len;
+                char *__lib = SvPVx(ret, len);
+                Newxz(retval, len + 1, char);
+                Copy(__lib, retval, len, char);
+            }
         }
+        PUTBACK;
+        FREETMPS;
+        LEAVE;
     }
-    PUTBACK;
-    FREETMPS;
-    LEAVE;
     return retval;
 }
 
@@ -965,7 +967,7 @@ XS_INTERNAL(Affix_pin) {
         lib = INT2PTR(DLLib *, tmp);
     }
     else {
-        const char *_libpath = locate_lib(aTHX_ SvPV_nolen(ST(1)), 0);
+        const char *_libpath = SvPOK(ST(1)) ? locate_lib(aTHX_ SvPV_nolen(ST(1)), 0) : NULL;
         lib =
 #if defined(_WIN32) || defined(_WIN64)
             dlLoadLibrary(_libpath);
@@ -1448,7 +1450,8 @@ XS_INTERNAL(Affix_load_lib) {
     dVAR;
     dXSARGS;
     if (items < 1 || items > 2) croak_xs_usage(cv, "lib_name, version");
-    char *_libpath = locate_lib(aTHX_ SvPV_nolen(ST(0)), SvIOK(ST(1)) ? SvIV(ST(1)) : 0);
+    char *_libpath =
+        SvPOK(ST(0)) ? locate_lib(aTHX_ SvPV_nolen(ST(0)), SvIOK(ST(1)) ? SvIV(ST(1)) : 0) : NULL;
     DLLib *lib =
 #if defined(_WIN32) || defined(_WIN64)
         dlLoadLibrary(_libpath);
@@ -2120,7 +2123,7 @@ XS_INTERNAL(Affix_affix) {
             }
             else { lib = newSVsv(ST(0)); }
             //
-            ret->lib_name = locate_lib(aTHX_ SvPV_nolen(lib), 0);
+            ret->lib_name = SvPOK(lib) ? locate_lib(aTHX_ SvPV_nolen(lib), 0) : NULL;
             ret->lib_handle =
 #if defined(_WIN32) || defined(_WIN64)
                 dlLoadLibrary(ret->lib_name);
@@ -2359,11 +2362,10 @@ XS_INTERNAL(Affix_Type_Pointer_marshal) {
     dVAR;
     dXSARGS;
     if (items != 2) croak_xs_usage(cv, "type, data");
-    SV *type = *hv_fetchs(MUTABLE_HV(SvRV(ST(0))), "type", 0);
     SV *data = ST(1);
     DCpointer RETVAL = NULL; // = safemalloc(1);
     //~ warn("RETVAL should be %d bytes", _sizeof(aTHX_ type));
-    RETVAL = sv2ptr(aTHX_ type, data, RETVAL, false);
+    RETVAL = sv2ptr(aTHX_ ST(0), data, RETVAL, false);
     {
         SV *RETVALSV;
         RETVALSV = sv_newmortal();
@@ -2379,14 +2381,13 @@ XS_INTERNAL(Affix_Type_Pointer_unmarshal) {
     if (items != 2) croak_xs_usage(cv, "pointer, type");
     SV *RETVAL;
     DCpointer ptr;
-    SV *type = *hv_fetchs(MUTABLE_HV(SvRV(ST(0))), "type", 0);
     if (sv_derived_from(ST(1), "Affix::Pointer")) {
         IV tmp = SvIV((SV *)SvRV(ST(1)));
         ptr = INT2PTR(DCpointer, tmp);
     }
     else
         croak("pointer is not of type Affix::Pointer");
-    RETVAL = ptr2sv(aTHX_ ptr, type);
+    RETVAL = ptr2sv(aTHX_ ptr, ST(0));
     RETVAL = sv_2mortal(RETVAL);
     ST(0) = RETVAL;
     XSRETURN(1);
