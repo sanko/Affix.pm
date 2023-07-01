@@ -1492,7 +1492,6 @@ extern "C" void Affix_trigger(pTHX_ CV *cv) {
     bool void_ret = false;
     DCaggr *agg = NULL;
 
-    //~ dcMode(MY_CXT.cvm, ptr->call_conv);
     dcReset(MY_CXT.cvm);
 
     switch (ptr->ret_type) {
@@ -2111,12 +2110,20 @@ XS_INTERNAL(Affix_affix) {
                         SV **tmp_arg = av_fetch(tmp_args, i, false);
                         if (LIKELY(SvROK(*tmp_arg) &&
                                    sv_derived_from(*tmp_arg, "Affix::Type::Base"))) {
-                            if (UNLIKELY(sv_derived_from(*tmp_arg, "Affix::Type::CC"))) {}
+                            ret->arg_types[i] = (int16_t)SvIV(*tmp_arg);
+                            if (UNLIKELY(sv_derived_from(*tmp_arg, "Affix::Type::CC"))) {
+                                av_store(ret->arg_info, i, *tmp_arg);
+                                if (UNLIKELY(
+                                        sv_derived_from(*tmp_arg, "Affix::Type::CC::ELLIPSIS")) ||
+                                    UNLIKELY(sv_derived_from(
+                                        *tmp_arg, "Affix::Type::CC::ELLIPSIS_VARARGS"))) {
+                                    prototype[i] = ';';
+                                }
+                            }
                             else {
                                 ++ret->num_args;
-                                //~ ret->arg_types[i] = SvIV(*tmp_arg);
-
-                                switch (SvIV(*tmp_arg)) {
+                                prototype[i] = '$';
+                                switch (ret->arg_types[i]) {
                                 case AFFIX_ARG_CPOINTER: {
                                     SV *sv = *hv_fetchs(MUTABLE_HV(SvRV(*tmp_arg)), "type", 0);
                                     av_store(ret->arg_info, i, sv);
@@ -2130,14 +2137,7 @@ XS_INTERNAL(Affix_affix) {
                                 case AFFIX_ARG_CPPSTRUCT: {
                                     av_store(ret->arg_info, i, newRV_inc(*tmp_arg));
                                 } break;
-                                case DC_SIGCHAR_CC_PREFIX: {
-                                    av_store(ret->arg_info, i, *tmp_arg);
-                                    ret->num_args--; // Do not count as an arg
-                                    break;
                                 }
-                                }
-                                ret->arg_types[i] = (int16_t)SvIV(*tmp_arg);
-                                prototype[i] = '$';
                             }
                             av_push(ret->arg_info, newSVsv(*tmp_arg));
                         }
@@ -2279,6 +2279,10 @@ XS_INTERNAL(Affix_DESTROY) {
     SV *resolve_lib_name;
     };
             */
+    if (ptr->arg_types != NULL) {
+        safefree(ptr->arg_types);
+        ptr->arg_types = NULL;
+    }
     if (ptr->lib_handle != NULL) {
         dlFreeLibrary(ptr->lib_handle);
         ptr->lib_handle = NULL;
