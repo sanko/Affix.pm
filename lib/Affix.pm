@@ -292,9 +292,9 @@ package Affix 0.12 {    # 'FFI' is my middle name!
                 Char(),  'c',    # Note: signed char == 'a'
                 Bool(),  'b', Double(), 'd', Long(),  'e', Float(), 'f', UChar(),  'h', Int(),  'i',
                 UInt(),  'j', Long(),   'l', ULong(), 'm', Short(), 's', UShort(), 't', Void(), 'v',
-                WChar(), 'w', LongLong(), 'x', ULongLong(), 'y', '_', '',    # Calling conventions
+                WChar(), 'w', LongLong(), 'x', ULongLong(), 'y', ord '_', ''   # Calling conventions
             };
-            $types->{$type} // die 'Unknown type: ' . $type;
+            $types->{$type} // die sprintf 'Unknown type: %s (%d)', chr($type), $type;
         }
 
         sub Itanium_mangle {
@@ -309,7 +309,7 @@ package Affix 0.12 {    # 'FFI' is my middle name!
             while (@args) {
                 my $arg = shift @args;
                 $ret .= _mangle_type( $name, $arg );
-                if ( $arg eq '_' ) {
+                if ( "$arg" == ord '_' ) {
                     shift @args;
                     push @args, Void() if !@args;    # skip calling conventions
                 }
@@ -320,7 +320,7 @@ package Affix 0.12 {    # 'FFI' is my middle name!
         # legacy
         sub Rust_legacy_mangle {
             my ( $lib, $name, $affix ) = @_;
-            $symbol_cache{$lib} //= Affix::_list_symbols($lib);
+            $symbol_cache{$lib} //= $lib->list_symbols();
             @cache = ();
             $vp    = 0;
             return $name if grep { $name eq $_ } grep { defined $_ } @{ $symbol_cache{$lib} };

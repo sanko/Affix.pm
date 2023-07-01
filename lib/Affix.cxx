@@ -597,7 +597,7 @@ static DCaggr *_aggregate(pTHX_ SV *type) {
                     dcAggrField(agg, type_as_dc(_t), offset, array_len);
                 } break;
                 default: {
-                    warn("  dcAggrField(agg, %c, %d, 1);", type_as_dc(_t), offset);
+                    //~ warn("  dcAggrField(agg, %c, %d, 1);", type_as_dc(_t), offset);
                     dcAggrField(agg, type_as_dc(_t), offset, 1);
                 } break;
                 }
@@ -1462,6 +1462,44 @@ XS_INTERNAL(Affix_load_lib) {
     XSRETURN(1);
 }
 
+XS_INTERNAL(Affix_Lib_list_symbols) {
+    dVAR;
+    dXSARGS;
+    if (items != 1) croak_xs_usage(cv, "lib");
+
+    AV *RETVAL;
+    DLLib *lib;
+
+    if (sv_derived_from(ST(0), "Affix::Lib")) {
+        IV tmp = SvIV((SV *)SvRV(ST(0)));
+        lib = INT2PTR(DLLib *, tmp);
+    }
+    else
+        croak("lib is not of type Affix::Lib");
+
+    RETVAL = newAV();
+    char *name;
+    Newxz(name, 1024, char);
+    int len = dlGetLibraryPath(lib, name, 1024);
+    if (len == 0) croak("Failed to get library name");
+    DLSyms *syms = dlSymsInit(name);
+    int count = dlSymsCount(syms);
+    for (int i = 0; i < count; ++i) {
+        av_push(RETVAL, newSVpv(dlSymsName(syms, i), 0));
+    }
+    dlSymsCleanup(syms);
+    safefree(name);
+
+    {
+        SV *RETVALSV;
+        RETVALSV = newRV_noinc((SV *)RETVAL);
+        RETVALSV = sv_2mortal(RETVALSV);
+        ST(0) = RETVALSV;
+    }
+
+    XSRETURN(1);
+}
+
 /* Affix::affix(...) and Affix::wrap(...) System */
 struct Affix {
     int16_t call_conv;
@@ -1490,15 +1528,15 @@ extern "C" void Affix_trigger(pTHX_ CV *cv) {
     int num_strs = 0, num_ptrs = 0;
     int16_t *arg_types = ptr->arg_types;
     bool void_ret = false;
-    DCaggr *agg = NULL;
+    DCaggr *agg_ = NULL;
 
     dcReset(MY_CXT.cvm);
 
     switch (ptr->ret_type) {
     case AFFIX_ARG_CUNION:
     case AFFIX_ARG_CSTRUCT: {
-        agg = _aggregate(aTHX_ ptr->ret_info);
-        dcBeginCallAggr(MY_CXT.cvm, agg);
+        agg_ = _aggregate(aTHX_ ptr->ret_info);
+        dcBeginCallAggr(MY_CXT.cvm, agg_);
     } break;
     }
 
@@ -1905,9 +1943,8 @@ extern "C" void Affix_trigger(pTHX_ CV *cv) {
     case AFFIX_ARG_CSTRUCT: {
         //~ warn ("        _sizeof(aTHX_ ptr->ret_info): %d",_sizeof(aTHX_ ptr->ret_info));
         DCpointer p = safemalloc(_sizeof(aTHX_ ptr->ret_info));
-        dcCallAggr(MY_CXT.cvm, ptr->entry_point, agg, p);
+        dcCallAggr(MY_CXT.cvm, ptr->entry_point, agg_, p);
         RETVAL = ptr2sv(aTHX_ p, ptr->ret_info);
-        dcFreeAggr(agg);
     } break;
     default:
         sv_dump(ptr->ret_info);
@@ -1993,6 +2030,7 @@ extern "C" void Affix_trigger(pTHX_ CV *cv) {
         }
         safefree(free_ptrs);
     }
+    //~ if(agg_) dcFreeAggr(agg_);
 
     if (UNLIKELY(void_ret)) XSRETURN_EMPTY;
 
@@ -2279,10 +2317,10 @@ XS_INTERNAL(Affix_DESTROY) {
     SV *resolve_lib_name;
     };
             */
-    if (ptr->arg_types != NULL) {
-        safefree(ptr->arg_types);
-        ptr->arg_types = NULL;
-    }
+    //~ if (ptr->arg_types != NULL) {
+    //~ safefree(ptr->arg_types);
+    //~ ptr->arg_types = NULL;
+    //~ }
     if (ptr->lib_handle != NULL) {
         dlFreeLibrary(ptr->lib_handle);
         ptr->lib_handle = NULL;
@@ -3109,10 +3147,11 @@ XS_EXTERNAL(boot_Affix) {
     CC_TYPE(ARM_THUMB, DC_SIGCHAR_CC_ARM_THUMB);
     CC_TYPE(SYSCALL, DC_SIGCHAR_CC_SYSCALL);
 
-    //~ (void)newXSproto_portable("Affix::_list_symbols", XS_Affix__list_symbols, file, "$");
-
     (void)newXSproto_portable("Affix::load_lib", Affix_load_lib, file, "$;$");
-    export_function("Affix", "load_lib", "default");
+    export_function("Affix", "load_lib", "lib");
+    (void)newXSproto_portable("Affix::Lib::list_symbols", Affix_Lib_list_symbols, file, "$");
+    export_function("Affix", "load_lib", "lib");
+
     (void)newXSproto_portable("Affix::pin", Affix_pin, file, "$$$$");
     export_function("Affix", "pin", "default");
     (void)newXSproto_portable("Affix::unpin", Affix_unpin, file, "$");
