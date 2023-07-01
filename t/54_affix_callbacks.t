@@ -19,14 +19,21 @@ diag $lib;
 #~ ddx CodeRef [ [ Double, Str, Bool ] => Bool ];
 #~ }
 #
+is Affix::wrap( $lib, 'cb_v_v', [ CodeRef [ [Void] => Void ] ] => Void )->(
+    sub {
+        is_deeply( \@_, [], '[ Void ]' );
+        return;
+    }
+    ),
+    undef,
+    '    => Void';
 is Affix::wrap( $lib, 'cb_pii_i', [ CodeRef [ [ Pointer [Void], Int, Int ] => Int ] ] => Int )->(
     sub {
         is_deeply( \@_, [ undef, 100, 200 ], '[ Pointer [Void], Int, Int ]' );
         return 4;
     }
     ),
-    4,
-    '    => Int';
+    4, '    => Int';
 ok !!Affix::wrap( $lib, 'cb_dZb_b', [ CodeRef [ [ Double, Str, Bool ] => Bool ] ] => Bool )->(
     sub {
         is_deeply(
@@ -45,13 +52,6 @@ ok !!Affix::wrap( $lib, 'cb_dZb_b', [ CodeRef [ [ Double, Str, Bool ] => Bool ] 
     }
     ),
     '    => Bool';
-is Affix::wrap( $lib, 'cb_v_v', [ CodeRef [ [Void] => Void ] ] => Void )->(
-    sub {
-        is_deeply( \@_, [], '[ Void ]' );
-        return;
-    }
-    ),
-    undef, '    => Void';
 ok Affix::wrap( $lib, 'cb_b_b', [ CodeRef [ [Bool] => Bool ] ] => Bool )->(
     sub {
         is_deeply( \@_, [ !0 ], '[ Bool ]' );

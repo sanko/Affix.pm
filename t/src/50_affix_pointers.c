@@ -1,4 +1,5 @@
 #include "std.h"
+#include <stdlib.h>
 
 typedef struct {
     bool B;
@@ -114,8 +115,13 @@ typedef double my_function_t(int, int);
 
 DLLEXPORT double pointer_test(double *dbl, int arr[5], int size,
                               my_function_t *my_function_pointer) {
+    warn("here");
     if (dbl == NULL) return -1;
+    warn("here");
+
     if (*dbl == 90) return 501;
+    warn("here");
+
     // for (int i = 0; i < size; ++i)
     //     warn("# arr[%d] == %d", i, arr[i]);
     if (*dbl >= 590343.12351) {
@@ -123,10 +129,20 @@ DLLEXPORT double pointer_test(double *dbl, int arr[5], int size,
         *dbl = 3.493;
         return *dbl * 5.25;
     }
+    warn("here");
+
     /* Invoke the function via the global function
        pointer variable. */
-    double ret = my_function_pointer(4, 8);
+    warn("here");
+
+    double ret = 0;
+    warn("here");
+
+    if (my_function_pointer != NULL) ret = my_function_pointer(4, 8);
+    warn("here");
+
     *dbl = ret * 2;
+    warn("here");
 
     return 900;
 }
@@ -141,4 +157,37 @@ DLLEXPORT bool demo(test in) {
     warn("# i: %d", in.i);
     warn("# Z: %s", in.Z);
     return !strcmp(in.Z, "Here. There. Everywhere.");
+}
+
+DLLEXPORT void *set_deep_pointer(int number, size_t depth) {
+    void *ptr = NULL;
+    void **temp = &ptr;
+    for (size_t i = 0; i < depth; ++i) {
+        warn("============== i: %d, depth: %d", i, depth);
+        *temp = malloc(sizeof(void *));
+        temp = (void **)(*temp);
+        DumpHex(temp, 16);
+    }
+    *temp = malloc(sizeof(int));
+    *((int *)*temp) = number;
+    return ptr;
+}
+
+DLLEXPORT int get_deep_pointer(void *pointer, size_t depth) {
+    DumpHex(pointer, 16);
+    if (depth == 0) { return *((int *)pointer); }
+    return get_deep_pointer(*((void **)pointer), depth - 1);
+}
+
+#include <stdlib.h>
+
+DLLEXPORT void *get_deep(void) {
+    //~ warn("zero");
+    void *ret = malloc(sizeof(int));
+    //~ warn("one");
+    *((int *)ret) = 3;
+    //~ warn("two");
+    //~ warn("***** ret == %p", ret);
+    //~ DumpHex(ret, sizeof(int));
+    return ret;
 }
