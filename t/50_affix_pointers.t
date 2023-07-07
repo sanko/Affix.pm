@@ -19,22 +19,17 @@ affix $lib, dbl_ptr => [ Pointer [Double] ] => Str;
 diag __LINE__;
 subtest 'scalar ref' => sub {
     diag __LINE__;
-    my $ptr = 100;
-    my $type = Pointer[Double];
+    my $ptr  = 100;
+    my $type = Pointer [Double];
     isa_ok $ptr = $type->marshal(100), 'Affix::Pointer', '$type->marshal(100)';
     diag $$ptr;
-
-    is $type->unmarshal($ptr), 100, '$type->unmarshal($ptr) == 100';
-
-    is dbl_ptr($ptr), 'one hundred', 'dbl_ptr($ptr) where $ptr == 100';
+    is $type->unmarshal($ptr), 100,           '$type->unmarshal($ptr) == 100';
+    is dbl_ptr($ptr),          'one hundred', 'dbl_ptr($ptr) where $ptr == 100';
     diag __LINE__;
     is $ptr, 1000, '$ptr was changed to 1000';
     diag __LINE__;
 };
-
-
 die;
-
 diag __LINE__;
 subtest 'undefined scalar ref' => sub {
     diag __LINE__;

@@ -282,16 +282,11 @@ affix_sub       3556/s        492%            277%     17%        --          -2
 affix_coderef   4425/s        637%            369%     46%       24%            --          -3% -39%
 inline_c_sin    4561/s        659%            383%     50%       28%            3%           -- -37%
 perl            7211/s       1100%            664%    137%      103%           63%          58%   --
-affix_coderef: 30.1508 wallclock secs (30.10 usr +  0.00 sys = 30.10 CPU) @ 4202.72/s (n=126502)
- affix_sub: 30.4273 wallclock secs (30.39 usr +  0.00 sys = 30.39 CPU) @ 3913.16/s (n=118921)
-ffi_coderef: 30.5979 wallclock secs (30.54 usr +  0.00 sys = 30.54 CPU) @ 550.10/s (n=16800)
-   ffi_sub: 30.1475 wallclock secs (30.11 usr +  0.00 sys = 30.11 CPU) @ 2634.74/s (n=79332)
-inline_c_sin: 30.1313 wallclock secs (30.09 usr +  0.00 sys = 30.09 CPU) @ 4910.57/s (n=147759)
-      perl: 30.749 wallclock secs (30.71 usr +  0.00 sys = 30.71 CPU) @ 7899.84/s (n=242604)
+
                 Rate ffi_coderef ffi_sub affix_sub affix_coderef inline_c_sin perl
-ffi_coderef    550/s          --    -79%      -86%          -87%         -89% -93%
-ffi_sub       2635/s        379%      --      -33%          -37%         -46% -67%
-affix_sub     3913/s        611%     49%        --           -7%         -20% -50%
-affix_coderef 4203/s        664%     60%        7%            --         -14% -47%
-inline_c_sin  4911/s        793%     86%       25%           17%           -- -38%
-perl          7900/s       1336%    200%      102%           88%          61%   --
+ffi_coderef    585/s          --    -80%      -86%          -86%         -89% -93%
+ffi_sub       2994/s        412%      --      -29%          -30%         -42% -62%
+affix_sub     4204/s        618%     40%        --           -2%         -18% -46%
+affix_coderef 4299/s        635%     44%        2%            --         -16% -45%
+inline_c_sin  5138/s        778%     72%       22%           20%           -- -34%
+perl          7819/s       1236%    161%       86%           82%          52%   --

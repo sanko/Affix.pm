@@ -24,10 +24,12 @@ use File::stat;
 use Config;
 #
 my $libver;
-my $CFLAGS = $Config{osname} eq 'MSWin32' ? '' :
+my $DEBUG = 0;
+my $CFLAGS
+    = $DEBUG ||
+    $Config{osname} eq 'MSWin32' ? '' :
     ' -DNDEBUG -DBOOST_DISABLE_ASSERTS -O2 -ffast-math -fno-align-functions -fno-align-loops -fno-omit-frame-pointer ';
 my $LDFLAGS = ' ';    # https://wiki.freebsd.org/LinkTimeOptimization
-my $DEBUG   = 0;
 #
 sub write_file {
     my ( $filename, $content ) = @_;
@@ -322,52 +324,61 @@ sub alien {
 }
 
 sub process_cxx {
-    my ( $source, %opt ) = @_;
+    my ( $sources, %opt ) = @_;
     die "Can't build xs files under --pureperl-only\n" if $opt{'pureperl-only'};
     warn $@                                            if $@;
-    my ( undef, @parts ) = splitdir( dirname($source) );
-    push @parts, my $file_base = basename( $source, '.cxx' );
-    my $archdir = catdir( qw/blib arch auto/, @parts );
-    my $tempdir = 'lib';
-    my $c_file  = catfile( $tempdir, "$file_base.cxx" );
-    require ExtUtils::ParseXS;
-    mkpath( $tempdir, $opt{verbose}, oct '755' );
-    my $version = $opt{meta}->version;
+    my @objs;
     require ExtUtils::CBuilder;
     my $builder = ExtUtils::CBuilder->new( config => ( $opt{config}->values_set ) );
     my $pre     = Path::Tiny->cwd->child(qw[blib arch auto])->absolute;
-    my $obj     = $builder->object_file($c_file);
-    my $ob_file = $builder->compile(
-        'C++'        => 1,
-        source       => $c_file,
-        defines      => { VERSION => qq/"$version"/, XS_VERSION => qq/"$version"/ },
-        include_dirs =>
-            [ curdir, dirname($source), $pre->child( $opt{meta}->name, 'include' )->stringify ],
-        extra_compiler_flags => (
-            '-fPIC ' .
-                ( $opt{config}->get('osname') =~ /bsd/ ? '' : $CFLAGS ) .
-                ( $DEBUG                               ? ' -ggdb3 -g -Wall -Wextra -pedantic' : '' )
-        )
-    );
+    my $source;
     require DynaLoader;
     my $mod2fname
         = defined &DynaLoader::mod2fname ? \&DynaLoader::mod2fname : sub { return $_[0][-1] };
+    my @parts   = ('Affix');
+    my $archdir = catdir( qw/blib arch auto/, @parts );
     mkpath( $archdir, $opt{verbose}, oct '755' ) unless -d $archdir;
     my $lib_file = catfile( $archdir, $mod2fname->( \@parts ) . '.' . $opt{config}->get('dlext') );
+    my @dirs;
 
-    #my $op_lib_file = catfile(
-    #    $paths->install_destination('arch'),
-    #qw[auto Object],
-    #'Pad' . $opt{config}->get('dlext')
-    #);
+    for my $source (@$sources) {
+        my $file_base = basename( $source, '.cxx' );
+        my $tempdir   = 'lib';
+        mkpath( $tempdir, $opt{verbose}, oct '755' );
+        my $version = $opt{meta}->version;
+        my $obj     = $builder->object_file($source);
+        push @dirs, rel2abs dirname($source);
+        push @objs,
+            $builder->compile(
+            'C++'        => ( $source =~ /\.cxx$/ ),
+            source       => $source,
+            defines      => { VERSION => qq/"$version"/, XS_VERSION => qq/"$version"/ },
+            include_dirs =>
+                [ curdir, dirname($source), $pre->child( $opt{meta}->name, 'include' )->stringify ],
+            extra_compiler_flags => (
+                '-fPIC ' .
+                    ( $opt{config}->get('osname') =~ /bsd/ ? ''     : $CFLAGS ) .
+                    ( $DEBUG ? ' -ggdb3 -g -Wall -Wextra -pedantic' : '' )
+            )
+            );
+
+        #my $op_lib_file = catfile(
+        #    $paths->install_destination('arch'),
+        #qw[auto Object],
+        #'Pad' . $opt{config}->get('dlext')
+        #);
+    }
+    warn join ', ', @dirs;
+    warn join ', ', @parts;
+    warn $lib_file;
     return $builder->link(
         extra_linker_flags => (
-            ( $opt{config}->get('osname') =~ /bsd/ ? '' : $LDFLAGS ) . ' -L' .
-                dirname($source) . ' -L' .
+            ( $opt{config}->get('osname') =~ /bsd/ ? '' : $LDFLAGS ) .
+                ( join ' ', map { ' -L' . $_ } @dirs ) . ' -L' .
                 $pre->child( $opt{meta}->name, 'lib' )->stringify .
                 ' -ldyncall_s -ldyncallback_s -ldynload_s'
         ),
-        objects     => [$ob_file],
+        objects     => [@objs],
         lib_file    => $lib_file,
         module_name => join '::',
         @parts
@@ -396,7 +407,7 @@ my %actions = (
         make_executable($_) for values %scripts;
         mkpath( catdir(qw/blib arch/), $opt{verbose} );
         alien(%opt);
-        process_cxx( $_, %opt ) for find( qr/.cxx$/, 'lib' );
+        process_cxx( [ find( qr/.cxx$/, 'lib' ) ], %opt );
         if ( $opt{install_paths}->install_destination('bindoc') &&
             $opt{install_paths}->is_default_installable('bindoc') ) {
             manify(
