@@ -20,7 +20,7 @@ jobs:
         os:
           - ubuntu-latest
         perl:
-          - 5.36.0
+          - 5.38.0
         flags:
           - --64int
           - --thread
