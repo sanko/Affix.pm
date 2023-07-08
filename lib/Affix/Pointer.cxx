@@ -179,20 +179,7 @@ XS_INTERNAL(Affix_Pointer_DumpHex) {
         DCpointer ptr;
         IV tmp = SvIV((SV *)SvRV(ST(0)));
         ptr = INT2PTR(DCpointer, tmp);
-        // Gathers perl caller() info
-#ifdef USE_ITHREADS
-        _DumpHex(aTHX_ ptr, size, PL_curcop->cop_file, PL_curcop->cop_line);
-#else
-        if (PL_curcop) { // Gathers perl caller() info
-            const COP *cop = Perl_closest_cop(aTHX_ PL_curcop, OpSIBLING(PL_curcop), PL_op, FALSE);
-            if (!cop) cop = PL_curcop;
-            if (CopLINE(cop)) {
-                _DumpHex(aTHX_ ptr, size, OutCopFILE(cop), CopLINE(cop));
-                XSRETURN_EMPTY;
-            }
-        }
-        DumpHex(ptr, size);
-#endif
+        _DumpHex(aTHX_ ptr, size, OutCopFILE(PL_curcop), CopLINE(PL_curcop));
         XSRETURN_EMPTY;
     }
     else
