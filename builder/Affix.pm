@@ -1,4 +1,4 @@
-package builder::Affix;
+package builder::Affix; # based on Module::Build::Tiny
 use strict;
 use warnings;
 use Exporter 5.57 'import';
@@ -61,11 +61,12 @@ sub manify {
 
 sub alien {
     my (%opt) = @_;
+    my $pre = Path::Tiny->cwd->child( qw[blib arch auto], $opt{meta}->name )->absolute;
+    return                                             if -d $pre;
     die "Can't build xs files under --pureperl-only\n" if $opt{'pureperl-only'};
     if ( -d Path::Tiny->cwd->child('dyncall') ) {
         my ($kid) = Path::Tiny->cwd->child('dyncall');
-        my $cwd   = Path::Tiny->cwd->absolute;
-        my $pre   = Path::Tiny->cwd->child( qw[blib arch auto], $opt{meta}->name )->absolute;
+        my $cwd = Path::Tiny->cwd->absolute;
         chdir $kid->absolute->stringify;
         if (1) {
             my $make = $opt{config}->get('make');
@@ -303,17 +304,18 @@ sub alien {
                 $tar->setcwd( $extract->stringify );
                 $tar->read( $dest->child($filename) );
                 $tar->extract;
-                my ($kid) = $extract->children;
+                return alien(@_);
 
-                #die;
-                my $cwd = Path::Tiny->cwd->absolute;
-                my $pre = Path::Tiny->cwd->child( qw[blib arch auto], $opt{meta}->name )->absolute;
-                chdir $kid->absolute->stringify;
-                warn($_) && system($_ )
-                    for 'sh ./configure --prefix=' .
-                    $pre->absolute .
-                    ' CFLAGS="-Ofast" LDFLAGS="-Ofast" ', 'make', 'make install';
-                chdir $cwd->stringify;
+              #~ my ($kid) = $extract->children;
+              #~ #die;
+              #~ my $cwd = Path::Tiny->cwd->absolute;
+              #~ my $pre = Path::Tiny->cwd->child( qw[blib arch auto], $opt{meta}->name )->absolute;
+              #~ chdir $kid->absolute->stringify;
+              #~ warn($_) && system($_ )
+              #~ for 'sh ./configure --prefix=' .
+              #~ $pre->absolute .
+              #~ ' CFLAGS="-Ofast" LDFLAGS="-Ofast" ', 'make', 'make install';
+              #~ chdir $cwd->stringify;
             }
             else {
                 die sprintf 'Failed to download %s: %s!', $response->{url}, $response->{content}

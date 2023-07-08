@@ -26,43 +26,57 @@ subtest pointers => sub {
     subtest 'Pointer[Void]' => sub {
         my $type = Pointer [Void];
         {
+            #~ my $ptr = Affix::malloc(5);
+            #$$ptr = 'test';
             my $ptr = $type->marshal('test');
-            isa_ok $ptr, 'Affix::Pointer';
+            isa_ok $ptr, 'Affix::Pointer::Unmanaged';
+
+            #~ $ptr->dump(16);
+            diag __LINE__;
+
+            #~ diag $ptr->deref_scalar;
             diag $type->unmarshal($ptr);
+            diag __LINE__;
         }
+        diag __LINE__;
         diag
             'idk what to even test here... the raw data? I could have an object that stringifies to something useful...';
     };
+    diag __LINE__;
     subtest 'Pointer[Bool]' => sub {
+        my $type = Pointer [Bool];
         {
-            my $ptr = ( Pointer [Bool] )->marshal(1);
-            is( ( Pointer [Bool] )->unmarshal($ptr), !!1, 'true in and out' );
+            diag __LINE__;
+            my $ptr = $type->marshal(1);
+            is $type->unmarshal($ptr), !!1, 'true in and out';
+            diag __LINE__;
         }
         {
-            my $ptr = ( Pointer [Bool] )->marshal(0);
-            is( ( Pointer [Bool] )->unmarshal($ptr), !1, 'false in and out' );
+            my $ptr = $type->marshal(0);
+            is $type->unmarshal($ptr), !1, 'false in and out';
         }
     };
     subtest 'Pointer[Char]' => sub {
+        my $type = Pointer [Char];
         {
-            my $ptr = ( Pointer [Char] )->marshal('Abcd');
+            my $ptr = $type->marshal('Abcd');
             $ptr->dump(16);
-            is( ( Pointer [Char] )->unmarshal($ptr),        'Abcd',   'Abcd in and out' );
-            is( int( ( Pointer [Char] )->unmarshal($ptr) ), ord('A'), 'Abcd in and out (int)' );
+            is $type->unmarshal($ptr),        'Abcd',   'Abcd in and out';
+            is int( $type->unmarshal($ptr) ), ord('A'), 'Abcd in and out (int)';
         }
         {
-            my $ptr = ( Pointer [Char] )->marshal( 'Abcd' x 64 );
+            my $ptr = $type->marshal( 'Abcd' x 64 );
             $ptr->dump(16);
-            is( ( Pointer [Char] )->unmarshal($ptr),        'Abcd' x 64, 'Abcd in and out' );
-            is( int( ( Pointer [Char] )->unmarshal($ptr) ), ord('A'),    'Abcd in and out (int)' );
+            is $type->unmarshal($ptr),        'Abcd' x 64, 'Abcd in and out';
+            is int( $type->unmarshal($ptr) ), ord('A'),    'Abcd in and out (int)';
         }
         {
-            my $ptr = ( Pointer [Char] )->marshal( ord 'A' );
-            is( int( ( Pointer [Char] )->unmarshal($ptr) ), ord('A'), 'A in and out (int)' );
+            my $ptr = $type->marshal( ord 'A' );
+            is int( $type->unmarshal($ptr) ), ord('A'), 'A in and out (int)';
         }
         {
-            my $ptr = ( Pointer [Char] )->marshal( -ord 'A' );
-            is( int( ( Pointer [Char] )->unmarshal($ptr) ), -ord('A'), '-A in and out (int)' );
+            my $ptr = $type->marshal( -ord 'A' );
+            is int( $type->unmarshal($ptr) ), -ord('A'), '-A in and out (int)';
         }
     };
     subtest 'Pointer[UChar]' => sub {

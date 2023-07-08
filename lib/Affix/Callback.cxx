@@ -94,7 +94,7 @@ char cbHandler(DCCallback *cb, DCArgs *args, DCValue *result, DCpointer userdata
             switch (_type) { // true type
             case AFFIX_ARG_WCHAR: {
                 //~ SV *wchar2utf(pTHX_ wchar_t *str, int len);
-                mPUSHs(ptr2sv(aTHX_ ptr, __type));
+                mPUSHs(ptr2sv(aTHX_ ptr, newSViv(_type)));
             } break;
             case AFFIX_ARG_VOID: {
                 SV *s = ptr2sv(aTHX_ ptr, __type);

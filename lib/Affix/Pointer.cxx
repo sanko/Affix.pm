@@ -19,43 +19,36 @@ XS_INTERNAL(Affix_Type_Pointer_marshal) {
     dVAR;
     dXSARGS;
     if (items != 2) croak_xs_usage(cv, "type, data");
-    SV *type = ST(0);
+    SV *type = *hv_fetchs(MUTABLE_HV(SvRV(ST(0))), "type", 0);
     SV *data = ST(1);
-    warn("RETVAL should be %d bytes", _sizeof(aTHX_ type));
-    DCpointer ptr = sv2ptr(aTHX_ type, data, NULL, false);
-    DumpHex(ptr, 16);
-    DumpHex(*(void **)ptr, 16);
-    PING;
+    DCpointer RETVAL = NULL; // = safemalloc(1);
+    //~ warn("RETVAL should be %d bytes", _sizeof(aTHX_ type));
+    RETVAL = sv2ptr(aTHX_ type, data, RETVAL, false);
     {
-        warn("pointer is now at %p", ptr);
         SV *RETVALSV;
         RETVALSV = sv_newmortal();
-        sv_setref_pv(RETVALSV, "Affix::Pointer::Unmanaged", ptr);
+        sv_setref_pv(RETVALSV, "Affix::Pointer::Unmanaged", RETVAL);
         ST(0) = RETVALSV;
-        sv_dump(RETVALSV);
     }
-    PING;
-
     XSRETURN(1);
 }
 
 XS_INTERNAL(Affix_Type_Pointer_unmarshal) {
     dVAR;
     dXSARGS;
-    if (items != 2) croak_xs_usage(cv, "type, pointer");
+    if (items != 2) croak_xs_usage(cv, "pointer, type");
+    SV *RETVAL;
     DCpointer ptr;
-    SV *type;
-    if (sv_derived_from(ST(0), "Affix::Type::Base")) { type = (ST(0)); }
-    else { croak("type is not of type Affix::Type::Base"); }
+    SV *type = *hv_fetchs(MUTABLE_HV(SvRV(ST(0))), "type", 0);
     if (sv_derived_from(ST(1), "Affix::Pointer")) {
         IV tmp = SvIV((SV *)SvRV(ST(1)));
         ptr = INT2PTR(DCpointer, tmp);
     }
-    else { croak("pointer is not of type Affix::Pointer"); }
-    DumpHex(ptr, 16);
-    DumpHex(*(void **)ptr, 16);
-
-    ST(0) = ptr2sv(aTHX_ ptr, type);
+    else
+        croak("pointer is not of type Affix::Pointer");
+    RETVAL = ptr2sv(aTHX_ ptr, type);
+    RETVAL = sv_2mortal(RETVAL);
+    ST(0) = RETVAL;
     XSRETURN(1);
 }
 
@@ -114,7 +107,7 @@ XS_INTERNAL(Affix_Pointer_as_string) {
         }
         else
             croak("ptr is not of type Affix::Pointer");
-        RETVAL = *(char **)ptr;
+        RETVAL = (char *)ptr;
         sv_setpv(TARG, RETVAL);
         XSprePUSH;
         PUSHTARG;
@@ -126,22 +119,22 @@ XS_INTERNAL(Affix_Pointer_as_double) {
     dVAR;
     dXSARGS;
     if (items < 1) croak_xs_usage(cv, "ptr, ...");
-    {
-        double RETVAL;
-        dXSTARG;
-        DCpointer ptr;
 
-        if (sv_derived_from(ST(0), "Affix::Pointer")) {
-            IV tmp = SvIV((SV *)SvRV(ST(0)));
-            ptr = INT2PTR(DCpointer, tmp);
-        }
-        else
-            croak("ptr is not of type Affix::Pointer");
-        RETVAL = *(double *)ptr;
-        sv_setnv_mg(TARG, RETVAL);
-        XSprePUSH;
-        PUSHTARG;
+    double RETVAL;
+    dXSTARG;
+    DCpointer ptr;
+
+    if (sv_derived_from(ST(0), "Affix::Pointer")) {
+        IV tmp = SvIV((SV *)SvRV(ST(0)));
+        ptr = INT2PTR(DCpointer, tmp);
     }
+    else
+        croak("ptr is not of type Affix::Pointer");
+    RETVAL = *(double *)ptr;
+    sv_setnv_mg(TARG, RETVAL);
+    XSprePUSH;
+    PUSHTARG;
+
     XSRETURN(1);
 }
 
@@ -251,6 +244,9 @@ void boot_Affix_Pointer(pTHX_ CV *cv) {
     (void)newXSproto_portable("Affix::Pointer::as_double", Affix_Pointer_as_double, __FILE__,
                               "$;@");
     (void)newXSproto_portable("Affix::Pointer::(0+", Affix_Pointer_as_double, __FILE__, "$;@");
+    //~ (void)newXSproto_portable("Affix::Pointer::(${}", Affix_Pointer_deref_scalar, __FILE__,
+    //"$;@"); ~ (void)newXSproto_portable("Affix::Pointer::deref_scalar",
+    // Affix_Pointer_deref_scalar, __FILE__, "$;@");
 
     (void)newXSproto_portable("Affix::Pointer::raw", Affix_Pointer_raw, __FILE__, "$$;$");
     (void)newXSproto_portable("Affix::Pointer::dump", Affix_Pointer_DumpHex, __FILE__, "$$");

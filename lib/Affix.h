@@ -205,16 +205,14 @@ following address will be aligned to `alignment`. */
                    ->_h) -                                                                         \
      (char *)0)
 #endif
+
+// marshal.cxx
 size_t padding_needed_for(size_t offset, size_t alignment);
 SV *ptr2sv(pTHX_ DCpointer ptr, SV *type_sv);
 void *sv2ptr(pTHX_ SV *type_sv, SV *data, DCpointer ptr, bool packed);
 size_t _alignof(pTHX_ SV *type);
 size_t _sizeof(pTHX_ SV *type);
 size_t _offsetof(pTHX_ SV *type);
-
-// marshal.cxx
-SV *ptr2sv(pTHX_ DCpointer ptr, SV *type_sv);
-void *sv2ptr(pTHX_ SV *type_sv, SV *data, DCpointer ptr, bool packed);
 
 // wchar_t.cxx
 SV *wchar2utf(pTHX_ wchar_t *src, int len);

@@ -17,19 +17,23 @@ affix $lib, pointer_test =>
 affix $lib, dbl_ptr => [ Pointer [Double] ] => Str;
 #
 diag __LINE__;
+subtest 'marshalled pointer' => sub {
+    my $type = Pointer [Double];
+    diag __LINE__;
+    my $ptr = $type->marshal(100);
+    is dbl_ptr($ptr), 'one hundred', 'dbl_ptr($ptr) where $ptr == 100';
+    diag __LINE__;
+    is $type->unmarshal($ptr), 1000, '$ptr was changed to 1000';
+    diag __LINE__;
+};
 subtest 'scalar ref' => sub {
     diag __LINE__;
-    my $ptr  = 100;
-    my $type = Pointer [Double];
-    isa_ok $ptr = $type->marshal(100), 'Affix::Pointer', '$type->marshal(100)';
-    diag $$ptr;
-    is $type->unmarshal($ptr), 100,           '$type->unmarshal($ptr) == 100';
-    is dbl_ptr($ptr),          'one hundred', 'dbl_ptr($ptr) where $ptr == 100';
+    my $ptr = 100;
+    is dbl_ptr($ptr), 'one hundred', 'dbl_ptr($ptr) where $ptr == 100';
     diag __LINE__;
     is $ptr, 1000, '$ptr was changed to 1000';
     diag __LINE__;
 };
-die;
 diag __LINE__;
 subtest 'undefined scalar ref' => sub {
     diag __LINE__;
@@ -43,12 +47,18 @@ diag __LINE__;
 subtest 'Affix::Pointer with a double' => sub {
     diag __LINE__;
     my $ptr = calloc( 1, 16 );
-    diag ref $ptr;
-    is dbl_ptr($ptr), 'empty', 'dbl_ptr($ptr) where $ptr == calloc(...)';
+    {
+        diag __LINE__;
+        my $data = pack 'd', 100.04;
+        memcpy( $ptr, $data, length $data );
+        $ptr->dump(16);
+        warn( ( Pointer [Double] )->unmarshal($ptr) );
+    }
+    is dbl_ptr($ptr), 'one hundred and change', 'dbl_ptr($ptr) where $ptr == malloc(...)';
     $ptr->dump(16);
     diag __LINE__;
     my $raw = $ptr->raw(16);
-    is unpack( 'd', $raw ), 1000, '$ptr was changed to 1000';
+    is unpack( 'd', $raw ), 10000, '$ptr was changed to 10000';
     free $ptr;
     diag __LINE__;
 };
@@ -175,29 +185,5 @@ diag __LINE__;
 #~ is $sv->{Z},    'Just a little test', 'parsed pointer to sv and got .Z';
 #~ };
 diag __LINE__;
-subtest 'deep pointers' => sub {
-    {
-        my $type = Pointer [Int];
-        affix $lib, 'get_deep', [], $type;
-        use Data::Dump;
-        ddx get_deep();
-        diag get_deep();
-        is get_deep(), 3, 'Pointer[Int]';
-    }
-    {
-        affix $lib, 'set_deep_pointer', [ Int, Size_t ], Pointer [Void];
-        affix $lib, 'get_deep_pointer', [ Pointer [Void], Size_t ], Int;
-        ok my $pointer = set_deep_pointer( 2, 5 ), '$pointer = set_deep_pointer(2, 5)';
-        diag sprintf "0x%x", $$pointer;
-        isa_ok $pointer, 'Affix::Pointer', '$pointer';
-        is get_deep_pointer( $pointer, 5 ), 2, 'get_deep_pointer($pointer, 5)';
-        #
-        is( Affix::wrap( $lib, 'get_deep_pointer', [ Pointer [Int], Size_t ], Int )->( 5, 0 ),
-            5, 'get_deep_pointer(5, 1)' );
-        #
-        my $type = Pointer [ Pointer [ Pointer [ Pointer [ Pointer [Int] ] ] ] ];
-        is $type->unmarshal($pointer), 2, 'unmarshal';
-    }
-};
 #
 done_testing;

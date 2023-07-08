@@ -18,7 +18,7 @@ void _export_function(pTHX_ HV *_export, const char *what, const char *_tag) {
         SV *av;
         av = (SV *)newAV();
         av_push((AV *)av, newSVpv(what, 0));
-        tag = hv_store(_export, _tag, strlen(_tag), newRV_noinc(av), 0);
+        (void)hv_store(_export, _tag, strlen(_tag), newRV_noinc(av), 0);
     }
 }
 
