@@ -15,7 +15,7 @@ diag ord '赤';
 #
 subtest types => sub {
     isa_ok $_, 'Affix::Type::Base'
-        for Void, Bool, Char, UChar, WChar, Short, UShort, Int, UInt, Long, ULong, LongLong,
+        for Any, Void, Bool, Char, UChar, WChar, Short, UShort, Int, UInt, Long, ULong, LongLong,
         ULongLong, SSize_t, Size_t, Float, Double, Str,
         #
         WStr, Pointer [Int],
@@ -23,21 +23,29 @@ subtest types => sub {
         Struct [ i => Str, j => Long ], Union [ u => Int, x => Double ], ArrayRef [ Int, 10 ];
 };
 subtest pointers => sub {
+    subtest 'Pointer[Any]' => sub {
+        my $type = Pointer [Any];
+
+        #~ my $ptr = Affix::malloc(5);
+        #$$ptr = 'test';
+        my $ptr = $type->marshal( { four => 'four' } );
+        isa_ok $ptr, 'Affix::Pointer::Unmanaged';
+        is_deeply [ $type->unmarshal($ptr) ], [ { four => 'four' } ], 'SV* cast to void*';
+    };
     subtest 'Pointer[Void]' => sub {
         my $type = Pointer [Void];
-        {
-            #~ my $ptr = Affix::malloc(5);
-            #$$ptr = 'test';
-            my $ptr = $type->marshal('test');
-            isa_ok $ptr, 'Affix::Pointer::Unmanaged';
 
-            #~ $ptr->dump(16);
-            diag __LINE__;
+        #~ my $ptr = Affix::malloc(5);
+        #$$ptr = 'test';
+        my $ptr = $type->marshal('test');
+        isa_ok $ptr, 'Affix::Pointer::Unmanaged';
 
-            #~ diag $ptr->deref_scalar;
-            diag $type->unmarshal($ptr);
-            diag __LINE__;
-        }
+        #~ $ptr->dump(16);
+        diag __LINE__;
+
+        #~ diag $ptr->deref_scalar;
+        diag $type->unmarshal($ptr);
+        diag __LINE__;
         diag __LINE__;
         diag
             'idk what to even test here... the raw data? I could have an object that stringifies to something useful...';

@@ -221,6 +221,7 @@ XS_INTERNAL(Affix_Pointer_DESTROY) {
 }
 
 void boot_Affix_Pointer(pTHX_ CV *cv) {
+    PERL_UNUSED_VAR(cv);
     (void)newXSproto_portable("Affix::Type::Pointer::marshal", Affix_Type_Pointer_marshal, __FILE__,
                               "$$");
     (void)newXSproto_portable("Affix::Type::Pointer::unmarshal", Affix_Type_Pointer_unmarshal,

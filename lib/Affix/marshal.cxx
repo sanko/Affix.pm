@@ -12,8 +12,15 @@ SV *ptr2sv(pTHX_ DCpointer ptr, SV *type_sv) {
     //~ }
     //~ }
     switch (type) {
+    case AFFIX_ARG_SV: {
+        if (ptr == NULL) { RETVAL = newSV(0); }
+        else if (*(void **)ptr != NULL && SvOK(MUTABLE_SV(*(void **)ptr))) {
+            RETVAL = MUTABLE_SV(*(void **)ptr);
+        }
+    } break;
     case AFFIX_ARG_VOID: {
-        sv_setref_pv(RETVAL, "Affix::Pointer::Unmanaged", ptr);
+        if (ptr == NULL) { RETVAL = newSV(0); }
+        else { sv_setref_pv(RETVAL, "Affix::Pointer::Unmanaged", ptr); }
     } break;
     case AFFIX_ARG_BOOL:
         sv_setbool_mg(RETVAL, (bool)*(bool *)ptr);
@@ -174,6 +181,16 @@ void *sv2ptr(pTHX_ SV *type_sv, SV *data, DCpointer ptr, bool packed) {
     //~ warn("sv2ptr(%s (%d), ..., %p, %s) at %s line %d", type_as_str(type), type, ptr,
     //~ (packed ? "true" : "false"), __FILE__, __LINE__);
     switch (type) {
+    case AFFIX_ARG_SV: {
+        if (!SvOK(data))
+            Zero(ptr, 1, intptr_t);
+        else {
+            SvREFCNT_inc(data); // TODO: This might leak; I'm just being lazy
+            DCpointer value = (DCpointer)data;
+            Renew(ptr, 1, intptr_t);
+            Copy(&value, ptr, 1, intptr_t);
+        }
+    } break;
     case AFFIX_ARG_VOID: {
         if (!SvOK(data))
             Zero(ptr, 1, intptr_t);
@@ -182,14 +199,14 @@ void *sv2ptr(pTHX_ SV *type_sv, SV *data, DCpointer ptr, bool packed) {
             ptr = INT2PTR(DCpointer, tmp);
             Copy((DCpointer)(&data), ptr, 1, intptr_t);
         }
-        else {
+        else if (SvPOK(data)) {
             size_t len;
             char *raw = SvPV(data, len);
             Renew(ptr, len + 1, char);
             Copy((DCpointer)raw, ptr, len + 1, char);
         }
-        // else
-        //     croak("Expected a subclass of Affix::Pointer");
+        else
+            croak("Expected a subclass of Affix::Pointer");
     } break;
     case AFFIX_ARG_BOOL: {
         bool value = SvOK(data) ? SvTRUE(data) : (bool)0; // default to false

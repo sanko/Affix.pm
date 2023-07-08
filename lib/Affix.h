@@ -23,8 +23,8 @@ extern "C" {
 #include <wchar.h>
 
 #if __WIN32
-#include <windows.h>
 #include <cstdint>
+#include <windows.h>
 #endif
 
 #ifdef MULTIPLICITY
@@ -92,6 +92,7 @@ extern "C" {
 #endif
 
 /* Native argument types */
+#define AFFIX_ARG_SV 100
 #define AFFIX_ARG_VOID 0
 #define AFFIX_ARG_BOOL 1
 #define AFFIX_ARG_CHAR 2

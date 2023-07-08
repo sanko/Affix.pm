@@ -1,4 +1,4 @@
-package builder::Affix; # based on Module::Build::Tiny
+package builder::Affix;    # based on Module::Build::Tiny
 use strict;
 use warnings;
 use Exporter 5.57 'import';

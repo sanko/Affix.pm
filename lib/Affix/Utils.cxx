@@ -104,6 +104,7 @@ size_t _sizeof(pTHX_ SV *type) {
     case AFFIX_ARG_UTF16STR:
     //~ case AFFIX_ARG_ANY:
     case AFFIX_ARG_CPPSTRUCT:
+    case AFFIX_ARG_SV:
         return INTPTR_T_SIZE;
     case AFFIX_ARG_WCHAR:
         return WCHAR_T_SIZE;
@@ -151,6 +152,7 @@ size_t _alignof(pTHX_ SV *type) {
     case AFFIX_ARG_UTF16STR:
     //~ case AFFIX_ARG_ANY:
     case AFFIX_ARG_CPPSTRUCT:
+    case AFFIX_ARG_SV:
         return INTPTR_T_ALIGN;
     case AFFIX_ARG_WCHAR:
         return WCHAR_T_ALIGN;
@@ -168,6 +170,8 @@ size_t _offsetof(pTHX_ SV *type) {
 
 const char *type_as_str(int type) {
     switch (type) {
+    case AFFIX_ARG_SV:
+        return "Any";
     case AFFIX_ARG_VOID:
         return "Void";
     case AFFIX_ARG_BOOL:
@@ -247,6 +251,7 @@ int type_as_dc(int type) {
     case AFFIX_ARG_CARRAY:
     case AFFIX_ARG_CALLBACK:
     case AFFIX_ARG_CPOINTER:
+    case AFFIX_ARG_SV:
         return DC_SIGCHAR_POINTER;
     /*case  AFFIX_ARG_VMARRAY 30*/
     case AFFIX_ARG_UCHAR:
@@ -278,7 +283,8 @@ void _DumpHex(pTHX_ const void *addr, size_t len, const char *file, int line) {
     // Silently ignore silly per-line values.
     if (perLine < 4 || perLine > 64) perLine = 16;
     size_t i;
-    U8 buff[perLine + 1];
+    U8 *buff;
+    Newxz(buff, perLine + 1, U8);
     const U8 *pc = (const U8 *)addr;
     printf("Dumping %lu bytes from %p at %s line %d\n", len, addr, file, line);
     // Length checks.

@@ -225,6 +225,8 @@ XS_INTERNAL(Affix_Type_asint) {
         XSRETURN(1);                                                                               \
     }
 
+SIMPLE_TYPE(Any);
+
 SIMPLE_TYPE(Void);
 SIMPLE_TYPE(Bool);
 SIMPLE_TYPE(Char);
@@ -1250,8 +1252,8 @@ char *_mangle(pTHX_ const char *abi, SV *lib, const char *symbol, SV *args) {
         SPAGAIN;
         err_tmp = ERRSV;
         if (SvTRUE(err_tmp)) {
-            croak("Malformed call to %s_mangle( ... )\n", abi, SvPV_nolen(err_tmp));
-            POPs;
+            croak("Malformed call to %s_mangle( ... ): %s\n", abi, SvPV_nolen(err_tmp));
+            (void)POPs;
         }
         else if (count != 1) { croak("Failed to mangle %s symbol named %s", abi, abi); }
         else {
@@ -1339,7 +1341,7 @@ XS_INTERNAL(Affix_affix) {
                     Newxz(ret->arg_types, args_len, int16_t); // TODO: safefree
                     Newxz(prototype, args_len, char);
                     for (size_t i = 0; i < args_len; ++i) {
-                        SV **tmp_arg = av_fetch(tmp_args, i, false);
+                        tmp_arg = av_fetch(tmp_args, i, false);
                         if (LIKELY(SvROK(*tmp_arg) &&
                                    sv_derived_from(*tmp_arg, "Affix::Type::Base"))) {
                             ret->arg_types[i] = (int16_t)SvIV(*tmp_arg);
@@ -1373,7 +1375,7 @@ XS_INTERNAL(Affix_affix) {
                             }
                             av_push(ret->arg_info, newSVsv(*tmp_arg));
                         }
-                        else { croak("Unexpected arg type in slot %d", i + 1); }
+                        else { croak("Unexpected arg type in slot %ld", i + 1); }
                     }
                 }
                 else { croak("Expected a list of argument types as an array ref"); }
@@ -1596,6 +1598,7 @@ XS_INTERNAL(Affix_Aggregate_EXISTS) {
     }
     XSRETURN_NO;
 }
+
 XS_INTERNAL(Affix_Aggregate_FIRSTKEY) {
     dVAR;
     dXSARGS;
@@ -1613,6 +1616,7 @@ XS_INTERNAL(Affix_Aggregate_FIRSTKEY) {
     }
     XSRETURN_UNDEF;
 }
+
 XS_INTERNAL(Affix_Aggregate_NEXTKEY) {
     dVAR;
     dXSARGS;
@@ -1968,18 +1972,6 @@ XS_INTERNAL(Affix_strdup) {
     XSRETURN(1);
 }
 
-//~ SV *
-//~ FETCH(HV *spy, SV *key)
-//~ PREINIT:
-//~ HE *he;
-//~ CODE:
-//~ he = hv_fetch_ent(spy, key, 0, 0);
-//~ RETVAL = (he ? newSVsv(hv_iterval(spy, he)) : &PL_sv_undef);
-//~ OUTPUT:
-//~ RETVAL
-
-// Bootstap
-
 #define EXT_TYPE(NAME, AFFIX_CHAR, DC_CHAR)                                                        \
     {                                                                                              \
         set_isa("Affix::Type::" #NAME, "Affix::Type::Base");                                       \
@@ -2088,6 +2080,8 @@ XS_EXTERNAL(boot_Affix) {
     SV *vmsize = get_sv("Affix::VMSize", 0);
     MY_CXT.cvm = dcNewCallVM(vmsize == NULL ? 8192 : SvIV(vmsize));
 
+    TYPE(Any, AFFIX_ARG_SV, DC_SIGCHAR_SV);
+
     TYPE(Void, AFFIX_ARG_VOID, DC_SIGCHAR_VOID);
     TYPE(Bool, AFFIX_ARG_BOOL, DC_SIGCHAR_BOOL);
     TYPE(Char, AFFIX_ARG_CHAR, DC_SIGCHAR_CHAR);
@@ -2193,54 +2187,6 @@ XS_EXTERNAL(boot_Affix) {
     (void)newXSproto_portable("Affix::typedef", Affix_typedef, __FILE__, "$$");
     export_function("Affix", "typedef", "all");
 
-    //~ {
-    //~ (void)newXSproto_portable("Affix::Type", Types_type, __FILE__, "$");
-    //~ (void)newXSproto_portable("Affix::DESTROY", Affix_DESTROY, __FILE__, "$");
-
-    //~ CV *cv;
-
-    //~ TYPE(Pointer, AFFIX_ARG_CPOINTER, AFFIX_ARG_CPOINTER);
-    //~ TYPE(Str, AFFIX_ARG_ASCIISTR, AFFIX_ARG_ASCIISTR);
-    //~ TYPE(Struct, AFFIX_ARG_CSTRUCT, AFFIX_ARG_AGGREGATE);
-    //~ TYPE(ArrayRef, AFFIX_ARG_CARRAY, AFFIX_ARG_AGGREGATE);
-    //~ TYPE(Union, AFFIX_ARG_CUNION, AFFIX_ARG_AGGREGATE);
-    //~ TYPE(CodeRef, AFFIX_ARG_CALLBACK, AFFIX_ARG_AGGREGATE);
-    //~ TYPE(InstanceOf, AFFIX_ARG_CPPSTRUCT, AFFIX_ARG_CPOINTER);
-    //~ TYPE(Any, AFFIX_ARG_ANY, AFFIX_ARG_CPOINTER);
-    //~ TYPE(SSize_t, AFFIX_ARG_SSIZE_T, AFFIX_ARG_SSIZE_T);
-    //~ TYPE(Size_t, AFFIX_ARG_SIZE_T, AFFIX_ARG_SIZE_T);
-
-    //~ TYPE(WStr, AFFIX_ARG_UTF16STR, AFFIX_ARG_CPOINTER);
-
-    //~ TYPE(Enum, AFFIX_ARG_ENUM, AFFIX_ARG_INT);
-
-    //~ TYPE(IntEnum, AFFIX_ARG_ENUM, AFFIX_ARG_INT);
-    //~ set_isa("Affix::Type::IntEnum", "Affix::Type::Enum");
-
-    //~ TYPE(UIntEnum, AFFIX_ARG_ENUM_UINT, AFFIX_ARG_UINT);
-    //~ set_isa("Affix::Type::UIntEnum", "Affix::Type::Enum");
-
-    //~ TYPE(CharEnum, AFFIX_ARG_ENUM_CHAR, AFFIX_ARG_CHAR);
-    //~ set_isa("Affix::Type::CharEnum", "Affix::Type::Enum");
-
-    //~ //
-    //~ TYPE(Class, AFFIX_ARG_CLASS, AFFIX_ARG_CSTRUCT);
-    //~ TYPE(Method, AFFIX_ARG_CLASS_METHOD, AFFIX_ARG_CALLBACK);
-
-    //~ // Enum[]?
-    //~ export_function("Affix", "typedef", "types");
-
-    //~ export_function("Affix", "MODIFY_CODE_ATTRIBUTES", "default");
-    //~ export_function("Affix", "AUTOLOAD", "default");
-    //~ }
-
-    //~ {
-    //~ export_function("Affix", "sv2ptr", "utility");
-    //~ export_function("Affix", "ptr2sv", "utility");
-    //~ export_function("Affix", "DumpHex", "utility");
-    //~ export_function("Affix", "pin", "default");
-    //~ export_function("Affix", "cast", "default");
-
     //~ export_function("Affix", "DEFAULT_ALIGNMENT", "vars");
     //~ export_constant("Affix", "ALIGNBYTES", "all", AFFIX_ALIGNBYTES);
     export_constant("Affix::Feature", "Syscall", "feature",
@@ -2265,9 +2211,6 @@ XS_EXTERNAL(boot_Affix) {
     export_constant_char("Affix", "ABI_RUST", "abi", AFFIX_ABI_RUST);
     export_constant_char("Affix", "ABI_SWIFT", "abi", AFFIX_ABI_SWIFT);
     export_constant_char("Affix", "ABI_D", "abi", AFFIX_ABI_D);
-    //~ }
-
-    //~ {
 
     (void)newXSproto_portable("Affix::sizeof", Affix_sizeof, __FILE__, "$");
     export_function("Affix", "sizeof", "default");
@@ -2293,15 +2236,6 @@ XS_EXTERNAL(boot_Affix) {
     export_function("Affix", "memmove", "memory");
     (void)newXSproto_portable("Affix::strdup", Affix_strdup, __FILE__, "$");
     export_function("Affix", "strdup", "memory");
-    //~ set_isa("Affix::Pointer", "Dyn::Call::Pointer");
-    //~ }
-
-    //~ cv = newXSproto_portable("Affix::hit_it", XS_Affix_hit_it, __FILE__, "$$$;$");
-    //~ XSANY.any_i32 = 0;
-    //~ cv = newXSproto_portable("Affix::wrap_it", XS_Affix_hit_it, __FILE__, "$$$;$");
-    //~ XSANY.any_i32 = 1;
-    //~ (void)newXSproto_portable("Affix::NoThanks::call", XS_Affix_hit_call, __FILE__, "$;@");
-    //~ (void)newXSproto_portable("Affix::NoThanks::DESTROY", XS_Affix_hit_DESTROY, __FILE__, "$");
 
     (void)newXSproto_portable("Affix::AggregateBase::FETCH", Affix_Aggregate_FETCH, __FILE__, "$$");
     (void)newXSproto_portable("Affix::AggregateBase::EXISTS", Affix_Aggregate_EXISTS, __FILE__,
