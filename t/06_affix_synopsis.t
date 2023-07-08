@@ -4,9 +4,14 @@ BEGIN { chdir '../' if !-d 't'; }
 use lib '../lib', 'lib', '../blib/arch', '../blib/lib', 'blib/arch', 'blib/lib', '../../', '.';
 use Affix;
 #
-#~ plan skip_all => 'I know nothing about macOS' if $^O eq 'darwin';
-Affix::affix( get_lib(), 'pow', [ Double, Double ], Double );
-is pow( 2, 10 ), 1024, 'pow( 2, 10 ) == 1024';
+affix get_lib(), 'puts', [Str], Int;
+is puts("Wow!"), 5, 'puts("Wow!")';
+
+affix get_lib(), ['getlogin', 'login'], [], Str;
+warn login();
+# https://learn.microsoft.com/en-us/cpp/porting/visual-cpp-change-history-2003-2015?view=msvc-170#mathh
+#~ Affix::affix( get_lib(), 'pow', [ Double, Double ], Double );
+#~ is pow( 2, 10 ), 1024, 'pow( 2, 10 ) == 1024';
 done_testing;
 
 sub get_lib {
