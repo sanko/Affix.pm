@@ -88,7 +88,7 @@ typedef struct { // Used in CUnion and pin()
     SV *type_sv;
 } var_ptr;
 
-char *locate_lib(pTHX_ char *_lib, int ver) {
+char *locate_lib(pTHX_ SV *_lib, SV *_ver) {
     // Use perl to get the actual path to the library
     dSP;
     int count;
@@ -97,8 +97,8 @@ char *locate_lib(pTHX_ char *_lib, int ver) {
         ENTER;
         SAVETMPS;
         PUSHMARK(SP);
-        mXPUSHp(_lib, strlen(_lib));
-        if (ver) mXPUSHn(ver);
+        mXPUSHs(_lib);
+        mXPUSHs(_ver);
         PUTBACK;
         count = call_pv("Affix::locate_lib", G_SCALAR);
         SPAGAIN;
@@ -174,7 +174,7 @@ XS_INTERNAL(Affix_pin) {
         lib = INT2PTR(DLLib *, tmp);
     }
     else {
-        const char *_libpath = SvPOK(ST(1)) ? locate_lib(aTHX_ SvPV_nolen(ST(1)), 0) : NULL;
+        const char *_libpath = locate_lib(aTHX_ ST(0), SvIOK(ST(1)) ? ST(1) : newSV(0));
         lib =
 #if defined(_WIN32) || defined(_WIN64)
             dlLoadLibrary(_libpath);
@@ -644,7 +644,7 @@ XS_INTERNAL(Affix_load_lib) {
     dVAR;
     dXSARGS;
     if (items < 1 || items > 2) croak_xs_usage(cv, "lib_name, version");
-    char *_libpath = locate_lib(aTHX_ SvPV_nolen(ST(0)), SvIOK(ST(1)) ? SvIV(ST(1)) : 0);
+    char *_libpath = locate_lib(aTHX_ ST(0), SvIOK(ST(1)) ? ST(1) : newSV(0));
     DLLib *lib =
 #if defined(_WIN32) || defined(_WIN64)
         dlLoadLibrary(_libpath);
@@ -1283,7 +1283,7 @@ XS_INTERNAL(Affix_affix) {
     char *prototype = NULL;
     char *name = NULL;
     {
-        SV *lib;
+        SV *lib, *ver;
 
         // affix($lib, ..., ..., ...)
         // affix([$lib, ABI_C], ..., ..., ...)
@@ -1296,6 +1296,7 @@ XS_INTERNAL(Affix_affix) {
                 // Non-fatal
                 if (UNLIKELY(!(tmp_len == 1 || tmp_len == 2))) { warn("Expected a lib and ABI"); }
                 lib = *av_fetch(tmp, 0, false);
+                ver = *av_fetch(tmp, 1, false);
                 //
                 SV **ptr_abi = av_fetch(tmp, 1, false);
                 if (ptr_abi == NULL || !SvOK(*ptr_abi)) { croak("Expected a lib and ABI"); }
@@ -1314,9 +1315,12 @@ XS_INTERNAL(Affix_affix) {
                     }
                 }
             }
-            else { lib = newSVsv(ST(0)); }
+            else {
+                lib = newSVsv(ST(0));
+                ver = newSV(0);
+            }
             //
-            ret->lib_name = locate_lib(aTHX_ SvPV_nolen(lib), 0);
+            ret->lib_name = locate_lib(aTHX_ lib, ver);
             ret->lib_handle =
 #if defined(_WIN32) || defined(_WIN64)
                 dlLoadLibrary(ret->lib_name);

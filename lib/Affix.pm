@@ -240,6 +240,7 @@ package Affix 0.12 {    # 'FFI' is my middle name!
 
     sub locate_lib {
         my ( $name, $version ) = @_;
+        warn $name;
         return $name if -e $name;
         CORE::state $cache;
         return $cache->{$name}{ $version // 0 }->{path} if defined $cache->{$name}{ $version // 0 };
@@ -249,11 +250,14 @@ package Affix 0.12 {    # 'FFI' is my middle name!
                 if -e rel2abs( $name . '.' . $Config{so} );
         }
         my @libs = locate_libs( $name, $version );
+        warn;
+        use Data::Dump;
+        warn join ', ', @_;
+        warn join ', ', @libs;
+        ddx \@_;
+        ddx $cache;
+        ddx \@libs;
 
-        #~ warn;
-        #~ use Data::Dump;
-        #~ ddx $cache;
-        #~ ddx \@libs;
         if (@libs) {
             ( $cache->{$name}{ $version // 0 } ) = @libs;
             return $cache->{$name}{ $version // 0 }->{path};
