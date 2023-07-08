@@ -1,4 +1,5 @@
 #include "std.h"
+#include <stdlib.h>
 
 typedef struct {
     bool B;
@@ -83,8 +84,7 @@ DLLEXPORT bool sptr(massive *sptr) {
 }
 
 DLLEXPORT char *dbl_ptr(double *dbl) {
-    // warn("# dbl_ptr( ... )");
-    // warn("# dbl == %f", *dbl);
+    //~ warn("# dbl_ptr( %p )");
     if (dbl == NULL)
         return "NULL";
     else if (*dbl == 0) {
@@ -103,7 +103,6 @@ DLLEXPORT char *dbl_ptr(double *dbl) {
         *dbl = 9876.543;
         return "nine";
     }
-
     return "fallback";
 }
 
@@ -114,6 +113,7 @@ typedef double my_function_t(int, int);
 
 DLLEXPORT double pointer_test(double *dbl, int arr[5], int size,
                               my_function_t *my_function_pointer) {
+
     if (dbl == NULL) return -1;
     if (*dbl == 90) return 501;
     // for (int i = 0; i < size; ++i)
@@ -125,9 +125,9 @@ DLLEXPORT double pointer_test(double *dbl, int arr[5], int size,
     }
     /* Invoke the function via the global function
        pointer variable. */
-    double ret = my_function_pointer(4, 8);
+    double ret = 0;
+    if (my_function_pointer != NULL) ret = my_function_pointer(4, 8);
     *dbl = ret * 2;
-
     return 900;
 }
 
@@ -141,4 +141,37 @@ DLLEXPORT bool demo(test in) {
     warn("# i: %d", in.i);
     warn("# Z: %s", in.Z);
     return !strcmp(in.Z, "Here. There. Everywhere.");
+}
+
+DLLEXPORT void *set_deep_pointer(int number, size_t depth) {
+    void *ptr = NULL;
+    void **temp = &ptr;
+    for (size_t i = 0; i < depth; ++i) {
+        warn("============== i: %ld, depth: %ld", i, depth);
+        *temp = malloc(sizeof(void *));
+        temp = (void **)(*temp);
+        DumpHex(temp, 16);
+    }
+    *temp = malloc(sizeof(int));
+    *((int *)*temp) = number;
+    return ptr;
+}
+
+DLLEXPORT int get_deep_pointer(void *pointer, size_t depth) {
+    DumpHex(pointer, 16);
+    if (depth == 0) { return *((int *)pointer); }
+    return get_deep_pointer(*((void **)pointer), depth - 1);
+}
+
+#include <stdlib.h>
+
+DLLEXPORT void *get_deep(void) {
+    //~ warn("zero");
+    void *ret = malloc(sizeof(int));
+    //~ warn("one");
+    *((int *)ret) = 3;
+    //~ warn("two");
+    //~ warn("***** ret == %p", ret);
+    //~ DumpHex(ret, sizeof(int));
+    return ret;
 }

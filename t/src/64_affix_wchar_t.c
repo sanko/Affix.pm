@@ -50,3 +50,20 @@ typedef int (*wchar_t_cb)();
 DLLEXPORT wchar_t char_cb(wchar_t_cb cb) {
     return cb(L'時');
 }
+
+DLLEXPORT int kr(wchar_t *lhs) {
+    setlocale(LC_ALL, "en_US.utf-8");
+    wchar_t *rhs = L"안녕하세요, 세계!";
+    int rc = wcscmp(lhs, rhs);
+    const char *rel = rc < 0 ? "precedes" : rc > 0 ? "follows" : "equals";
+    if (rc != 0) {
+        warn("[%ls] %s [%ls] (%d)", lhs, rel, rhs, rc);
+        DumpHex(lhs, 16);
+        DumpHex(rhs, 16);
+    }
+    return rc;
+}
+
+DLLEXPORT const wchar_t *get_kr() {
+    return L"안녕하세요, 세계!";
+}

@@ -10,21 +10,34 @@ use Benchmark qw[cmpthese timethese :hireswallclock];
 
 # arbitrary benchmarks
 $|++;
-our $libfile
-    = $^O eq 'MSWin32' ? 'ntdll.dll' :
-    $^O eq 'darwin'    ? '/usr/lib/libm.dylib' :
-    $^O eq 'bsd'       ? '/usr/lib/libm.so' :
-    $Config{archname} =~ /64/ ?
-    -e '/lib64/libm.so.6' ?
-    '/lib64/libm.so.6' :
-        '/lib/x86_64-linux-gnu/libm.so.6' :
-    '/lib/libm.so.6';
+our $libfile;
 
-sub libfile {
-    $libfile;
+BEGIN {
+    $libfile
+        = $^O eq 'MSWin32' ? 'ntdll.dll' :
+        $^O eq 'darwin'    ? '/usr/lib/libm.dylib' :
+        $^O eq 'bsd'       ? '/usr/lib/libm.so' :
+        $Config{archname} =~ /64/ ?
+        -e '/lib64/libm.so.6' ?
+        '/lib64/libm.so.6' :
+            '/lib/x86_64-linux-gnu/libm.so.6' :
+        '/lib/libm.so.6';
 }
 
-package FFI {
+sub libfile {
+    return undef;
+    $libfile;
+}
+use Inline C => config => libs => '-lm';
+use Inline C => <<'...';
+#include <math.h>
+
+double inline_c_sin(double in) {
+  return sin(in);
+}
+...
+
+package DynFFI {
     use strictures 2;
     use feature 'signatures';
     use Config;
@@ -204,31 +217,10 @@ package FFI {
             // Carp::croak( 'Cannot locate symbol: ' . $name );
     }
 }
-my $hand_rolled = FFI->obj( FFI::func( FFI::load($libfile), 'sin' ), 'd)d' );
+my $hand_rolled = DynFFI->obj( DynFFI::func( DynFFI::load($libfile), 'sin' ), 'd)d' );
 #
-sub sin_ : Native(libfile) : Signature([CC_DEFAULT, Double]=>Double) : Symbol('sin');
-sub sin_var : Native(libfile) : Signature([CC_ELLIPSIS_VARARGS,Double]=>Double) : Symbol('sin');
-sub sin_ell : Native(libfile) : Signature([CC_ELLIPSIS,Double]=>Double) : Symbol('sin');
-sub sin_cdecl : Native(libfile) : Signature([CC_CDECL,Double]=>Double) : Symbol('sin');
-sub sin_std : Native(libfile) : Signature([CC_STDCALL,Double]=>Double) : Symbol('sin');
-sub sin_fc : Native(libfile) : Signature([CC_FASTCALL_GNU,Double]=>Double) : Symbol('sin');
-sub sin_tc : Native(libfile) : Signature([CC_THISCALL_GNU,Double]=>Double) : Symbol('sin');
-#
-my $sin_default  = wrap( $libfile, 'sin', [Double] => Double );
-my $sin_vararg   = wrap( $libfile, 'sin', [ CC_ELLIPSIS_VARARGS, Double ] => Double );
-my $sin_ellipsis = wrap( $libfile, 'sin', [ CC_ELLIPSIS,         Double ] => Double );
-my $sin_cdecl    = wrap( $libfile, 'sin', [ CC_CDECL,            Double ] => Double );
-my $sin_stdcall  = wrap( $libfile, 'sin', [ CC_STDCALL,          Double ] => Double );
-my $sin_fastcall = wrap( $libfile, 'sin', [ CC_FASTCALL_GNU,     Double ] => Double );
-my $sin_thiscall = wrap( $libfile, 'sin', [ CC_THISCALL_GNU,     Double ] => Double );
-#
-affix( $libfile, [ 'sin', '_affix_sin_default' ], [ CC_DEFAULT,          Double ] => Double );
-affix( $libfile, [ 'sin', '_affix_sin_var' ],     [ CC_ELLIPSIS_VARARGS, Double ] => Double );
-affix( $libfile, [ 'sin', '_affix_sin_ellipse' ], [ CC_ELLIPSIS,         Double ] => Double );
-affix( $libfile, [ 'sin', '_affix_sin_cdecl' ],   [ CC_CDECL,            Double ] => Double );
-affix( $libfile, [ 'sin', '_affix_sin_std' ],     [ CC_STDCALL,          Double ] => Double );
-affix( $libfile, [ 'sin', '_affix_sin_fc' ],      [ CC_FASTCALL_GNU,     Double ] => Double );
-affix( $libfile, [ 'sin', '_affix_sin_tc' ],      [ CC_THISCALL_GNU,     Double ] => Double );
+my $sin_default = wrap( $libfile, 'sin', [Double] => Double );
+affix( $libfile, [ 'sin', '_affix_sin_default' ], [Double] => Double );
 #
 my $ffi = FFI::Platypus->new( api => 1 );
 $ffi->lib($libfile);
@@ -239,139 +231,71 @@ $ffi->attach( [ sin => 'ffi_sin' ] => ['double'] => 'double' );
 my $sin = sin 500;
 {
     die 'oops' if $hand_rolled->(500) != $sin;
-    die 'oops' if sin_(500) != $sin;
-    die 'oops' if sin_var(500) != $sin;
-    die 'oops' if sin_ell(500) != $sin;
-    die 'oops' if sin_std(500) != $sin;
-    die 'oops' if sin_fc(500) != $sin;
-    die 'oops' if sin_tc(500) != $sin;
     die 'oops' if $sin_default->(500) != $sin;
-    die 'oops' if $sin_vararg->(500) != $sin;
-    die 'oops' if $sin_ellipsis->(500) != $sin;
-    die 'oops' if $sin_cdecl->(500) != $sin;
-    die 'oops' if $sin_stdcall->(500) != $sin;
-    die 'oops' if $sin_fastcall->(500) != $sin;
-    die 'oops' if $sin_thiscall->(500) != $sin;
     die 'oops' if _affix_sin_default(500) != $sin;
-    die 'oops' if _affix_sin_var(500) != $sin;
-    die 'oops' if _affix_sin_ellipse(500) != $sin;
-    die 'oops' if _affix_sin_cdecl(500) != $sin;
-    die 'oops' if _affix_sin_std(500) != $sin;
-    die 'oops' if _affix_sin_fc(500) != $sin;
-    die 'oops' if _affix_sin_tc(500) != $sin;
     die 'oops' if ffi_sin(500) != $sin;
     die 'oops' if $ffi_func->(500) != $sin;
-    die 'oops' if $ffi_func->call(500) != $sin;
+    die 'oops' if inline_c_sin(500) != $sin;
 }
 #
 my $depth = 1000;
 cmpthese(
     timethese(
-        -10,
-        {   hand_rolled => sub {
-                my $x = 0;
-                while ( $x < $depth ) { my $n = $hand_rolled->($x); $x++ }
-            },
+        -30, {
+            #~ dyn_hand_rolled => sub {
+            #~ my $x = 0;
+            #~ while ( $x < $depth ) { my $n = $hand_rolled->($x); $x++ }
+            #~ },
             perl => sub {
                 my $x = 0;
                 while ( $x < $depth ) { my $n = sin($x); $x++ }
             },
-            affix_sin_default => sub {
+            affix_sub => sub {
                 my $x = 0;
                 while ( $x < $depth ) { my $n = _affix_sin_default($x); $x++ }
             },
-            affix_sin_var => sub {
-                my $x = 0;
-                while ( $x < $depth ) { my $n = _affix_sin_var($x); $x++ }
-            },
-            affix_sin_ellipse => sub {
-                my $x = 0;
-                while ( $x < $depth ) { my $n = _affix_sin_ellipse($x); $x++ }
-            },
-            affix_sin_cdecl => sub {
-                my $x = 0;
-                while ( $x < $depth ) { my $n = _affix_sin_cdecl($x); $x++ }
-            },
-            affix_sin_std => sub {
-                my $x = 0;
-                while ( $x < $depth ) { my $n = _affix_sin_std($x); $x++ }
-            },
-            affix_sin_fc => sub {
-                my $x = 0;
-                while ( $x < $depth ) { my $n = _affix_sin_fc($x); $x++ }
-            },
-            affix_sin_tc => sub {
-                my $x = 0;
-                while ( $x < $depth ) { my $n = _affix_sin_tc($x); $x++ }
-            },
-            sub_sin_default => sub {
-                my $x = 0;
-                while ( $x < $depth ) { my $n = sin_($x); $x++ }
-            },
-            sub_sin_var => sub {
-                my $x = 0;
-                while ( $x < $depth ) { my $n = sin_var($x); $x++ }
-            },
-            sub_sin_ell => sub {
-                my $x = 0;
-                while ( $x < $depth ) { my $n = sin_ell($x); $x++ }
-            },
-            sub_sin_cdecl => sub {
-                my $x = 0;
-                while ( $x < $depth ) { my $n = sin_cdecl($x); $x++ }
-            },
-            sub_sin_std => sub {
-                my $x = 0;
-                while ( $x < $depth ) { my $n = sin_std($x); $x++ }
-            },
-            sub_sin_fc => sub {
-                my $x = 0;
-                while ( $x < $depth ) { my $n = sin_fc($x); $x++ }
-            },
-            sub_sin_tc => sub {
-                my $x = 0;
-                while ( $x < $depth ) { my $n = sin_tc($x); $x++ }
-            },
-            call_default => sub {
+            affix_coderef => sub {
                 my $x = 0;
                 while ( $x < $depth ) { my $n = $sin_default->($x); $x++ }
             },
-            call_vararg => sub {
-                my $x = 0;
-                while ( $x < $depth ) { my $n = $sin_vararg->($x); $x++ }
-            },
-            call_ellipsis => sub {
-                my $x = 0;
-                while ( $x < $depth ) { my $n = $sin_ellipsis->($x); $x++ }
-            },
-            call_cdecl => sub {
-                my $x = 0;
-                while ( $x < $depth ) { my $n = $sin_cdecl->($x); $x++ }
-            },
-            call_stdcall => sub {
-                my $x = 0;
-                while ( $x < $depth ) { my $n = $sin_stdcall->($x); $x++ }
-            },
-            call_fastcall => sub {
-                my $x = 0;
-                while ( $x < $depth ) { my $n = $sin_fastcall->($x); $x++ }
-            },
-            call_thiscall => sub {
-                my $x = 0;
-                while ( $x < $depth ) { my $n = $sin_thiscall->($x); $x++ }
-            },
-            ffi_attach => sub {
+            ffi_sub => sub {
                 my $x = 0;
                 while ( $x < $depth ) { my $n = ffi_sin($x); $x++ }
             },
-            ffi_function => sub {
+            ffi_coderef => sub {
                 my $x = 0;
                 while ( $x < $depth ) { my $n = $ffi_func->($x); $x++ }
             },
-            ffi_function_call => sub {
+            inline_c_sin => sub {
                 my $x = 0;
-                while ( $x < $depth ) { my $n = $ffi_func->call($x); $x++ }
+                while ( $x < $depth ) { my $n = inline_c_sin($x); $x++ }
             }
         }
     )
 );
+__END__
+                  Rate ffi_coderef dyn_hand_rolled ffi_sub affix_sub affix_coderef inline_c_sin perl
+ffi_coderef      601/s          --            -36%    -80%      -83%          -86%         -87% -92%
+dyn_hand_rolled  944/s         57%              --    -69%      -73%          -79%         -79% -87%
+ffi_sub         3037/s        405%            222%      --      -15%          -31%         -33% -58%
+affix_sub       3556/s        492%            277%     17%        --          -20%         -22% -51%
+affix_coderef   4425/s        637%            369%     46%       24%            --          -3% -39%
+inline_c_sin    4561/s        659%            383%     50%       28%            3%           -- -37%
+perl            7211/s       1100%            664%    137%      103%           63%          58%   --
+
+                Rate ffi_coderef ffi_sub affix_sub affix_coderef inline_c_sin perl
+ffi_coderef    585/s          --    -80%      -86%          -86%         -89% -93%
+ffi_sub       2994/s        412%      --      -29%          -30%         -42% -62%
+affix_sub     4204/s        618%     40%        --           -2%         -18% -46%
+affix_coderef 4299/s        635%     44%        2%            --         -16% -45%
+inline_c_sin  5138/s        778%     72%       22%           20%           -- -34%
+perl          7819/s       1236%    161%       86%           82%          52%   --
+
+      perl: 32.124 wallclock secs (32.09 usr +  0.00 sys = 32.09 CPU) @ 7923.34/s (n=254260)
+                Rate ffi_coderef ffi_sub affix_sub affix_coderef inline_c_sin perl
+ffi_coderef    557/s          --    -83%      -87%          -87%         -90% -93%
+ffi_sub       3212/s        477%      --      -24%          -27%         -40% -59%
+affix_sub     4253/s        664%     32%        --           -3%         -21% -46%
+affix_coderef 4397/s        690%     37%        3%            --         -18% -45%
+inline_c_sin  5393/s        869%     68%       27%           23%           -- -32%
+perl          7923/s       1323%    147%       86%           80%          47%   --

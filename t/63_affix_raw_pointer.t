@@ -9,10 +9,11 @@ $|++;
 #
 subtest 'memchr' => sub {
     my $str = malloc(7);
-    memcpy( $str, 'ABCDEFG', 7 );
+    isa_ok $str, 'Affix::Pointer', '$str';
+    diag ref memcpy( $str, 'ABCDEFG', 7 );    #, 'Copy "ABCDEFG" into $str';
     my @chars = qw[D d];
-    is memchr( $str, 'D', 7 )->raw(4), 'DEFG', 'D (68) found';
-    is memchr( $str, 'd', 7 ),         undef,  'd (100) not found';
+    is memchr( $str, 'D', 7 )->raw(4), 'DEFG', 'D (68) found in $str';
+    is memchr( $str, 'd', 7 ),         undef,  'd (100) not found in $str';
     free $str;
 };
 subtest 'memcmp' => sub {

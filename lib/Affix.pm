@@ -1,35 +1,34 @@
-package Affix 0.11 {    # 'FFI' is my middle name!
+package Affix 0.12 {    # 'FFI' is my middle name!
     use strict;
     use warnings;
     no warnings 'redefine';
-    use File::Spec::Functions qw[rel2abs canonpath curdir path];
-    use File::Basename        qw[dirname];
+    use File::Spec::Functions qw[rel2abs canonpath curdir path catdir];
+    use File::Basename        qw[basename dirname];
     use File::Find            qw[find];
     use Config;
     use Sub::Util qw[subname];
-    use Text::ParseWords;
-    use Carp qw[];
-    use vars qw[@EXPORT_OK @EXPORT %EXPORT_TAGS];
+    use Carp      qw[];
+    use vars      qw[@EXPORT_OK @EXPORT %EXPORT_TAGS];
     use XSLoader;
 
-    #~ our $VMSize = 2; # defaults to 4096; passed to dcNewCallVM( ... )
+    #~ our $VMSize = 1024; # defaults to 8192; passed to dcNewCallVM( ... )
     my $ok = XSLoader::load();
-    END { _shutdown() if $ok; }
     #
     use parent 'Exporter';
+    $EXPORT_TAGS{sugar} = [qw[MODIFY_CODE_ATTRIBUTES AUTOLOAD]];
+    @EXPORT             = ( @{ $EXPORT_TAGS{types} }, @{ $EXPORT_TAGS{default} } );
     @EXPORT_OK          = sort map { @$_ = sort @$_; @$_ } values %EXPORT_TAGS;
-    $EXPORT_TAGS{'all'} = \@EXPORT_OK;    # When you want to import everything
+    $EXPORT_TAGS{'all'} = \@EXPORT_OK;
 
-    #@{ $EXPORT_TAGS{'enum'} }             # Merge these under a single tag
-    #    = sort map { defined $EXPORT_TAGS{$_} ? @{ $EXPORT_TAGS{$_} } : () }
-    #    qw[types?]
-    #    if 1 < scalar keys %EXPORT_TAGS;
-    @EXPORT    # Export these tags (if prepended w/ ':') or functions by default
-        = sort map { m[^:(.+)] ? @{ $EXPORT_TAGS{$1} } : $_ } qw[:default :types]
-        if keys %EXPORT_TAGS > 1;
-    @{ $EXPORT_TAGS{all} } = our @EXPORT_OK = map { @{ $EXPORT_TAGS{$_} } } keys %EXPORT_TAGS;
+    #~ use Data::Dump;
+    #~ ddx \@EXPORT_OK;
+    #~ ddx \@EXPORT;
+    #~ ddx \%EXPORT_TAGS;
     #
     my %_delay;
+
+    #~ our @CARP_NOT = [__PACKAGE__];
+    BEGIN { $Carp::Internal{ (__PACKAGE__) }++ }
 
     sub AUTOLOAD {
         my $self = $_[0];           # Not shift, using goto.
@@ -55,11 +54,11 @@ package Affix 0.11 {    # 'FFI' is my middle name!
 
             #~ use Data::Dump;
             #~ ddx [
-            #~ $lib, (
-            #~ $_delay{$sub}[3] eq $_delay{$sub}[6] ? $_delay{$sub}[3] :
-            #~ [ $_delay{$sub}[3], $_delay{$sub}[6] ]
-            #~ ),
-            #~ $sig, $ret
+            #~     $lib, (
+            #~         $_delay{$sub}[3] eq $_delay{$sub}[6] ? $_delay{$sub}[3] :
+            #~             [ $_delay{$sub}[3], $_delay{$sub}[6] ]
+            #~     ),
+            #~     $sig, $ret
             #~ ];
             my $cv = affix(
                 $lib, (
@@ -82,20 +81,38 @@ package Affix 0.11 {    # 'FFI' is my middle name!
         Carp::croak("Undefined subroutine &$sub called");
     }
     #
+    #~ use Attribute::Handlers;
+    #~ my %name;
+    #~ sub cache {
+    #~ return $name{$_[2]}||*{$_[1]}{NAME};
+    #~ }
+    #~ sub UNIVERSAL::Name :ATTR {
+    #~ $name{$_[2]} = $_[4];
+    #~ }
+    #~ sub UNIVERSAL::Purpose :ATTR {
+    #~ print STDERR "Purpose of ", &name, " is $_[4]\n";
+    #~ }
+    #~ sub UNIVERSAL::Unit :ATTR {
+    #~ print STDERR &name, " measured in $_[4]\n";
+    #~ }
+    #~ sub dump_cache{use Data::Dump; ddx \%name;}
     sub MODIFY_CODE_ATTRIBUTES {
         my ( $package, $code, @attributes ) = @_;
 
-        #use Data::Dump;
-        #ddx \@_;
+        #~ use Data::Dump;
+        #~ ddx \@_;
         my ( $library, $library_version, $signature, $return, $symbol, $full_name );
         for my $attribute (@attributes) {
-            if ( $attribute =~ m[^Native(?:\(\s*(.+)\s*\)\s*)?$] ) {
-                ( $library, $library_version ) = Text::ParseWords::parse_line( '\s*,\s*', 1, $1 );
-                $library //= ();
+            if (
+                $attribute =~ m[^Native\((["']?)(.+?)\1(?:,\s*(.+))?\)$]
 
-                #warn $library;
-                #warn $library_version;
-                $library_version //= 0;
+                # m[/^\bNative\s+(?:(\w+)\s*,\s*(\d+))?$/]
+            ) {
+                $library = $2 // ();
+
+                #~ warn $library;
+                #~ warn $library_version;
+                $library_version = $3 // 0;
             }
             elsif ( $attribute =~ m[^Symbol\(\s*(['"])?\s*(.+)\s*\1\s*\)$] ) {
                 $symbol = $2;
@@ -139,155 +156,116 @@ package Affix 0.11 {    # 'FFI' is my middle name!
         return;
     }
     our $OS = $^O;
+    my $is_win = $OS eq 'MSWin32';
+    my $is_mac = $OS eq 'darwin';
+    my $is_bsd = $OS =~ /bsd/;
+    my $is_sun = $OS =~ /(solaris|sunos)/;
+
+    sub locate_libs {
+        my ( $lib, $version ) = @_;
+        CORE::state $libdirs;
+        if ( !defined $libdirs ) {
+            if ($is_win) {
+                require Win32;
+                $libdirs = [
+                    Win32::GetFolderPath( Win32::CSIDL_SYSTEM() ),
+                    Win32::GetFolderPath( Win32::CSIDL_WINDOWS() ),
+                ];
+            }
+            else {
+                $libdirs = [
+                    ( split ' ', $Config{libsdirs} ),
+                    map      { warn $ENV{$_}; split /[:;]/, ( $ENV{$_} ) }
+                        grep { $ENV{$_} }
+                        qw[LD_LIBRARY_PATH DYLD_LIBRARY_PATH DYLD_FALLBACK_LIBRARY_PATH]
+                ];
+            }
+            no warnings qw[once];
+            require DynaLoader;
+            $libdirs = [
+                grep    { -d $_ }
+                    map { rel2abs($_) }
+                    qw[. ./lib ~/lib /usr/local/lib /usr/lib /lib /usr/lib/system],
+                @DynaLoader::dl_library_path, @$libdirs
+            ];
+        }
+
+        #~ warn join ', ', @$libdirs;
+        CORE::state $regex;
+        if ( !defined $regex ) {
+            $regex = $is_win ?
+                qr/^
+        (?:lib)?(?<name>\w+?)
+        (?:[_-](?<version>[0-9\-\._]+))?_*
+        \.$Config{so}
+        $/ix :
+                $is_mac ?
+                qr/^
+        (?:lib)?(?<name>\w+?)
+        (?:\.(?<version>[0-9]+(?:\.[0-9]+)*))?
+        \.(?:so|dylib|bundle)
+        $/x :    # assume *BSD or linux
+                qr/^
+        (?:lib)?(?<name>\w+?)
+        \.$Config{so}
+        (?:\.(?<version>[0-9]+(?:\.[0-9]+)*))?
+        $/x;
+        }
+        my @store;
+
+        #~ warn;
+        #~ warn $regex;
+        #~ warn join ', ', @$libdirs;
+        find(
+            sub {
+                $File::Find::prune = 1 if !grep { $_ eq $File::Find::name } @$libdirs;
+                return                 if -d $_;
+                return unless $_ =~ $regex;
+
+                #~ use Data::Dump;
+                #~ warn $File::Find::name;
+                #~ ddx %+;
+                push @store, { %+, path => $File::Find::name }
+                    if defined $+{name}                                                          &&
+                    ( $+{name} eq $lib )                                                         &&
+                    ( defined $version ? defined( $+{version} ) && $version == $+{version} : 1 ) &&
+                    -B $File::Find::name;
+            },
+            @$libdirs
+        );
+
+        #~ warn;
+        @store;
+    }
 
     sub locate_lib {
         my ( $name, $version ) = @_;
-        CORE::state $_lib_cache;
-        ( $name, $version ) = @$name if ref $name eq 'ARRAY';
-        {
-            my $i   = -1;
-            my $pkg = __PACKAGE__;
-            ($pkg) = caller( ++$i ) while $pkg eq __PACKAGE__;    # Dig out of the hole first
-            my $ok = $pkg->can($name);
-            $name = $ok->() if $ok;
-        }
-        $name // return ();                                       # NULL
         return $name if -e $name;
-        return $2    if $name =~ m[{\s*(['"])(.+)\1\s*}];
-
-        #$name = eval $name;
-        $name =~ s[['"]][]g;
-        #
-        ($version) = version->parse($version)->stringify =~ m[^v?(.+)$];
-
-        # warn $version;
-        $version = $version ? qr[\.${version}] : qr/([\.\d]*)?/;
-        if ( !defined $_lib_cache->{ $name . ';' . ( $version // '' ) } ) {
-            if ( $OS eq 'MSWin32' ) {
-                my $p;
-                $name =~ s[\.dll$][];
-                if ( -e $name . '.dll' ) {
-                    $p = rel2abs canonpath( $name . '.dll' );
-                }
-                else {
-                    require Win32;
-
-# https://docs.microsoft.com/en-us/windows/win32/dlls/dynamic-link-library-search-order#search-order-for-desktop-applications
-                    my @dirs = grep {-d} (
-                        dirname( rel2abs($^X) ),                                # 1. exe dir
-                        Win32::GetFolderPath( Win32::CSIDL_SYSTEM() ),          # 2. sys dir
-                        Win32::GetFolderPath( Win32::CSIDL_WINDOWS() ),         # 4. win dir
-                        rel2abs(curdir),                                        # 5. cwd
-                        path(),                                                 # 6. $ENV{PATH}
-                        map { split /[:;]/, ( $ENV{$_} ) } grep { $ENV{$_} }    # X. User defined
-                            qw[LD_LIBRARY_PATH DYLD_LIBRARY_PATH DYLD_FALLBACK_LIBRARY_PATH]
-                    );
-                    my @retval;
-
-                    #warn $_ for sort { lc $a cmp lc $b } @dirs;
-                    find(
-                        {   wanted => sub {
-                                $File::Find::prune = 1
-                                    if !grep { $_ eq $File::Find::name } @dirs;    # no depth
-                                push @retval, $_ if m{[/\\]${name}(-${version})?\.dll$}i;
-                            },
-                            no_chdir => 1
-                        },
-                        @dirs
-                    );
-                    return if !@retval;
-                    $p = rel2abs pop @retval;
-                }
-                $_lib_cache->{ $name . ';' . ( $version // '' ) } = $p;
-            }
-            elsif ( $OS eq 'darwin' ) {
-                my $p;
-                if    ( -f $name . '.so' )     { $p = rel2abs $name . '.so' }
-                elsif ( -f $name . '.dylib' )  { $p = rel2abs $name . '.dylib' }
-                elsif ( -f $name . '.bundle' ) { $p = rel2abs $name . '.bundle' }
-                elsif ( $name =~ /\.so$/ )     { $p = rel2abs $name }
-                else {
-# https://developer.apple.com/library/archive/documentation/DeveloperTools/Conceptual/DynamicLibraries/100-Articles/UsingDynamicLibraries.html
-                    my @dirs = grep { -d $_ } (
-                        dirname( rel2abs($^X) ),    # 0. exe dir
-                        rel2abs(curdir),            # 0. cwd
-                        path(),                     # 0. $ENV{PATH}
-                        map { rel2abs($_) }
-                            qw[. ./lib/ ~/lib /usr/local/lib /usr/lib /System/Library/dyld/],
-                        map      { split /[:;]/, ( $ENV{$_} ) }
-                            grep { $ENV{$_} }
-                            qw[LD_LIBRARY_PATH LC_LOAD_DYLIB DYLD_LIBRARY_PATH DYLD_FALLBACK_LIBRARY_PATH]
-                    );
-                    my @retval;
-                    find(
-                        {   wanted => sub {
-                                $File::Find::prune = 1
-                                    if !grep { $_ eq $File::Find::name } @dirs;    # no depth
-                                push @retval, $_
-                                    if /\b(?:lib)?${name}${version}\.(so|bundle|dylib)$/;
-                            },
-                            no_chdir => 1
-                        },
-                        @dirs
-                    );
-                    return if !@retval;
-                    $p = rel2abs pop @retval;
-                }
-                $p = readlink $p if -l $p;
-                $_lib_cache->{ $name . ';' . ( $version // '' ) } = $p;
-            }
-            else {
-                my $p;
-                if    ( -f $name )                     { $p = rel2abs $name }
-                elsif ( -f $name . '.' . $Config{so} ) { $p = rel2abs $name . '.' . $Config{so} }
-                else {
-                    my $ext = $Config{so};
-                    my @libs;
-
-               # warn $name . '.' . $ext . $version;
-               #\b(?:lib)?${name}(?:-[\d\.]+)?\.${ext}${version}
-               #my @lines = map { [/^\t(.+)\s\((.+)\)\s+=>\s+(.+)$/] }
-               #    grep {/\b(?:lib)?${name}(?:-[\d\.]+)?\.${ext}(?:\.${version})?$/} `ldconfig -p`;
-               #push @retval, map { $_->[2] } grep { -f $_->[2] } @lines;
-                    my @dirs = grep { -d $_ } (
-                        dirname( rel2abs($^X) ),    # 0. exe dir
-                        rel2abs(curdir),            # 0. cwd
-                        path(),                     # 0. $ENV{PATH}
-                        map { rel2abs($_) }
-                            qw[. ./lib ~/lib /usr/local/lib /usr/lib /lib64 /lib /System/Library/dyld],
-                        map      { split /[:;]/, ( $ENV{$_} ) }
-                            grep { $ENV{$_} }
-                            qw[LD_LIBRARY_PATH DYLD_LIBRARY_PATH DYLD_FALLBACK_LIBRARY_PATH]
-                    );
-                    my @retval;
-                    find(
-                        {   wanted => sub {
-                                $File::Find::prune = 1
-                                    if !grep { $_ eq $File::Find::name } @dirs;    # no depth
-                                push @retval, $_
-                                    if /\b(?:lib)?${name}(?:-[\d\.]+)?\.${ext}${version}$/;
-                                push @retval, $_ if /\b(?:lib)?${name}(?:-[\d\.]+)?\.${ext}$/;
-                            },
-                            no_chdir => 1
-                        },
-                        @dirs
-                    );
-                    return if !@retval;
-                    $p = rel2abs pop @retval;
-                }
-                $p = readlink $p if -l $p;
-                $_lib_cache->{ $name . ';' . ( $version // '' ) } = rel2abs $p;
-            }
+        CORE::state $cache;
+        return $cache->{$name}{ $version // 0 }->{path} if defined $cache->{$name}{ $version // 0 };
+        if ( !$version ) {
+            return $cache->{$name}{0}{path} = rel2abs($name) if -e rel2abs($name);
+            return $cache->{$name}{0}{path} = rel2abs( $name . '.' . $Config{so} )
+                if -e rel2abs( $name . '.' . $Config{so} );
         }
-        return $_lib_cache->{ $name . ';' . ( $version // '' ) }
-            // Carp::croak( 'Cannot locate symbol: ' . $name );
+        my @libs = locate_libs( $name, $version );
+
+        #~ warn;
+        #~ use Data::Dump;
+        #~ ddx $cache;
+        #~ ddx \@libs;
+        if (@libs) {
+            ( $cache->{$name}{ $version // 0 } ) = @libs;
+            return $cache->{$name}{ $version // 0 }->{path};
+        }
+        ();
     }
-    #
     {
         # https://itanium-cxx-abi.github.io/cxx-abi/abi-mangling.html
         # https://gcc.gnu.org/git?p=gcc.git;a=blob_plain;f=gcc/cp/mangle.cc;hb=HEAD
         my @cache;
         my $vp = 0;    # void *
+        my %symbol_cache;
 
         sub _mangle_name ($$) {
             my ( $func, $name ) = @_;
@@ -314,9 +292,9 @@ package Affix 0.11 {    # 'FFI' is my middle name!
                 Char(),  'c',    # Note: signed char == 'a'
                 Bool(),  'b', Double(), 'd', Long(),  'e', Float(), 'f', UChar(),  'h', Int(),  'i',
                 UInt(),  'j', Long(),   'l', ULong(), 'm', Short(), 's', UShort(), 't', Void(), 'v',
-                WChar(), 'w', LongLong(), 'x', ULongLong(), 'y', '_', '',    # Calling conventions
+                WChar(), 'w', LongLong(), 'x', ULongLong(), 'y', ord '_', ''   # Calling conventions
             };
-            $types->{$type} // die 'Unknown type: ' . $type;
+            $types->{$type} // die sprintf 'Unknown type: %s (%d)', chr($type), $type;
         }
 
         sub Itanium_mangle {
@@ -331,7 +309,7 @@ package Affix 0.11 {    # 'FFI' is my middle name!
             while (@args) {
                 my $arg = shift @args;
                 $ret .= _mangle_type( $name, $arg );
-                if ( $arg eq '_' ) {
+                if ( "$arg" == ord '_' ) {
                     shift @args;
                     push @args, Void() if !@args;    # skip calling conventions
                 }
@@ -342,14 +320,13 @@ package Affix 0.11 {    # 'FFI' is my middle name!
         # legacy
         sub Rust_legacy_mangle {
             my ( $lib, $name, $affix ) = @_;
-            CORE::state $symbol_cache //= ();
-            $symbol_cache->{$lib} //= Affix::_list_symbols($lib);
+            $symbol_cache{$lib} //= $lib->list_symbols();
             @cache = ();
             $vp    = 0;
-            return $name if grep { $name eq $_ } grep { defined $_ } @{ $symbol_cache->{$lib} };
+            return $name if grep { $name eq $_ } grep { defined $_ } @{ $symbol_cache{$lib} };
             my $ret = qr'^_ZN(?:\d+\w+?)?' . sprintf $name =~ '::' ? '%sE' : '%s17h\w{16}E$',
                 join( '', ( map { length($_) . $_ } split '::', $name ) );
-            my @symbols = grep { $_ =~ $ret } grep { defined $_ } @{ $symbol_cache->{$lib} };
+            my @symbols = grep { $_ =~ $ret } grep { defined $_ } @{ $symbol_cache{$lib} };
             return shift @symbols;
         }
     }
@@ -761,10 +738,10 @@ code and might not be public in the future.
 
 Raku offers a set of native types with a fixed, and known, representation in
 memory but this is Perl so we need to do the work ourselves with a pseudo-type
-system. Affix supports the fundamental types (void, int, etc.), aggregates
-(struct, array, union), and .
+system. Affix supports the fundamental types (void, int, etc.) and aggregates
+(struct, array, union.
 
-=head2 Fundamental Types with Native Representation
+=head2 Fundamental Types
 
     Affix       C99                   Rust    C#          pack()  Raku
     ----------------------------------------------------------------------------
@@ -794,13 +771,13 @@ Given sizes are minimums measured in bits
 The C<Void> type corresponds to the C C<void> type. It is generally found in
 typed pointers representing the equivalent to the C<void *> pointer in C.
 
-    sub malloc :Native :Signature([Size_t] => Pointer[Void]);
+    affix undef, 'malloc', [Size_t] => Pointer[Void];
     my $data = malloc( 32 );
 
-As the example shows, it's represented by a parameterized C<Pointer[ ... ]>
-type, using as parameter whatever the original pointer is pointing to (in this
-case, C<void>). This role represents native pointers, and can be used wherever
-they need to be represented in a Perl script.
+As the example above shows, it's represented by a parameterized C<Pointer[ ...
+]> type, using as parameter whatever the original pointer is pointing to (in
+this case, C<void>). This role represents native pointers, and can be used
+wherever they need to be represented in a Perl script.
 
 In addition, you may place a C<Void> in your signature to skip a passed
 argument.

@@ -70,9 +70,9 @@
          "requires" : {
             "Attribute::Handlers" : "0",
             "Config" : "0",
+            "Data::Dump" : "0",
             "File::Spec" : "0",
             "Sub::Util" : "0",
-            "Text::ParseWords" : "0",
             "XSLoader" : "0",
             "perl" : "5.026000"
          }
@@ -82,7 +82,9 @@
             "Data::Dumper" : "0",
             "Devel::CheckBin" : "0",
             "Math::BigInt" : "0",
-            "Test::More" : "0.98"
+            "Test::Fatal" : "0",
+            "Test::More" : "0.98",
+            "Test::Warnings" : "0"
          }
       }
    },
@@ -98,7 +100,7 @@
          "web" : "https://github.com/sanko/Affix.pm"
       }
    },
-   "version" : "0.11",
+   "version" : "0.12",
    "x_authority" : "cpan:SANKO",
    "x_serialization_backend" : "JSON::PP version 4.16",
    "x_static_install" : 0

@@ -3,11 +3,15 @@ requires 'File::Spec';
 requires 'Config';
 requires 'XSLoader';
 requires 'Sub::Util';
-requires 'Text::ParseWords';
 requires 'Attribute::Handlers';
+
+# TODO: remove this!!!!
+requires 'Data::Dump';
 #
 on 'test' => sub {
     requires 'Test::More' => 0.98;
+    requires 'Test::Fatal';
+    requires 'Test::Warnings';
     requires 'Data::Dumper';
     requires 'Math::BigInt';
     requires 'Devel::CheckBin';

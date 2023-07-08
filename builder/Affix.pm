@@ -1,4 +1,4 @@
-package builder::Affix;
+package builder::Affix;    # based on Module::Build::Tiny
 use strict;
 use warnings;
 use Exporter 5.57 'import';
@@ -24,7 +24,10 @@ use File::stat;
 use Config;
 #
 my $libver;
-my $CFLAGS = $Config{osname} eq 'MSWin32' ? '' :
+my $DEBUG = 0;
+my $CFLAGS
+    = $DEBUG ||
+    $Config{osname} eq 'MSWin32' ? '' :
     ' -DNDEBUG -DBOOST_DISABLE_ASSERTS -O2 -ffast-math -fno-align-functions -fno-align-loops -fno-omit-frame-pointer ';
 my $LDFLAGS = ' ';    # https://wiki.freebsd.org/LinkTimeOptimization
 #
@@ -58,18 +61,21 @@ sub manify {
 
 sub alien {
     my (%opt) = @_;
+    my $pre = Path::Tiny->cwd->child( qw[blib arch auto], $opt{meta}->name )->absolute;
+    return                                             if -d $pre;
     die "Can't build xs files under --pureperl-only\n" if $opt{'pureperl-only'};
     if ( -d Path::Tiny->cwd->child('dyncall') ) {
         my ($kid) = Path::Tiny->cwd->child('dyncall');
-        my $cwd   = Path::Tiny->cwd->absolute;
-        my $pre   = Path::Tiny->cwd->child( qw[blib arch auto], $opt{meta}->name )->absolute;
+        my $cwd = Path::Tiny->cwd->absolute;
         chdir $kid->absolute->stringify;
-        warn Path::Tiny->cwd->absolute;
         if (1) {
             my $make = $opt{config}->get('make');
             my $configure
-                = './configure --prefix=' . $pre->absolute . ' CFLAGS="-fPIC ' .
-                ( $opt{config}->get('osname') =~ /bsd/ ? '' : $CFLAGS ) . '" LDFLAGS="' .
+                = 'sh ./configure --prefix=' .
+                $pre->absolute .
+                ' CFLAGS="-fPIC ' .
+                ( $opt{config}->get('osname') =~ /bsd/ ? '' : $CFLAGS ) .
+                '" LDFLAGS="' .
                 ( $opt{config}->get('osname') =~ /bsd/ ? '' : $LDFLAGS ) . '"';
             if ( $opt{config}->get('osname') eq 'MSWin32' ) {
                 require Devel::CheckBin;
@@ -126,7 +132,7 @@ sub alien {
             }
             else {
                 $make = $opt{config}->get('make');
-                warn($_) && system($_ ) for $configure, $make, $make . ' install';
+                system($_ ) for $configure, $make, $make . ' install';
             }
         }
         else {    # Future, maybe...
@@ -298,16 +304,18 @@ sub alien {
                 $tar->setcwd( $extract->stringify );
                 $tar->read( $dest->child($filename) );
                 $tar->extract;
-                my ($kid) = $extract->children;
+                return alien(@_);
 
-                #die;
-                my $cwd = Path::Tiny->cwd->absolute;
-                my $pre = Path::Tiny->cwd->child( qw[blib arch auto], $opt{meta}->name )->absolute;
-                chdir $kid->absolute->stringify;
-                warn($_) && system($_ )
-                    for './configure --prefix=' .
-                    $pre->absolute . ' CFLAGS="-Ofast" LDFLAGS="-Ofast" ', 'make', 'make install';
-                chdir $cwd->stringify;
+              #~ my ($kid) = $extract->children;
+              #~ #die;
+              #~ my $cwd = Path::Tiny->cwd->absolute;
+              #~ my $pre = Path::Tiny->cwd->child( qw[blib arch auto], $opt{meta}->name )->absolute;
+              #~ chdir $kid->absolute->stringify;
+              #~ warn($_) && system($_ )
+              #~ for 'sh ./configure --prefix=' .
+              #~ $pre->absolute .
+              #~ ' CFLAGS="-Ofast" LDFLAGS="-Ofast" ', 'make', 'make install';
+              #~ chdir $cwd->stringify;
             }
             else {
                 die sprintf 'Failed to download %s: %s!', $response->{url}, $response->{content}
@@ -317,61 +325,62 @@ sub alien {
     }
 }
 
-sub process_xs {
-    my ( $source, %opt ) = @_;
+sub process_cxx {
+    my ( $sources, %opt ) = @_;
     die "Can't build xs files under --pureperl-only\n" if $opt{'pureperl-only'};
-    my $DEBUG = 0;
-    warn $@ if $@;
-    my ( undef, @parts ) = splitdir( dirname($source) );
-    push @parts, my $file_base = basename( $source, '.xs' );
-    my $archdir = catdir( qw/blib arch auto/, @parts );
-    my $tempdir = 'temp';
-    my $c_file  = catfile( $tempdir, "$file_base.cxx" );
-    require ExtUtils::ParseXS;
-    mkpath( $tempdir, $opt{verbose}, oct '755' );
-    ExtUtils::ParseXS::process_file(
-        prototypes  => 1,
-        linenumbers => 1,
-        'C++'       => 1,
-        filename    => $source,
-        prototypes  => 1,
-        output      => $c_file
-    );
-    my $version = $opt{meta}->version;
+    warn $@                                            if $@;
+    my @objs;
     require ExtUtils::CBuilder;
     my $builder = ExtUtils::CBuilder->new( config => ( $opt{config}->values_set ) );
     my $pre     = Path::Tiny->cwd->child(qw[blib arch auto])->absolute;
-    my $obj     = $builder->object_file($c_file);
-    warn $pre->child( $opt{meta}->name, 'include' )->stringify;
-    my $ob_file = $builder->compile(
-        'C++'        => 1,
-        source       => $c_file,
-        defines      => { VERSION => qq/"$version"/, XS_VERSION => qq/"$version"/ },
-        include_dirs =>
-            [ curdir, dirname($source), $pre->child( $opt{meta}->name, 'include' )->stringify ],
-        extra_compiler_flags => (
-            '-fPIC ' . ( $opt{config}->get('osname') =~ /bsd/ ? '' : $CFLAGS ) .
-                ( $DEBUG ? ' -ggdb3 ' : '' )
-        )
-    );
+    my $source;
     require DynaLoader;
     my $mod2fname
         = defined &DynaLoader::mod2fname ? \&DynaLoader::mod2fname : sub { return $_[0][-1] };
+    my @parts   = ('Affix');
+    my $archdir = catdir( qw/blib arch auto/, @parts );
     mkpath( $archdir, $opt{verbose}, oct '755' ) unless -d $archdir;
     my $lib_file = catfile( $archdir, $mod2fname->( \@parts ) . '.' . $opt{config}->get('dlext') );
+    my @dirs;
 
-    #my $op_lib_file = catfile(
-    #    $paths->install_destination('arch'),
-    #qw[auto Object],
-    #'Pad' . $opt{config}->get('dlext')
-    #);
+    for my $source (@$sources) {
+        my $file_base = basename( $source, '.cxx' );
+        my $tempdir   = 'lib';
+        mkpath( $tempdir, $opt{verbose}, oct '755' );
+        my $version = $opt{meta}->version;
+        my $obj     = $builder->object_file($source);
+        push @dirs, rel2abs dirname($source);
+        push @objs,
+            $builder->compile(
+            'C++'        => ( $source =~ /\.cxx$/ ),
+            source       => $source,
+            defines      => { VERSION => qq/"$version"/, XS_VERSION => qq/"$version"/ },
+            include_dirs =>
+                [ curdir, dirname($source), $pre->child( $opt{meta}->name, 'include' )->stringify ],
+            extra_compiler_flags => (
+                '-fPIC ' .
+                    ( $opt{config}->get('osname') =~ /bsd/ ? ''     : $CFLAGS ) .
+                    ( $DEBUG ? ' -ggdb3 -g -Wall -Wextra -pedantic' : '' )
+            )
+            );
+
+        #my $op_lib_file = catfile(
+        #    $paths->install_destination('arch'),
+        #qw[auto Object],
+        #'Pad' . $opt{config}->get('dlext')
+        #);
+    }
+    warn join ', ', @dirs;
+    warn join ', ', @parts;
+    warn $lib_file;
     return $builder->link(
         extra_linker_flags => (
-            ( $opt{config}->get('osname') =~ /bsd/ ? '' : $LDFLAGS ) . ' -L' .
-                dirname($source) . ' -L' . $pre->child( $opt{meta}->name, 'lib' )->stringify .
+            ( $opt{config}->get('osname') =~ /bsd/ ? '' : $LDFLAGS ) .
+                ( join ' ', map { ' -L' . $_ } @dirs ) . ' -L' .
+                $pre->child( $opt{meta}->name, 'lib' )->stringify .
                 ' -ldyncall_s -ldyncallback_s -ldynload_s'
         ),
-        objects     => [$ob_file],
+        objects     => [@objs],
         lib_file    => $lib_file,
         module_name => join '::',
         @parts
@@ -400,7 +409,7 @@ my %actions = (
         make_executable($_) for values %scripts;
         mkpath( catdir(qw/blib arch/), $opt{verbose} );
         alien(%opt);
-        process_xs( $_, %opt ) for find( qr/.xs$/, 'lib' );
+        process_cxx( [ find( qr/.cxx$/, 'lib' ) ], %opt );
         if ( $opt{install_paths}->install_destination('bindoc') &&
             $opt{install_paths}->is_default_installable('bindoc') ) {
             manify(

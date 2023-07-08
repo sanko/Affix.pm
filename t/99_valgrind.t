@@ -6,7 +6,7 @@ use Config;
 use Affix;
 $|++;
 #
-use t::lib::nativecall;
+use t::lib::helper;
 #
 plan skip_all => 'Only run valgrind tests locally' unless -e 't/' . __FILE__;
 plan skip_all => 'Test::Valgrind is required to test your distribution with valgrind'

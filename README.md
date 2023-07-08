@@ -437,10 +437,10 @@ code and might not be public in the future.
 
 Raku offers a set of native types with a fixed, and known, representation in
 memory but this is Perl so we need to do the work ourselves with a pseudo-type
-system. Affix supports the fundamental types (void, int, etc.), aggregates
-(struct, array, union), and .
+system. Affix supports the fundamental types (void, int, etc.) and aggregates
+(struct, array, union.
 
-## Fundamental Types with Native Representation
+## Fundamental Types
 
 ```
 Affix       C99                   Rust    C#          pack()  Raku
@@ -473,14 +473,14 @@ The `Void` type corresponds to the C `void` type. It is generally found in
 typed pointers representing the equivalent to the `void *` pointer in C.
 
 ```perl
-sub malloc :Native :Signature([Size_t] => Pointer[Void]);
+affix undef, 'malloc', [Size_t] => Pointer[Void];
 my $data = malloc( 32 );
 ```
 
-As the example shows, it's represented by a parameterized `Pointer[ ... ]`
-type, using as parameter whatever the original pointer is pointing to (in this
-case, `void`). This role represents native pointers, and can be used wherever
-they need to be represented in a Perl script.
+As the example above shows, it's represented by a parameterized `Pointer[ ...
+]` type, using as parameter whatever the original pointer is pointing to (in
+this case, `void`). This role represents native pointers, and can be used
+wherever they need to be represented in a Perl script.
 
 In addition, you may place a `Void` in your signature to skip a passed
 argument.

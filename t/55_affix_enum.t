@@ -2,9 +2,9 @@ use strict;
 use Test::More 0.98;
 BEGIN { chdir '../' if !-d 't'; }
 use lib '../lib', 'lib', '../blib/arch', '../blib/lib', 'blib/arch', 'blib/lib', '../../', '.';
-use Affix;
+use Affix qw[:types affix wrap typedef];
 $|++;
-use t::lib::nativecall;
+use t::lib::helper;
 #
 compile_test_lib('55_affix_enum');
 #
@@ -72,7 +72,7 @@ subtest 'typedef' => sub {
     is TV::FOX(),     'FOX', 'typedef makes dualvar constants of enum values [str]';
     is int TV::FOX(), 11,    'typedef makes dualvar constants of enum values [num]';
     subtest ':Native' => sub {
-        sub TakeEnum : Native('t/src/55_affix_enum') : Signature([TV]=>Int);
+        affix 't/src/55_affix_enum', TakeEnum => [ TV() ] => Int;
         is TakeEnum( TV::FOX() ),  -11, 'FOX';
         is TakeEnum( TV::ESPN() ), -1,  'ESPN';
     };
