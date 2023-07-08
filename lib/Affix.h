@@ -24,6 +24,7 @@ extern "C" {
 
 #if __WIN32
 #include <windows.h>
+#include <cstdint>
 #endif
 
 #ifdef MULTIPLICITY
