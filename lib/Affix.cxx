@@ -68,7 +68,7 @@ static DCaggr *_aggregate(pTHX_ SV *type) {
             {
                 SV *RETVALSV;
                 RETVALSV = newSV(1);
-                sv_setref_pv(RETVALSV, "Affix::Aggregate", (void *)agg);
+                sv_setref_pv(RETVALSV, "Affix::Aggregate", (DCpointer)agg);
                 hv_stores(MUTABLE_HV(SvRV(type)), "aggregate", newSVsv(RETVALSV));
             }
             return agg;
@@ -93,12 +93,16 @@ char *locate_lib(pTHX_ SV *_lib, SV *_ver) {
     dSP;
     int count;
     char *retval = NULL;
-    if (_lib != NULL) {
+    //~ if (!SvOK(_lib)) {
+    //~ GV *tmpgv = gv_fetchpvs("\030", GV_ADD | GV_NOTQUAL, SVt_PV); /* $^X */
+    //~ _lib = GvSV(tmpgv);
+    //~ }
+    if (SvOK(_lib) /*&& SvREADONLY(_lib)*/) {
         ENTER;
         SAVETMPS;
         PUSHMARK(SP);
-        mXPUSHs(_lib);
-        mXPUSHs(_ver);
+        XPUSHs(_lib);
+        XPUSHs(_ver);
         PUTBACK;
         count = call_pv("Affix::locate_lib", G_SCALAR);
         SPAGAIN;
@@ -106,9 +110,12 @@ char *locate_lib(pTHX_ SV *_lib, SV *_ver) {
             SV *ret = POPs;
             if (SvOK(ret)) {
                 STRLEN len;
+                //~ sv_dump(ret);
                 char *__lib = SvPVx(ret, len);
-                Newxz(retval, len + 1, char);
-                Copy(__lib, retval, len, char);
+                if (len) {
+                    Newxz(retval, len + 1, char);
+                    Copy(__lib, retval, len, char);
+                }
             }
         }
         PUTBACK;
@@ -118,7 +125,36 @@ char *locate_lib(pTHX_ SV *_lib, SV *_ver) {
     return retval;
 }
 
-#ifdef _WIN32
+char *_mangle(pTHX_ const char *abi, SV *lib, const char *symbol, SV *args) {
+    char *retval;
+    {
+        dSP;
+        SV *err_tmp;
+        ENTER;
+        SAVETMPS;
+        PUSHMARK(SP);
+        XPUSHs(lib);
+        mXPUSHp(symbol, strlen(symbol));
+        XPUSHs(args);
+        PUTBACK;
+        (void)call_pv(form("Affix::%s_mangle", abi), G_SCALAR | G_EVAL | G_KEEPERR);
+        SPAGAIN;
+        err_tmp = ERRSV;
+        if (SvTRUE(err_tmp)) {
+            croak("Malformed call to %s_mangle( ... ): %s\n", abi, SvPV_nolen(err_tmp));
+            (void)POPs;
+        }
+        else {
+            retval = POPp;
+            // SvSetMagicSV(type, retval);
+        }
+        // FREETMPS;
+        LEAVE;
+    }
+    return retval;
+}
+
+#ifdef DC__OS_Win64
 #include <cinttypes>
 static const char *dlerror(void) {
     static char buf[1024];
@@ -166,27 +202,42 @@ static MGVTBL pin_vtbl = {
 XS_INTERNAL(Affix_pin) {
     dXSARGS;
     if (items != 4) croak_xs_usage(cv, "var, lib, symbol, type");
-    DLLib *lib;
+    DLLib *_lib;
+    // pin( my $integer, 't/src/58_affix_import_vars', 'integer', Int );
+
     if (!SvOK(ST(1)))
-        lib = NULL;
+        _lib = NULL;
     else if (SvROK(ST(1)) && sv_derived_from(ST(1), "Affix::Lib")) {
         IV tmp = SvIV(MUTABLE_SV(SvRV(ST(1))));
-        lib = INT2PTR(DLLib *, tmp);
+        _lib = INT2PTR(DLLib *, tmp);
     }
     else {
-        const char *_libpath = locate_lib(aTHX_ ST(0), SvIOK(ST(1)) ? ST(1) : newSV(0));
-        lib =
-#if defined(_WIN32) || defined(_WIN64)
+        SV *lib, *ver;
+        if (UNLIKELY(SvROK(ST(1)) && SvTYPE(SvRV(ST(1))) == SVt_PVAV)) {
+            AV *tmp = MUTABLE_AV(SvRV(ST(1)));
+            size_t tmp_len = av_count(tmp);
+            // Non-fatal
+            if (UNLIKELY(!(tmp_len == 1 || tmp_len == 2))) { warn("Expected a lib and version"); }
+            lib = *av_fetch(tmp, 0, false);
+            ver = *av_fetch(tmp, 1, false);
+        }
+        else {
+            lib = newSVsv(ST(1));
+            ver = newSV(0);
+        }
+        const char *_libpath = locate_lib(aTHX_ lib, ver);
+        _lib =
+#if defined(DC__OS_Win64) || defined(DC__OS_MacOSX)
             dlLoadLibrary(_libpath);
 #else
             (DLLib *)dlopen(_libpath, RTLD_LAZY /* RTLD_NOW|RTLD_GLOBAL */);
 #endif
-        if (lib == NULL) {
+        if (_lib == NULL) {
             croak("Failed to load %s: %s", _libpath, dlerror());
         }
     }
     const char *symbol = (const char *)SvPV_nolen(ST(2));
-    DCpointer ptr = dlFindSymbol(lib, symbol);
+    DCpointer ptr = dlFindSymbol(_lib, symbol);
     if (ptr == NULL) { croak("Failed to locate '%s'", symbol); }
     SV *sv = ST(0);
     MAGIC *mg = sv_magicext(sv, NULL, PERL_MAGIC_ext, &pin_vtbl, NULL, 0);
@@ -646,7 +697,7 @@ XS_INTERNAL(Affix_load_lib) {
     if (items < 1 || items > 2) croak_xs_usage(cv, "lib_name, version");
     char *_libpath = locate_lib(aTHX_ ST(0), SvIOK(ST(1)) ? ST(1) : newSV(0));
     DLLib *lib =
-#if defined(_WIN32) || defined(_WIN64)
+#if defined(DC__OS_Win64) || defined(DC__OS_MacOSX)
         dlLoadLibrary(_libpath);
 #else
         (DLLib *)dlopen(_libpath, RTLD_NOW);
@@ -696,16 +747,62 @@ XS_INTERNAL(Affix_Lib_list_symbols) {
     XSRETURN(1);
 }
 
+
+XS_INTERNAL(Affix_Lib_free) {
+    dVAR;
+    dXSARGS;
+    warn("FREE LIB");
+    if (items != 1) croak_xs_usage(cv, "lib");
+    DLLib *lib;
+    if (sv_derived_from(ST(0), "Affix::Lib")) {
+        IV tmp = SvIV((SV *)SvRV(ST(0)));
+        lib = INT2PTR(DLLib *, tmp);
+    }
+    else
+        croak("lib is not of type Affix::Lib");
+    if (lib != NULL) dlFreeLibrary(lib);
+    lib = NULL;
+    XSRETURN_EMPTY;
+}
+
+XS_INTERNAL(Affix_Lib_path) {
+    dVAR;
+    dXSARGS;
+    if (items != 1) croak_xs_usage(cv, "lib");
+
+    SV *RETVAL;
+    DLLib *lib;
+
+    if (sv_derived_from(ST(0), "Affix::Lib")) {
+        IV tmp = SvIV((SV *)SvRV(ST(0)));
+        lib = INT2PTR(DLLib *, tmp);
+    }
+    else
+        croak("lib is not of type Affix::Lib");
+
+    char *name;
+    Newxz(name, 1024, char);
+    int len = dlGetLibraryPath(lib, name, 1024);
+    PING;
+    if (len == 0) croak("Failed to get library name");
+    RETVAL = newSVpv(name, len - 1);
+    safefree(name);
+    {
+        RETVAL = sv_2mortal(RETVAL);
+        ST(0) = RETVAL;
+    }
+
+    XSRETURN(1);
+}
+
 /* Affix::affix(...) and Affix::wrap(...) System */
 struct Affix {
     int16_t call_conv;
-    U8 abi;
     size_t num_args;
     int16_t *arg_types;
     int16_t ret_type;
     char *lib_name;
     DLLib *lib_handle;
-    char *sym_name;
     void *entry_point;
     AV *arg_info;
     SV *ret_info;
@@ -901,7 +998,7 @@ extern "C" void Affix_trigger(pTHX_ CV *cv) {
             else {
                 if (!free_ptrs) Newxz(free_ptrs, num_args, DCpointer);
 
-                // free_ptrs = (void **)safemalloc(num_args * sizeof(void *));
+                // free_ptrs = (void **)safemalloc(num_args * sizeof(DCpointer));
                 if (!SvROK(ST(i)) || SvTYPE(SvRV(ST(i))) != SVt_PVAV)
                     croak("Type of arg %d must be an array ref", i + 1);
 
@@ -1235,102 +1332,75 @@ extern "C" void Affix_trigger(pTHX_ CV *cv) {
     XSRETURN(1);
 }
 
-char *_mangle(pTHX_ const char *abi, SV *lib, const char *symbol, SV *args) {
-    char *retval;
-    {
-        dSP;
-        int count;
-        SV *err_tmp;
-        ENTER;
-        SAVETMPS;
-        PUSHMARK(SP);
-        XPUSHs(lib);
-        mXPUSHp(symbol, strlen(symbol));
-        XPUSHs(args);
-        PUTBACK;
-        count = call_pv(form("Affix::%s_mangle", abi), G_SCALAR | G_EVAL | G_KEEPERR);
-        SPAGAIN;
-        err_tmp = ERRSV;
-        if (SvTRUE(err_tmp)) {
-            croak("Malformed call to %s_mangle( ... ): %s\n", abi, SvPV_nolen(err_tmp));
-            (void)POPs;
-        }
-        else if (count != 1) { croak("Failed to mangle %s symbol named %s", abi, abi); }
-        else {
-            retval = POPp;
-            // SvSetMagicSV(type, retval);
-        }
-        // FREETMPS;
-        LEAVE;
-    }
-    return retval;
-}
-
 XS_INTERNAL(Affix_affix) {
     dXSARGS;
     dXSI32;
-    PING;
     if (items != 4) croak_xs_usage(cv, "$lib, $symbol, @arg_types, $ret_type");
     SV *RETVAL;
     Affix *ret;
     Newx(ret, 1, Affix);
 
     // Dumb defaults
-    ret->abi = (U8)AFFIX_ABI_C;
     ret->num_args = 0;
     ret->arg_info = newAV();
 
     char *prototype = NULL;
-    char *name = NULL;
+    char *perl_name = NULL;
     {
         SV *lib, *ver;
+        SV *LIBSV;
 
         // affix($lib, ..., ..., ...)
-        // affix([$lib, ABI_C], ..., ..., ...)
+        // affix([$lib, 1.2.0], ..., ..., ...)
         // wrap($lib, ..., ...., ...
-        // wrap([$lib, ABI_C], ..., ...., ...
+        // wrap([$lib, 'v3'], ..., ...., ...
         {
             if (UNLIKELY(SvROK(ST(0)) && SvTYPE(SvRV(ST(0))) == SVt_PVAV)) {
                 AV *tmp = MUTABLE_AV(SvRV(ST(0)));
                 size_t tmp_len = av_count(tmp);
                 // Non-fatal
-                if (UNLIKELY(!(tmp_len == 1 || tmp_len == 2))) { warn("Expected a lib and ABI"); }
+                if (UNLIKELY(!(tmp_len == 1 || tmp_len == 2))) {
+                    warn("Expected a lib and version");
+                }
                 lib = *av_fetch(tmp, 0, false);
                 ver = *av_fetch(tmp, 1, false);
-                //
-                SV **ptr_abi = av_fetch(tmp, 1, false);
-                if (ptr_abi == NULL || !SvOK(*ptr_abi)) { croak("Expected a lib and ABI"); }
-                else {
-                    U8 abi = (U8)*SvPV_nolen(*ptr_abi);
-                    switch (abi) {
-                    case AFFIX_ABI_C:
-                    case AFFIX_ABI_ITANIUM:
-                    case AFFIX_ABI_RUST:
-                        ret->abi = abi;
-                        break;
-                    case AFFIX_ABI_SWIFT:
-                    case AFFIX_ABI_D:
-                    default:
-                        croak("Unknown or unsupported ABI");
-                    }
-                }
             }
             else {
                 lib = newSVsv(ST(0));
                 ver = newSV(0);
             }
-            //
-            ret->lib_name = locate_lib(aTHX_ lib, ver);
-            ret->lib_handle =
-#if defined(_WIN32) || defined(_WIN64)
-                dlLoadLibrary(ret->lib_name);
+            if (sv_isobject(lib) && sv_derived_from(lib, "Affix::Lib")) {
+                LIBSV = lib;
+                {
+                    IV tmp = SvIV(SvRV(lib));
+                    ret->lib_handle = INT2PTR(DLLib *, tmp);
+                }
+                {
+                    char *name;
+                    Newxz(name, 1024, char);
+                    int len = dlGetLibraryPath(ret->lib_handle, name, 1024);
+                    Newxz(ret->lib_name, len + 1, char);
+                    Copy(name, ret->lib_name, len, char);
+                }
+            }
+            else {
+                ret->lib_name = locate_lib(aTHX_ lib, ver);
+                ret->lib_handle =
+#if defined(DC__OS_Win64) || defined(DC__OS_MacOSX)
+                    dlLoadLibrary(ret->lib_name);
 #else
-                (DLLib *)dlopen(ret->lib_name, RTLD_LAZY /* RTLD_NOW|RTLD_GLOBAL */);
+                    (DLLib *)dlopen(ret->lib_name, RTLD_LAZY /* RTLD_NOW|RTLD_GLOBAL */);
 #endif
-            if (!ret->lib_handle) {
-                croak("Failed to load %s: %s", ret->lib_name, dlerror());
+                if (!ret->lib_handle) {
+                    croak("Failed to load lib %s", dlerror());
+                }
+                LIBSV = sv_newmortal();
+                sv_setref_pv(LIBSV, "Affix::Lib", (DCpointer)ret->lib_handle);
             }
         }
+
+        //~ sv_dump(lib);
+        //~ sv_dump(ver);
 
         // affix(..., ..., [Int], ...)
         // wrap(..., ..., [], ...)
@@ -1391,46 +1461,39 @@ XS_INTERNAL(Affix_affix) {
         // affix(..., [$symbol, $name], ..., ...)
         // wrap(..., $symbol, ..., ...)
         {
+            SV *symbol;
             if (UNLIKELY(SvROK(ST(1)) && SvTYPE(SvRV(ST(1))) == SVt_PVAV)) {
                 AV *tmp = MUTABLE_AV(SvRV(ST(1)));
                 size_t tmp_len = av_count(tmp);
-                if (tmp_len != 2) { croak("Expected a lib and ABI"); }
+                if (tmp_len != 2) { croak("Expected a symbol and name"); }
                 if (ix == 1 && tmp_len > 1) {
-                    warn("wrap( ... ) isn't expecting a name and has ignored it");
+                    croak("wrap( ... ) isn't expecting a name and has ignored it");
                 }
-                else if (tmp_len != 2) { croak("Expected a symbol and name"); }
-                SV **name_ptr = av_fetch(tmp, 0, false);
-                if (UNLIKELY(name_ptr == NULL || !SvPOK(*name_ptr))) {
-                    croak("Undefined symbol name");
-                }
-                ret->sym_name = SvPV_nolen(*name_ptr);
-                name = SvPV_nolen(*av_fetch(tmp, 1, false));
+                symbol = *av_fetch(tmp, 0, false);
+                if (!SvPOK(symbol)) { croak("Undefined symbol name"); }
+                perl_name = SvPV_nolen(*av_fetch(tmp, 1, false));
             }
             else if (UNLIKELY(!SvPOK(ST(1)))) { croak("Undefined symbol name"); }
-            else { name = ret->sym_name = SvPV_nolen(ST(1)); }
+            else {
+                symbol = ST(1);
+                perl_name = SvPV_nolen(symbol);
+            }
 
             {
-                SV *LIBSV;
-                LIBSV = sv_newmortal();
-                sv_setref_pv(LIBSV, "Affix::Lib", (void *)ret->lib_handle);
-
-                switch (ret->abi) {
-                case AFFIX_ABI_C:
-                    break;
-                case AFFIX_ABI_ITANIUM:
-                    ret->sym_name = _mangle(aTHX_ "Itanium", LIBSV, ret->sym_name, ST(2));
-                    break;
-                case AFFIX_ABI_RUST:
-                    ret->sym_name = _mangle(aTHX_ "Rust_legacy", LIBSV, ret->sym_name, ST(2));
-                    break;
-                case AFFIX_ABI_SWIFT:
-                case AFFIX_ABI_D:
-                    croak("Unhandled ABI. Patches welcome");
-                    break;
-                default:
-                    croak("Unknown ABI. Patches welcome");
-                    break;
+                char *sym_name = SvPV_nolen(symbol);
+                PING;
+                ret->entry_point = dlFindSymbol(ret->lib_handle, sym_name);
+                if (ret->entry_point == NULL) {
+                    PING;
+                    ret->entry_point = dlFindSymbol(
+                        ret->lib_handle, _mangle(aTHX_ "Itanium", LIBSV, sym_name, ST(2)));
                 }
+                if (ret->entry_point == NULL) {
+                    ret->entry_point = dlFindSymbol(
+                        ret->lib_handle, _mangle(aTHX_ "Rust_legacy", LIBSV, sym_name, ST(2)));
+                }
+                // TODO: D and Swift
+                if (ret->entry_point == NULL) { croak("Failed to find symbol named %s", sym_name); }
             }
         }
 
@@ -1443,33 +1506,28 @@ XS_INTERNAL(Affix_affix) {
         else { croak("Unknown return type"); }
     }
 
-    ret->entry_point = dlFindSymbol(ret->lib_handle, ret->sym_name);
-
-    //~ warn("lib: %p, entry_point: %p, sym_name: %s, as: %s, prototype: %s, ix: %d, abi: %c: ",
-    //~ ret->lib_handle, ret->entry_point, ret->sym_name, name, prototype, ix, ret->abi);
-    //~ DD(MUTABLE_SV(ret->arg_info));
-    //~ DD(ret->ret_info);
-
+#ifdef DEBUG
+    warn("lib: %p, entry_point: %p, as: %s, prototype: %s, ix: %d ", (DCpointer)ret->lib_handle,
+         ret->entry_point, perl_name, prototype, ix);
+    DD(MUTABLE_SV(ret->arg_info));
+    DD(ret->ret_info);
+#endif
     /*
     struct Affix {
     int16_t call_conv;
-    U8 abi;
     size_t num_args;
     int16_t *arg_types;
     int16_t ret_type;
     char *lib_name;
     DLLib *lib_handle;
-    char *sym_name;
     void *entry_point;
     AV *arg_info;
     SV *ret_info;
     SV *resolve_lib_name;
     };
     */
-    if (!ret->entry_point)
-        croak("Failed to locate symbol named '%s' in %s", ret->sym_name, ret->lib_name);
     STMT_START {
-        cv = newXSproto_portable(ix == 0 ? name : NULL, Affix_trigger, __FILE__, prototype);
+        cv = newXSproto_portable(ix == 0 ? perl_name : NULL, Affix_trigger, __FILE__, prototype);
         if (UNLIKELY(cv == NULL))
             croak("ARG! Something went really wrong while installing a new XSUB!");
         XSANY.any_ptr = (DCpointer)ret;
@@ -1504,13 +1562,11 @@ XS_INTERNAL(Affix_DESTROY) {
     /*
     struct Affix {
     int16_t call_conv;
-    U8 abi;
     size_t num_args;
     int16_t *arg_types;
     int16_t ret_type;
     char *lib_name;
     DLLib *lib_handle;
-    char *sym_name;
     void *entry_point;
     AV *arg_info;
     SV *ret_info;
@@ -2167,7 +2223,8 @@ XS_EXTERNAL(boot_Affix) {
     (void)newXSproto_portable("Affix::load_lib", Affix_load_lib, __FILE__, "$;$");
     export_function("Affix", "load_lib", "lib");
     (void)newXSproto_portable("Affix::Lib::list_symbols", Affix_Lib_list_symbols, __FILE__, "$");
-    export_function("Affix", "load_lib", "lib");
+    (void)newXSproto_portable("Affix::Lib::path", Affix_Lib_path, __FILE__, "$");
+    (void)newXSproto_portable("Affix::Lib::free", Affix_Lib_free, __FILE__, "$;$");
 
     (void)newXSproto_portable("Affix::pin", Affix_pin, __FILE__, "$$$$");
     export_function("Affix", "pin", "default");
@@ -2207,14 +2264,6 @@ XS_EXTERNAL(boot_Affix) {
                     0
 #endif
     );
-
-    export_constant_char("Affix", "ABI_C", "abi", AFFIX_ABI_C);
-    export_constant_char("Affix", "ABI_ITANIUM", "abi", AFFIX_ABI_ITANIUM);
-    export_constant_char("Affix", "ABI_GCC", "abi", AFFIX_ABI_GCC);
-    export_constant_char("Affix", "ABI_MSVC", "abi", AFFIX_ABI_MSVC);
-    export_constant_char("Affix", "ABI_RUST", "abi", AFFIX_ABI_RUST);
-    export_constant_char("Affix", "ABI_SWIFT", "abi", AFFIX_ABI_SWIFT);
-    export_constant_char("Affix", "ABI_D", "abi", AFFIX_ABI_D);
 
     (void)newXSproto_portable("Affix::sizeof", Affix_sizeof, __FILE__, "$");
     export_function("Affix", "sizeof", "default");

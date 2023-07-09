@@ -1,9 +1,9 @@
 #include "std.h"
 
-DLLEXPORT void Nothing() {
-    /* we don't even print something */
+DLLEXPORT int Nothing() {
+    return 99;
 }
 
-DLLEXPORT void Nothing_I(int i) {
-    /* we don't even print something */
+DLLEXPORT int Nothing_I(int i) {
+    return 100 + i;
 }

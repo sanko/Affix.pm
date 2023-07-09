@@ -7,19 +7,10 @@ use File::Spec;
 use Test::Fatal    qw[exception];
 use Test::Warnings qw[warning :no_end_test];
 use t::lib::helper;
+$|++;
 #
 my $lib = compile_test_lib('08_affix_affix');
 #
-subtest 'Bad ABI' => sub {
-    like exception { affix [ $lib, 'GCC' ], 'Nothing', [Int], Void },
-        qr[Unknown or unsupported ABI], q[affix [ $lib, 'GCC' ], ..., ..., ... throws exception];
-    like exception { affix [ $lib, 'm' ], 'Nothing', [Int], Void }, qr[Unknown or unsupported ABI],
-        q[affix [ $lib, 'm' ], ..., ..., ... throws exception];
-    like exception { affix [ $lib, undef ], 'Nothing', [Int], Void }, qr[Expected a lib and ABI],
-        q[affix [ $lib, undef ], ..., ..., ... throws exception];
-    like exception { affix [ $lib, 100 ], 'Nothing', [Int], Void }, qr[Unknown or unsupported ABI],
-        q[affix [ $lib, 100 ], ..., ..., ... throws exception];
-};
 subtest 'Bad args' => sub {
     like exception { affix $lib, 'Nothing', Int, Void }, qr[Expected a list of argument types ],
         q[affix ..., ..., Int, ... throws exception];
@@ -31,21 +22,19 @@ subtest 'Bad args' => sub {
         q[affix ..., ..., 'Int', ... throws exception];
 };
 subtest 'Bad name' => sub {
-    like warning { wrap $lib, [ 'Nothing', 'Something' ], [Int], Void }, qr[isn't expecting a name],
-        q[wrap ..., ['Nothing', 'Something'] ..., ... throws exception];
+    like exception { wrap $lib, [ 'Nothing', 'Something' ], [Int], Void },
+        qr[isn't expecting a name], q[wrap ..., ['Nothing', 'Something'] ..., ... throws exception];
     like exception { wrap $lib, undef, [Int], Void }, qr[symbol name],
         q[wrap ..., undef ..., ... throws exception];
-    like exception { wrap $lib, 'Missing', [Int], Void },
-        qr[Failed to locate symbol named 'Missing'],
+    like exception { wrap $lib, 'Missing', [Int], Void }, qr[Failed to find symbol named Missing],
         q[wrap ..., 'Missing' ..., ... throws exception];
 };
 subtest 'Good stuff' => sub {
-    ok affix( [ $lib, ABI_C ], 'Nothing', [], Void ), q[wrap [ $lib, ABI_C ], ..., ..., ... works];
-    #
-    Nothing();
-    diag 'ok';
-    ok affix( $lib, 'Nothing_I', [Int], Void ), q[wrap ..., ..., [Int], ... works];
-    Nothing_I(50);
+    ok affix( $lib, [ 'Nothing', 'Nope' ], [], Int ),
+        qq[affix '$lib', ['Nothing', 'Nope'], [], Int];
+    is Nope(), 99, 'Nope()';
+    ok affix( $lib, 'Nothing_I', [Int], Int ), qq[affix '$lib', 'Nothing_I', [Int], Int];
+    is Nothing_I(50), 150, 'Nothing_I(50)';
 };
 done_testing;
     __END__

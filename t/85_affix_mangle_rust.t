@@ -2,7 +2,7 @@ use strict;
 use utf8;
 use Test::More 0.98;
 BEGIN { chdir '../' if !-d 't'; }
-use lib '../lib', '../blib/arch', '../blib/lib', 'blib/arch', 'blib/lib', '../../', '.';
+use lib '../lib', 'lib', '../blib/arch', '../blib/lib', 'blib/arch', 'blib/lib', '../../', '.';
 use Affix qw[:all];
 use t::lib::helper;
 use experimental 'signatures';
@@ -26,7 +26,7 @@ SKIP: {
     ok affix( $lib, 'add', [ Size_t, Size_t ], Size_t ), 'bound rust function with #[no_mangle]';
     is add( 5, 4 ), 9, 'add(5, 4) == 9';
     #
-    ok affix( [ $lib, ABI_RUST ], mod => [ Int, Int ] => Int ), 'bound mangled rust function';
+    ok affix( $lib, mod => [ Int, Int ] => Int ), 'bound mangled rust function';
     is mod( 5, 3 ), 2, 'mod(5, 3) == 2';
     #
     diag 'might fail to clean up on Win32 because we have not released the lib yet... this is fine'

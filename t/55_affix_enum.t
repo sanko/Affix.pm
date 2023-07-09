@@ -71,7 +71,7 @@ subtest 'typedef' => sub {
     isa_ok TV(), 'Affix::Type::Enum', 'TV';
     is TV::FOX(),     'FOX', 'typedef makes dualvar constants of enum values [str]';
     is int TV::FOX(), 11,    'typedef makes dualvar constants of enum values [num]';
-    subtest ':Native' => sub {
+    subtest 'pass to function' => sub {
         affix 't/src/55_affix_enum', TakeEnum => [ TV() ] => Int;
         is TakeEnum( TV::FOX() ),  -11, 'FOX';
         is TakeEnum( TV::ESPN() ), -1,  'ESPN';

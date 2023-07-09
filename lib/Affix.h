@@ -80,11 +80,6 @@ extern "C" {
 
 #include <dyncall/dyncall/dyncall_aggregate.h>
 
-#ifndef FILE
-#define FILE
-// const char *file = __FILE__;
-#endif
-
 #ifdef DEBUG
 #define PING warn("Ping at %s line %d", __FILE__, __LINE__);
 #else
@@ -149,19 +144,6 @@ extern "C" {
 #define AFFIX_UNMARSHAL_KIND_GENERIC -1
 #define AFFIX_UNMARSHAL_KIND_RETURN -2
 #define AFFIX_UNMARSHAL_KIND_NATIVECAST -3
-
-// https://mikeash.com/pyblog/friday-qa-2014-08-15-swift-name-mangling.html
-// https://gcc.gnu.org/git?p=gcc.git;a=blob_plain;f=gcc/cp/mangle.cc;hb=HEAD
-// https://rust-lang.github.io/rfcs/2603-rust-symbol-name-mangling-v0.html
-
-#define AFFIX_ABI_C 'c'
-#define AFFIX_ABI_ITANIUM 'I' // https://itanium-cxx-abi.github.io/cxx-abi/abi.html#mangling
-#define AFFIX_ABI_GCC AFFIX_ABI_ITANIUM
-#define AFFIX_ABI_MSVC AFFIX_ABI_ITANIUM
-#define AFFIX_ABI_RUST 'r' // legacy
-#define AFFIX_ABI_SWIFT                                                                            \
-    's' // https://github.com/apple/swift/blob/main/docs/ABI/Mangling.rst#identifiers
-#define AFFIX_ABI_D 'd' // https://dlang.org/spec/abi.html#name_mangling
 
 // MEM_ALIGNBYTES is messed up by quadmath and long doubles
 #define AFFIX_ALIGNBYTES 8
