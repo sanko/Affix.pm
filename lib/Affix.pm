@@ -163,13 +163,20 @@ package Affix 0.12 {    # 'FFI' is my middle name!
 
     sub locate_libs {
         my ( $lib, $version ) = @_;
+
+        #~ warn $lib;
+        #~ warn $version;
+        #~ warn "Win: $is_win";
+        #~ warn "Mac: $is_mac";
+        #~ warn "BSD: $is_bsd";
+        #~ warn "Sun: $is_sun";
         CORE::state $libdirs;
         if ( !defined $libdirs ) {
             if ($is_win) {
                 require Win32;
                 $libdirs = [
-                    Win32::GetFolderPath( Win32::CSIDL_SYSTEM() ),
-                    Win32::GetFolderPath( Win32::CSIDL_WINDOWS() ),
+                    Win32::GetFolderPath( Win32::CSIDL_SYSTEM() ) . '/',
+                    Win32::GetFolderPath( Win32::CSIDL_WINDOWS() ) . '/',
                 ];
             }
             else {
@@ -189,8 +196,6 @@ package Affix 0.12 {    # 'FFI' is my middle name!
                 @DynaLoader::dl_library_path, @$libdirs
             ];
         }
-
-        #~ warn join ', ', @$libdirs;
         CORE::state $regex;
         if ( !defined $regex ) {
             $regex = $is_win ?
@@ -213,13 +218,13 @@ package Affix 0.12 {    # 'FFI' is my middle name!
         }
         my @store;
 
-        #~ warn;
-        #~ warn $regex;
         #~ warn join ', ', @$libdirs;
         find(
             sub {
-                $File::Find::prune = 1 if !grep { $_ eq $File::Find::name } @$libdirs;
-                return                 if -d $_;
+                $File::Find::prune = 1
+                    if !grep { canonpath $_ eq canonpath $File::Find::name } @$libdirs;
+
+                #~ return                 if -d $_;
                 return unless $_ =~ $regex;
 
                 #~ use Data::Dump;
@@ -233,14 +238,12 @@ package Affix 0.12 {    # 'FFI' is my middle name!
             },
             @$libdirs
         );
-
-        #~ warn;
         @store;
     }
 
     sub locate_lib {
         my ( $name, $version ) = @_;
-        return $name if -e $name;
+        return $name if $name && -e $name;
         CORE::state $cache;
         return $cache->{$name}{ $version // 0 }->{path} if defined $cache->{$name}{ $version // 0 };
         if ( !$version ) {
@@ -252,6 +255,8 @@ package Affix 0.12 {    # 'FFI' is my middle name!
 
         #~ warn;
         #~ use Data::Dump;
+        #~ warn join ', ', @_;
+        #~ ddx \@_;
         #~ ddx $cache;
         #~ ddx \@libs;
         if (@libs) {
@@ -261,8 +266,12 @@ package Affix 0.12 {    # 'FFI' is my middle name!
         ();
     }
     {
-        # https://itanium-cxx-abi.github.io/cxx-abi/abi-mangling.html
-        # https://gcc.gnu.org/git?p=gcc.git;a=blob_plain;f=gcc/cp/mangle.cc;hb=HEAD
+        #~ ✅ https://gcc.gnu.org/git?p=gcc.git;a=blob_plain;f=gcc/cp/mangle.cc;hb=HEAD
+        #~ ✅ https://rust-lang.github.io/rfcs/2603-rust-symbol-name-mangling-v0.html
+        #~ ✅ https://itanium-cxx-abi.github.io/cxx-abi/abi.html#mangling
+        #~ ☑️ https://github.com/apple/swift/blob/main/docs/ABI/Mangling.rst#identifiers
+        #~ ☑️ https://mikeash.com/pyblog/friday-qa-2014-08-15-swift-name-mangling.html
+        #~ ☑️ https://dlang.org/spec/abi.html#name_mangling
         my @cache;
         my $vp = 0;    # void *
         my %symbol_cache;
