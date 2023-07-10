@@ -4,6 +4,34 @@
 //~ croak("No.");
 //~ }
 
+XS_INTERNAL(Affix_Type_Pointer) {
+    dXSARGS;
+    PERL_UNUSED_VAR(items);
+    HV *RETVAL_HV = newHV();
+    AV *fields = MUTABLE_AV(SvRV(ST(0)));
+    bool rw = false;
+    switch (av_count(fields)) {
+    case 2: {
+        SV **rw_ref = av_fetch(fields, 1, 0);
+        rw = SvTRUE(*rw_ref);
+    } // fall through
+    case 1: {
+        SV **type_ref = av_fetch(fields, 0, 0);
+        SV *type = *type_ref;
+        if (!(sv_isobject(type) && sv_derived_from(type, "Affix::Type::Base")))
+            croak("Pointer[...] expects a subclass of Affix::Type::Base");
+        //~ sv_dump(type);
+        hv_stores(RETVAL_HV, "type", SvREFCNT_inc(type));
+    } break;
+    default:
+        croak("Pointer[...] expects a single type. e.g. Pointer[Int]");
+    };
+    ST(0) = sv_2mortal(
+        sv_bless(newRV_inc(MUTABLE_SV(RETVAL_HV)),
+                 gv_stashpv(rw ? "Affix::Type::RWPointer" : "Affix::Type::Pointer", GV_ADD)));
+    XSRETURN(1);
+}
+
 XS_INTERNAL(Affix_Type_Pointer_RW) {
     dXSARGS;
     PERL_UNUSED_VAR(items);
@@ -87,6 +115,291 @@ XS_INTERNAL(Affix_Pointer_minus) {
         SV *RETVALSV;
         RETVALSV = sv_newmortal();
         sv_setref_pv(RETVALSV, "Affix::Pointer::Unmanaged", ptr);
+        ST(0) = RETVALSV;
+    }
+    XSRETURN(1);
+}
+
+XS_INTERNAL(Affix_malloc) {
+    dVAR;
+    dXSARGS;
+    if (items != 1) croak_xs_usage(cv, "size");
+
+    DCpointer RETVAL;
+    size_t size = (size_t)SvUV(ST(0));
+    {
+        RETVAL = safemalloc(size);
+        if (RETVAL == NULL) XSRETURN_EMPTY;
+    }
+    {
+        SV *RETVALSV;
+        RETVALSV = sv_newmortal();
+        sv_setref_pv(RETVALSV, "Affix::Pointer::Unmanaged", RETVAL);
+        ST(0) = RETVALSV;
+    }
+
+    XSRETURN(1);
+}
+
+XS_INTERNAL(Affix_calloc) {
+    dVAR;
+    dXSARGS;
+    if (items != 2) croak_xs_usage(cv, "num, size");
+
+    DCpointer RETVAL;
+    size_t num = (size_t)SvUV(ST(0));
+    size_t size = (size_t)SvUV(ST(1));
+    {
+        RETVAL = safecalloc(num, size);
+        if (RETVAL == NULL) XSRETURN_EMPTY;
+    }
+    {
+        SV *RETVALSV;
+        RETVALSV = sv_newmortal();
+        sv_setref_pv(RETVALSV, "Affix::Pointer::Unmanaged", RETVAL);
+        ST(0) = RETVALSV;
+    }
+
+    XSRETURN(1);
+}
+
+XS_INTERNAL(Affix_realloc) {
+    dVAR;
+    dXSARGS;
+    if (items != 2) croak_xs_usage(cv, "ptr, size");
+    DCpointer ptr;
+    size_t size = (size_t)SvUV(ST(1));
+    if (sv_derived_from(ST(0), "Affix::Pointer")) {
+        IV tmp = SvIV((SV *)SvRV(ST(0)));
+        ptr = INT2PTR(DCpointer, tmp);
+    }
+    else
+        croak("ptr is not of type Affix::Pointer");
+    ptr = saferealloc(ptr, size);
+    sv_setref_pv(ST(0), "Affix::Pointer:Unmanaged", ptr);
+    SvSETMAGIC(ST(0));
+    {
+        SV *RETVALSV;
+        RETVALSV = sv_newmortal();
+        sv_setref_pv(RETVALSV, "Affix::Pointer::Unmanaged", ptr);
+        ST(0) = RETVALSV;
+    }
+
+    XSRETURN(1);
+}
+
+XS_INTERNAL(Affix_free) {
+    dVAR;
+    dXSARGS;
+    if (items != 1) croak_xs_usage(cv, "ptr");
+    SP -= items;
+
+    DCpointer ptr;
+
+    if (sv_derived_from(ST(0), "Affix::Pointer")) {
+        IV tmp = SvIV((SV *)SvRV(ST(0)));
+        ptr = INT2PTR(DCpointer, tmp);
+    }
+    else
+        croak("ptr is not of type Affix::Pointer");
+    {
+        if (ptr) {
+            sv_set_undef(ST(0));
+            SvSETMAGIC(ST(0));
+        }
+        sv_set_undef(ST(0));
+        SvSETMAGIC(ST(0));
+    } // Let Affix::Pointer::DESTROY take care of the rest
+    PUTBACK;
+    XSRETURN(1);
+}
+
+XS_INTERNAL(Affix_memchr) {
+    dVAR;
+    dXSARGS;
+    if (items != 3) croak_xs_usage(cv, "ptr, ch, count");
+    {
+        DCpointer RETVAL;
+        DCpointer ptr;
+        char ch = (char)*SvPV_nolen(ST(1));
+        size_t count = (size_t)SvUV(ST(2));
+
+        if (sv_derived_from(ST(0), "Affix::Pointer")) {
+            IV tmp = SvIV((SV *)SvRV(ST(0)));
+            ptr = INT2PTR(DCpointer, tmp);
+        }
+        else
+            croak("ptr is not of type Affix::Pointer");
+
+        RETVAL = memchr(ptr, ch, count);
+        {
+            SV *RETVALSV;
+            RETVALSV = sv_newmortal();
+            sv_setref_pv(RETVALSV, "Affix::Pointer::Unmanaged", RETVAL);
+            ST(0) = RETVALSV;
+        }
+    }
+    XSRETURN(1);
+}
+
+XS_INTERNAL(Affix_memcmp) {
+    dVAR;
+    dXSARGS;
+    if (items != 3) croak_xs_usage(cv, "lhs, rhs, count");
+    {
+        int RETVAL;
+        dXSTARG;
+        size_t count = (size_t)SvUV(ST(2));
+        DCpointer lhs, rhs;
+        {
+            if (sv_derived_from(ST(0), "Affix::Pointer")) {
+                IV tmp = SvIV((SV *)SvRV(ST(0)));
+                lhs = INT2PTR(DCpointer, tmp);
+            }
+            else if (SvIOK(ST(0))) {
+                IV tmp = SvIV((SV *)(ST(0)));
+                lhs = INT2PTR(DCpointer, tmp);
+            }
+            else
+                croak("ptr is not of type Affix::Pointer");
+            if (sv_derived_from(ST(1), "Affix::Pointer")) {
+                IV tmp = SvIV((SV *)SvRV(ST(1)));
+                rhs = INT2PTR(DCpointer, tmp);
+            }
+            else if (SvIOK(ST(1))) {
+                IV tmp = SvIV((SV *)(ST(1)));
+                rhs = INT2PTR(DCpointer, tmp);
+            }
+            else if (SvPOK(ST(1))) { rhs = (DCpointer)(U8 *)SvPV_nolen(ST(1)); }
+            else
+                croak("dest is not of type Affix::Pointer");
+            RETVAL = memcmp(lhs, rhs, count);
+        }
+        XSprePUSH;
+        PUSHi((IV)RETVAL);
+    }
+    XSRETURN(1);
+}
+
+XS_INTERNAL(Affix_memset) {
+    dVAR;
+    dXSARGS;
+    if (items != 3) croak_xs_usage(cv, "dest, ch, count");
+    {
+        DCpointer RETVAL;
+        DCpointer dest;
+        char ch = (char)*SvPV_nolen(ST(1));
+        size_t count = (size_t)SvUV(ST(2));
+
+        if (sv_derived_from(ST(0), "Affix::Pointer")) {
+            IV tmp = SvIV((SV *)SvRV(ST(0)));
+            dest = INT2PTR(DCpointer, tmp);
+        }
+        else
+            croak("dest is not of type Affix::Pointer");
+
+        RETVAL = memset(dest, ch, count);
+        {
+            SV *RETVALSV;
+            RETVALSV = sv_newmortal();
+            sv_setref_pv(RETVALSV, "Affix::Pointer::Unmanaged", RETVAL);
+            ST(0) = RETVALSV;
+        }
+    }
+    XSRETURN(1);
+}
+
+XS_INTERNAL(Affix_memcpy) {
+    dVAR;
+    dXSARGS;
+    if (items != 3) croak_xs_usage(cv, "dest, src, nitems");
+    size_t nitems = (size_t)SvUV(ST(2));
+    DCpointer dest, src, RETVAL;
+
+    if (sv_derived_from(ST(0), "Affix::Pointer")) {
+        IV tmp = SvIV((SV *)SvRV(ST(0)));
+        dest = INT2PTR(DCpointer, tmp);
+    }
+    else if (SvIOK(ST(0))) {
+        IV tmp = SvIV((SV *)(ST(0)));
+        dest = INT2PTR(DCpointer, tmp);
+    }
+    else
+        croak("dest is not of type Affix::Pointer");
+    if (sv_derived_from(ST(1), "Affix::Pointer")) {
+        IV tmp = SvIV((SV *)SvRV(ST(1)));
+        src = INT2PTR(DCpointer, tmp);
+    }
+    else if (SvIOK(ST(1))) {
+        IV tmp = SvIV((SV *)(ST(1)));
+        src = INT2PTR(DCpointer, tmp);
+    }
+    else if (SvPOK(ST(1))) { src = (DCpointer)(U8 *)SvPV_nolen(ST(1)); }
+    else
+        croak("dest is not of type Affix::Pointer");
+    RETVAL = CopyD(src, dest, nitems, char);
+    {
+        SV *RETVALSV;
+        RETVALSV = sv_newmortal();
+        sv_setref_pv(RETVALSV, "Affix::Pointer::Unmanaged", RETVAL);
+        ST(0) = RETVALSV;
+    }
+    XSRETURN(1);
+}
+
+XS_INTERNAL(Affix_memmove) {
+    dVAR;
+    dXSARGS;
+    if (items != 3) croak_xs_usage(cv, "dest, src, nitems");
+
+    size_t nitems = (size_t)SvUV(ST(2));
+    DCpointer dest, src, RETVAL;
+
+    if (sv_derived_from(ST(0), "Affix::Pointer")) {
+        IV tmp = SvIV((SV *)SvRV(ST(0)));
+        dest = INT2PTR(DCpointer, tmp);
+    }
+    else if (SvIOK(ST(0))) {
+        IV tmp = SvIV((SV *)(ST(0)));
+        dest = INT2PTR(DCpointer, tmp);
+    }
+    else
+        croak("dest is not of type Affix::Pointer");
+    if (sv_derived_from(ST(1), "Affix::Pointer")) {
+        IV tmp = SvIV((SV *)SvRV(ST(1)));
+        src = INT2PTR(DCpointer, tmp);
+    }
+    else if (SvIOK(ST(1))) {
+        IV tmp = SvIV((SV *)(ST(1)));
+        src = INT2PTR(DCpointer, tmp);
+    }
+    else if (SvPOK(ST(1))) { src = (DCpointer)(U8 *)SvPV_nolen(ST(1)); }
+    else
+        croak("dest is not of type Affix::Pointer");
+
+    RETVAL = MoveD(src, dest, nitems, char);
+    {
+        SV *RETVALSV;
+        RETVALSV = sv_newmortal();
+        sv_setref_pv(RETVALSV, "Affix::Pointer::Unmanaged", RETVAL);
+        ST(0) = RETVALSV;
+    }
+    XSRETURN(1);
+}
+
+XS_INTERNAL(Affix_strdup) {
+    dVAR;
+    dXSARGS;
+    if (items != 1) croak_xs_usage(cv, "str1");
+
+    DCpointer RETVAL;
+    char *str1 = (char *)SvPV_nolen(ST(0));
+
+    RETVAL = strdup(str1);
+    {
+        SV *RETVALSV;
+        RETVALSV = sv_newmortal();
+        sv_setref_pv(RETVALSV, "Affix::Pointer::Unmanaged", RETVAL);
         ST(0) = RETVALSV;
     }
     XSRETURN(1);
