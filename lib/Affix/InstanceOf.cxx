@@ -30,38 +30,8 @@ XS_INTERNAL(Affix_Type_InstanceOf) {
 
 void boot_Affix_InstanceOf(pTHX_ CV *cv) {
     PERL_UNUSED_VAR(cv);
-if(0){
-    (void)newXSproto_portable("Affix::Type::Pointer::marshal", Affix_Type_Pointer_marshal, __FILE__,
-                              "$$");
-    (void)newXSproto_portable("Affix::Type::Pointer::unmarshal", Affix_Type_Pointer_unmarshal,
-                              __FILE__, "$$");
-    (void)newXSproto_portable("Affix::Type::Pointer::(|", Affix_Type_Pointer_RW, __FILE__, "");
-    /* The magic for overload gets a GV* via gv_fetchmeth as */
-    /* mentioned above, and looks in the SV* slot of it for */
-    /* the "fallback" status. */
-    sv_setsv(get_sv("Affix::Pointer::()", TRUE), &PL_sv_yes);
-    /* Making a sub named "Affix::Pointer::()" allows the package */
-    /* to be findable via fetchmethod(), and causes */
-    /* overload::Overloaded("Affix::Pointer") to return true. */
-    (void)newXS_deffile("Affix::Pointer::()", Affix_Pointer_as_string);
-    (void)newXSproto_portable("Affix::Pointer::plus", Affix_Pointer_plus, __FILE__, "$$$");
-    (void)newXSproto_portable("Affix::Pointer::(+", Affix_Pointer_plus, __FILE__, "$$$");
-    (void)newXSproto_portable("Affix::Pointer::minus", Affix_Pointer_minus, __FILE__, "$$$");
-    (void)newXSproto_portable("Affix::Pointer::(-", Affix_Pointer_minus, __FILE__, "$$$");
-    (void)newXSproto_portable("Affix::Pointer::as_string", Affix_Pointer_as_string, __FILE__,
-                              "$;@");
-    (void)newXSproto_portable("Affix::Pointer::(\"\"", Affix_Pointer_as_string, __FILE__, "$;@");
-    (void)newXSproto_portable("Affix::Pointer::as_double", Affix_Pointer_as_double, __FILE__,
-                              "$;@");
-    (void)newXSproto_portable("Affix::Pointer::(0+", Affix_Pointer_as_double, __FILE__, "$;@");
-    //~ (void)newXSproto_portable("Affix::Pointer::(${}", Affix_Pointer_deref_scalar, __FILE__,
-    //"$;@"); ~ (void)newXSproto_portable("Affix::Pointer::deref_scalar",
-    // Affix_Pointer_deref_scalar, __FILE__, "$;@");
 
-    (void)newXSproto_portable("Affix::Pointer::raw", Affix_Pointer_raw, __FILE__, "$$;$");
-    (void)newXSproto_portable("Affix::Pointer::dump", Affix_Pointer_DumpHex, __FILE__, "$$");
-    (void)newXSproto_portable("Affix::DumpHex", Affix_Pointer_DumpHex, __FILE__, "$$");
-    (void)newXSproto_portable("Affix::Pointer::DESTROY", Affix_Pointer_DESTROY, __FILE__, "$");
-}
+    EXT_TYPE(InstanceOf, AFFIX_ARG_CPOINTER, AFFIX_ARG_CPOINTER);
+
     set_isa("Affix::InstanceOf", "Affix::Pointer");
 }

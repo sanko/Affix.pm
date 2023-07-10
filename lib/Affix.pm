@@ -301,7 +301,8 @@ package Affix 0.12 {    # 'FFI' is my middle name!
                 Char(),  'c',    # Note: signed char == 'a'
                 Bool(),  'b', Double(), 'd', Long(),  'e', Float(), 'f', UChar(),  'h', Int(),  'i',
                 UInt(),  'j', Long(),   'l', ULong(), 'm', Short(), 's', UShort(), 't', Void(), 'v',
-                WChar(), 'w', LongLong(), 'x', ULongLong(), 'y', ord '_', ''   # Calling conventions
+                WChar(), 'w', LongLong(), 'x', ULongLong(), 'y', Str(), 'Pc', ord '_',
+                ''               # Calling conventions
             };
             $types->{$type} // die sprintf 'Unknown type: %s (%d)', chr($type), $type;
         }

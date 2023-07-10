@@ -237,8 +237,70 @@ typedef struct {
 
 char cbHandler(DCCallback *cb, DCArgs *args, DCValue *result, DCpointer userdata);
 
+// Type system
+__attribute__unused__
+XS_INTERNAL(Affix_Type_asint) {
+    dXSARGS;
+    PERL_UNUSED_VAR(items);
+    XSRETURN_IV(XSANY.any_i32);
+}
+
+#define SIMPLE_TYPE(TYPE)                                                                          \
+    XS_INTERNAL(Affix_Type_##TYPE) {                                                               \
+        dXSARGS;                                                                                   \
+        PERL_UNUSED_VAR(items);                                                                    \
+        ST(0) = sv_2mortal(                                                                        \
+            sv_bless(newRV_inc(MUTABLE_SV(newHV())), gv_stashpv("Affix::Type::" #TYPE, GV_ADD)));  \
+        XSRETURN(1);                                                                               \
+    }
+
+#define CC(TYPE)                                                                                   \
+    XS_INTERNAL(Affix_CC_##TYPE) {                                                                 \
+        dXSARGS;                                                                                   \
+        PERL_UNUSED_VAR(items);                                                                    \
+        ST(0) = sv_2mortal(sv_bless(newRV_inc(MUTABLE_SV(newHV())),                                \
+                                    gv_stashpv("Affix::Type::CC::" #TYPE, GV_ADD)));               \
+        XSRETURN(1);                                                                               \
+    }
+
+#define EXT_TYPE(NAME, AFFIX_CHAR, DC_CHAR)                                                        \
+    {                                                                                              \
+        set_isa("Affix::Type::" #NAME, "Affix::Type::Base");                                       \
+        /* Allow type constructors to be overridden */                                             \
+        cv = get_cv("Affix::" #NAME, 0);                                                           \
+        if (cv == NULL) {                                                                          \
+            cv = newXSproto_portable("Affix::" #NAME, Affix_Type_##NAME, __FILE__, "$");           \
+            XSANY.any_i32 = (int)AFFIX_CHAR;                                                       \
+        }                                                                                          \
+        export_function("Affix", #NAME, "types");                                                  \
+        /* Overload magic: */                                                                      \
+        sv_setsv(get_sv("Affix::Type::" #NAME "::()", TRUE), &PL_sv_yes);                          \
+        /* overload as sigchars with fallbacks */                                                  \
+        cv = newXSproto_portable("Affix::Type::" #NAME "::()", Affix_Type_asint, __FILE__, "$");   \
+        XSANY.any_i32 = (int)AFFIX_CHAR;                                                           \
+        cv = newXSproto_portable("Affix::Type::" #NAME "::({", Affix_Type_asint, __FILE__, "$");   \
+        XSANY.any_i32 = (int)AFFIX_CHAR;                                                           \
+        cv = newXSproto_portable("Affix::Type::" #NAME "::(function", Affix_Type_asint, __FILE__,  \
+                                 "$");                                                             \
+        XSANY.any_i32 = (int)AFFIX_CHAR;                                                           \
+        cv =                                                                                       \
+            newXSproto_portable("Affix::Type::" #NAME "::(\"\"", Affix_Type_asint, __FILE__, "$"); \
+        XSANY.any_i32 = (int)AFFIX_CHAR;                                                           \
+        cv = newXSproto_portable("Affix::Type::" #NAME "::(*/}", Affix_Type_asint, __FILE__, "$"); \
+        XSANY.any_i32 = (int)AFFIX_CHAR;                                                           \
+        cv = newXSproto_portable("Affix::Type::" #NAME "::(defined", Affix_Type_asint, __FILE__,   \
+                                 "$");                                                             \
+        XSANY.any_i32 = (int)AFFIX_CHAR;                                                           \
+        cv =                                                                                       \
+            newXSproto_portable("Affix::Type::" #NAME "::(here", Affix_Type_asint, __FILE__, "$"); \
+        XSANY.any_i32 = (int)AFFIX_CHAR;                                                           \
+        cv = newXSproto_portable("Affix::Type::" #NAME "::(/*", Affix_Type_asint, __FILE__, "$");  \
+        XSANY.any_i32 = (int)AFFIX_CHAR;                                                           \
+    }
+
 // XS Boot
 void boot_Affix_Pointer(pTHX_ CV *);
+void boot_Affix_InstanceOf(pTHX_ CV *);
 
 #ifdef __cplusplus
 } /* extern "C" */

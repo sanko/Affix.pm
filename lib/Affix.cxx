@@ -260,22 +260,6 @@ XS_INTERNAL(Affix_unpin) {
     XSRETURN_NO;
 }
 
-// Type system
-XS_INTERNAL(Affix_Type_asint) {
-    dXSARGS;
-    PERL_UNUSED_VAR(items);
-    XSRETURN_IV(XSANY.any_i32);
-}
-
-#define SIMPLE_TYPE(TYPE)                                                                          \
-    XS_INTERNAL(Affix_Type_##TYPE) {                                                               \
-        dXSARGS;                                                                                   \
-        PERL_UNUSED_VAR(items);                                                                    \
-        ST(0) = sv_2mortal(                                                                        \
-            sv_bless(newRV_inc(MUTABLE_SV(newHV())), gv_stashpv("Affix::Type::" #TYPE, GV_ADD)));  \
-        XSRETURN(1);                                                                               \
-    }
-
 SIMPLE_TYPE(Any);
 
 SIMPLE_TYPE(Void);
@@ -297,15 +281,6 @@ SIMPLE_TYPE(Float);
 SIMPLE_TYPE(Double);
 SIMPLE_TYPE(Str);
 SIMPLE_TYPE(WStr);
-
-#define CC(TYPE)                                                                                   \
-    XS_INTERNAL(Affix_CC_##TYPE) {                                                                 \
-        dXSARGS;                                                                                   \
-        PERL_UNUSED_VAR(items);                                                                    \
-        ST(0) = sv_2mortal(sv_bless(newRV_inc(MUTABLE_SV(newHV())),                                \
-                                    gv_stashpv("Affix::Type::CC::" #TYPE, GV_ADD)));               \
-        XSRETURN(1);                                                                               \
-    }
 
 CC(DEFAULT);
 CC(THISCALL);
@@ -718,7 +693,6 @@ XS_INTERNAL(Affix_Lib_list_symbols) {
 
     XSRETURN(1);
 }
-
 
 XS_INTERNAL(Affix_Lib_free) {
     dVAR;
@@ -1672,88 +1646,6 @@ XS_INTERNAL(Affix_Aggregate_NEXTKEY) {
     XSRETURN_UNDEF;
 }
 
-XS_INTERNAL(Affix_sizeof) {
-    dVAR;
-    dXSARGS;
-    if (items != 1) croak_xs_usage(cv, "type");
-    size_t RETVAL;
-    dXSTARG;
-    SV *type = ST(0);
-    RETVAL = _sizeof(aTHX_ type);
-    XSprePUSH;
-    PUSHu((UV)RETVAL);
-    XSRETURN(1);
-}
-
-XS_INTERNAL(Affix_offsetof) {
-    dVAR;
-    dXSARGS;
-    if (items != 2) croak_xs_usage(cv, "type, field");
-    size_t RETVAL = 0;
-    dXSTARG;
-    SV *type = ST(0);
-    char *field = (char *)SvPV_nolen(ST(1));
-    {
-        if (sv_isobject(type) && (sv_derived_from(type, "Affix::Type::Struct"))) {
-            HV *href = MUTABLE_HV(SvRV(type));
-            SV **fields_ref = hv_fetch(href, "fields", 6, 0);
-            AV *fields = MUTABLE_AV(SvRV(*fields_ref));
-            size_t field_count = av_count(fields);
-            for (size_t i = 0; i < field_count; ++i) {
-                AV *av_field = MUTABLE_AV(SvRV(*av_fetch(fields, i, 0)));
-                SV *sv_field = *av_fetch(av_field, 0, 0);
-                char *this_field = SvPV_nolen(sv_field);
-                if (!strcmp(this_field, field)) {
-                    RETVAL = _offsetof(aTHX_ * av_fetch(av_field, 1, 0));
-                    break;
-                }
-                if (i == field_count)
-                    croak("Given structure does not contain field named '%s'", field);
-            }
-        }
-        else
-            croak("Given type is not a structure");
-    }
-    XSprePUSH;
-    PUSHu((UV)RETVAL);
-    XSRETURN(1);
-}
-
-#define EXT_TYPE(NAME, AFFIX_CHAR, DC_CHAR)                                                        \
-    {                                                                                              \
-        set_isa("Affix::Type::" #NAME, "Affix::Type::Base");                                       \
-        /* Allow type constructors to be overridden */                                             \
-        cv = get_cv("Affix::" #NAME, 0);                                                           \
-        if (cv == NULL) {                                                                          \
-            cv = newXSproto_portable("Affix::" #NAME, Affix_Type_##NAME, __FILE__, "$");           \
-            XSANY.any_i32 = (int)AFFIX_CHAR;                                                       \
-        }                                                                                          \
-        export_function("Affix", #NAME, "types");                                                  \
-        /* Overload magic: */                                                                      \
-        sv_setsv(get_sv("Affix::Type::" #NAME "::()", TRUE), &PL_sv_yes);                          \
-        /* overload as sigchars with fallbacks */                                                  \
-        cv = newXSproto_portable("Affix::Type::" #NAME "::()", Affix_Type_asint, __FILE__, "$");   \
-        XSANY.any_i32 = (int)AFFIX_CHAR;                                                           \
-        cv = newXSproto_portable("Affix::Type::" #NAME "::({", Affix_Type_asint, __FILE__, "$");   \
-        XSANY.any_i32 = (int)AFFIX_CHAR;                                                           \
-        cv = newXSproto_portable("Affix::Type::" #NAME "::(function", Affix_Type_asint, __FILE__,  \
-                                 "$");                                                             \
-        XSANY.any_i32 = (int)AFFIX_CHAR;                                                           \
-        cv =                                                                                       \
-            newXSproto_portable("Affix::Type::" #NAME "::(\"\"", Affix_Type_asint, __FILE__, "$"); \
-        XSANY.any_i32 = (int)AFFIX_CHAR;                                                           \
-        cv = newXSproto_portable("Affix::Type::" #NAME "::(*/}", Affix_Type_asint, __FILE__, "$"); \
-        XSANY.any_i32 = (int)AFFIX_CHAR;                                                           \
-        cv = newXSproto_portable("Affix::Type::" #NAME "::(defined", Affix_Type_asint, __FILE__,   \
-                                 "$");                                                             \
-        XSANY.any_i32 = (int)AFFIX_CHAR;                                                           \
-        cv =                                                                                       \
-            newXSproto_portable("Affix::Type::" #NAME "::(here", Affix_Type_asint, __FILE__, "$"); \
-        XSANY.any_i32 = (int)AFFIX_CHAR;                                                           \
-        cv = newXSproto_portable("Affix::Type::" #NAME "::(/*", Affix_Type_asint, __FILE__, "$");  \
-        XSANY.any_i32 = (int)AFFIX_CHAR;                                                           \
-    }
-
 #define TYPE(NAME, AFFIX_CHAR, DC_CHAR)                                                            \
     {                                                                                              \
         set_isa("Affix::Type::" #NAME, "Affix::Type::Base");                                       \
@@ -1828,7 +1720,6 @@ XS_EXTERNAL(boot_Affix) {
     MY_CXT.cvm = dcNewCallVM(vmsize == NULL ? 8192 : SvIV(vmsize));
 
     TYPE(Any, AFFIX_ARG_SV, DC_SIGCHAR_SV);
-
     TYPE(Void, AFFIX_ARG_VOID, DC_SIGCHAR_VOID);
     TYPE(Bool, AFFIX_ARG_BOOL, DC_SIGCHAR_BOOL);
     TYPE(Char, AFFIX_ARG_CHAR, DC_SIGCHAR_CHAR);
@@ -1882,8 +1773,6 @@ XS_EXTERNAL(boot_Affix) {
     EXT_TYPE(Struct, AFFIX_ARG_CSTRUCT, AFFIX_ARG_CSTRUCT);
     EXT_TYPE(ArrayRef, AFFIX_ARG_CARRAY, AFFIX_ARG_CARRAY);
     EXT_TYPE(CodeRef, AFFIX_ARG_CALLBACK, AFFIX_ARG_CALLBACK);
-    EXT_TYPE(Pointer, AFFIX_ARG_CPOINTER, AFFIX_ARG_CPOINTER);
-    EXT_TYPE(InstanceOf, AFFIX_ARG_CPOINTER, AFFIX_ARG_CPOINTER);
 
     /*
     #define AFFIX_ARG_VMARRAY 30
@@ -1952,31 +1841,6 @@ XS_EXTERNAL(boot_Affix) {
                     0
 #endif
     );
-
-    (void)newXSproto_portable("Affix::sizeof", Affix_sizeof, __FILE__, "$");
-    export_function("Affix", "sizeof", "default");
-    (void)newXSproto_portable("Affix::offsetof", Affix_offsetof, __FILE__, "$$");
-    export_function("Affix", "offsetof", "default");
-    (void)newXSproto_portable("Affix::malloc", Affix_malloc, __FILE__, "$");
-    export_function("Affix", "malloc", "memory");
-    (void)newXSproto_portable("Affix::calloc", Affix_calloc, __FILE__, "$$");
-    export_function("Affix", "calloc", "memory");
-    (void)newXSproto_portable("Affix::realloc", Affix_realloc, __FILE__, "$$");
-    export_function("Affix", "realloc", "memory");
-    (void)newXSproto_portable("Affix::free", Affix_free, __FILE__, "$");
-    export_function("Affix", "free", "memory");
-    (void)newXSproto_portable("Affix::memchr", Affix_memchr, __FILE__, "$$$");
-    export_function("Affix", "memchr", "memory");
-    (void)newXSproto_portable("Affix::memcmp", Affix_memcmp, __FILE__, "$$$");
-    export_function("Affix", "memcmp", "memory");
-    (void)newXSproto_portable("Affix::memset", Affix_memset, __FILE__, "$$$");
-    export_function("Affix", "memset", "memory");
-    (void)newXSproto_portable("Affix::memcpy", Affix_memcpy, __FILE__, "$$$");
-    export_function("Affix", "memcpy", "memory");
-    (void)newXSproto_portable("Affix::memmove", Affix_memmove, __FILE__, "$$$");
-    export_function("Affix", "memmove", "memory");
-    (void)newXSproto_portable("Affix::strdup", Affix_strdup, __FILE__, "$");
-    export_function("Affix", "strdup", "memory");
 
     (void)newXSproto_portable("Affix::AggregateBase::FETCH", Affix_Aggregate_FETCH, __FILE__, "$$");
     (void)newXSproto_portable("Affix::AggregateBase::EXISTS", Affix_Aggregate_EXISTS, __FILE__,

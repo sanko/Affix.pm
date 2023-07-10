@@ -520,8 +520,84 @@ XS_INTERNAL(Affix_Pointer_DESTROY) {
     XSRETURN_EMPTY;
 }
 
+XS_INTERNAL(Affix_sizeof) {
+    dVAR;
+    dXSARGS;
+    if (items != 1) croak_xs_usage(cv, "type");
+    size_t RETVAL;
+    dXSTARG;
+    SV *type = ST(0);
+    RETVAL = _sizeof(aTHX_ type);
+    XSprePUSH;
+    PUSHu((UV)RETVAL);
+    XSRETURN(1);
+}
+
+XS_INTERNAL(Affix_offsetof) {
+    dVAR;
+    dXSARGS;
+    if (items != 2) croak_xs_usage(cv, "type, field");
+    size_t RETVAL = 0;
+    dXSTARG;
+    SV *type = ST(0);
+    char *field = (char *)SvPV_nolen(ST(1));
+    {
+        if (sv_isobject(type) && (sv_derived_from(type, "Affix::Type::Struct"))) {
+            HV *href = MUTABLE_HV(SvRV(type));
+            SV **fields_ref = hv_fetch(href, "fields", 6, 0);
+            AV *fields = MUTABLE_AV(SvRV(*fields_ref));
+            size_t field_count = av_count(fields);
+            for (size_t i = 0; i < field_count; ++i) {
+                AV *av_field = MUTABLE_AV(SvRV(*av_fetch(fields, i, 0)));
+                SV *sv_field = *av_fetch(av_field, 0, 0);
+                char *this_field = SvPV_nolen(sv_field);
+                if (!strcmp(this_field, field)) {
+                    RETVAL = _offsetof(aTHX_ * av_fetch(av_field, 1, 0));
+                    break;
+                }
+                if (i == field_count)
+                    croak("Given structure does not contain field named '%s'", field);
+            }
+        }
+        else
+            croak("Given type is not a structure");
+    }
+    XSprePUSH;
+    PUSHu((UV)RETVAL);
+    XSRETURN(1);
+}
+
 void boot_Affix_Pointer(pTHX_ CV *cv) {
     PERL_UNUSED_VAR(cv);
+    {
+        (void)newXSproto_portable("Affix::sizeof", Affix_sizeof, __FILE__, "$");
+        export_function("Affix", "sizeof", "default");
+        (void)newXSproto_portable("Affix::offsetof", Affix_offsetof, __FILE__, "$$");
+        export_function("Affix", "offsetof", "default");
+        (void)newXSproto_portable("Affix::malloc", Affix_malloc, __FILE__, "$");
+        export_function("Affix", "malloc", "memory");
+        (void)newXSproto_portable("Affix::calloc", Affix_calloc, __FILE__, "$$");
+        export_function("Affix", "calloc", "memory");
+        (void)newXSproto_portable("Affix::realloc", Affix_realloc, __FILE__, "$$");
+        export_function("Affix", "realloc", "memory");
+        (void)newXSproto_portable("Affix::free", Affix_free, __FILE__, "$");
+        export_function("Affix", "free", "memory");
+        (void)newXSproto_portable("Affix::memchr", Affix_memchr, __FILE__, "$$$");
+        export_function("Affix", "memchr", "memory");
+        (void)newXSproto_portable("Affix::memcmp", Affix_memcmp, __FILE__, "$$$");
+        export_function("Affix", "memcmp", "memory");
+        (void)newXSproto_portable("Affix::memset", Affix_memset, __FILE__, "$$$");
+        export_function("Affix", "memset", "memory");
+        (void)newXSproto_portable("Affix::memcpy", Affix_memcpy, __FILE__, "$$$");
+        export_function("Affix", "memcpy", "memory");
+        (void)newXSproto_portable("Affix::memmove", Affix_memmove, __FILE__, "$$$");
+        export_function("Affix", "memmove", "memory");
+        (void)newXSproto_portable("Affix::strdup", Affix_strdup, __FILE__, "$");
+        export_function("Affix", "strdup", "memory");
+    }
+
+    EXT_TYPE(Pointer, AFFIX_ARG_CPOINTER, AFFIX_ARG_CPOINTER);
+
     (void)newXSproto_portable("Affix::Type::Pointer::marshal", Affix_Type_Pointer_marshal, __FILE__,
                               "$$");
     (void)newXSproto_portable("Affix::Type::Pointer::unmarshal", Affix_Type_Pointer_unmarshal,
