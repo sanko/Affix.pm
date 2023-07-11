@@ -14,17 +14,19 @@ XS_INTERNAL(Affix_Type_InstanceOf) {
     case 1: {
         SV **type_ref = av_fetch(fields, 0, 0);
         SV *type = *type_ref;
-        if (!(sv_isobject(type) && sv_derived_from(type, "Affix::Type::Base")))
-            croak("Pointer[...] expects a subclass of Affix::Type::Base");
+        if (!(SvPOK(type))) croak("InstanceOf[...] expects a class");
         //~ sv_dump(type);
-        hv_stores(RETVAL_HV, "type", SvREFCNT_inc(type));
+        set_isa(SvPVx_nolen(type), "Affix::InstanceOf");
+        hv_stores(RETVAL_HV, "type",
+                  sv_bless(newRV_noinc(newSV(0)), gv_stashpv("Affix::Type::Void", GV_ADD)));
+        hv_stores(RETVAL_HV, "class", SvREFCNT_inc(type));
     } break;
     default:
-        croak("Pointer[...] expects a single type. e.g. Pointer[Int]");
+        croak("InstanceOf[...] expects a single class. e.g. InstanceOf['MyClass']");
     };
     ST(0) = sv_2mortal(
         sv_bless(newRV_inc(MUTABLE_SV(RETVAL_HV)),
-                 gv_stashpv(rw ? "Affix::Type::RWPointer" : "Affix::Type::Pointer", GV_ADD)));
+                 gv_stashpv(rw ? "Affix::Type::RWInstanceOf" : "Affix::Type::InstanceOf", GV_ADD)));
     XSRETURN(1);
 }
 

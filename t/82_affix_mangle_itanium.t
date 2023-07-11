@@ -31,7 +31,7 @@ subtest 'setup(int i)' => sub {
         my $ptr = ( Pointer [ MyClass() ] )->marshal( { myNum => 3 } );
         is wrap( $lib, 'MyClass::speed' => [ CC_THISCALL, Pointer [Void] ] => Int )->($ptr), 3,
             'this->speed() == 3';
-        wrap( $lib,, 'MyClass::speed' => [ CC_THISCALL, Pointer [Void], Int ] => Void )
+        wrap( $lib, 'MyClass::speed' => [ CC_THISCALL, Pointer [Void], Int ] => Void )
             ->( $ptr, 400 );
         diag 'this->speed(400)';
         is wrap( $lib, 'MyClass::speed' => [ CC_THISCALL, Pointer [Void] ] => Int )->($ptr), 400,

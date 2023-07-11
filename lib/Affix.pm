@@ -294,6 +294,10 @@ package Affix 0.12 {    # 'FFI' is my middle name!
             if ( $type->isa('Affix::Type::Pointer') && $type->{type}->isa('Affix::Type::Void') ) {
                 return $vp++ ? 'S_' : 'Pv';
             }
+
+            #~ warn $type;
+            #~ warn ref $type;
+            return 'Pv' if $type->isa('Affix::Type::InstanceOf');
             return 'P' . _mangle_type( $func, $type->{type} ) if $type->isa('Affix::Type::Pointer');
             return _mangle_name( $func, $type->{typedef} )    if $type->isa('Affix::Type::Struct');
             CORE::state $types;

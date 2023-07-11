@@ -20,7 +20,8 @@ subtest types => sub {
         #
         WStr, Pointer [Int],
         CodeRef [ [ Pointer [Void], Double, Str, ArrayRef [ Str, 10 ], Pointer [WStr] ] => Str ],
-        Struct [ i => Str, j => Long ], Union [ u => Int, x => Double ], ArrayRef [ Int, 10 ];
+        Struct [ i => Str, j => Long ], Union [ u => Int, x => Double ], ArrayRef [ Int, 10 ],
+        InstanceOf ['Test::Class'];
 };
 subtest pointers => sub {
     subtest 'Pointer[Any]' => sub {

@@ -101,9 +101,9 @@ size_t _sizeof(pTHX_ SV *type) {
     case AFFIX_ARG_CALLBACK: // automatically wrapped in a DCCallback pointer
     case AFFIX_ARG_CPOINTER:
     case AFFIX_ARG_ASCIISTR:
+    case AFFIX_ARG_UTF8STR:
     case AFFIX_ARG_UTF16STR:
     //~ case AFFIX_ARG_ANY:
-    case AFFIX_ARG_CPPSTRUCT:
     case AFFIX_ARG_SV:
         return INTPTR_T_SIZE;
     case AFFIX_ARG_WCHAR:
@@ -149,9 +149,9 @@ size_t _alignof(pTHX_ SV *type) {
     case AFFIX_ARG_CALLBACK: // automatically wrapped in a DCCallback pointer
     case AFFIX_ARG_CPOINTER:
     case AFFIX_ARG_ASCIISTR:
+    case AFFIX_ARG_UTF8STR:
     case AFFIX_ARG_UTF16STR:
     //~ case AFFIX_ARG_ANY:
-    case AFFIX_ARG_CPPSTRUCT:
     case AFFIX_ARG_SV:
         return INTPTR_T_ALIGN;
     case AFFIX_ARG_WCHAR:

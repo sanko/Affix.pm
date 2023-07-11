@@ -451,6 +451,48 @@ XS_INTERNAL(Affix_Pointer_as_double) {
     XSRETURN(1);
 }
 
+XS_INTERNAL(Affix_Pointer_as_int) {
+    dVAR;
+    dXSARGS;
+    if (items < 1) croak_xs_usage(cv, "ptr, ...");
+
+    int RETVAL;
+    dXSTARG;
+    DCpointer ptr;
+
+    if (sv_derived_from(ST(0), "Affix::Pointer")) {
+        IV tmp = SvIV((SV *)SvRV(ST(0)));
+        ptr = INT2PTR(DCpointer, tmp);
+    }
+    else
+        croak("ptr is not of type Affix::Pointer");
+    RETVAL = *(int *)ptr;
+    sv_setiv_mg(TARG, RETVAL);
+    XSprePUSH;
+    PUSHTARG;
+
+    XSRETURN(1);
+}
+
+XS_INTERNAL(Affix_Pointer_deref_scalar) {
+    dVAR;
+    dXSARGS;
+    if (items < 1) croak_xs_usage(cv, "ptr, ...");
+
+    int RETVAL;
+    DCpointer ptr;
+
+    if (sv_derived_from(ST(0), "Affix::Pointer")) {
+        IV tmp = SvIV((SV *)SvRV(ST(0)));
+        ptr = INT2PTR(DCpointer, tmp);
+    }
+    else
+        croak("ptr is not of type Affix::Pointer");
+    RETVAL = *(int *)ptr;
+    ST(0) = newRV(newSViv(RETVAL));
+    XSRETURN(1);
+}
+
 XS_INTERNAL(Affix_Pointer_raw) {
     dVAR;
     dXSARGS;
@@ -620,10 +662,11 @@ void boot_Affix_Pointer(pTHX_ CV *cv) {
     (void)newXSproto_portable("Affix::Pointer::(\"\"", Affix_Pointer_as_string, __FILE__, "$;@");
     (void)newXSproto_portable("Affix::Pointer::as_double", Affix_Pointer_as_double, __FILE__,
                               "$;@");
-    (void)newXSproto_portable("Affix::Pointer::(0+", Affix_Pointer_as_double, __FILE__, "$;@");
-    //~ (void)newXSproto_portable("Affix::Pointer::(${}", Affix_Pointer_deref_scalar, __FILE__,
-    //"$;@"); ~ (void)newXSproto_portable("Affix::Pointer::deref_scalar",
-    // Affix_Pointer_deref_scalar, __FILE__, "$;@");
+    (void)newXSproto_portable("Affix::Pointer::as_int", Affix_Pointer_as_int, __FILE__, "$;@");
+    (void)newXSproto_portable("Affix::Pointer::(0+", Affix_Pointer_as_int, __FILE__, "$;@");
+    (void)newXSproto_portable("Affix::Pointer::(${}", Affix_Pointer_deref_scalar, __FILE__, "$;@");
+    (void)newXSproto_portable("Affix::Pointer::deref_scalar", Affix_Pointer_deref_scalar, __FILE__,
+                              "$;@");
 
     (void)newXSproto_portable("Affix::Pointer::raw", Affix_Pointer_raw, __FILE__, "$$;$");
     (void)newXSproto_portable("Affix::Pointer::dump", Affix_Pointer_DumpHex, __FILE__, "$$");

@@ -87,29 +87,30 @@ extern "C" {
 #endif
 
 /* Native argument types */
-#define AFFIX_ARG_SV 100
+
 #define AFFIX_ARG_VOID 0
-#define AFFIX_ARG_BOOL 1
-#define AFFIX_ARG_CHAR 2
-#define AFFIX_ARG_SHORT 4
-#define AFFIX_ARG_INT 6
-#define AFFIX_ARG_LONG 8
-#define AFFIX_ARG_LONGLONG 10
-#define AFFIX_ARG_FLOAT 12
-#define AFFIX_ARG_DOUBLE 14
-#define AFFIX_ARG_ASCIISTR 16
-#define AFFIX_ARG_UTF8STR 18
-#define AFFIX_ARG_UTF16STR 20
-#define AFFIX_ARG_CSTRUCT 22
-#define AFFIX_ARG_CARRAY 24
-#define AFFIX_ARG_CALLBACK 26
-#define AFFIX_ARG_CPOINTER 28
-#define AFFIX_ARG_VMARRAY 30
-#define AFFIX_ARG_UCHAR 32
-#define AFFIX_ARG_USHORT 34
-#define AFFIX_ARG_UINT 36
-#define AFFIX_ARG_ULONG 38
-#define AFFIX_ARG_ULONGLONG 40
+#define AFFIX_ARG_BOOL 2
+#define AFFIX_ARG_CHAR 4
+
+#define AFFIX_ARG_UCHAR 6
+#define AFFIX_ARG_SHORT 8
+#define AFFIX_ARG_USHORT 10
+#define AFFIX_ARG_INT 12
+#define AFFIX_ARG_UINT 14
+#define AFFIX_ARG_LONG 16
+#define AFFIX_ARG_ULONG 18
+#define AFFIX_ARG_LONGLONG 20
+#define AFFIX_ARG_ULONGLONG 22
+#define AFFIX_ARG_FLOAT 24
+#define AFFIX_ARG_DOUBLE 26
+#define AFFIX_ARG_ASCIISTR 28
+#define AFFIX_ARG_UTF8STR 30
+#define AFFIX_ARG_UTF16STR 32
+#define AFFIX_ARG_CSTRUCT 34
+#define AFFIX_ARG_CARRAY 36
+#define AFFIX_ARG_CALLBACK 38
+#define AFFIX_ARG_CPOINTER 40
+#define AFFIX_ARG_CUNION 42
 #if Size_t_size == INTSIZE
 #define AFFIX_ARG_SSIZE_T AFFIX_ARG_INT
 #define AFFIX_ARG_SIZE_T AFFIX_ARG_UINT
@@ -123,10 +124,10 @@ extern "C" {
 #define AFFIX_ARG_SSIZE_T AFFIX_ARG_LONGLONG
 #define AFFIX_ARG_SIZE_T AFFIX_ARG_ULONGLONG
 #endif
-#define AFFIX_ARG_CUNION 42
-#define AFFIX_ARG_CPPSTRUCT 44
-#define AFFIX_ARG_WCHAR 46
-#define AFFIX_ARG_TYPE_MASK 62
+#define AFFIX_ARG_WCHAR 44
+#define AFFIX_ARG_SV 46
+
+#define AFFIX_ARG_TYPE_MASK 48
 
 /* Flag for whether we should free a string after passing it or not. */
 #define AFFIX_ARG_NO_FREE_STR 0
@@ -238,8 +239,7 @@ typedef struct {
 char cbHandler(DCCallback *cb, DCArgs *args, DCValue *result, DCpointer userdata);
 
 // Type system
-__attribute__unused__
-XS_INTERNAL(Affix_Type_asint) {
+__attribute__unused__ XS_INTERNAL(Affix_Type_asint) {
     dXSARGS;
     PERL_UNUSED_VAR(items);
     XSRETURN_IV(XSANY.any_i32);
