@@ -14,8 +14,6 @@ extern "C" {
 #define NO_XSLOCKS /* for exceptions */
 #include <XSUB.h>
 
-//~ #include "ppport.h"
-
 #ifndef sv_setbool_mg
 #define sv_setbool_mg(sv, b) sv_setsv_mg(sv, boolSV(b)) /* new in perl 5.36 */
 #endif
@@ -49,6 +47,15 @@ extern "C" {
 #endif /* !defined(newXS_flags) */
 
 #define newXS_deffile(a, b) Perl_newXS_deffile(aTHX_ a, b)
+
+// Only in 5.38.0+
+#ifndef PERL_ARGS_ASSERT_NEWSV_FALSE
+#define newSV_false() newSVsv(&PL_sv_no)
+#endif
+
+#ifndef PERL_ARGS_ASSERT_NEWSV_TRUE
+#define newSV_true() newSVsv(&PL_sv_yes)
+#endif
 
 #define dcAllocMem safemalloc
 #define dcFreeMem safefree
@@ -220,6 +227,20 @@ void _DD(pTHX_ SV *scalar, const char *file, int line);
 const char *type_as_str(int type);
 int type_as_dc(int type);
 
+// Affix::affix(...) and Affix::wrap(...) System
+struct Affix {
+    int16_t call_conv;
+    size_t num_args;
+    int16_t *arg_types;
+    int16_t ret_type;
+    char *lib_name;
+    DLLib *lib_handle;
+    void *entry_point;
+    AV *arg_info;
+    SV *ret_info;
+    SV *resolve_lib_name;
+};
+
 // Callback system
 struct CallbackWrapper {
     DCCallback *cb;
@@ -231,7 +252,7 @@ typedef struct {
     char ret;
     char *perl_sig;
     SV *cv;
-    AV *args;
+    AV *arg_info;
     SV *retval;
     dTHXfield(perl)
 } Callback;

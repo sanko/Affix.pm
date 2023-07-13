@@ -259,7 +259,6 @@ XS_INTERNAL(Affix_unpin) {
 }
 
 SIMPLE_TYPE(Any);
-
 SIMPLE_TYPE(Void);
 SIMPLE_TYPE(Bool);
 SIMPLE_TYPE(Char);
@@ -739,20 +738,6 @@ XS_INTERNAL(Affix_Lib_path) {
     XSRETURN(1);
 }
 
-/* Affix::affix(...) and Affix::wrap(...) System */
-struct Affix {
-    int16_t call_conv;
-    size_t num_args;
-    int16_t *arg_types;
-    int16_t ret_type;
-    char *lib_name;
-    DLLib *lib_handle;
-    void *entry_point;
-    AV *arg_info;
-    SV *ret_info;
-    SV *resolve_lib_name;
-};
-
 extern "C" void Affix_trigger(pTHX_ CV *cv) {
     dXSARGS;
     dMY_CXT;
@@ -990,6 +975,13 @@ extern "C" void Affix_trigger(pTHX_ CV *cv) {
             else
                 dcArgPointer(MY_CXT.cvm, NULL);
         } break;
+        case AFFIX_ARG_SV: {
+            SV *type = *av_fetch(ptr->arg_info, info_pos, 0);
+            DCpointer blah;
+            Newxz(blah, 1, DCpointer);
+            sv2ptr(aTHX_ type, ST(arg_pos), blah, false);
+            dcArgPointer(MY_CXT.cvm, blah);
+        } break;
         case AFFIX_ARG_CPOINTER: {
 #ifdef DEBUG
             warn("AFFIX_ARG_CPOINTER [%d, %ld/%s]", arg_pos,
@@ -1005,14 +997,15 @@ extern "C" void Affix_trigger(pTHX_ CV *cv) {
             else {
                 SV *type_class = *av_fetch(ptr->arg_info, info_pos, 0);
                 SV *type = *hv_fetch(MUTABLE_HV(SvRV(type_class)), "type", 4, 0);
-                if (UNLIKELY(sv_derived_from(type_class, "Affix::Type::InstanceOf"))) {
+                if (
+                    UNLIKELY(sv_derived_from(type_class, "Affix::Type::InstanceOf"))) {
                     SV *cls = *hv_fetch(MUTABLE_HV(SvRV(type_class)), "class", 5, 0);
-                    if (!(sv_derived_from(ST(arg_pos), SvPV_nolen(cls)))) {
+                    if (LIKELY(sv_isobject(ST(arg_pos))) && !(sv_derived_from(ST(arg_pos), SvPV_nolen(cls)))) {
                         croak("Expected variable of type %s", SvPV_nolen(cls));
                     }
                 }
                 if (LIKELY(sv_isobject(ST(arg_pos)) &&
-                           sv_derived_from(ST(arg_pos), "Affix::Pointer"))) {
+                                sv_derived_from(ST(arg_pos), "Affix::Pointer"))) {
                     IV tmp = SvIV(SvRV(ST(arg_pos)));
                     dcArgPointer(MY_CXT.cvm, INT2PTR(DCpointer, tmp));
                 }
@@ -1107,10 +1100,8 @@ extern "C" void Affix_trigger(pTHX_ CV *cv) {
         } break;
         case AFFIX_ARG_CUNION:
         default:
-            croak("Unhandled arg type %d at %s line %d",
-                  (arg_types[info_pos] & AFFIX_ARG_TYPE_MASK),
-
-                  __FILE__, __LINE__);
+            croak("Unhandled arg type %s (%d) at %s line %d", type_as_str(arg_types[info_pos]),
+                  (arg_types[info_pos]), __FILE__, __LINE__);
             break;
         }
     }
@@ -1859,7 +1850,6 @@ XS_EXTERNAL(boot_Affix) {
     export_function("Affix", "wrap", "all");
     (void)newXSproto_portable("Affix::DESTROY", Affix_DESTROY, __FILE__, "$");
 
-    //~ (void)newXSproto_portable("Affix::typedef", XS_Affix_typedef, __FILE__, "$$");
     //~ (void)newXSproto_portable("Affix::CLONE", XS_Affix_CLONE, __FILE__, ";@");
 
     // Utilities

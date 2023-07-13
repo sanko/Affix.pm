@@ -1,45 +1,31 @@
 #include "../Affix.h"
 
-//~ XS_INTERNAL(Affix_Type_RWPointer) {
-//~ croak("No.");
-//~ }
-
 XS_INTERNAL(Affix_Type_Pointer) {
     dXSARGS;
     PERL_UNUSED_VAR(items);
     HV *RETVAL_HV = newHV();
     AV *fields = MUTABLE_AV(SvRV(ST(0)));
-    bool rw = false;
+    SV *rw_ref = NULL;
     switch (av_count(fields)) {
     case 2: {
-        SV **rw_ref = av_fetch(fields, 1, 0);
-        rw = SvTRUE(*rw_ref);
+        rw_ref = *av_fetch(fields, 1, 0);
     } // fall through
     case 1: {
         SV **type_ref = av_fetch(fields, 0, 0);
         SV *type = *type_ref;
         if (!(sv_isobject(type) && sv_derived_from(type, "Affix::Type::Base")))
             croak("Pointer[...] expects a subclass of Affix::Type::Base");
-        //~ sv_dump(type);
         hv_stores(RETVAL_HV, "type", SvREFCNT_inc(type));
+        hv_stores(RETVAL_HV, "class", SvREFCNT_inc(newSVpv("Affix::Pointer::Unmanaged", 0)));
+        hv_stores(RETVAL_HV, "rw", SvREFCNT_inc(rw_ref == NULL ? newSV_false() : rw_ref));
     } break;
     default:
         croak("Pointer[...] expects a single type. e.g. Pointer[Int]");
     };
+    PING;
     ST(0) = sv_2mortal(
-        sv_bless(newRV_inc(MUTABLE_SV(RETVAL_HV)),
-                 gv_stashpv(rw ? "Affix::Type::RWPointer" : "Affix::Type::Pointer", GV_ADD)));
-    XSRETURN(1);
-}
-
-XS_INTERNAL(Affix_Type_Pointer_RW) {
-    dXSARGS;
-    PERL_UNUSED_VAR(items);
-    if (!(sv_isobject(ST(0)) && sv_derived_from(ST(0), "Affix::Type::Pointer")))
-        croak("... | RW expects a subclass of Affix::Type::Pointer to the left");
-    ST(0) = sv_bless(ST(0), gv_stashpv("Affix::Type::RWPointer", GV_ADD));
-    SvSETMAGIC(ST(0));
-
+        sv_bless(newRV_inc(MUTABLE_SV(RETVAL_HV)), gv_stashpv("Affix::Type::Pointer", GV_ADD)));
+    PING;
     XSRETURN(1);
 }
 
@@ -547,8 +533,7 @@ XS_INTERNAL(Affix_Pointer_DESTROY) {
     dXSARGS;
     if (items != 1) croak_xs_usage(cv, "ptr");
     DCpointer ptr;
-    if (UNLIKELY(sv_derived_from(ST(0), "Affix::Pointer::Unmanaged")))
-        ;
+    if (UNLIKELY(sv_derived_from(ST(0), "Affix::Pointer::Unmanaged"))) { ; }
     else if (LIKELY(sv_derived_from(ST(0), "Affix::Pointer"))) {
         IV tmp = SvIV((SV *)SvRV(ST(0)));
         ptr = INT2PTR(DCpointer, tmp);
@@ -644,7 +629,7 @@ void boot_Affix_Pointer(pTHX_ CV *cv) {
                               "$$");
     (void)newXSproto_portable("Affix::Type::Pointer::unmarshal", Affix_Type_Pointer_unmarshal,
                               __FILE__, "$$");
-    (void)newXSproto_portable("Affix::Type::Pointer::(|", Affix_Type_Pointer_RW, __FILE__, "");
+    (void)newXSproto_portable("Affix::Type::Pointer::(|", Affix_Type_Pointer, __FILE__, "");
     /* The magic for overload gets a GV* via gv_fetchmeth as */
     /* mentioned above, and looks in the SV* slot of it for */
     /* the "fallback" status. */

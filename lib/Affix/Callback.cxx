@@ -87,26 +87,15 @@ char cbHandler(DCCallback *cb, DCArgs *args, DCValue *result, DCpointer userdata
             break;
         case DC_SIGCHAR_POINTER: {
             DCpointer ptr = dcbArgPointer(args);
-            SV *__type = *av_fetch(cbx->args, i, 0);
-            int _type = SvIV(__type);
-            //~ warn("Pointer to (%d/%s)...", _type, type_as_str(_type));
-            //~ sv_dump(__type);
-            switch (_type) { // true type
-            case AFFIX_ARG_WCHAR: {
-                //~ SV *wchar2utf(pTHX_ wchar_t *str, int len);
-                mPUSHs(ptr2sv(aTHX_ ptr, newSViv(_type)));
-            } break;
-            case AFFIX_ARG_VOID: {
-                SV *s = ptr2sv(aTHX_ ptr, __type);
-                mPUSHs(s);
-            } break;
+            SV *type = *av_fetch(cbx->arg_info, i, 0);
+            switch (SvIV(type)) {
             case AFFIX_ARG_CALLBACK: {
                 Callback *cb = (Callback *)dcbGetUserData((DCCallback *)ptr);
                 mPUSHs(cb->cv);
             } break;
-            default:
-                mPUSHs(sv_setref_pv(newSV(1), "Affix::Pointer::Unmanaged", ptr));
-                break;
+            default: {
+                mPUSHs(ptr2sv(aTHX_ ptr, type));
+            } break;
             }
         } break;
         case DC_SIGCHAR_STRING: {
@@ -115,7 +104,7 @@ char cbHandler(DCCallback *cb, DCArgs *args, DCValue *result, DCpointer userdata
         } break;
         case AFFIX_ARG_UTF16STR: {
             DCpointer ptr = dcbArgPointer(args);
-            SV **type_sv = av_fetch(cbx->args, i, 0);
+            SV **type_sv = av_fetch(cbx->arg_info, i, 0);
             PUSHs(ptr2sv(aTHX_ ptr, *type_sv));
             /*
             typedef struct {

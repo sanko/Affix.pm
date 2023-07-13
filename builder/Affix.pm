@@ -365,7 +365,8 @@ sub process_cxx {
                     ( $opt{config}->get('osname') =~ /bsd/ ? ''     : $CFLAGS ) .
                     ( $DEBUG ? ' -ggdb3 -g -Wall -Wextra -pedantic' : '' )
             )
-            );
+            ) :
+            $obj;
 
         #my $op_lib_file = catfile(
         #    $paths->install_destination('arch'),
@@ -373,20 +374,25 @@ sub process_cxx {
         #'Pad' . $opt{config}->get('dlext')
         #);
     }
-    warn join ', ', @dirs;
-    warn join ', ', @parts;
-    warn $lib_file;
-    return $builder->link(
-        extra_linker_flags => (
-            ( $opt{config}->get('osname') =~ /bsd/ ? '' : $LDFLAGS ) .
-                ( join ' ', map { ' -L' . $_ } @dirs ) . ' -L' .
-                $pre->child( $opt{meta}->name, 'lib' )->stringify .
-                ' -ldyncall_s -ldyncallback_s -ldynload_s'
-        ),
-        objects     => [@objs],
-        lib_file    => $lib_file,
-        module_name => join '::',
-        @parts
+
+    #~ warn join ', ', @dirs;
+    #~ warn join ', ', @parts;
+    #~ warn $lib_file;
+    return (
+        ( ( !-f $lib_file ) || grep { stat($_)->mtime > stat($lib_file)->mtime } @objs ) ?
+            $builder->link(
+            extra_linker_flags => (
+                ( $opt{config}->get('osname') =~ /bsd/ ? '' : $LDFLAGS ) .
+                    ( join ' ', map { ' -L' . $_ } @dirs ) . ' -L' .
+                    $pre->child( $opt{meta}->name, 'lib' )->stringify .
+                    ' -ldyncall_s -ldyncallback_s -ldynload_s'
+            ),
+            objects     => [@objs],
+            lib_file    => $lib_file,
+            module_name => join '::',
+            @parts
+            ) :
+            $lib_file
     );
 }
 
