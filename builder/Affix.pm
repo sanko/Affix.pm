@@ -350,7 +350,10 @@ sub process_cxx {
         my $version = $opt{meta}->version;
         my $obj     = $builder->object_file($source);
         push @dirs, rel2abs dirname($source);
-        push @objs,
+        push @objs,    # misses headers but that's okay
+            ( ( !-f $obj ) ||
+                ( stat($source)->mtime > stat($obj)->mtime ) ||
+                ( stat(__FILE__)->mtime > stat($obj)->mtime ) ) ?
             $builder->compile(
             'C++'        => ( $source =~ /\.cxx$/ ),
             source       => $source,
