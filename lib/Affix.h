@@ -227,6 +227,8 @@ void _DD(pTHX_ SV *scalar, const char *file, int line);
 const char *type_as_str(int type);
 int type_as_dc(int type);
 
+char *locate_lib(pTHX_ SV *_lib, SV *_ver);
+
 // Affix::affix(...) and Affix::wrap(...) System
 struct Affix {
     int16_t call_conv;
@@ -320,6 +322,7 @@ __attribute__unused__ XS_INTERNAL(Affix_Type_asint) {
     }
 
 // XS Boot
+void boot_Affix_pin(pTHX_ CV *);
 void boot_Affix_Pointer(pTHX_ CV *);
 void boot_Affix_InstanceOf(pTHX_ CV *);
 

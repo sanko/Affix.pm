@@ -170,16 +170,6 @@ void *sv2ptr(pTHX_ SV *type_sv, SV *data, DCpointer ptr, bool packed) {
          (packed ? "true" : "false"), __FILE__, __LINE__);
 #endif
     switch (type) {
-    case AFFIX_ARG_SV: {
-        if (!SvOK(data))
-            Zero(ptr, 1, intptr_t);
-        else {
-            SvREFCNT_inc(data); // TODO: This might leak; I'm just being lazy
-            DCpointer value = (DCpointer)data;
-            Renew(ptr, 1, intptr_t);
-            Copy(&value, ptr, 1, intptr_t);
-        }
-    } break;
     case AFFIX_ARG_VOID: {
         if (!SvOK(data))
             Zero(ptr, 1, intptr_t);
@@ -318,13 +308,6 @@ void *sv2ptr(pTHX_ SV *type_sv, SV *data, DCpointer ptr, bool packed) {
         else
             Zero(ptr, 1, intptr_t);
     } break;
-    //~ case AFFIX_ARG_CPPSTRUCT: {
-    //~ HV *hv_ptr = MUTABLE_HV(SvRV(type));
-    //~ SV **type_ptr = hv_fetchs(hv_ptr, "type", 0);
-    //~ DCpointer value = safemalloc(_sizeof(aTHX_ * type_ptr));
-    //~ if (SvOK(data)) sv2ptr(aTHX_ _instanceof(aTHX_ * type_ptr), data, value, packed);
-    //~ Copy(&value, ptr, 1, intptr_t);
-    //~ } break;
     case AFFIX_ARG_CSTRUCT: {
         if (SvOK(data)) {
             if (SvTYPE(SvRV(data)) != SVt_PVHV) croak("Expected a hash reference");
@@ -445,6 +428,17 @@ void *sv2ptr(pTHX_ SV *type_sv, SV *data, DCpointer ptr, bool packed) {
             Newxz(hold, 1, CallbackWrapper);
             hold->cb = cb;
             Copy(hold, ptr, 1, DCpointer);
+        }
+        DD(data);
+    } break;
+    case AFFIX_ARG_SV: {
+        if (!SvOK(data))
+            Zero(ptr, 1, intptr_t);
+        else {
+            SvREFCNT_inc(data); // TODO: This might leak; I'm just being lazy
+            DCpointer value = (DCpointer)data;
+            Renew(ptr, 1, intptr_t);
+            Copy(&value, ptr, 1, intptr_t);
         }
     } break;
     default: {
