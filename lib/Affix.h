@@ -87,6 +87,17 @@ extern "C" {
 
 #include <dyncall/dyncall/dyncall_aggregate.h>
 
+#ifdef DC__OS_Win64
+#include <cinttypes>
+static const char *dlerror(void) {
+    static char buf[1024];
+    DWORD dw = GetLastError();
+    if (dw == 0) return NULL;
+    snprintf(buf, 32, "error 0x%" PRIx32 "", dw);
+    return buf;
+}
+#endif
+
 #ifdef DEBUG
 #define PING warn("Ping at %s line %d", __FILE__, __LINE__);
 #else
@@ -98,7 +109,6 @@ extern "C" {
 #define AFFIX_ARG_VOID 0
 #define AFFIX_ARG_BOOL 2
 #define AFFIX_ARG_CHAR 4
-
 #define AFFIX_ARG_UCHAR 6
 #define AFFIX_ARG_SHORT 8
 #define AFFIX_ARG_USHORT 10
@@ -133,8 +143,10 @@ extern "C" {
 #endif
 #define AFFIX_ARG_WCHAR 44
 #define AFFIX_ARG_SV 46
+#define AFFIX_ARG_REF 48
+#define AFIX_ARG_STD_STRING 50
 
-#define AFFIX_ARG_TYPE_MASK 48
+#define AFFIX_ARG_TYPE_MASK 52
 
 /* Flag for whether we should free a string after passing it or not. */
 #define AFFIX_ARG_NO_FREE_STR 0
@@ -329,5 +341,7 @@ void boot_Affix_InstanceOf(pTHX_ CV *);
 #ifdef __cplusplus
 } /* extern "C" */
 #endif
+
+#include <string>
 
 #endif

@@ -69,7 +69,8 @@ SV *ptr2sv(pTHX_ DCpointer ptr, SV *type_sv) {
     case AFFIX_ARG_DOUBLE:
         sv_setnv(RETVAL, *(double *)ptr);
         break;
-    case AFFIX_ARG_CPOINTER: {
+    case AFFIX_ARG_CPOINTER:
+    case AFFIX_ARG_REF: {
         if (sv_derived_from(type_sv, "Affix::Type::InstanceOf")) {
             if (ptr == NULL) { RETVAL = newSV(0); }
             else {
@@ -97,16 +98,19 @@ SV *ptr2sv(pTHX_ DCpointer ptr, SV *type_sv) {
         HV *_type = MUTABLE_HV(SvRV(type_sv));
 
         SV *subtype = *hv_fetchs(_type, "type", 0);
-        SV **size = hv_fetchs(_type, "size", 0);
-        if (size == NULL) size = hv_fetchs(_type, "dyn_size", 0);
+        if (sv_derived_from(subtype, "Affix::Type::Char")) {}
+        else {
+            SV **size = hv_fetchs(_type, "size", 0);
+            if (size == NULL) size = hv_fetchs(_type, "dyn_size", 0);
 
-        size_t pos = PTR2IV(ptr);
-        size_t sof = _sizeof(aTHX_ subtype);
+            size_t pos = PTR2IV(ptr);
+            size_t sof = _sizeof(aTHX_ subtype);
 
-        size_t av_len = SvIV(*size);
-        for (size_t i = 0; i < av_len; ++i) {
-            av_push(RETVAL_, ptr2sv(aTHX_ INT2PTR(DCpointer, pos), subtype));
-            pos += sof;
+            size_t av_len = SvIV(*size);
+            for (size_t i = 0; i < av_len; ++i) {
+                av_push(RETVAL_, ptr2sv(aTHX_ INT2PTR(DCpointer, pos), subtype));
+                pos += sof;
+            }
         }
 
         SvSetSV(RETVAL, newRV(MUTABLE_SV(RETVAL_)));
@@ -268,7 +272,8 @@ void *sv2ptr(pTHX_ SV *type_sv, SV *data, DCpointer ptr, bool packed) {
         double value = SvOK(data) ? SvNV(data) : 0;
         Copy(&value, ptr, 1, double);
     } break;
-    case AFFIX_ARG_CPOINTER: {
+    case AFFIX_ARG_CPOINTER:
+    case AFFIX_ARG_REF: {
         croak("FDSFDSFDFDSFDSF");
         //~ HV *hv_ptr = MUTABLE_HV(SvRV(type));
         //~ SV **type_ptr = hv_fetchs(hv_ptr, "type", 0);
@@ -356,19 +361,37 @@ void *sv2ptr(pTHX_ SV *type_sv, SV *data, DCpointer ptr, bool packed) {
         }
     } break;
     case AFFIX_ARG_CARRAY: {
-        AV *elements = MUTABLE_AV(SvRV(data));
+        PING;
+        AV *elements;
+        if (SvPOK(data)) {
+            elements = newAV_mortal();
+            STRLEN len;
+            char *str = SvPV(data, len);
+            for (size_t i = 0; i < len; ++i) {
+                av_push(elements, newSViv(str[i]));
+            }
+        }
+        else
+            elements = MUTABLE_AV(SvRV(data));
+        PING;
         HV *hv_ptr = MUTABLE_HV(SvRV(type_sv));
+        PING;
         SV **type_ptr = hv_fetchs(hv_ptr, "type", 0);
         SV **size_ptr = hv_fetchs(hv_ptr, "size", 0);
+        PING;
         hv_stores(hv_ptr, "dyn_size", newSVuv(av_count(elements)));
+        PING;
         size_t size = size_ptr != NULL && SvOK(*size_ptr) ? SvIV(*size_ptr) : av_count(elements);
+        PING;
         // hv_stores(hv_ptr, "size", newSViv(size));
-        char *type_char = SvPVbytex_nolen(*type_ptr);
-        switch (type_char[0]) {
+        char type_char = (char)SvIV(*type_ptr);
+        PING;
+        switch (type_char) {
         case AFFIX_ARG_CHAR:
         case AFFIX_ARG_UCHAR: {
+            PING;
             if (SvPOK(data)) {
-                if (type_char[0] == AFFIX_ARG_CHAR) {
+                if (type_char == AFFIX_ARG_CHAR) {
                     char *value = SvPV(data, size);
                     Copy(value, ptr, size, char);
                 }
@@ -381,6 +404,7 @@ void *sv2ptr(pTHX_ SV *type_sv, SV *data, DCpointer ptr, bool packed) {
         }
         // fall through
         default: {
+            PING;
             if (SvOK(SvRV(data)) && SvTYPE(SvRV(data)) != SVt_PVAV) croak("Expected an array");
             if (size_ptr != NULL && SvOK(*size_ptr)) {
                 size_t av_len = av_count(elements);
@@ -399,6 +423,7 @@ void *sv2ptr(pTHX_ SV *type_sv, SV *data, DCpointer ptr, bool packed) {
         }
             // return _sizeof(aTHX_ type);
         }
+        PING;
     } break;
     case AFFIX_ARG_CALLBACK: {
         DCCallback *cb = NULL;

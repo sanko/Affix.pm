@@ -331,8 +331,17 @@ sub process_cxx {
     warn $@                                            if $@;
     my @objs;
     require ExtUtils::CBuilder;
-    my $builder = ExtUtils::CBuilder->new( config => ( $opt{config}->values_set ) );
-    my $pre     = Path::Tiny->cwd->child(qw[blib arch auto])->absolute;
+    my $builder = ExtUtils::CBuilder->new(
+        config => {
+
+            #~ (
+            #~ $opt{config}->get('osname') !~ /bsd/ &&
+            #~ $opt{config}->get('ld') eq 'cc' ? ( ld => 'g++' ) : ()
+            #~ ),
+            %{ $opt{config}->values_set }
+        }
+    );
+    my $pre = Path::Tiny->cwd->child(qw[blib arch auto])->absolute;
     my $source;
     require DynaLoader;
     my $mod2fname
@@ -385,7 +394,7 @@ sub process_cxx {
                 ( $opt{config}->get('osname') =~ /bsd/ ? '' : $LDFLAGS ) .
                     ( join ' ', map { ' -L' . $_ } @dirs ) . ' -L' .
                     $pre->child( $opt{meta}->name, 'lib' )->stringify .
-                    ' -ldyncall_s -ldyncallback_s -ldynload_s'
+                    ' -lstdc++ -ldyncall_s -ldyncallback_s -ldynload_s'
             ),
             objects     => [@objs],
             lib_file    => $lib_file,

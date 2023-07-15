@@ -147,52 +147,6 @@ char *_mangle(pTHX_ const char *abi, SV *lib, const char *symbol, SV *args) {
     return retval;
 }
 
-#ifdef DC__OS_Win64
-#include <cinttypes>
-static const char *dlerror(void) {
-    static char buf[1024];
-    DWORD dw = GetLastError();
-    if (dw == 0) return NULL;
-    snprintf(buf, 32, "error 0x%" PRIx32 "", dw);
-    return buf;
-}
-#endif
-
-SIMPLE_TYPE(Any);
-SIMPLE_TYPE(Void);
-SIMPLE_TYPE(Bool);
-SIMPLE_TYPE(Char);
-SIMPLE_TYPE(UChar);
-SIMPLE_TYPE(WChar);
-SIMPLE_TYPE(Short);
-SIMPLE_TYPE(UShort);
-SIMPLE_TYPE(Int);
-SIMPLE_TYPE(UInt);
-SIMPLE_TYPE(Long);
-SIMPLE_TYPE(ULong);
-SIMPLE_TYPE(LongLong);
-SIMPLE_TYPE(ULongLong);
-SIMPLE_TYPE(Size_t);
-SIMPLE_TYPE(SSize_t);
-SIMPLE_TYPE(Float);
-SIMPLE_TYPE(Double);
-SIMPLE_TYPE(Str);
-SIMPLE_TYPE(WStr);
-
-CC(DEFAULT);
-CC(THISCALL);
-CC(THISCALL_MS);
-CC(THISCALL_GNU);
-CC(CDECL);
-CC(ELLIPSIS);
-CC(ELLIPSIS_VARARGS);
-CC(SYSCALL);
-CC(STDCALL);
-CC(FASTCALL_MS);
-CC(FASTCALL_GNU);
-CC(ARM_ARM);
-CC(ARM_THUMB);
-
 XS_INTERNAL(Affix_Type_CodeRef) {
     dXSARGS;
     PERL_UNUSED_VAR(items);
@@ -524,7 +478,8 @@ XS_INTERNAL(Affix_typedef) {
                 register_constant(name, SvPV_nolen(*value), *value);
             }
         }
-        else if (sv_derived_from(type, "Affix::Type::Struct")) {
+        else if (sv_derived_from(type, "Affix::Type::Struct") ||
+                 sv_derived_from(type, "Affix::Type::Union")) {
             HV *href = MUTABLE_HV(SvRV(type));
             hv_stores(href, "typedef", newSVpv(name, 0));
         }
@@ -663,6 +618,10 @@ extern "C" void Affix_trigger(pTHX_ CV *cv) {
     } break;
     }
 
+#ifdef DEBUG
+    DD(MUTABLE_SV(ptr->arg_info));
+#endif
+
     if (UNLIKELY(items != num_args)) {
         if (UNLIKELY(items > num_args))
             croak("Too many arguments; wanted %d, found %d", num_args, items);
@@ -673,7 +632,7 @@ extern "C" void Affix_trigger(pTHX_ CV *cv) {
         warn("arg_pos: %d, num_args: %d, info_pos: %d", arg_pos, num_args, info_pos);
         warn("   type: %d, as_str: %s", arg_types[info_pos], type_as_str(arg_types[info_pos]));
         warn(" masked: %d", arg_types[info_pos] & AFFIX_ARG_TYPE_MASK);
-        //~ sv_dump(ST(arg_pos));
+        DD(ST(arg_pos));
 #endif
         switch (arg_types[info_pos]) {
         case DC_SIGCHAR_CC_PREFIX: {
@@ -796,6 +755,10 @@ extern "C" void Affix_trigger(pTHX_ CV *cv) {
         case AFFIX_ARG_ASCIISTR: {
             dcArgPointer(MY_CXT.cvm, SvOK(ST(arg_pos)) ? SvPV_nolen(ST(arg_pos)) : NULL);
         } break;
+        case AFIX_ARG_STD_STRING: {
+            std::string tmp = SvOK(ST(arg_pos)) ? SvPV_nolen(ST(arg_pos)) : NULL;
+            dcArgPointer(MY_CXT.cvm, static_cast<void *>(&tmp));
+        } break;
         case AFFIX_ARG_UTF8STR:
         case AFFIX_ARG_UTF16STR: {
             if (SvOK(ST(arg_pos))) {
@@ -833,33 +796,58 @@ extern "C" void Affix_trigger(pTHX_ CV *cv) {
             }
             else {
                 if (!free_ptrs) Newxz(free_ptrs, num_args, DCpointer);
+                PING;
+
+                SV *type = *av_fetch(ptr->arg_info, info_pos, 0);
+                PING;
+                HV *hv_ptr = MUTABLE_HV(SvRV(type));
+
+                SV *subtype = *hv_fetch(hv_ptr, "type", 4, 0);
+                PING;
+
+                sv_dump(subtype);
+                PING;
 
                 // free_ptrs = (void **)safemalloc(num_args * sizeof(DCpointer));
-                if (!SvROK(ST(arg_pos)) || SvTYPE(SvRV(ST(arg_pos))) != SVt_PVAV)
-                    croak("Type of arg %d must be an array ref", arg_pos + 1);
+                if ((SvROK(ST(arg_pos)) && SvTYPE(SvRV(ST(arg_pos))) == SVt_PVAV) ||
+                    ((sv_derived_from(subtype, "Affix::Type::Char") ||
+                      sv_derived_from(subtype, "Affix::Type::UChar") ||
+                      sv_derived_from(subtype, "Affix::Type::WChar")) &&
+                     SvPOK(ST(arg_pos)))) {
+                    PING;
+                    AV *elements = MUTABLE_AV(SvRV(ST(arg_pos)));
+                    PING;
+                    size_t av_len;
+                    if (hv_exists(hv_ptr, "size", 4)) {
+                        PING;
+                        av_len = SvIV(*hv_fetchs(hv_ptr, "size", 0));
+                        if (av_count(elements) != av_len)
+                            croak("Expected an array of %lu elements; found %ld", av_len,
+                                  av_count(elements));
+                    }
+                    else if (SvPOK(ST(arg_pos))) {
+                        (void)SvPV(ST(arg_pos), av_len);
+                        hv_stores(hv_ptr, "dyn_size", newSVuv(av_len));
+                    }
+                    else {
+                        PING;
+                        av_len = av_count(elements);
+                        hv_stores(hv_ptr, "dyn_size", newSVuv(av_len));
+                    }
+                    PING;
+                    //~ hv_stores(hv_ptr, "sizeof", newSViv(av_len));
+                    size_t size = _sizeof(aTHX_ type);
+                    PING;
+                    Newxz(free_ptrs[num_ptrs], size, char);
 
-                AV *elements = MUTABLE_AV(SvRV(ST(arg_pos)));
-                SV **type = av_fetch(ptr->arg_info, info_pos, 0);
-                HV *hv_ptr = MUTABLE_HV(SvRV(*type));
-                size_t av_len;
-                if (hv_exists(hv_ptr, "size", 4)) {
-                    av_len = SvIV(*hv_fetchs(hv_ptr, "size", 0));
-                    if (av_count(elements) != av_len)
-                        croak("Expected an array of %lu elements; found %ld", av_len,
-                              av_count(elements));
+                    PING;
+                    sv2ptr(aTHX_ type, ST(arg_pos), free_ptrs[num_ptrs], false);
+                    PING;
+                    dcArgPointer(MY_CXT.cvm, free_ptrs[num_ptrs++]);
+                    PING;
                 }
-                else {
-                    av_len = av_count(elements);
-                    hv_stores(hv_ptr, "dyn_size", newSVuv(av_len));
-                }
-                //~ hv_stores(hv_ptr, "sizeof", newSViv(av_len));
-                size_t size = _sizeof(aTHX_ * type);
-                Newxz(free_ptrs[num_ptrs], size, char);
-                PING;
-                sv2ptr(aTHX_ * type, ST(arg_pos), free_ptrs[num_ptrs], false);
-                PING;
-                dcArgPointer(MY_CXT.cvm, free_ptrs[num_ptrs++]);
-                PING;
+                else
+                    croak("Arg %d must be an array reference", arg_pos + 1);
             }
         } break;
         case AFFIX_ARG_CALLBACK: {
@@ -883,7 +871,9 @@ extern "C" void Affix_trigger(pTHX_ CV *cv) {
             sv2ptr(aTHX_ type, ST(arg_pos), blah, false);
             dcArgPointer(MY_CXT.cvm, blah);
         } break;
-        case AFFIX_ARG_CPOINTER: {
+            break;
+        case AFFIX_ARG_CPOINTER:
+        case AFFIX_ARG_REF: {
 #ifdef DEBUG
             warn("AFFIX_ARG_CPOINTER [%d, %ld/%s]", arg_pos,
                  SvIV(*av_fetch(ptr->arg_info, info_pos, 0)),
@@ -1084,7 +1074,8 @@ extern "C" void Affix_trigger(pTHX_ CV *cv) {
         wchar_t *str = (wchar_t *)dcCallPointer(MY_CXT.cvm, ptr->entry_point);
         RETVAL = wchar2utf(aTHX_ str, wcslen(str));
     } break;
-    case AFFIX_ARG_CPOINTER: {
+    case AFFIX_ARG_CPOINTER:
+    case AFFIX_ARG_REF: {
         SV *subtype = *hv_fetchs(MUTABLE_HV(SvRV(ptr->ret_info)), "type", 0);
         DCpointer p = dcCallPointer(MY_CXT.cvm, ptr->entry_point);
         if (sv_derived_from(subtype, "Affix::Type::Void")) {
@@ -1114,6 +1105,8 @@ extern "C" void Affix_trigger(pTHX_ CV *cv) {
         dcCallAggr(MY_CXT.cvm, ptr->entry_point, agg_, p);
         RETVAL = ptr2sv(aTHX_ p, ptr->ret_info);
     } break;
+    case AFIX_ARG_STD_STRING:
+
     default:
         //~ sv_dump(ptr->ret_info);
         DD(ptr->ret_info);
@@ -1162,7 +1155,8 @@ extern "C" void Affix_trigger(pTHX_ CV *cv) {
                     }
 
                 } break;
-                case AFFIX_ARG_CPOINTER: {
+                case AFFIX_ARG_CPOINTER:
+                case AFFIX_ARG_REF: {
                     if (sv_derived_from((ST(i)), "Affix::Pointer")) {
                         ;
                         //~ warn("raw pointer");
@@ -1639,6 +1633,42 @@ XS_INTERNAL(Affix_Aggregate_NEXTKEY) {
         XSANY.any_i32 = (int)DC_SIGCHAR_CC_PREFIX;                                                 \
     }
 
+SIMPLE_TYPE(Void);
+SIMPLE_TYPE(Bool);
+SIMPLE_TYPE(Char);
+SIMPLE_TYPE(UChar);
+SIMPLE_TYPE(WChar);
+SIMPLE_TYPE(Short);
+SIMPLE_TYPE(UShort);
+SIMPLE_TYPE(Int);
+SIMPLE_TYPE(UInt);
+SIMPLE_TYPE(Long);
+SIMPLE_TYPE(ULong);
+SIMPLE_TYPE(LongLong);
+SIMPLE_TYPE(ULongLong);
+SIMPLE_TYPE(Size_t);
+SIMPLE_TYPE(SSize_t);
+SIMPLE_TYPE(Float);
+SIMPLE_TYPE(Double);
+SIMPLE_TYPE(Str);
+SIMPLE_TYPE(WStr);
+SIMPLE_TYPE(Any);
+SIMPLE_TYPE(StdStr);
+
+CC(DEFAULT);
+CC(THISCALL);
+CC(THISCALL_MS);
+CC(THISCALL_GNU);
+CC(CDECL);
+CC(ELLIPSIS);
+CC(ELLIPSIS_VARARGS);
+CC(SYSCALL);
+CC(STDCALL);
+CC(FASTCALL_MS);
+CC(FASTCALL_GNU);
+CC(ARM_ARM);
+CC(ARM_THUMB);
+
 XS_EXTERNAL(boot_Affix) {
     dVAR;
     dXSBOOTARGSXSAPIVERCHK;
@@ -1701,6 +1731,8 @@ XS_EXTERNAL(boot_Affix) {
     TYPE(Double, AFFIX_ARG_DOUBLE, DC_SIGCHAR_DOUBLE);
     TYPE(Str, AFFIX_ARG_ASCIISTR, DC_SIGCHAR_STRING);
     TYPE(WStr, AFFIX_ARG_UTF16STR, DC_SIGCHAR_POINTER);
+
+    TYPE(StdStr, AFIX_ARG_STD_STRING, DC_SIGCHAR_POINTER);
 
     /*
     #define AFFIX_ARG_UTF8STR 18

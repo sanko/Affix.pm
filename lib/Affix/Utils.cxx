@@ -79,13 +79,23 @@ size_t _sizeof(pTHX_ SV *type) {
     case AFFIX_ARG_CUNION:
         return SvUV(*hv_fetchs(MUTABLE_HV(SvRV(type)), "sizeof", 0));
     case AFFIX_ARG_CARRAY:
+        PING;
+#ifdef DEBUG
+        DD(type);
+#endif
+
         if (LIKELY(hv_exists(MUTABLE_HV(SvRV(type)), "sizeof", 6)))
             return SvUV(*hv_fetchs(MUTABLE_HV(SvRV(type)), "sizeof", 0));
         {
+            PING;
             size_t type_alignof = _alignof(aTHX_ * hv_fetchs(MUTABLE_HV(SvRV(type)), "type", 0));
+            PING;
             size_t array_length = SvUV(*hv_fetchs(MUTABLE_HV(SvRV(type)), "dyn_size", 0));
+            PING;
             bool packed = SvTRUE(*hv_fetchs(MUTABLE_HV(SvRV(type)), "packed", 0));
+            PING;
             size_t type_sizeof = _sizeof(aTHX_ * hv_fetchs(MUTABLE_HV(SvRV(type)), "type", 0));
+            PING;
             size_t array_sizeof = 0;
             for (size_t i = 0; i < array_length; ++i) {
                 array_sizeof += type_sizeof;
@@ -94,8 +104,10 @@ size_t _sizeof(pTHX_ SV *type) {
                                                                               ? type_sizeof
                                                                               : type_alignof);
             }
+            PING;
             return array_sizeof;
         }
+        PING;
         croak("Do some math!");
         return 0;
     case AFFIX_ARG_CALLBACK: // automatically wrapped in a DCCallback pointer
@@ -103,6 +115,7 @@ size_t _sizeof(pTHX_ SV *type) {
     case AFFIX_ARG_ASCIISTR:
     case AFFIX_ARG_UTF8STR:
     case AFFIX_ARG_UTF16STR:
+    case AFIX_ARG_STD_STRING:
     //~ case AFFIX_ARG_ANY:
     case AFFIX_ARG_SV:
         return INTPTR_T_SIZE;
@@ -151,6 +164,7 @@ size_t _alignof(pTHX_ SV *type) {
     case AFFIX_ARG_ASCIISTR:
     case AFFIX_ARG_UTF8STR:
     case AFFIX_ARG_UTF16STR:
+    case AFIX_ARG_STD_STRING:
     //~ case AFFIX_ARG_ANY:
     case AFFIX_ARG_SV:
         return INTPTR_T_ALIGN;
@@ -219,6 +233,8 @@ const char *type_as_str(int type) {
     /*case  AFFIX_ARG_CPPSTRUCT 44*/
     case AFFIX_ARG_WCHAR:
         return "WChar";
+    case AFIX_ARG_STD_STRING:
+        return "std::string";
     default:
         return "Unknown";
     }
@@ -252,6 +268,7 @@ int type_as_dc(int type) {
     case AFFIX_ARG_CALLBACK:
     case AFFIX_ARG_CPOINTER:
     case AFFIX_ARG_SV:
+    case AFIX_ARG_STD_STRING:
         return DC_SIGCHAR_POINTER;
     /*case  AFFIX_ARG_VMARRAY 30*/
     case AFFIX_ARG_UCHAR:

@@ -1,8 +1,10 @@
 use strict;
 use Test::More 0.98;
-use lib '../lib', 'lib';
+BEGIN { chdir '../' if !-d 't'; }
+use lib '../lib', '../blib/arch', '../blib/lib', 'blib/arch', 'blib/lib', '../../', '.';
 use Affix;
 use utf8;
+use t::lib::helper;
 $|++;
 diag unpack 'C', pack 'C', ord '-A';
 diag unpack 'c', pack 'c', ord '-A';
@@ -26,12 +28,14 @@ subtest types => sub {
 subtest pointers => sub {
     subtest 'Pointer[Any]' => sub {
         my $type = Pointer [Any];
-
-        #~ my $ptr = Affix::malloc(5);
-        #$$ptr = 'test';
-        my $ptr = $type->marshal( { four => 'four' } );
+        my $ptr  = $type->marshal( { four => 'four' } );
         isa_ok $ptr, 'Affix::Pointer::Unmanaged';
         is_deeply [ $type->unmarshal($ptr) ], [ { four => 'four' } ], 'SV* cast to void*';
+
+        #subtest 'affix' => sub {
+        #ok Affix::wrap( $lib, 'set_sv_pointer', [Any], Void )->('Test'), '->("Test")';
+        #is Affix::wrap( $lib, 'get_sv_pointer', [], Any )->(), 'Test', '->() => "Test"';
+        # };
     };
     subtest 'Pointer[Void]' => sub {
         my $type = Pointer [Void];

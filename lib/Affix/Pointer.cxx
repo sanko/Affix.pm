@@ -594,6 +594,35 @@ XS_INTERNAL(Affix_offsetof) {
     XSRETURN(1);
 }
 
+XS_INTERNAL(Affix_Type_Ref) {
+    dXSARGS;
+    PERL_UNUSED_VAR(items);
+    HV *RETVAL_HV = newHV();
+    AV *fields = MUTABLE_AV(SvRV(ST(0)));
+    SV *rw_ref = NULL;
+    switch (av_count(fields)) {
+    case 2: {
+        rw_ref = *av_fetch(fields, 1, 0);
+    } // fall through
+    case 1: {
+        SV **type_ref = av_fetch(fields, 0, 0);
+        SV *type = *type_ref;
+        if (!(sv_isobject(type) && sv_derived_from(type, "Affix::Type::Base")))
+            croak("Pointer[...] expects a subclass of Affix::Type::Base");
+        hv_stores(RETVAL_HV, "type", SvREFCNT_inc(type));
+        hv_stores(RETVAL_HV, "class", SvREFCNT_inc(newSVpv("Affix::Ref", 0)));
+        hv_stores(RETVAL_HV, "rw", SvREFCNT_inc(rw_ref == NULL ? newSV_false() : rw_ref));
+    } break;
+    default:
+        croak("Ref[...] expects a single type. e.g. Ref[Int]");
+    };
+    PING;
+    ST(0) = sv_2mortal(
+        sv_bless(newRV_inc(MUTABLE_SV(RETVAL_HV)), gv_stashpv("Affix::Type::Ref", GV_ADD)));
+    PING;
+    XSRETURN(1);
+}
+
 void boot_Affix_Pointer(pTHX_ CV *cv) {
     PERL_UNUSED_VAR(cv);
     {
@@ -624,6 +653,7 @@ void boot_Affix_Pointer(pTHX_ CV *cv) {
     }
 
     EXT_TYPE(Pointer, AFFIX_ARG_CPOINTER, AFFIX_ARG_CPOINTER);
+    EXT_TYPE(Ref, AFFIX_ARG_REF, AFFIX_ARG_REF);
 
     (void)newXSproto_portable("Affix::Type::Pointer::marshal", Affix_Type_Pointer_marshal, __FILE__,
                               "$$");
@@ -657,5 +687,9 @@ void boot_Affix_Pointer(pTHX_ CV *cv) {
     (void)newXSproto_portable("Affix::Pointer::dump", Affix_Pointer_DumpHex, __FILE__, "$$");
     (void)newXSproto_portable("Affix::DumpHex", Affix_Pointer_DumpHex, __FILE__, "$$");
     (void)newXSproto_portable("Affix::Pointer::DESTROY", Affix_Pointer_DESTROY, __FILE__, "$");
+
     set_isa("Affix::Pointer::Unmanaged", "Affix::Pointer");
+
+    set_isa("Affix::Type::Ref", "Affix::Type::Pointer");
+    set_isa("Affix::Ref", "Affix::Pointer");
 }
