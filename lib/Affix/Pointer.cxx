@@ -652,8 +652,8 @@ void boot_Affix_Pointer(pTHX_ CV *cv) {
         export_function("Affix", "strdup", "memory");
     }
 
-    EXT_TYPE(Pointer, AFFIX_ARG_CPOINTER, AFFIX_ARG_CPOINTER);
-    EXT_TYPE(Ref, AFFIX_ARG_REF, AFFIX_ARG_REF);
+    EXT_TYPE(Pointer, AFFIX_TYPE_CPOINTER, AFFIX_TYPE_CPOINTER);
+    EXT_TYPE(Ref, AFFIX_TYPE_REF, AFFIX_TYPE_REF);
 
     (void)newXSproto_portable("Affix::Type::Pointer::marshal", Affix_Type_Pointer_marshal, __FILE__,
                               "$$");

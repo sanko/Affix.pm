@@ -37,6 +37,133 @@ char *locate_lib(pTHX_ SV *_lib, SV *_ver) {
     return retval;
 }
 
+char *mangle(pTHX_ const char *abi, SV *lib, const char *symbol, SV *args) {
+    char *retval;
+    {
+        dSP;
+        SV *err_tmp;
+        ENTER;
+        SAVETMPS;
+        PUSHMARK(SP);
+        XPUSHs(lib);
+        mXPUSHp(symbol, strlen(symbol));
+        XPUSHs(args);
+        PUTBACK;
+        (void)call_pv(form("Affix::%s_mangle", abi), G_SCALAR | G_EVAL | G_KEEPERR);
+        SPAGAIN;
+        err_tmp = ERRSV;
+        if (SvTRUE(err_tmp)) {
+            croak("Malformed call to %s_mangle( ... ): %s\n", abi, SvPV_nolen(err_tmp));
+            (void)POPs;
+        }
+        else {
+            retval = POPp;
+            // SvSetMagicSV(type, retval);
+        }
+        // FREETMPS;
+        LEAVE;
+    }
+    return retval;
+}
+
+XS_INTERNAL(Affix_load_lib) {
+    dVAR;
+    dXSARGS;
+    if (items < 1 || items > 2) croak_xs_usage(cv, "lib_name, version");
+    char *_libpath = locate_lib(aTHX_ ST(0), SvIOK(ST(1)) ? ST(1) : newSV(0));
+    DLLib *lib =
+#if defined(DC__OS_Win64) || defined(DC__OS_MacOSX)
+        dlLoadLibrary(_libpath);
+#else
+        (DLLib *)dlopen(_libpath, RTLD_NOW);
+#endif
+    if (!lib) croak("Failed to load %s", dlerror());
+    SV *RETVAL = sv_newmortal();
+    sv_setref_pv(RETVAL, "Affix::Lib", lib);
+    ST(0) = RETVAL;
+    XSRETURN(1);
+}
+
+XS_INTERNAL(Affix_Lib_list_symbols) {
+    /* dlSymsName(...) is not thread-safe on MacOS */
+    dVAR;
+    dXSARGS;
+    if (items != 1) croak_xs_usage(cv, "lib");
+
+    AV *RETVAL;
+    DLLib *lib;
+
+    if (sv_derived_from(ST(0), "Affix::Lib")) {
+        IV tmp = SvIV((SV *)SvRV(ST(0)));
+        lib = INT2PTR(DLLib *, tmp);
+    }
+    else
+        croak("lib is not of type Affix::Lib");
+
+    RETVAL = newAV();
+    char *name;
+    Newxz(name, 1024, char);
+    int len = dlGetLibraryPath(lib, name, 1024);
+    if (len == 0) croak("Failed to get library name");
+    DLSyms *syms = dlSymsInit(name);
+    int count = dlSymsCount(syms);
+    for (int i = 0; i < count; ++i) {
+        av_push(RETVAL, newSVpv(dlSymsName(syms, i), 0));
+    }
+    dlSymsCleanup(syms);
+    safefree(name);
+
+    ST(0) = sv_2mortal(newRV_noinc(MUTABLE_SV(RETVAL)));
+
+    XSRETURN(1);
+}
+
+XS_INTERNAL(Affix_Lib_free) {
+    dVAR;
+    dXSARGS;
+    warn("FREE LIB");
+    if (items != 1) croak_xs_usage(cv, "lib");
+    DLLib *lib;
+    if (sv_derived_from(ST(0), "Affix::Lib")) {
+        IV tmp = SvIV((SV *)SvRV(ST(0)));
+        lib = INT2PTR(DLLib *, tmp);
+    }
+    else
+        croak("lib is not of type Affix::Lib");
+    if (lib != NULL) dlFreeLibrary(lib);
+    lib = NULL;
+    XSRETURN_EMPTY;
+}
+
+XS_INTERNAL(Affix_Lib_path) {
+    dVAR;
+    dXSARGS;
+    if (items != 1) croak_xs_usage(cv, "lib");
+
+    SV *RETVAL;
+    DLLib *lib;
+
+    if (sv_derived_from(ST(0), "Affix::Lib")) {
+        IV tmp = SvIV((SV *)SvRV(ST(0)));
+        lib = INT2PTR(DLLib *, tmp);
+    }
+    else
+        croak("lib is not of type Affix::Lib");
+
+    char *name;
+    Newxz(name, 1024, char);
+    int len = dlGetLibraryPath(lib, name, 1024);
+    PING;
+    if (len == 0) croak("Failed to get library name");
+    RETVAL = newSVpv(name, len - 1);
+    safefree(name);
+    {
+        RETVAL = sv_2mortal(RETVAL);
+        ST(0) = RETVAL;
+    }
+
+    XSRETURN(1);
+}
 
 void boot_Affix_Lib(pTHX_ CV *cv) {
     PERL_UNUSED_VAR(cv);
@@ -46,6 +173,4 @@ void boot_Affix_Lib(pTHX_ CV *cv) {
     (void)newXSproto_portable("Affix::Lib::list_symbols", Affix_Lib_list_symbols, __FILE__, "$");
     (void)newXSproto_portable("Affix::Lib::path", Affix_Lib_path, __FILE__, "$");
     (void)newXSproto_portable("Affix::Lib::free", Affix_Lib_free, __FILE__, "$;$");
-
-    set_isa("Affix::Lib", "Affix::Pointer");
 }

@@ -1,4 +1,4 @@
-#include "../Affix.h"
+#include "../../Affix.h"
 
 XS_INTERNAL(Affix_Type_InstanceOf) {
     dXSARGS;
@@ -29,8 +29,8 @@ XS_INTERNAL(Affix_Type_InstanceOf) {
     XSRETURN(1);
 }
 
-void boot_Affix_InstanceOf(pTHX_ CV *cv) {
+void boot_Affix_Type_InstanceOf(pTHX_ CV *cv) {
     PERL_UNUSED_VAR(cv);
-    EXT_TYPE(InstanceOf, AFFIX_ARG_CPOINTER, AFFIX_ARG_CPOINTER);
+    EXT_TYPE(InstanceOf, AFFIX_TYPE_CPOINTER, AFFIX_TYPE_CPOINTER);
     set_isa("Affix::InstanceOf", "Affix::Pointer::Unmanaged");
 }

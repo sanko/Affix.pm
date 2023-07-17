@@ -105,61 +105,58 @@ static const char *dlerror(void) {
 #endif
 
 /* Native argument types */
-
-#define AFFIX_ARG_VOID 0
-#define AFFIX_ARG_BOOL 2
-#define AFFIX_ARG_CHAR 4
-#define AFFIX_ARG_UCHAR 6
-#define AFFIX_ARG_SHORT 8
-#define AFFIX_ARG_USHORT 10
-#define AFFIX_ARG_INT 12
-#define AFFIX_ARG_UINT 14
-#define AFFIX_ARG_LONG 16
-#define AFFIX_ARG_ULONG 18
-#define AFFIX_ARG_LONGLONG 20
-#define AFFIX_ARG_ULONGLONG 22
-#define AFFIX_ARG_FLOAT 24
-#define AFFIX_ARG_DOUBLE 26
-#define AFFIX_ARG_ASCIISTR 28
-#define AFFIX_ARG_UTF8STR 30
-#define AFFIX_ARG_UTF16STR 32
-#define AFFIX_ARG_CSTRUCT 34
-#define AFFIX_ARG_CARRAY 36
-#define AFFIX_ARG_CALLBACK 38
-#define AFFIX_ARG_CPOINTER 40
-#define AFFIX_ARG_CUNION 42
+#define AFFIX_TYPE_VOID 0
+#define AFFIX_TYPE_BOOL 2
+#define AFFIX_TYPE_CHAR 4
+#define AFFIX_TYPE_UCHAR 6
+#define AFFIX_TYPE_SHORT 8
+#define AFFIX_TYPE_USHORT 10
+#define AFFIX_TYPE_INT 12
+#define AFFIX_TYPE_UINT 14
+#define AFFIX_TYPE_LONG 16
+#define AFFIX_TYPE_ULONG 18
+#define AFFIX_TYPE_LONGLONG 20
+#define AFFIX_TYPE_ULONGLONG 22
+#define AFFIX_TYPE_FLOAT 24
+#define AFFIX_TYPE_DOUBLE 26
+#define AFFIX_TYPE_ASCIISTR 28
+#define AFFIX_TYPE_UTF8STR 30
+#define AFFIX_TYPE_UTF16STR 32
+#define AFFIX_TYPE_CSTRUCT 34
+#define AFFIX_TYPE_CARRAY 36
+#define AFFIX_TYPE_CALLBACK 38
+#define AFFIX_TYPE_CPOINTER 40
+#define AFFIX_TYPE_CUNION 42
 #if Size_t_size == INTSIZE
-#define AFFIX_ARG_SSIZE_T AFFIX_ARG_INT
-#define AFFIX_ARG_SIZE_T AFFIX_ARG_UINT
+#define AFFIX_TYPE_SSIZE_T AFFIX_TYPE_INT
+#define AFFIX_TYPE_SIZE_T AFFIX_TYPE_UINT
 #elif Size_t_size == LONGSIZE
-#define AFFIX_ARG_SSIZE_T AFFIX_ARG_LONG
-#define AFFIX_ARG_SIZE_T AFFIX_ARG_ULONG
+#define AFFIX_TYPE_SSIZE_T AFFIX_TYPE_LONG
+#define AFFIX_TYPE_SIZE_T AFFIX_TYPE_ULONG
 #elif Size_t_size == LONGLONGSIZE
-#define AFFIX_ARG_SSIZE_T AFFIX_ARG_LONGLONG
-#define AFFIX_ARG_SIZE_T AFFIX_ARG_ULONGLONG
+#define AFFIX_TYPE_SSIZE_T AFFIX_TYPE_LONGLONG
+#define AFFIX_TYPE_SIZE_T AFFIX_TYPE_ULONGLONG
 #else // quadmath is broken
-#define AFFIX_ARG_SSIZE_T AFFIX_ARG_LONGLONG
-#define AFFIX_ARG_SIZE_T AFFIX_ARG_ULONGLONG
+#define AFFIX_TYPE_SSIZE_T AFFIX_TYPE_LONGLONG
+#define AFFIX_TYPE_SIZE_T AFFIX_TYPE_ULONGLONG
 #endif
-#define AFFIX_ARG_WCHAR 44
-#define AFFIX_ARG_SV 46
-#define AFFIX_ARG_REF 48
+#define AFFIX_TYPE_WCHAR 44
+#define AFFIX_TYPE_SV 46
+#define AFFIX_TYPE_REF 48
 #define AFIX_ARG_STD_STRING 50
 
-#define AFFIX_ARG_TYPE_MASK 52
-
 /* Flag for whether we should free a string after passing it or not. */
-#define AFFIX_ARG_NO_FREE_STR 0
-#define AFFIX_ARG_FREE_STR 1
-#define AFFIX_ARG_FREE_STR_MASK 1
+#define AFFIX_TYPE_NO_FREE_STR 0
+#define AFFIX_TYPE_FREE_STR 1
+#define AFFIX_TYPE_FREE_STR_MASK 1
 
 /* Flag for whether we need to refresh a CArray after passing or not. */
-#define AFFIX_ARG_NO_REFRESH 0
-#define AFFIX_ARG_REFRESH 1
-#define AFFIX_ARG_REFRESH_MASK 1
-#define AFFIX_ARG_NO_RW 0
-#define AFFIX_ARG_RW 256
-#define AFFIX_ARG_RW_MASK 256
+#define AFFIX_TYPE_NO_REFRESH 0
+#define AFFIX_TYPE_REFRESH 1
+#define AFFIX_TYPE_REFRESH_MASK 1
+#define AFFIX_TYPE_NO_RW 0
+#define AFFIX_TYPE_RW 256
+#define AFFIX_TYPE_RW_MASK 256
 
 #define AFFIX_UNMARSHAL_KIND_GENERIC -1
 #define AFFIX_UNMARSHAL_KIND_RETURN -2
@@ -210,6 +207,41 @@ following address will be aligned to `alignment`. */
      (char *)0)
 #endif
 
+#define EXT_TYPE(NAME, AFFIX_CHAR, DC_CHAR)                                                        \
+    {                                                                                              \
+        set_isa("Affix::Type::" #NAME, "Affix::Type::Base");                                       \
+        /* Allow type constructors to be overridden */                                             \
+        cv = get_cv("Affix::" #NAME, 0);                                                           \
+        if (cv == NULL) {                                                                          \
+            cv = newXSproto_portable("Affix::" #NAME, Affix_Type_##NAME, __FILE__, "$");           \
+            XSANY.any_i32 = (int)AFFIX_CHAR;                                                       \
+        }                                                                                          \
+        export_function("Affix", #NAME, "types");                                                  \
+        /* Overload magic: */                                                                      \
+        sv_setsv(get_sv("Affix::Type::" #NAME "::()", TRUE), &PL_sv_yes);                          \
+        /* overload as sigchars with fallbacks */                                                  \
+        cv = newXSproto_portable("Affix::Type::" #NAME "::()", Affix_Type_asint, __FILE__, "$");   \
+        XSANY.any_i32 = (int)AFFIX_CHAR;                                                           \
+        cv = newXSproto_portable("Affix::Type::" #NAME "::({", Affix_Type_asint, __FILE__, "$");   \
+        XSANY.any_i32 = (int)AFFIX_CHAR;                                                           \
+        cv = newXSproto_portable("Affix::Type::" #NAME "::(function", Affix_Type_asint, __FILE__,  \
+                                 "$");                                                             \
+        XSANY.any_i32 = (int)AFFIX_CHAR;                                                           \
+        cv =                                                                                       \
+            newXSproto_portable("Affix::Type::" #NAME "::(\"\"", Affix_Type_asint, __FILE__, "$"); \
+        XSANY.any_i32 = (int)AFFIX_CHAR;                                                           \
+        cv = newXSproto_portable("Affix::Type::" #NAME "::(*/}", Affix_Type_asint, __FILE__, "$"); \
+        XSANY.any_i32 = (int)AFFIX_CHAR;                                                           \
+        cv = newXSproto_portable("Affix::Type::" #NAME "::(defined", Affix_Type_asint, __FILE__,   \
+                                 "$");                                                             \
+        XSANY.any_i32 = (int)AFFIX_CHAR;                                                           \
+        cv =                                                                                       \
+            newXSproto_portable("Affix::Type::" #NAME "::(here", Affix_Type_asint, __FILE__, "$"); \
+        XSANY.any_i32 = (int)AFFIX_CHAR;                                                           \
+        cv = newXSproto_portable("Affix::Type::" #NAME "::(/*", Affix_Type_asint, __FILE__, "$");  \
+        XSANY.any_i32 = (int)AFFIX_CHAR;                                                           \
+    }
+
 // marshal.cxx
 size_t padding_needed_for(size_t offset, size_t alignment);
 SV *ptr2sv(pTHX_ DCpointer ptr, SV *type_sv);
@@ -239,7 +271,9 @@ void _DD(pTHX_ SV *scalar, const char *file, int line);
 const char *type_as_str(int type);
 int type_as_dc(int type);
 
+// Affix/Lib.cxx
 char *locate_lib(pTHX_ SV *_lib, SV *_ver);
+char *mangle(pTHX_ const char *abi, SV *lib, const char *symbol, SV *args);
 
 // Affix::affix(...) and Affix::wrap(...) System
 struct Affix {
@@ -280,63 +314,13 @@ __attribute__unused__ XS_INTERNAL(Affix_Type_asint) {
     XSRETURN_IV(XSANY.any_i32);
 }
 
-#define SIMPLE_TYPE(TYPE)                                                                          \
-    XS_INTERNAL(Affix_Type_##TYPE) {                                                               \
-        dXSARGS;                                                                                   \
-        PERL_UNUSED_VAR(items);                                                                    \
-        ST(0) = sv_2mortal(                                                                        \
-            sv_bless(newRV_inc(MUTABLE_SV(newHV())), gv_stashpv("Affix::Type::" #TYPE, GV_ADD)));  \
-        XSRETURN(1);                                                                               \
-    }
-
-#define CC(TYPE)                                                                                   \
-    XS_INTERNAL(Affix_CC_##TYPE) {                                                                 \
-        dXSARGS;                                                                                   \
-        PERL_UNUSED_VAR(items);                                                                    \
-        ST(0) = sv_2mortal(sv_bless(newRV_inc(MUTABLE_SV(newHV())),                                \
-                                    gv_stashpv("Affix::Type::CC::" #TYPE, GV_ADD)));               \
-        XSRETURN(1);                                                                               \
-    }
-
-#define EXT_TYPE(NAME, AFFIX_CHAR, DC_CHAR)                                                        \
-    {                                                                                              \
-        set_isa("Affix::Type::" #NAME, "Affix::Type::Base");                                       \
-        /* Allow type constructors to be overridden */                                             \
-        cv = get_cv("Affix::" #NAME, 0);                                                           \
-        if (cv == NULL) {                                                                          \
-            cv = newXSproto_portable("Affix::" #NAME, Affix_Type_##NAME, __FILE__, "$");           \
-            XSANY.any_i32 = (int)AFFIX_CHAR;                                                       \
-        }                                                                                          \
-        export_function("Affix", #NAME, "types");                                                  \
-        /* Overload magic: */                                                                      \
-        sv_setsv(get_sv("Affix::Type::" #NAME "::()", TRUE), &PL_sv_yes);                          \
-        /* overload as sigchars with fallbacks */                                                  \
-        cv = newXSproto_portable("Affix::Type::" #NAME "::()", Affix_Type_asint, __FILE__, "$");   \
-        XSANY.any_i32 = (int)AFFIX_CHAR;                                                           \
-        cv = newXSproto_portable("Affix::Type::" #NAME "::({", Affix_Type_asint, __FILE__, "$");   \
-        XSANY.any_i32 = (int)AFFIX_CHAR;                                                           \
-        cv = newXSproto_portable("Affix::Type::" #NAME "::(function", Affix_Type_asint, __FILE__,  \
-                                 "$");                                                             \
-        XSANY.any_i32 = (int)AFFIX_CHAR;                                                           \
-        cv =                                                                                       \
-            newXSproto_portable("Affix::Type::" #NAME "::(\"\"", Affix_Type_asint, __FILE__, "$"); \
-        XSANY.any_i32 = (int)AFFIX_CHAR;                                                           \
-        cv = newXSproto_portable("Affix::Type::" #NAME "::(*/}", Affix_Type_asint, __FILE__, "$"); \
-        XSANY.any_i32 = (int)AFFIX_CHAR;                                                           \
-        cv = newXSproto_portable("Affix::Type::" #NAME "::(defined", Affix_Type_asint, __FILE__,   \
-                                 "$");                                                             \
-        XSANY.any_i32 = (int)AFFIX_CHAR;                                                           \
-        cv =                                                                                       \
-            newXSproto_portable("Affix::Type::" #NAME "::(here", Affix_Type_asint, __FILE__, "$"); \
-        XSANY.any_i32 = (int)AFFIX_CHAR;                                                           \
-        cv = newXSproto_portable("Affix::Type::" #NAME "::(/*", Affix_Type_asint, __FILE__, "$");  \
-        XSANY.any_i32 = (int)AFFIX_CHAR;                                                           \
-    }
-
 // XS Boot
 void boot_Affix_pin(pTHX_ CV *);
 void boot_Affix_Pointer(pTHX_ CV *);
-void boot_Affix_InstanceOf(pTHX_ CV *);
+void boot_Affix_Type_InstanceOf(pTHX_ CV *);
+void boot_Affix_Lib(pTHX_ CV *);
+void boot_Affix_Type(pTHX_ CV *);
+void boot_Affix_Type_InstanceOf(pTHX_ CV *);
 
 #ifdef __cplusplus
 } /* extern "C" */
