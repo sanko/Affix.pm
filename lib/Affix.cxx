@@ -81,43 +81,6 @@ static DCaggr *_aggregate(pTHX_ SV *type) {
     return NULL;
 }
 
-char *locate_lib(pTHX_ SV *_lib, SV *_ver) {
-    // Use perl to get the actual path to the library
-    dSP;
-    int count;
-    char *retval = NULL;
-    //~ if (!SvOK(_lib)) {
-    //~ GV *tmpgv = gv_fetchpvs("\030", GV_ADD | GV_NOTQUAL, SVt_PV); /* $^X */
-    //~ _lib = GvSV(tmpgv);
-    //~ }
-    if (SvOK(_lib) /*&& SvREADONLY(_lib)*/) {
-        ENTER;
-        SAVETMPS;
-        PUSHMARK(SP);
-        XPUSHs(_lib);
-        XPUSHs(_ver);
-        PUTBACK;
-        count = call_pv("Affix::locate_lib", G_SCALAR);
-        SPAGAIN;
-        if (count == 1) {
-            SV *ret = POPs;
-            if (SvOK(ret)) {
-                STRLEN len;
-                //~ sv_dump(ret);
-                char *__lib = SvPVx(ret, len);
-                if (len) {
-                    Newxz(retval, len + 1, char);
-                    Copy(__lib, retval, len, char);
-                }
-            }
-        }
-        PUTBACK;
-        FREETMPS;
-        LEAVE;
-    }
-    return retval;
-}
-
 char *_mangle(pTHX_ const char *abi, SV *lib, const char *symbol, SV *args) {
     char *retval;
     {
@@ -435,7 +398,8 @@ XS_INTERNAL(Affix_Type_Enum) {
     XSRETURN(1);
 }
 
-// I might need to cram more context into these in a future version so I'm wrapping them this way
+// I might need to cram more context into these in the future
+// so I'm wrapping the superclass this way
 XS_INTERNAL(Affix_Type_IntEnum) {
     Affix_Type_Enum(aTHX_ cv);
 }
@@ -488,109 +452,6 @@ XS_INTERNAL(Affix_typedef) {
     sv_setsv_mg(ST(1), type);
     SvSETMAGIC(ST(1));
     XSRETURN_EMPTY;
-}
-
-XS_INTERNAL(Affix_load_lib) {
-    dVAR;
-    dXSARGS;
-    if (items < 1 || items > 2) croak_xs_usage(cv, "lib_name, version");
-    char *_libpath = locate_lib(aTHX_ ST(0), SvIOK(ST(1)) ? ST(1) : newSV(0));
-    DLLib *lib =
-#if defined(DC__OS_Win64) || defined(DC__OS_MacOSX)
-        dlLoadLibrary(_libpath);
-#else
-        (DLLib *)dlopen(_libpath, RTLD_NOW);
-#endif
-    if (!lib) croak("Failed to load %s", dlerror());
-    SV *RETVAL = sv_newmortal();
-    sv_setref_pv(RETVAL, "Affix::Lib", lib);
-    ST(0) = RETVAL;
-    XSRETURN(1);
-}
-
-XS_INTERNAL(Affix_Lib_list_symbols) {
-    dVAR;
-    dXSARGS;
-    if (items != 1) croak_xs_usage(cv, "lib");
-
-    AV *RETVAL;
-    DLLib *lib;
-
-    if (sv_derived_from(ST(0), "Affix::Lib")) {
-        IV tmp = SvIV((SV *)SvRV(ST(0)));
-        lib = INT2PTR(DLLib *, tmp);
-    }
-    else
-        croak("lib is not of type Affix::Lib");
-
-    RETVAL = newAV();
-    char *name;
-    Newxz(name, 1024, char);
-    int len = dlGetLibraryPath(lib, name, 1024);
-    if (len == 0) croak("Failed to get library name");
-    DLSyms *syms = dlSymsInit(name);
-    int count = dlSymsCount(syms);
-    for (int i = 0; i < count; ++i) {
-        av_push(RETVAL, newSVpv(dlSymsName(syms, i), 0));
-    }
-    dlSymsCleanup(syms);
-    safefree(name);
-
-    {
-        SV *RETVALSV;
-        RETVALSV = newRV_noinc((SV *)RETVAL);
-        RETVALSV = sv_2mortal(RETVALSV);
-        ST(0) = RETVALSV;
-    }
-
-    XSRETURN(1);
-}
-
-XS_INTERNAL(Affix_Lib_free) {
-    dVAR;
-    dXSARGS;
-    warn("FREE LIB");
-    if (items != 1) croak_xs_usage(cv, "lib");
-    DLLib *lib;
-    if (sv_derived_from(ST(0), "Affix::Lib")) {
-        IV tmp = SvIV((SV *)SvRV(ST(0)));
-        lib = INT2PTR(DLLib *, tmp);
-    }
-    else
-        croak("lib is not of type Affix::Lib");
-    if (lib != NULL) dlFreeLibrary(lib);
-    lib = NULL;
-    XSRETURN_EMPTY;
-}
-
-XS_INTERNAL(Affix_Lib_path) {
-    dVAR;
-    dXSARGS;
-    if (items != 1) croak_xs_usage(cv, "lib");
-
-    SV *RETVAL;
-    DLLib *lib;
-
-    if (sv_derived_from(ST(0), "Affix::Lib")) {
-        IV tmp = SvIV((SV *)SvRV(ST(0)));
-        lib = INT2PTR(DLLib *, tmp);
-    }
-    else
-        croak("lib is not of type Affix::Lib");
-
-    char *name;
-    Newxz(name, 1024, char);
-    int len = dlGetLibraryPath(lib, name, 1024);
-    PING;
-    if (len == 0) croak("Failed to get library name");
-    RETVAL = newSVpv(name, len - 1);
-    safefree(name);
-    {
-        RETVAL = sv_2mortal(RETVAL);
-        ST(0) = RETVAL;
-    }
-
-    XSRETURN(1);
 }
 
 extern "C" void Affix_trigger(pTHX_ CV *cv) {
@@ -1764,12 +1625,6 @@ XS_EXTERNAL(boot_Affix) {
     CC_TYPE(ARM_THUMB, DC_SIGCHAR_CC_ARM_THUMB);
     CC_TYPE(SYSCALL, DC_SIGCHAR_CC_SYSCALL);
 
-    (void)newXSproto_portable("Affix::load_lib", Affix_load_lib, __FILE__, "$;$");
-    export_function("Affix", "load_lib", "lib");
-    (void)newXSproto_portable("Affix::Lib::list_symbols", Affix_Lib_list_symbols, __FILE__, "$");
-    (void)newXSproto_portable("Affix::Lib::path", Affix_Lib_path, __FILE__, "$");
-    (void)newXSproto_portable("Affix::Lib::free", Affix_Lib_free, __FILE__, "$;$");
-
     //
     cv = newXSproto_portable("Affix::affix", Affix_affix, __FILE__, "$$@$");
     XSANY.any_i32 = 0;
@@ -1819,6 +1674,7 @@ XS_EXTERNAL(boot_Affix) {
     boot_Affix_pin(aTHX_ cv);
     boot_Affix_Pointer(aTHX_ cv);
     boot_Affix_InstanceOf(aTHX_ cv);
+    boot_Affix_Lib(aTHX_ cv);
 
     Perl_xs_boot_epilog(aTHX_ ax);
 }
