@@ -351,5 +351,18 @@ subtest pointers => sub {
             is $cv->[2]->('three'), 'Three', 'proper return value from 3rd';
         };
     };
+
+
+     subtest 'Pointer[Pointer[Int]]' => sub {
+        my $type = Pointer[Pointer [Int]];
+        {
+            my $ptr = $type->marshal(3939);
+            is( $type->unmarshal($ptr), 3939, '3939 in and out' );
+        }
+        {
+            my $ptr =$type->marshal(-9);
+            is( $type->unmarshal($ptr), -9, '-9 in and out' );
+        }
+    };
 };
 done_testing;

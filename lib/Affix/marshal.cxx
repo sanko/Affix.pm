@@ -274,12 +274,13 @@ void *sv2ptr(pTHX_ SV *type_sv, SV *data, DCpointer ptr, bool packed) {
     } break;
     case AFFIX_TYPE_CPOINTER:
     case AFFIX_TYPE_REF: {
-        croak("FDSFDSFDFDSFDSF");
-        //~ HV *hv_ptr = MUTABLE_HV(SvRV(type));
-        //~ SV **type_ptr = hv_fetchs(hv_ptr, "type", 0);
-        //~ DCpointer value = safemalloc(_sizeof(aTHX_ * type_ptr));
-        //~ if (SvOK(data)) sv2ptr(aTHX_ * type_ptr, data, value, packed);
-        //~ Copy(&value, ptr, 1, intptr_t);
+        sv_dump(type_sv);
+         HV *type_hv = MUTABLE_HV(SvRV(type_sv));
+         SV *subtype = *hv_fetchs(type_hv, "type", 0);
+         sv_dump(subtype);
+         DCpointer value = safemalloc(_sizeof(aTHX_  subtype));
+         if (SvOK(data)) sv2ptr(aTHX_  subtype, data, value, packed);
+         Copy(&value, ptr, 1, intptr_t);
     } break;
     case AFFIX_TYPE_ASCIISTR: {
         if (SvPOK(data)) {
@@ -383,7 +384,7 @@ void *sv2ptr(pTHX_ SV *type_sv, SV *data, DCpointer ptr, bool packed) {
         PING;
         size_t size = size_ptr != NULL && SvOK(*size_ptr) ? SvIV(*size_ptr) : av_count(elements);
         PING;
-        // hv_stores(hv_ptr, "size", newSViv(size));
+        // hv_stores(type_hv, "size", newSViv(size));
         char type_char = (char)SvIV(*type_ptr);
         PING;
         switch (type_char) {
