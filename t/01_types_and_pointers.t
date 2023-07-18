@@ -14,6 +14,7 @@ diag unpack 'c', pack 'c', ord '-A';
 binmode $_, "encoding(UTF-8)" for Test::More->builder->output, Test::More->builder->failure_output;
 diag unpack 'W', '赤';
 diag ord '赤';
+my $lib = compile_test_lib('01_types_and_pointers');
 #
 subtest types => sub {
     isa_ok $_, 'Affix::Type::Base'
@@ -26,6 +27,45 @@ subtest types => sub {
         InstanceOf ['Test::Class'];
 };
 subtest pointers => sub {
+    subtest 'Pointer[Pointer[Int]]' => sub {
+        my $type = Pointer [ Pointer [Int] ];
+        warn;
+        my $code = Affix::wrap( $lib, 'ppi', [$type], Pointer [Char] );
+        warn;
+        my $ptr = 5;#$type->marshal(5);
+        diag ref $ptr;
+        diag $ptr;
+
+        #warn $$ptr;
+        warn;
+
+        #$ptr->dump(16);
+        warn;
+        is $code->($ptr), 'Thousand', '$code->($ptr)';
+        warn;
+        die;
+        {
+            my $ptr = $type->marshal(3939);
+            is( $type->unmarshal($ptr), 3939, '3939 in and out' );
+
+            #die;
+        }
+        {
+            my $ptr = $type->marshal(-9);
+            is( $type->unmarshal($ptr), -9, '-9 in and out' );
+        }
+        subtest 'passing Pointer[Pointer[Int]] to a function' => sub {
+            is $code->(1000),                'Thousand', '$code->(1000)';
+            is $code->(5),                   'Ouch!',    '$code->(5)';
+            is $code->(1),                   'One',      '$code->(1)';
+            is $code->(1.3),                 'One',      '$code->(1.3)';
+            is $code->("1"),                 'One',      '$code->("1")';
+            is $code->("This should break"), 'Ouch!',    '$code->("This should break")';
+            my $ptr = $type->marshal(1000);
+            $ptr->dump(16);
+            is $code->($ptr), 'Thousand', '$code->($ptr)';
+        }
+    };
     subtest 'Pointer[Any]' => sub {
         my $type = Pointer [Any];
         my $ptr  = $type->marshal( { four => 'four' } );
@@ -79,7 +119,7 @@ subtest pointers => sub {
         }
         {
             my $ptr = $type->marshal( 'Abcd' x 64 );
-            $ptr->dump(16);
+            $ptr->dump(257);
             is $type->unmarshal($ptr),        'Abcd' x 64, 'Abcd in and out';
             is int( $type->unmarshal($ptr) ), ord('A'),    'Abcd in and out (int)';
         }
@@ -350,19 +390,6 @@ subtest pointers => sub {
             is $cv->[1]->('two'),   'Two',   'proper return value from 2nd';
             is $cv->[2]->('three'), 'Three', 'proper return value from 3rd';
         };
-    };
-
-
-     subtest 'Pointer[Pointer[Int]]' => sub {
-        my $type = Pointer[Pointer [Int]];
-        {
-            my $ptr = $type->marshal(3939);
-            is( $type->unmarshal($ptr), 3939, '3939 in and out' );
-        }
-        {
-            my $ptr =$type->marshal(-9);
-            is( $type->unmarshal($ptr), -9, '-9 in and out' );
-        }
     };
 };
 done_testing;

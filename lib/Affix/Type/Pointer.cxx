@@ -1,4 +1,4 @@
-#include "../Affix.h"
+#include "../../Affix.h"
 
 XS_INTERNAL(Affix_Type_Pointer) {
     dXSARGS;
