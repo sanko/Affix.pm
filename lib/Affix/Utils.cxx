@@ -79,11 +79,6 @@ size_t _sizeof(pTHX_ SV *type) {
     case AFFIX_TYPE_CUNION:
         return SvUV(*hv_fetchs(MUTABLE_HV(SvRV(type)), "sizeof", 0));
     case AFFIX_TYPE_CARRAY:
-        PING;
-#ifdef DEBUG
-        DD(type);
-#endif
-
         if (LIKELY(hv_exists(MUTABLE_HV(SvRV(type)), "sizeof", 6)))
             return SvUV(*hv_fetchs(MUTABLE_HV(SvRV(type)), "sizeof", 0));
         {

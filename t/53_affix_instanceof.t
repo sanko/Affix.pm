@@ -21,6 +21,6 @@ affix $lib, 'MyClass::DESTROY'  => [ InstanceOf ['MyClass'] ]      => Void;
 isa_ok my $ptr = get_class(), 'MyClass', '$ptr = get_class() ';
 is $ptr->set_name('Jack'), 4,      q[$ptr->set_name('Jack')];
 is $ptr->get_name,         'Jack', '$ptr->get_name eq "Jack"';
-like exception { MyClass::get_name( bless {}, 'Broken' ) }, qr[of type MyClass],
+like exception { MyClass::get_name( bless {}, 'Broken' ) }, qr[subclass of MyClass],
     q[MyClass::get_name(bless {}, 'Broken') throws exception];
 done_testing;

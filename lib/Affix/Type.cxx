@@ -525,6 +525,10 @@ void boot_Affix_Type(pTHX_ CV *cv) {
     /*
     #define AFFIX_TYPE_CPPSTRUCT 44
     */
+
+    set_isa("Affix::Type::UChar", "Affix::Type::Char");
+    set_isa("Affix::Type::UInt", "Affix::Type::Int");
+
     set_isa("Affix::Type::CC", "Affix::Type::Base");
     CC_TYPE(DEFAULT, DC_SIGCHAR_CC_DEFAULT);
     CC_TYPE(THISCALL, DC_SIGCHAR_CC_THISCALL);

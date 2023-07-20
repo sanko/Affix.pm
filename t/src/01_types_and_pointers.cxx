@@ -1,10 +1,70 @@
 #include "std.h"
 
+DLLEXPORT
+bool testIntPointer(int value, int *ptr) {
+    //~ warn("# %d == %d = %b", value, *ptr, (*ptr == value));
+    if (value == *ptr) return true;
+    return false;
+}
+DLLEXPORT
+bool testIntPointerPointer(int value, int **ptr) {
+    if (value == **ptr) return true;
+    return false;
+}
+
+bool testBoolPointer(bool value, bool *ptr) {
+    if (value == *ptr) return true;
+    return false;
+}
+
+bool testBoolPointerPointer(bool value, bool **ptr) {
+    if (value == **ptr) return true;
+    return false;
+}
+/*
+bool testLong(long value, long *ptr) {
+    return (*ptr == value);
+}
+
+bool testLongPointer(long value, long **ptr) {
+    return (**ptr == value);
+}
+
+bool testFloat(float value, float *ptr) {
+    return (*ptr == value);
+}
+
+bool testFloatPointer(float value, float **ptr) {
+    return (**ptr == value);
+}
+
+bool testDouble(double value, double *ptr) {
+    return (*ptr == value);
+}
+
+bool testDoublePointer(double value, double **ptr) {
+    return (**ptr == value);
+}
+
+bool testChar(char value, char *ptr) {
+    return (*ptr == value);
+}
+
+bool testCharPointer(char value, char **ptr) {
+    return (**ptr == value);
+}
+
+DLLEXPORT const char *pi(int *v) {
+    switch (*v) {
+    case 1:
+        return "One";
+    case 1000:
+        return "Thousand";
+    default:
+        return "Ouch!";
+    }
+}
 DLLEXPORT const char *ppi(int **v) {
-    warn("HERE "
-         "%p!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!",
-         v);
-    warn("**v == %d", **v);
     switch (**v) {
     case 1:
         return "One";
@@ -13,9 +73,53 @@ DLLEXPORT const char *ppi(int **v) {
     default:
         return "Ouch!";
     }
-    warn("HERE!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!"
-         "!");
 }
+
+DLLEXPORT void *take_star_sv(void *blah) {
+
+    return blah;
+
+    // return "Hi";
+}
+DLLEXPORT const char *take_star_star_sv(void **blah) {
+    return "Hi";
+}
+*/
+extern "C" {
+DLLEXPORT int take_pointer_to_array_of_ints(int *blah[10]) {
+    int retval = 0;
+    //~ warn("Heeloooo %p", blah);
+    //~ DumpHex(*(void **)blah, 40);
+    for (int i = 0; i < 10; i++) {
+        warn("# %d ", (*blah)[i]);
+        retval += (*blah)[i];
+    }
+    return retval;
+}
+}
+
+/*
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+*/
 
 static void *sv_holder;
 DLLEXPORT int set_sv_pointer(void *in) {
@@ -100,6 +204,18 @@ int main() {
 
     s1.getinfo();
     s2.getinfo();
+
+    int *arr[10];
+
+    for (int i = 0; i < 10; i++) {
+        arr[i] = (int *)malloc(sizeof(int));
+    }
+
+    for (int i = 0; i < 10; i++) {
+        *arr[i] = i * i;
+    }
+
+    take_pointer_to_array_of_ints(arr);
 
     return 0;
 }

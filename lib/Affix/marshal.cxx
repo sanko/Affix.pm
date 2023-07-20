@@ -6,7 +6,7 @@ SV *ptr2sv(pTHX_ DCpointer ptr, SV *type_sv) {
     int16_t type = SvIV(type_sv);
 //~ {
 #ifdef DEBUG
-    warn("ptr2sv(%p, %s) at %s line %d", ptr, type_as_str(type), __FILE__, __LINE__);
+    warn("ptr2sv(%p, %s (%d)) at %s line %d", ptr, type_as_str(type), type, __FILE__, __LINE__);
 #endif
     //~ if (type != AFFIX_TYPE_VOID) {
     //~ size_t l = _sizeof(type_sv);
@@ -71,12 +71,17 @@ SV *ptr2sv(pTHX_ DCpointer ptr, SV *type_sv) {
         break;
     case AFFIX_TYPE_CPOINTER:
     case AFFIX_TYPE_REF: {
+        SV *subtype = *hv_fetchs(MUTABLE_HV(SvRV(type_sv)), "type", 0);
         if (sv_derived_from(type_sv, "Affix::Type::InstanceOf")) {
             if (ptr == NULL) { RETVAL = newSV(0); }
             else {
                 SV *cls = *hv_fetchs(MUTABLE_HV(SvRV(type_sv)), "class", 0);
                 sv_setref_pv(RETVAL, SvPV_nolen(cls), ptr);
             }
+        }
+        else if (sv_derived_from(subtype, "Affix::Type::Pointer") ||
+                 sv_derived_from(subtype, "Affix::Type::ArrayRef")) {
+            if (ptr != NULL) { SvSetSV(RETVAL, ptr2sv(aTHX_ * (void **)ptr, subtype)); }
         }
         else {
             SV *subtype = *hv_fetchs(MUTABLE_HV(SvRV(type_sv)), "type", 0);
@@ -90,30 +95,38 @@ SV *ptr2sv(pTHX_ DCpointer ptr, SV *type_sv) {
         if (wcslen((wchar_t *)ptr)) {
             RETVAL = wchar2utf(aTHX_ * (wchar_t **)ptr, wcslen(*(wchar_t **)ptr));
         }
-        else
-            sv_set_undef(RETVAL);
+        else { sv_set_undef(RETVAL); }
     } break;
     case AFFIX_TYPE_CARRAY: {
+        PING;
         AV *RETVAL_ = newAV_mortal();
         HV *_type = MUTABLE_HV(SvRV(type_sv));
-
         SV *subtype = *hv_fetchs(_type, "type", 0);
-        if (sv_derived_from(subtype, "Affix::Type::Char")) {}
+        PING;
+        if (sv_derived_from(subtype, "Affix::Type::Char")) { PING; }
         else {
-            SV **size = hv_fetchs(_type, "size", 0);
-            if (size == NULL) size = hv_fetchs(_type, "dyn_size", 0);
-
-            size_t pos = PTR2IV(ptr);
-            size_t sof = _sizeof(aTHX_ subtype);
-
-            size_t av_len = SvIV(*size);
-            for (size_t i = 0; i < av_len; ++i) {
-                av_push(RETVAL_, ptr2sv(aTHX_ INT2PTR(DCpointer, pos), subtype));
-                pos += sof;
+            PING;
+            SV **size_ptr = hv_fetchs(_type, "size", 0);
+            if (size_ptr == NULL) size_ptr = hv_fetchs(_type, "dyn_size", 0);
+            size_t size = SvIV(*size_ptr);
+            PING;
+            size_t el_len = _sizeof(aTHX_ subtype);
+            size_t pos = 0; // override
+            for (size_t i = 0; i < size; ++i) {
+                //~ warn("int[%d] of %d", i, size);
+                //~ warn("Putting index %d into pointer plus %d", i, pos);
+                SV *hold = ptr2sv(aTHX_ INT2PTR(DCpointer, PTR2IV(ptr) + pos), subtype);
+                // sv_dump(hold);
+                av_push(RETVAL_, hold);
+                pos += el_len;
+                //~ warn("i: %d, pos == %d, %p", i, pos, INT2PTR(DCpointer, PTR2IV(ptr) + pos));
             }
         }
+        PING;
 
         SvSetSV(RETVAL, newRV(MUTABLE_SV(RETVAL_)));
+        PING;
+
     } break;
     case AFFIX_TYPE_CSTRUCT: {
 #if TIE_MAGIC
@@ -168,10 +181,11 @@ SV *ptr2sv(pTHX_ DCpointer ptr, SV *type_sv) {
 
 void *sv2ptr(pTHX_ SV *type_sv, SV *data, DCpointer ptr, bool packed) {
     int16_t type = SvIV(type_sv);
-    if (ptr == NULL) ptr = safemalloc(_sizeof(aTHX_ type_sv));
+    if (ptr == NULL) { ptr = safemalloc(_sizeof(aTHX_ type_sv)); }
 #ifdef DEBUG
     warn("sv2ptr(%s (%d), ..., %p, %s) at %s line %d", type_as_str(type), type, ptr,
          (packed ? "true" : "false"), __FILE__, __LINE__);
+    DD(type_sv);
 #endif
     switch (type) {
     case AFFIX_TYPE_VOID: {
@@ -197,8 +211,10 @@ void *sv2ptr(pTHX_ SV *type_sv, SV *data, DCpointer ptr, bool packed) {
         if (SvPOK(data)) {
             STRLEN len;
             DCpointer value = (DCpointer)SvPV(data, len);
+            DumpHex(value, len);
             Renew(ptr, len + 1, char);
             Copy(value, ptr, len + 1, char);
+            DumpHex(ptr, len);
         }
         else {
             char value = SvIOK(data) ? SvIV(data) : 0;
@@ -274,13 +290,35 @@ void *sv2ptr(pTHX_ SV *type_sv, SV *data, DCpointer ptr, bool packed) {
     } break;
     case AFFIX_TYPE_CPOINTER:
     case AFFIX_TYPE_REF: {
-        sv_dump(type_sv);
-         HV *type_hv = MUTABLE_HV(SvRV(type_sv));
-         SV *subtype = *hv_fetchs(type_hv, "type", 0);
-         sv_dump(subtype);
-         DCpointer value = safemalloc(_sizeof(aTHX_  subtype));
-         if (SvOK(data)) sv2ptr(aTHX_  subtype, data, value, packed);
-         Copy(&value, ptr, 1, intptr_t);
+        HV *type_hv = MUTABLE_HV(SvRV(type_sv));
+        SV *subtype = *hv_fetchs(type_hv, "type", 0);
+        if (sv_derived_from(subtype, "Affix::Type::Char")) {
+            if (SvPOK(data)) {
+                STRLEN len;
+                void *hold = SvPV(data, len);
+                Renew(ptr, len + 1, char);
+                Copy(hold, ptr, len + 1, char);
+            }
+            else {
+                char value = SvIOK(data) ? SvIV(data) : 0;
+                Copy(&value, ptr, 1, char);
+            }
+        }
+        else if (!(
+
+                     // sv_derived_from(subtype, "Affix::Type::Pointer")
+                     sv_derived_from(subtype, "Affix::Type::Pointer") ||
+                     sv_derived_from(subtype, "Affix::Type::ArrayRef")
+
+                         )) {
+            PING;
+            sv2ptr(aTHX_ subtype, data, ptr, packed);
+        }
+        else {
+            DCpointer value = safemalloc(_sizeof(aTHX_ subtype));
+            sv2ptr(aTHX_ subtype, data, value, packed);
+            Copy(&value, ptr, 1, intptr_t);
+        }
     } break;
     case AFFIX_TYPE_ASCIISTR: {
         if (SvPOK(data)) {
@@ -364,7 +402,11 @@ void *sv2ptr(pTHX_ SV *type_sv, SV *data, DCpointer ptr, bool packed) {
     case AFFIX_TYPE_CARRAY: {
         PING;
         AV *elements;
+        PING;
+
         if (SvPOK(data)) {
+            PING;
+
             elements = newAV_mortal();
             STRLEN len;
             char *str = SvPV(data, len);
@@ -377,7 +419,7 @@ void *sv2ptr(pTHX_ SV *type_sv, SV *data, DCpointer ptr, bool packed) {
         PING;
         HV *hv_ptr = MUTABLE_HV(SvRV(type_sv));
         PING;
-        SV **type_ptr = hv_fetchs(hv_ptr, "type", 0);
+        SV *subtype = *hv_fetchs(hv_ptr, "type", 0);
         SV **size_ptr = hv_fetchs(hv_ptr, "size", 0);
         PING;
         hv_stores(hv_ptr, "dyn_size", newSVuv(av_count(elements)));
@@ -385,14 +427,13 @@ void *sv2ptr(pTHX_ SV *type_sv, SV *data, DCpointer ptr, bool packed) {
         size_t size = size_ptr != NULL && SvOK(*size_ptr) ? SvIV(*size_ptr) : av_count(elements);
         PING;
         // hv_stores(type_hv, "size", newSViv(size));
-        char type_char = (char)SvIV(*type_ptr);
         PING;
-        switch (type_char) {
+        switch (SvIV(subtype)) {
         case AFFIX_TYPE_CHAR:
         case AFFIX_TYPE_UCHAR: {
             PING;
             if (SvPOK(data)) {
-                if (type_char == AFFIX_TYPE_CHAR) {
+                if (SvIV(subtype) == AFFIX_TYPE_CHAR) {
                     char *value = SvPV(data, size);
                     Copy(value, ptr, size, char);
                 }
@@ -412,14 +453,15 @@ void *sv2ptr(pTHX_ SV *type_sv, SV *data, DCpointer ptr, bool packed) {
                 if (av_len != size)
                     croak("Expected and array of %zu elements; found %zu", size, av_len);
             }
-            size_t el_len = _sizeof(aTHX_ * type_ptr);
+            size_t el_len = _sizeof(aTHX_ subtype);
             size_t pos = 0; // override
             for (size_t i = 0; i < size; ++i) {
                 //~ warn("int[%d] of %d", i, size);
                 //~ warn("Putting index %d into pointer plus %d", i, pos);
-                sv2ptr(aTHX_ * type_ptr, *(av_fetch(elements, i, 0)),
+                sv2ptr(aTHX_ subtype, *(av_fetch(elements, i, 0)),
                        INT2PTR(DCpointer, PTR2IV(ptr) + pos), packed);
                 pos += el_len;
+                //~ warn("i: %d, pos == %d, %p", i, pos, INT2PTR(DCpointer, PTR2IV(ptr) + pos));
             }
         }
             // return _sizeof(aTHX_ type);
@@ -455,7 +497,6 @@ void *sv2ptr(pTHX_ SV *type_sv, SV *data, DCpointer ptr, bool packed) {
             hold->cb = cb;
             Copy(hold, ptr, 1, DCpointer);
         }
-        DD(data);
     } break;
     case AFFIX_TYPE_SV: {
         if (!SvOK(data))
@@ -466,6 +507,7 @@ void *sv2ptr(pTHX_ SV *type_sv, SV *data, DCpointer ptr, bool packed) {
             Renew(ptr, 1, intptr_t);
             Copy(&value, ptr, 1, intptr_t);
         }
+        //~ DD(data);
     } break;
     default: {
         croak("%s (%d) is not a known type in sv2ptr(...)", type_as_str(type), type);

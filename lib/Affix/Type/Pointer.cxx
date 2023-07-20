@@ -33,11 +33,12 @@ XS_INTERNAL(Affix_Type_Pointer_marshal) {
     dVAR;
     dXSARGS;
     if (items != 2) croak_xs_usage(cv, "type, data");
-    SV *type = *hv_fetchs(MUTABLE_HV(SvRV(ST(0))), "type", 0);
+    if (UNLIKELY(!sv_derived_from(ST(0), "Affix::Type::Base")))
+        croak("type is not of type Affix::Type");
     SV *data = ST(1);
     DCpointer RETVAL = NULL; // = safemalloc(1);
     //~ warn("RETVAL should be %d bytes", _sizeof(aTHX_ type));
-    RETVAL = sv2ptr(aTHX_ type, data, RETVAL, false);
+    RETVAL = sv2ptr(aTHX_ ST(0), data, RETVAL, false);
     {
         SV *RETVALSV;
         RETVALSV = sv_newmortal();
@@ -50,17 +51,25 @@ XS_INTERNAL(Affix_Type_Pointer_marshal) {
 XS_INTERNAL(Affix_Type_Pointer_unmarshal) {
     dVAR;
     dXSARGS;
-    if (items != 2) croak_xs_usage(cv, "pointer, type");
+    if (items != 2) croak_xs_usage(cv, "type, pointer");
+    if (UNLIKELY(!sv_derived_from(ST(0), "Affix::Type::Base")))
+        croak("type is not of type Affix::Type");
     SV *RETVAL;
     DCpointer ptr;
-    SV *type = *hv_fetchs(MUTABLE_HV(SvRV(ST(0))), "type", 0);
     if (sv_derived_from(ST(1), "Affix::Pointer")) {
         IV tmp = SvIV((SV *)SvRV(ST(1)));
         ptr = INT2PTR(DCpointer, tmp);
     }
     else
         croak("pointer is not of type Affix::Pointer");
-    RETVAL = ptr2sv(aTHX_ ptr, type);
+    //~ warn("$type->unmarshal(%p) where $type is...", ptr);
+    //~ DD(ST(0));
+    //~ if (0) {
+    //~ SV *subtype = *hv_fetchs(MUTABLE_HV(SvRV(ST(0))), "type", 0);
+    //~ RETVAL = ptr2sv(aTHX_ ptr, subtype);
+    //~ }
+    //~ else
+    RETVAL = ptr2sv(aTHX_ ptr, ST(0));
     RETVAL = sv_2mortal(RETVAL);
     ST(0) = RETVAL;
     XSRETURN(1);
@@ -687,6 +696,8 @@ void boot_Affix_Pointer(pTHX_ CV *cv) {
     (void)newXSproto_portable("Affix::Pointer::dump", Affix_Pointer_DumpHex, __FILE__, "$$");
     (void)newXSproto_portable("Affix::DumpHex", Affix_Pointer_DumpHex, __FILE__, "$$");
     (void)newXSproto_portable("Affix::Pointer::DESTROY", Affix_Pointer_DESTROY, __FILE__, "$");
+    // $ptr->free or Affix::free($ptr)
+    (void)newXSproto_portable("Affix::Pointer::free", Affix_free, __FILE__, "$");
 
     set_isa("Affix::Pointer::Unmanaged", "Affix::Pointer");
 
