@@ -411,7 +411,8 @@ sub find {
     File::Find::find( sub { push @ret, $File::Find::name if /$pattern/ && -f }, $dir ) if -d $dir;
     return @ret;
 }
-my %actions = (
+my %actions;
+%actions = (
     build => sub {
         my %opt = @_;
         for my $pl_file ( find( qr/\.PL$/, 'lib' ) ) {
@@ -448,7 +449,9 @@ my %actions = (
     },
     test => sub {
         my %opt = @_;
-        die "Must run `./Build build` first\n" if not -d 'blib';
+
+        #~ die "Must run `./Build build` first\n" if not -d 'blib';
+        $actions{build}->(%opt);
         require TAP::Harness::Env;
         my %test_args = (
             ( verbosity => $opt{verbose} ) x !!exists $opt{verbose},
@@ -461,18 +464,22 @@ my %actions = (
     },
     install => sub {
         my %opt = @_;
-        die "Must run `./Build build` first\n" if not -d 'blib';
+
+        #~ die "Must run `./Build build` first\n" if not -d 'blib';
+        $actions{build}->(%opt);
         install( $opt{install_paths}->install_map, @opt{qw/verbose dry_run uninst/} );
         return 0;
     },
     clean => sub {
         my %opt = @_;
         rmtree( $_, $opt{verbose} ) for qw/blib temp/;
+        unlink $_ for find( qr/\.o$/, 'lib' );
         return 0;
     },
     realclean => sub {
         my %opt = @_;
-        rmtree( $_, $opt{verbose} ) for qw/blib temp Build _build_params MYMETA.yml MYMETA.json/;
+        $actions{clean}->(%opt);
+        rmtree( $_, $opt{verbose} ) for qw/Build _build_params MYMETA.yml MYMETA.json/;
         return 0;
     }
 );
