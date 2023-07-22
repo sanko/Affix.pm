@@ -110,7 +110,7 @@ size_t _sizeof(pTHX_ SV *type) {
     case AFFIX_TYPE_ASCIISTR:
     case AFFIX_TYPE_UTF8STR:
     case AFFIX_TYPE_UTF16STR:
-    case AFIX_ARG_STD_STRING:
+    case AFFIX_TYPE_STD_STRING:
     //~ case AFFIX_TYPE_ANY:
     case AFFIX_TYPE_SV:
         return INTPTR_T_SIZE;
@@ -159,7 +159,7 @@ size_t _alignof(pTHX_ SV *type) {
     case AFFIX_TYPE_ASCIISTR:
     case AFFIX_TYPE_UTF8STR:
     case AFFIX_TYPE_UTF16STR:
-    case AFIX_ARG_STD_STRING:
+    case AFFIX_TYPE_STD_STRING:
     //~ case AFFIX_TYPE_ANY:
     case AFFIX_TYPE_SV:
         return INTPTR_T_ALIGN;
@@ -228,7 +228,7 @@ const char *type_as_str(int type) {
     /*case  AFFIX_TYPE_CPPSTRUCT 44*/
     case AFFIX_TYPE_WCHAR:
         return "WChar";
-    case AFIX_ARG_STD_STRING:
+    case AFFIX_TYPE_STD_STRING:
         return "std::string";
     default:
         return "Unknown";
@@ -263,7 +263,7 @@ int type_as_dc(int type) {
     case AFFIX_TYPE_CALLBACK:
     case AFFIX_TYPE_CPOINTER:
     case AFFIX_TYPE_SV:
-    case AFIX_ARG_STD_STRING:
+    case AFFIX_TYPE_STD_STRING:
         return DC_SIGCHAR_POINTER;
     /*case  AFFIX_TYPE_VMARRAY 30*/
     case AFFIX_TYPE_UCHAR:

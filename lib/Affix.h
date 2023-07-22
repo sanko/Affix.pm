@@ -143,7 +143,8 @@ static const char *dlerror(void) {
 #define AFFIX_TYPE_WCHAR 44
 #define AFFIX_TYPE_SV 46
 #define AFFIX_TYPE_REF 48
-#define AFIX_ARG_STD_STRING 50
+#define AFFIX_TYPE_STD_STRING 50
+#define AFFIX_TYPE_INSTANCE_OF 52
 
 /* Flag for whether we should free a string after passing it or not. */
 #define AFFIX_TYPE_NO_FREE_STR 0

@@ -243,7 +243,7 @@ extern "C" void Affix_trigger(pTHX_ CV *cv) {
         case AFFIX_TYPE_ASCIISTR: {
             dcArgPointer(MY_CXT.cvm, SvOK(ST(arg_pos)) ? SvPV_nolen(ST(arg_pos)) : NULL);
         } break;
-        case AFIX_ARG_STD_STRING: {
+        case AFFIX_TYPE_STD_STRING: {
             std::string tmp = SvOK(ST(arg_pos)) ? SvPV_nolen(ST(arg_pos)) : NULL;
             dcArgPointer(MY_CXT.cvm, static_cast<void *>(&tmp));
         } break;
@@ -499,7 +499,7 @@ extern "C" void Affix_trigger(pTHX_ CV *cv) {
         dcCallAggr(MY_CXT.cvm, ptr->entry_point, agg_, p);
         RETVAL = ptr2sv(aTHX_ p, ptr->ret_info);
     } break;
-    case AFIX_ARG_STD_STRING:
+    case AFFIX_TYPE_STD_STRING:
 
     default:
         //~ sv_dump(ptr->ret_info);
@@ -558,6 +558,7 @@ extern "C" void Affix_trigger(pTHX_ CV *cv) {
                     else if (!SvREADONLY(ST(i))) {
                         //~ sv_dump((ST(i)));
                         //~ sv_dump(SvRV(ST(i)));
+#if TIE_MAGIC
                         if (SvOK(ST(i))) {
                             const MAGIC *mg = SvTIED_mg((SV *)SvRV(ST(i)), PERL_MAGIC_tied);
                             if (LIKELY(SvOK(ST(i)) && SvTYPE(SvRV(ST(i))) == SVt_PVHV && mg
@@ -573,6 +574,9 @@ extern "C" void Affix_trigger(pTHX_ CV *cv) {
                             sv_setsv_mg(ST(i), ptr2sv(aTHX_ free_ptrs[p++],
                                                       *av_fetch(ptr->arg_info, i, 0)));
                         }
+#endif
+                        sv_setsv_mg(ST(i),
+                                    ptr2sv(aTHX_ free_ptrs[p++], *av_fetch(ptr->arg_info, i, 0)));
                     }
                 } break;
                 }

@@ -198,4 +198,19 @@ is Affix::wrap( $lib, 'cb_CV_Z', [ CodeRef [ [ Str, cv() ] => Str ], cv() ] => S
     $cv
     ),
     'Go!', '    => Str';
+#
+Affix::typedef cb_caller => CodeRef [ [ Pointer [Void], Int ] => Int ];
+isa_ok my $ptr = Affix::wrap( $lib, 'put_cb_in_struct', [ cb_caller() ] => Pointer [Void] )->(
+    sub {
+        my ( $self, $num ) = @_;
+        is $num, 50, 'arg passed to callback is correct';
+        return 100;
+    },
+    ),
+    'Affix::Pointer';
+is Affix::wrap( $lib, 'call_cb_in_struct', [ Pointer [Void], Int ] => Int )->( $ptr, 50 ), 100,
+    'callback stored in a struct triggers correctly';
+ok Affix::wrap( $lib, 'free_cb_in_struct', [ Pointer [Void] ] => Int )->($ptr),
+    'free struct pointer';
+#
 done_testing;

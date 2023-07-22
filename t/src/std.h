@@ -4,6 +4,7 @@
 #include <stdbool.h>
 #include <stddef.h> // offsetof
 #include <stdio.h>
+#include <stdlib.h> // malloc
 #include <string.h>
 
 #define warn(FORMAT, ...)                                                                          \
