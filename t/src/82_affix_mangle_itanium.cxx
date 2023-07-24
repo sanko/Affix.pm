@@ -25,14 +25,11 @@ DLLEXPORT MyClass setup() {
 }
 
 DLLEXPORT MyClass setup(bool safe) {
-    warn("bool");
-    MyClass myObj = {.myNum = 15, .myString = "Some text"};
-    myObj.myString = (const char *)malloc(10);
+    MyClass myObj = {.myNum = 43, .myString = "Some new text"};
     return myObj;
 }
 
 DLLEXPORT MyClass setup(int i) {
-    warn("int");
     MyClass myObj = {.myNum = i, .myString = "Some different text"};
     return myObj;
 }

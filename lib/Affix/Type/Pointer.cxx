@@ -36,9 +36,11 @@ XS_INTERNAL(Affix_Type_Pointer_marshal) {
     if (UNLIKELY(!sv_derived_from(ST(0), "Affix::Type::Base")))
         croak("type is not of type Affix::Type");
     SV *data = ST(1);
-    DCpointer RETVAL = NULL; // = safemalloc(1);
-    //~ warn("RETVAL should be %d bytes", _sizeof(aTHX_ type));
-    RETVAL = sv2ptr(aTHX_ ST(0), data, RETVAL, false);
+    PING;
+    DCpointer RETVAL = sv2ptr(aTHX_ ST(0), data, false);
+    PING;
+    // DumpHex(RETVAL, _sizeof(aTHX_ ST(0)));
+    PING;
     {
         SV *RETVALSV;
         RETVALSV = sv_newmortal();

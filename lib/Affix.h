@@ -98,7 +98,7 @@ static const char *dlerror(void) {
 }
 #endif
 
-#ifdef DEBUG
+#if DEBUG > 1
 #define PING warn("Ping at %s line %d", __FILE__, __LINE__);
 #else
 #define PING ;
@@ -246,7 +246,7 @@ following address will be aligned to `alignment`. */
 // marshal.cxx
 size_t padding_needed_for(size_t offset, size_t alignment);
 SV *ptr2sv(pTHX_ DCpointer ptr, SV *type_sv);
-void *sv2ptr(pTHX_ SV *type_sv, SV *data, DCpointer ptr, bool packed);
+DCpointer sv2ptr(pTHX_ SV *type_sv, SV *data, bool packed);
 size_t _alignof(pTHX_ SV *type);
 size_t _sizeof(pTHX_ SV *type);
 size_t _offsetof(pTHX_ SV *type);

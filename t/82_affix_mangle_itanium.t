@@ -19,8 +19,14 @@ subtest 'setup()' => sub {
     is $myclass->{myNum},    15,          '.myNum == 15';
     is $myclass->{myString}, 'Some text', '.myString eq "Some text"';
 };
+subtest 'setup(bool i)' => sub {
+    my $myclass = wrap( $lib => 'setup' => [Bool] => MyClass() )->(1);
+    is $myclass->{myNum},    43,              '.myNum == 43';
+    is $myclass->{myString}, 'Some new text', '.myString eq "Some new text"';
+};
 subtest 'setup(int i)' => sub {
     my $myclass = wrap( $lib => 'setup' => [Int] => MyClass() )->(3);
+    diag 'Here';
     is $myclass->{myNum},    3,                     '.myNum == 3';
     is $myclass->{myString}, 'Some different text', '.myString eq "Some different text"';
     subtest 'MyClass::speed(...)' => sub {

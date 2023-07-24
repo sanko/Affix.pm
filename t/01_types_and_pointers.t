@@ -190,14 +190,14 @@ subtest 'Pointer[Char]' => sub {
     my $type = Pointer [Char];
     {
         my $ptr = $type->marshal('Abcd');
-        $ptr->dump(16);
+        $ptr->dump(5);
         is $type->unmarshal($ptr),        'Abcd',   'Abcd in and out';
         is int( $type->unmarshal($ptr) ), ord('A'), 'Abcd in and out (int)';
     }
     {
         my $ptr = $type->marshal( 'Abcd' x 64 );
-        diag $type->unmarshal($ptr);
         $ptr->dump(257);
+        diag $type->unmarshal($ptr);
 
         #~ die;
         is $type->unmarshal($ptr),        'Abcd' x 64, 'Abcd in and out';
