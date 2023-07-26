@@ -12,7 +12,7 @@ char cbHandler(DCCallback *cb, DCArgs *args, DCValue *result, DCpointer userdata
     PUSHMARK(SP);
     EXTEND(SP, (int)cbx->sig_len);
     char type;
-    //~ warn("callback! %d args; sig: %s", cbx->sig_len, cbx->sig);
+    warn("callback! %d args; sig: %s", cbx->sig_len, cbx->sig);
     /*
     char *sig;
     size_t sig_len;
@@ -25,7 +25,7 @@ char cbHandler(DCCallback *cb, DCArgs *args, DCValue *result, DCpointer userdata
     */
     for (size_t i = 0; i < cbx->sig_len; ++i) {
         type = cbx->sig[i];
-        //~ warn("arg %d of %d: %c", i, cbx->sig_len, type);
+        warn("arg %d of %d: %c", i, cbx->sig_len, type);
         switch (type) {
         case DC_SIGCHAR_VOID:
             // TODO: push undef?
@@ -87,16 +87,20 @@ char cbHandler(DCCallback *cb, DCArgs *args, DCValue *result, DCpointer userdata
             break;
         case DC_SIGCHAR_POINTER: {
             DCpointer ptr = dcbArgPointer(args);
-            SV *type = *av_fetch(cbx->arg_info, i, 0);
-            switch (SvIV(type)) {
-            case AFFIX_TYPE_CALLBACK: {
-                Callback *cb = (Callback *)dcbGetUserData((DCCallback *)ptr);
-                mPUSHs(cb->cv);
-            } break;
-            default: {
-                mPUSHs(ptr2sv(aTHX_ ptr, type));
-            } break;
+            if (ptr != NULL) {
+                DumpHex(ptr, 32);
+                SV *type = *av_fetch(cbx->arg_info, i, 0);
+                switch (SvIV(type)) {
+                case AFFIX_TYPE_CALLBACK: {
+                    Callback *cb = (Callback *)dcbGetUserData((DCCallback *)ptr);
+                    mPUSHs(cb->cv);
+                } break;
+                default: {
+                    mPUSHs(ptr2sv(aTHX_ ptr, type));
+                } break;
+                }
             }
+            else { mPUSHs(newSV(0)); }
         } break;
         case DC_SIGCHAR_STRING: {
             DCpointer ptr = dcbArgPointer(args);

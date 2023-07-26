@@ -402,6 +402,33 @@ XS_INTERNAL(Affix_typedef) {
     XSRETURN_EMPTY;
 }
 
+XS_INTERNAL(Affix_Type_unmarshal) {
+    dVAR;
+    dXSARGS;
+    if (items != 2) croak_xs_usage(cv, "type, pointer");
+    if (UNLIKELY(!sv_derived_from(ST(0), "Affix::Type::Base")))
+        croak("type is not of type Affix::Type");
+    SV *RETVAL;
+    DCpointer ptr;
+    if (sv_derived_from(ST(1), "Affix::Pointer")) {
+        IV tmp = SvIV((SV *)SvRV(ST(1)));
+        ptr = INT2PTR(DCpointer, tmp);
+    }
+    else
+        croak("pointer is not of type Affix::Pointer");
+    //~ warn("$type->unmarshal(%p) where $type is...", ptr);
+    //~ DD(ST(0));
+    //~ if (0) {
+    //~ SV *subtype = *hv_fetchs(MUTABLE_HV(SvRV(ST(0))), "type", 0);
+    //~ RETVAL = ptr2sv(aTHX_ ptr, subtype);
+    //~ }
+    //~ else
+    RETVAL = ptr2sv(aTHX_ ptr, ST(0));
+    RETVAL = sv_2mortal(RETVAL);
+    ST(0) = RETVAL;
+    XSRETURN(1);
+}
+
 #define SIMPLE_TYPE(TYPE)                                                                          \
     XS_INTERNAL(Affix_Type_##TYPE) {                                                               \
         dXSARGS;                                                                                   \
@@ -546,6 +573,8 @@ void boot_Affix_Type(pTHX_ CV *cv) {
 
     (void)newXSproto_portable("Affix::typedef", Affix_typedef, __FILE__, "$$");
     export_function("Affix", "typedef", "all");
+
+    (void)newXSproto_portable("Affix::Type::Base::unmarshal", Affix_Type_unmarshal, __FILE__, "$$");
 
     boot_Affix_Type_InstanceOf(aTHX_ cv);
 }

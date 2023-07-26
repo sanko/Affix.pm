@@ -658,7 +658,9 @@ XS_INTERNAL(Affix_affix) {
 #else
                     (DLLib *)dlopen(ret->lib_name, RTLD_LAZY /* RTLD_NOW|RTLD_GLOBAL */);
 #endif
-                if (!ret->lib_handle) { croak("Failed to load lib %s", dlerror()); }
+                if (!ret->lib_handle) {
+                    croak("Failed to load lib %s", dlerror());
+                }
                 LIBSV = sv_newmortal();
                 sv_setref_pv(LIBSV, "Affix::Lib", (DCpointer)ret->lib_handle);
             }
@@ -990,20 +992,205 @@ XS_EXTERNAL(boot_Affix) {
 
     //~ export_function("Affix", "DEFAULT_ALIGNMENT", "vars");
     //~ export_constant("Affix", "ALIGNBYTES", "all", AFFIX_ALIGNBYTES);
-    export_constant("Affix::Feature", "Syscall", "feature",
+
+    // https://dyncall.org/pub/dyncall/dyncall/file/tip/dyncall/dyncall_macros.h
+
+    export_constant_str("Affix::Platform", "OS", "platform",
+#ifdef DC__OS_Win64
+                        "Win64"
+#elif defined DC__OS_Win32
+                        "Win32"
+#elif defined DC__OS_MacOSX
+                        "MacOS"
+#elif defined DC__OS_IPhone
+                        "iOS"
+#elif defined DC__OS_Linux
+                        "Linux"
+#elif defined DC__OS_FreeBSD
+                        "FreeBSD"
+#elif defined DC__OS_OpenBSD
+                        "OpenBSD"
+#elif defined DC__OS_NetBSD
+                        "NetBSD"
+#elif defined DC__OS_DragonFlyBSD
+                        "DragonFlyBSD"
+#elif defined DC__OS_NDS
+                        "Nintendo DS"
+#elif defined DC__OS_PSP
+                        "PlayStation Portable"
+#elif defined DC__OS_BeOS
+                        "Haiku"
+#elif defined DC__OS_Plan9
+                        "Plan9"
+#elif defined DC__OS_VMS
+                        "VMS"
+#elif defined DC__OS_Minix
+                        "Minix"
+#else
+                        "UNKNOWN"
+#endif
+    );
+    export_constant("Affix::Platform::Win32", "Cygwin", "platform",
+#ifdef DC__OS_Cygwin
+                    1
+#else
+                    0
+#endif
+    );
+    export_constant("Affix::Platform::Win32", "MinGW", "platform",
+#ifdef DC__OS_MinGW
+                    1
+#else
+                    0
+#endif
+    );
+    export_constant_str("Affix::Platform", "Compiler", "platform",
+#ifdef DC__C_Intel
+                        "Intel"
+#elif defined DC__C_MSVC
+                        "MSVC"
+#elif defined DC__C_CLANG
+                        "CLANG"
+#elif defined DC__C_GNU
+                        "GNU"
+#elif defined DC__C_WATCOM
+                        "WATCOM"
+#elif defined DC__C_PCC
+                        "PCC"
+#elif defined DC__C_SUNPRO
+                        "SUN"
+#else
+                        "UNKNOWN"
+#endif
+    );
+    export_constant_str("Affix::Platform", "Architecture", "platform",
+#ifdef DC__Arch_AMD64
+                        "AMD64"
+#elif defined DC__Arch_Intel_x86
+                        "Intelx86"
+#elif defined DC__Arch_Itanium
+                        "Itanium"
+#elif defined DC__Arch_PPC64
+                        "PPC64"
+#elif defined DC__Arch_PPC64
+                        "PPC32"
+#elif defined DC__Arch_MIPS64
+                        "MIPS64"
+#elif defined DC__Arch_MIPS
+                        "MIPS"
+#elif defined DC__Arch_ARM
+                        "ARM"
+#elif defined DC__Arch_ARM64
+                        "ARM64"
+#elif defined DC__Arch_MIPS
+                        "MIPS"
+#elif defined DC__Arch_SuperH
+                        "SuperH" // https://en.wikipedia.org/wiki/SuperH
+#elif defined DC__Arch_Sparc64
+                        "Sparc64"
+#elif defined DC__Arch_Sparc
+                        "Sparc"
+#else
+                        "UNKNOWN"
+#endif
+    );
+    export_constant("Affix::Platform", "MSVCRT", "platform",
+#ifdef DC__RT_MSVCRT
+                    1
+#else
+                    0
+#endif
+    );
+    export_constant("Affix::Platform::ARM", "Thumb", "platform",
+#ifdef DC__Arch_ARM_THUMB
+                    1
+#else
+                    0
+#endif
+    );
+    export_constant("Affix::Platform::ARM", "HF", "platform",
+#ifdef DC__ABI_ARM_HF
+                    1
+#else
+                    0
+#endif
+    );
+    export_constant("Affix::Platform::ARM", "EABI", "platform",
+#ifdef DC__ABI_ARM_EABI
+                    1
+#else
+                    0
+#endif
+    );
+    export_constant("Affix::Platform::ARM", "OABI", "platform",
+#ifdef DC__ABI_ARM_OABI
+                    1
+#else
+                    0
+#endif
+    );
+    export_constant("Affix::Platform::MIPS", "O32", "platform",
+#ifdef DC__ABI_MIPS_O32
+                    1
+#else
+                    0
+#endif
+    );
+    export_constant("Affix::Platform::MIPS", "N64", "platform",
+#ifdef DC__ABI_MIPS_N64
+                    1
+#else
+                    0
+#endif
+    );
+    export_constant("Affix::Platform::MIPS", "N32", "platform",
+#ifdef DC__ABI_MIPS_N32
+                    1
+#else
+                    0
+#endif
+    );
+    export_constant("Affix::Platform::MIPS", "EABI", "platform",
+#ifdef DC__ABI_MIPS_EABI
+                    1
+#else
+                    0
+#endif
+    );
+    export_constant("Affix::Platform::MIPS", "HF", "platform",
+#ifdef DC__ABI_HARDFLOAT
+                    1
+#else
+                    0
+#endif
+    );
+    export_constant("Affix::Platform", "BigEndian", "platform",
+#ifdef DC__Endian_BIG
+                    1
+#else
+                    0
+#endif
+    );
+    export_constant("Affix::Platform", "Syscall", "platform",
 #ifdef DC__Feature_Syscall
                     1
 #else
                     0
 #endif
     );
-    export_constant("Affix::Feature", "AggrByVal", "feature",
+    export_constant("Affix::Platform", "AggrByVal", "platform",
 #ifdef DC__Feature_AggrByVal
                     1
 #else
                     0
 #endif
     );
+
+    // dyncall/dyncall_version.h
+    export_constant_str(
+        "Affix::Platform", "Dyncall_Version", "platform",
+        (const char *)Perl_form("%d.%d-%7s", DYNCALL_VERSION >> 12, (DYNCALL_VERSION >> 8) & 0xf,
+                                ((DYNCALL_VERSION & 0xf00) == 0x300 ? "release" : "current")));
 
     (void)newXSproto_portable("Affix::AggregateBase::FETCH", Affix_Aggregate_FETCH, __FILE__, "$$");
     (void)newXSproto_portable("Affix::AggregateBase::EXISTS", Affix_Aggregate_EXISTS, __FILE__,

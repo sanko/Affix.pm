@@ -23,7 +23,8 @@
          "eg",
          "examples",
          "author",
-         "builder"
+         "builder",
+         "dyncall"
       ]
    },
    "prereqs" : {

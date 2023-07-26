@@ -27,7 +27,7 @@ sub char_cb : Native('t/src/64_affix_wchar_t') : Signature([CodeRef[[WChar]=>WCh
 is check_string('時空'), 0,        '[WStr]=>Int';
 is get_string(),           '時空', '[]=>WStr';
 SKIP: {
-    skip 'no support for aggregates by value', 1 unless Affix::Feature::AggrByVal();
+    skip 'no support for aggregates by value', 1 unless Affix::Platform::AggrByVal();
     is struct_string( { c => 'Spacetime', w => '時空' } ), 0, '[Struct[..., w => WStr]]=>Int';
 }
 is check_char('時'), 1,     '[WChar]=>Int';

@@ -199,8 +199,8 @@ template <typename t> class student
 DLLEXPORT
 int main() {
     // similar to student <int> s1("vipul",100);
-    student s1("vipul", 100);
-    student s2("yash", 100.0);
+    student<int> s1("vipul", 100);
+    student<double> s2("yash", 100.0);
 
     s1.getinfo();
     s2.getinfo();
