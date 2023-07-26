@@ -264,7 +264,6 @@ void register_constant(const char *package, const char *name, SV *value);
 void _export_function(pTHX_ HV *_export, const char *what, const char *_tag);
 void export_constant_char(const char *package, const char *name, const char *_tag, char val);
 void export_constant(const char *package, const char *name, const char *_tag, double val);
-void export_constant_str(const char *package, const char *name, const char *_tag, const char *val);
 void set_isa(const char *klass, const char *parent);
 
 #define DumpHex(addr, len) _DumpHex(aTHX_ addr, len, __FILE__, __LINE__)

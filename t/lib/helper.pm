@@ -7,8 +7,11 @@ package t::lib::helper {
     use Exporter 'import';
     our @EXPORT = qw[compile_test_lib compile_cpp_test_lib is_approx];
     use Config;
+    use Affix qw[];
     #
     my $OS = $^O;
+
+    #~ Affix::Platform::OS();
     my @cleanup;
     #
     #~ diag $Config{cc};
@@ -23,7 +26,14 @@ package t::lib::helper {
         my $l_file = path( "t/src/$name." . $Config{so} )->canonpath;
         diag sprintf 'Building %s into %s', $c_file, $l_file;
         my $compiler = $Config{cc};
-        $compiler = 'g++' if $c_file =~ /\.cxx$/ && $compiler eq 'cc';
+        if ( $c_file =~ /\.cxx$/ ) {
+            if ( Affix::Platform::Compiler() eq 'Clang' ) {
+                $compiler = 'c++';
+            }
+            elsif ( Affix::Platform::Compiler() eq 'GNU' ) {
+                $compiler = 'g++';
+            }
+        }
         my @cmds = (
             "$compiler -Wall --shared -fPIC -DBUILD_LIB $aggs -o $l_file $c_file",
 

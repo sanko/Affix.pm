@@ -11,12 +11,12 @@ bool testIntPointerPointer(int value, int **ptr) {
     if (value == **ptr) return true;
     return false;
 }
-
+DLLEXPORT
 bool testBoolPointer(bool value, bool *ptr) {
     if (value == *ptr) return true;
     return false;
 }
-
+DLLEXPORT
 bool testBoolPointerPointer(bool value, bool **ptr) {
     if (value == **ptr) return true;
     return false;

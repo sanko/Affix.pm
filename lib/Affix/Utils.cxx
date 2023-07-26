@@ -28,12 +28,6 @@ void export_constant_char(const char *package, const char *name, const char *_ta
     export_function(package, name, _tag);
 }
 
-void export_constant_str(const char *package, const char *name, const char *_tag, const char *val) {
-    dTHX;
-    register_constant(package, name, newSVpv(val, strlen(val)));
-    export_function(package, name, _tag);
-}
-
 void export_constant(const char *package, const char *name, const char *_tag, double val) {
     dTHX;
     register_constant(package, name, newSVnv(val));

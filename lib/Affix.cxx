@@ -982,7 +982,7 @@ XS_EXTERNAL(boot_Affix) {
     export_function("Affix", "affix", "default");
     cv = newXSproto_portable("Affix::wrap", Affix_affix, __FILE__, "$$@$");
     XSANY.any_i32 = 1;
-    export_function("Affix", "wrap", "all");
+    export_function("Affix", "wrap", "default");
     (void)newXSproto_portable("Affix::DESTROY", Affix_DESTROY, __FILE__, "$");
 
     //~ (void)newXSproto_portable("Affix::CLONE", XS_Affix_CLONE, __FILE__, ";@");
@@ -994,203 +994,221 @@ XS_EXTERNAL(boot_Affix) {
     //~ export_constant("Affix", "ALIGNBYTES", "all", AFFIX_ALIGNBYTES);
 
     // https://dyncall.org/pub/dyncall/dyncall/file/tip/dyncall/dyncall_macros.h
-
-    export_constant_str("Affix::Platform", "OS", "platform",
+    register_constant("Affix::Platform", "OS",
+                      newSVpv(
 #ifdef DC__OS_Win64
-                        "Win64"
+                          "Win64"
 #elif defined DC__OS_Win32
-                        "Win32"
+                          "Win32"
 #elif defined DC__OS_MacOSX
-                        "MacOS"
+                          "macOS"
 #elif defined DC__OS_IPhone
-                        "iOS"
+                          "iOS"
 #elif defined DC__OS_Linux
-                        "Linux"
+                          "Linux"
 #elif defined DC__OS_FreeBSD
-                        "FreeBSD"
+                          "FreeBSD"
 #elif defined DC__OS_OpenBSD
-                        "OpenBSD"
+                          "OpenBSD"
 #elif defined DC__OS_NetBSD
-                        "NetBSD"
+                          "NetBSD"
 #elif defined DC__OS_DragonFlyBSD
-                        "DragonFlyBSD"
+                          "DragonFly BSD"
 #elif defined DC__OS_NDS
-                        "Nintendo DS"
+                          "Nintendo DS"
 #elif defined DC__OS_PSP
-                        "PlayStation Portable"
+                          "PlayStation Portable"
 #elif defined DC__OS_BeOS
-                        "Haiku"
+                          "Haiku"
 #elif defined DC__OS_Plan9
-                        "Plan9"
+                          "Plan9"
 #elif defined DC__OS_VMS
-                        "VMS"
+                          "VMS"
 #elif defined DC__OS_Minix
-                        "Minix"
+                          "Minix"
 #else
-                        "UNKNOWN"
+                          "UNKNOWN"
 #endif
-    );
-    export_constant("Affix::Platform::Win32", "Cygwin", "platform",
+                          ,
+                          0));
+    register_constant("Affix::Platform::Win32", "Cygwin",
+                      boolSV(
 #ifdef DC__OS_Cygwin
-                    1
+                          1
 #else
-                    0
+                          0
 #endif
-    );
-    export_constant("Affix::Platform::Win32", "MinGW", "platform",
+                          ));
+    register_constant("Affix::Platform::Win32", "MinGW",
+                      boolSV(
 #ifdef DC__OS_MinGW
-                    1
+                          1
 #else
-                    0
+                          0
 #endif
-    );
-    export_constant_str("Affix::Platform", "Compiler", "platform",
+                          ));
+    register_constant("Affix::Platform", "Compiler",
+                      newSVpv(
 #ifdef DC__C_Intel
-                        "Intel"
+                          "Intel"
 #elif defined DC__C_MSVC
-                        "MSVC"
+                          "MSVC"
 #elif defined DC__C_CLANG
-                        "CLANG"
+                          "Clang"
 #elif defined DC__C_GNU
-                        "GNU"
+                          "GNU"
 #elif defined DC__C_WATCOM
-                        "WATCOM"
+                          "Watcom"
 #elif defined DC__C_PCC
-                        "PCC"
+                          "ppc"
 #elif defined DC__C_SUNPRO
-                        "SUN"
+                          "Oracle"
 #else
-                        "UNKNOWN"
+                          "UNKNOWN"
 #endif
-    );
-    export_constant_str("Affix::Platform", "Architecture", "platform",
+                          ,
+                          0));
+    register_constant("Affix::Platform", "Architecture",
+                      newSVpv(
 #ifdef DC__Arch_AMD64
-                        "AMD64"
+                          "AMD64"
 #elif defined DC__Arch_Intel_x86
-                        "Intelx86"
+                          "Intelx86"
 #elif defined DC__Arch_Itanium
-                        "Itanium"
+                          "Itanium"
 #elif defined DC__Arch_PPC64
-                        "PPC64"
+                          "PPC64"
 #elif defined DC__Arch_PPC64
-                        "PPC32"
+                          "PPC32"
 #elif defined DC__Arch_MIPS64
-                        "MIPS64"
+                          "MIPS64"
 #elif defined DC__Arch_MIPS
-                        "MIPS"
+                          "MIPS"
 #elif defined DC__Arch_ARM
-                        "ARM"
+                          "ARM"
 #elif defined DC__Arch_ARM64
-                        "ARM64"
-#elif defined DC__Arch_MIPS
-                        "MIPS"
+                          "ARM64"
 #elif defined DC__Arch_SuperH
-                        "SuperH" // https://en.wikipedia.org/wiki/SuperH
+                          "SuperH" // https://en.wikipedia.org/wiki/SuperH
 #elif defined DC__Arch_Sparc64
-                        "Sparc64"
+                          "SPARC64"
 #elif defined DC__Arch_Sparc
-                        "Sparc"
+                          "SPARC"
 #else
-                        "UNKNOWN"
+                          "UNKNOWN"
 #endif
-    );
-    export_constant("Affix::Platform", "MSVCRT", "platform",
+                          ,
+                          0));
+    register_constant("Affix::Platform", "MSVCRT",
+                      boolSV(
 #ifdef DC__RT_MSVCRT
-                    1
+                          1
 #else
-                    0
+                          0
 #endif
-    );
-    export_constant("Affix::Platform::ARM", "Thumb", "platform",
+                          ));
+    register_constant("Affix::Platform::ARM", "Thumb",
+                      boolSV(
 #ifdef DC__Arch_ARM_THUMB
-                    1
+                          1
 #else
-                    0
+                          0
 #endif
-    );
-    export_constant("Affix::Platform::ARM", "HF", "platform",
+                          ));
+    register_constant("Affix::Platform::ARM", "HF",
+                      boolSV(
 #ifdef DC__ABI_ARM_HF
-                    1
+                          1
 #else
-                    0
+                          0
 #endif
-    );
-    export_constant("Affix::Platform::ARM", "EABI", "platform",
+                          ));
+    register_constant("Affix::Platform::ARM", "EABI",
+                      boolSV(
 #ifdef DC__ABI_ARM_EABI
-                    1
+                          1
 #else
-                    0
+                          0
 #endif
-    );
-    export_constant("Affix::Platform::ARM", "OABI", "platform",
+                          ));
+    register_constant("Affix::Platform::ARM", "OABI",
+                      boolSV(
 #ifdef DC__ABI_ARM_OABI
-                    1
+                          1
 #else
-                    0
+                          0
 #endif
-    );
-    export_constant("Affix::Platform::MIPS", "O32", "platform",
+                          ));
+    register_constant("Affix::Platform::MIPS", "O32",
+                      boolSV(
 #ifdef DC__ABI_MIPS_O32
-                    1
+                          1
 #else
-                    0
+                          0
 #endif
-    );
-    export_constant("Affix::Platform::MIPS", "N64", "platform",
+                          ));
+    register_constant("Affix::Platform::MIPS", "N64",
+                      boolSV(
 #ifdef DC__ABI_MIPS_N64
-                    1
+                          1
 #else
-                    0
+                          0
 #endif
-    );
-    export_constant("Affix::Platform::MIPS", "N32", "platform",
+                          ));
+    register_constant("Affix::Platform::MIPS", "N32",
+                      boolSV(
 #ifdef DC__ABI_MIPS_N32
-                    1
+                          1
 #else
-                    0
+                          0
 #endif
-    );
-    export_constant("Affix::Platform::MIPS", "EABI", "platform",
+                          ));
+    register_constant("Affix::Platform::MIPS", "EABI",
+                      boolSV(
 #ifdef DC__ABI_MIPS_EABI
-                    1
+                          1
 #else
-                    0
+                          0
 #endif
-    );
-    export_constant("Affix::Platform::MIPS", "HF", "platform",
+                          ));
+    register_constant("Affix::Platform::MIPS", "HF",
+                      boolSV(
 #ifdef DC__ABI_HARDFLOAT
-                    1
+                          1
 #else
-                    0
+                          0
 #endif
-    );
-    export_constant("Affix::Platform", "BigEndian", "platform",
+                          ));
+    register_constant("Affix::Platform", "BigEndian",
+                      boolSV(
 #ifdef DC__Endian_BIG
-                    1
+                          1
 #else
-                    0
+                          0
 #endif
-    );
-    export_constant("Affix::Platform", "Syscall", "platform",
+                          ));
+    register_constant("Affix::Platform", "Syscall",
+                      boolSV(
 #ifdef DC__Feature_Syscall
-                    1
+                          1
 #else
-                    0
+                          0
 #endif
-    );
-    export_constant("Affix::Platform", "AggrByVal", "platform",
+                          ));
+    register_constant("Affix::Platform", "AggrByVal",
+                      boolSV(
 #ifdef DC__Feature_AggrByVal
-                    1
+                          1
 #else
-                    0
+                          0
 #endif
-    );
+                          ));
 
     // dyncall/dyncall_version.h
-    export_constant_str(
-        "Affix::Platform", "Dyncall_Version", "platform",
-        (const char *)Perl_form("%d.%d-%7s", DYNCALL_VERSION >> 12, (DYNCALL_VERSION >> 8) & 0xf,
-                                ((DYNCALL_VERSION & 0xf00) == 0x300 ? "release" : "current")));
+    register_constant("Affix::Platform", "Dyncall_Version",
+                      Perl_newSVpvf(aTHX_ "%d.%d-%7s", DYNCALL_VERSION >> 12,
+                                    (DYNCALL_VERSION >> 8) & 0xf,
+                                    (DYNCALL_VERSION & 0xf00) == 0x300 ? "release" : "current"));
 
     (void)newXSproto_portable("Affix::AggregateBase::FETCH", Affix_Aggregate_FETCH, __FILE__, "$$");
     (void)newXSproto_portable("Affix::AggregateBase::EXISTS", Affix_Aggregate_EXISTS, __FILE__,
