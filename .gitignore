@@ -65,7 +65,6 @@ eg/vgcore.*
 eg/dev/
 
 eg/Cookbook/_*
-lib/Affix/Cookbook.pod
 
 t/src/85_affix_mangle_rust/Cargo.lock
 t/src/85_affix_mangle_rust/target/

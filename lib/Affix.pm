@@ -226,7 +226,7 @@ package Affix 0.12 {    # 'FFI' is my middle name!
         #~ warn join ', ', @$libdirs;
         my %_seen;
         find(
-            sub {
+            sub {    # This is rather slow...
                 return if $_seen{$File::Find::name}++;
                 return if !-B $File::Find::name;
                 return if $store{$File::Find::name};
