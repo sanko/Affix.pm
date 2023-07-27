@@ -162,6 +162,12 @@ package Affix 0.12 {    # 'FFI' is my middle name!
 
     sub locate_libs {
         my ( $lib, $version ) = @_;
+        $lib =~ s[^lib][];
+        my $ver;
+        if ( defined $version ) {
+            require version;
+            $ver = version->parse($version);
+        }
 
         #~ warn $lib;
         #~ warn $version;
@@ -199,57 +205,65 @@ package Affix 0.12 {    # 'FFI' is my middle name!
         if ( !defined $regex ) {
             $regex = $is_win ?
                 qr/^
-        (?:lib)?(?<name>\w+?)
+        (?:lib)?(?<name>\w+)
         (?:[_-](?<version>[0-9\-\._]+))?_*
         \.$Config{so}
         $/ix :
                 $is_mac ?
                 qr/^
-        (?:lib)?(?<name>\w+?)
+        (?:lib)?(?<name>\w+)
         (?:\.(?<version>[0-9]+(?:\.[0-9]+)*))?
         \.(?:so|dylib|bundle)
         $/x :    # assume *BSD or linux
                 qr/^
-        (?:lib)?(?<name>\w+?)
+        (?:lib)?(?<name>\w+)
         \.$Config{so}
         (?:\.(?<version>[0-9]+(?:\.[0-9]+)*))?
         $/x;
         }
-        my @store;
+        my %store;
 
         #~ warn join ', ', @$libdirs;
+        my %_seen;
         find(
             sub {
+                return if $_seen{$File::Find::name}++;
+                return if !-B $File::Find::name;
+                return if $store{$File::Find::name};
                 $File::Find::prune = 1
                     if !grep { canonpath $_ eq canonpath $File::Find::name } @$libdirs;
-
-                #~ return                 if -d $_;
-                return unless $_ =~ $regex;
-
-                #~ use Data::Dump;
-                #~ warn $File::Find::name;
-                #~ ddx %+;
-                push @store, { %+, path => $File::Find::name }
-                    if defined $+{name}                                                          &&
-                    ( $+{name} eq $lib )                                                         &&
-                    ( defined $version ? defined( $+{version} ) && $version == $+{version} : 1 ) &&
-                    -B $File::Find::name;
+                /$regex/         or return;
+                $+{name} eq $lib or return;
+                my $lib_ver;
+                $lib_ver = version->parse( $+{version} ) if defined $+{version};
+                $store{$File::Find::name} = {
+                    %+,
+                    path => $File::Find::name,
+                    ( defined $lib_ver ? ( version => $lib_ver ) : () )
+                    }
+                    if ( defined($ver) && defined($lib_ver) ? $lib_ver == $ver : 1 );
             },
             @$libdirs
         );
-        @store;
+        values %store;
     }
 
     sub locate_lib {
         my ( $name, $version ) = @_;
-        return $name if $name && -e $name;
-        CORE::state $cache;
-        return $cache->{$name}{ $version // 0 }->{path} if defined $cache->{$name}{ $version // 0 };
+        return $name if $name && -B $name;
+        CORE::state $cache //= {};
+        return $cache->{$name}{ $version // '' }->{path}
+            if defined $cache->{$name}{ $version // '' };
         if ( !$version ) {
-            return $cache->{$name}{0}{path} = rel2abs($name) if -e rel2abs($name);
-            return $cache->{$name}{0}{path} = rel2abs( $name . '.' . $Config{so} )
-                if -e rel2abs( $name . '.' . $Config{so} );
+            return $cache->{$name}{''}{path} = rel2abs($name) if -B rel2abs($name);
+            return $cache->{$name}{''}{path} = rel2abs( $name . '.' . $Config{so} )
+                if -B rel2abs( $name . '.' . $Config{so} );
         }
+        my $libname = basename $name;
+        $libname =~ s/^lib//;
+        $libname =~ s/\..*$//;
+        return $cache->{$libname}{ $version // '' }->{path}
+            if defined $cache->{$libname}{ $version // '' };
         my @libs = locate_libs( $name, $version );
 
         #~ warn;
@@ -257,10 +271,9 @@ package Affix 0.12 {    # 'FFI' is my middle name!
         #~ warn join ', ', @_;
         #~ ddx \@_;
         #~ ddx $cache;
-        #~ ddx \@libs;
         if (@libs) {
-            ( $cache->{$name}{ $version // 0 } ) = @libs;
-            return $cache->{$name}{ $version // 0 }->{path};
+            ( $cache->{$name}{ $version // '' } ) = @libs;
+            return $cache->{$name}{ $version // '' }->{path};
         }
         ();
     }

@@ -27,7 +27,8 @@ pin( my $ver, 'libfoo', 'VERSION', Int );
 # DESCRIPTION
 
 Affix is an [FFI](https://en.wikipedia.org/wiki/Foreign_function_interface) to
-wrap libraries developed in other languages (C, C++, Rust, etc.) without XS.
+wrap libraries developed in other languages (C, C++, Rust, etc.) without having
+to write or maintain XS.
 
 ## Features
 
@@ -35,12 +36,8 @@ TODO
 
 # Basics
 
-TODO
-
-# The API
-
-The basic API is rather simple but not lacking in power. It's likely what
-you'll decide to use in your projects.
+Affix's basic API is rather simple but not lacking in power. Let's start at the
+beginning with the eponymous `affix( ... )` function.
 
 ## `affix( ... )`
 
@@ -48,18 +45,21 @@ you'll decide to use in your projects.
 affix( 'C:\Windows\System32\user32.dll', 'pow', [Double, Double] => Double );
 warn pow( 3, 5 );
 
-affix( 'foo', ['foo', 'foobar'] => [ Str ] );
-foobar( 'Hello' );
+affix( 'c', 'puts', [Str], Int );
+puts( 'Hello' );
 
-affix( ['foo_dylib', RUST], ['foo', 'foobar'] => [ Str ] );
-foobar( 'Hello' );
+affix( 'c', ['puts', 'write'], [Str], Int ); # renamed function
+write( 'Hello' );
+
+affix( undef, [ 'rint', 'round' ], [Double], Double ); # use current process
+warn round(3.14);
 ```
 
 Attaches a given symbol in a named perl sub.
 
-Parameters include:
+Expected parameters include:
 
-- `$lib`
+- `lib`
 
     path or name of the library or an explicit `undef` to load functions from the
     main executable
@@ -67,24 +67,23 @@ Parameters include:
     Optionally, you may provide an array reference with the library and a version
     number if the library was built with such a value as part of its filename.
 
-- `$symbol_name`
+- `symbol_name`
 
     the name of the symbol to call
 
     Optionally, you may provide an array reference with the symbol's name and the
     name of the subroutine
 
-- `$parameters`
+- `parameters`
 
     signature defining argument types in an array
 
-- `$return`
+- `return`
 
-    optional return type
+    A single return type for the function.
 
-    default is `Void`
-
-Returns a code reference on success.
+On success, `affix( ... )` returns the generated code reference which may be
+called directly but you'll likely use the name you provided.
 
 ## `wrap( ... )`
 
