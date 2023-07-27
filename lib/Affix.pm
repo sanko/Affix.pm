@@ -226,23 +226,52 @@ package Affix 0.12 {    # 'FFI' is my middle name!
         #~ warn join ', ', @$libdirs;
         my %_seen;
         find(
-            sub {    # This is rather slow...
-                return if $_seen{$File::Find::name}++;
-                return if !-B $File::Find::name;
-                return if $store{$File::Find::name};
+            0 ?
+                sub {    # This is rather slow...
+                warn $File::Find::name;
+                return if $store{ basename $File::Find::name};
+
+                #~ return if $_seen{basename $File::Find::name}++;
+                return if !-e $File::Find::name;
+                warn basename $File::Find::name;
+                warn;
                 $File::Find::prune = 1
                     if !grep { canonpath $_ eq canonpath $File::Find::name } @$libdirs;
-                /$regex/         or return;
+                /$regex/ or return;
+                warn;
                 $+{name} eq $lib or return;
+                warn;
                 my $lib_ver;
                 $lib_ver = version->parse( $+{version} ) if defined $+{version};
-                $store{$File::Find::name} = {
+                $store{ canonpath $File::Find::name} = {
                     %+,
                     path => $File::Find::name,
                     ( defined $lib_ver ? ( version => $lib_ver ) : () )
                     }
                     if ( defined($ver) && defined($lib_ver) ? $lib_ver == $ver : 1 );
-            },
+                } :
+                sub {
+                $File::Find::prune = 1
+                    if !grep { canonpath $_ eq canonpath $File::Find::name } @$libdirs;
+
+                #~ return                 if -d $_;
+                return unless $_ =~ $regex;
+                return unless defined $+{name};
+                return unless $+{name} eq $lib;
+                return unless -B $File::Find::name;
+                my $lib_ver;
+                $lib_ver = version->parse( $+{version} ) if defined $+{version};
+                return unless ( defined $lib_ver && defined($ver) ? $ver == $lib_ver : 1 );
+
+                #~ use Data::Dump;
+                #~ warn $File::Find::name;
+                #~ ddx %+;
+                $store{ canonpath $File::Find::name} //= {
+                    %+,
+                    path => $File::Find::name,
+                    ( defined $lib_ver ? ( version => $lib_ver ) : () )
+                };
+                },
             @$libdirs
         );
         values %store;
