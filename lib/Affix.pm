@@ -20,7 +20,7 @@ package Affix 0.12 {    # 'FFI' is my middle name!
     $EXPORT_TAGS{sugar} = [qw[MODIFY_CODE_ATTRIBUTES AUTOLOAD]];
     @EXPORT             = ( @{ $EXPORT_TAGS{types} }, @{ $EXPORT_TAGS{default} } );
     @EXPORT_OK          = sort map { @$_ = sort @$_; @$_ } values %EXPORT_TAGS;
-    $EXPORT_TAGS{'all'} = \@EXPORT_OK;
+    $EXPORT_TAGS{all}   = \@EXPORT_OK;
 
     #~ use Data::Dump;
     #~ ddx \@EXPORT_OK;
@@ -53,11 +53,11 @@ package Affix 0.12 {    # 'FFI' is my middle name!
 
             #~ use Data::Dump;
             #~ ddx [
-            #~     $lib, (
-            #~         $_delay{$sub}[3] eq $_delay{$sub}[6] ? $_delay{$sub}[3] :
-            #~             [ $_delay{$sub}[3], $_delay{$sub}[6] ]
-            #~     ),
-            #~     $sig, $ret
+            #~ $lib, (
+            #~ $_delay{$sub}[3] eq $_delay{$sub}[6] ? $_delay{$sub}[3] :
+            #~ [ $_delay{$sub}[3], $_delay{$sub}[6] ]
+            #~ ),
+            #~ $sig, $ret
             #~ ];
             my $cv = affix(
                 $lib, (
@@ -102,8 +102,10 @@ package Affix 0.12 {    # 'FFI' is my middle name!
         #~ ddx \@_;
         my ( $library, $library_version, $signature, $return, $symbol, $full_name );
         for my $attribute (@attributes) {
+
+            #~ warn $attribute;
             if (
-                $attribute =~ m[^Native\((["']?)(.+?)\1(?:,\s*(.+))?\)$]
+                $attribute =~ m[^Native(?:\((["']?)(.+?)\1(?:,\s*(.+))?\))?$]
 
                 # m[/^\bNative\s+(?:(\w+)\s*,\s*(\d+))?$/]
             ) {

@@ -9,16 +9,12 @@ Affix - A Foreign Function Interface eXtension
 use Affix;
 
 # bind to exported function
-affix( 'libfoo', 'bar', [Str, Float] => Double );
-print bar( 'Baz', 3.14 );
-
-# bind to exported function but with sugar
-sub bar : Native('libfoo') : Signature([Str, Float] => Double);
-print bar( 'Baz', 10.9 );
+affix 'm', 'floor', [Double], Double;
+warn floor(3.14159); # 3
 
 # wrap an exported function in a code reference
-my $bar = wrap( 'libfoo', 'bar', [Str, Float] => Double );
-print $bar->( 'Baz', 3.14 );
+my $getpid = wrap 'c', 'getpid', [], Int;
+warn $getpid->(); # $$
 
 # bind an exported value to a Perl value
 pin( my $ver, 'libfoo', 'VERSION', Int );
@@ -32,7 +28,19 @@ to write or maintain XS.
 
 ## Features
 
-TODO
+Affix supports the following features right out of the box:
+
+- Works on Windows, macOS, Linux, BSD, and more
+- Callbacks
+- Pointers
+- Typedefs
+- Global/Exported variables
+- Libraries developed in C, C++, and Rust (and more to come!) even those with mangled symbol names
+- Aggregates such as structs, unions, and arrays
+- Passing aggregates by value
+- Nested aggregates
+- 'Smart' enums
+- Tested to work all the way down to Perl 5.026 (which is ancient in my book)
 
 # Basics
 
@@ -41,42 +49,45 @@ beginning with the eponymous `affix( ... )` function.
 
 ## `affix( ... )`
 
+Attach a given symbol in a named perl sub.
+
 ```perl
-affix( 'C:\Windows\System32\user32.dll', 'pow', [Double, Double] => Double );
+affix 'C:\Windows\System32\user32.dll', 'pow', [Double, Double] => Double;
 warn pow( 3, 5 );
 
-affix( 'c', 'puts', [Str], Int );
+affix 'c', 'puts', [Str], Int;
 puts( 'Hello' );
 
-affix( 'c', ['puts', 'write'], [Str], Int ); # renamed function
+affix 'c', ['puts', 'write'], [Str], Int; # renamed function
 write( 'Hello' );
 
-affix( undef, [ 'rint', 'round' ], [Double], Double ); # use current process
+affix undef, [ 'rint', 'round' ], [Double], Double; # use current process
 warn round(3.14);
-```
 
-Attaches a given symbol in a named perl sub.
+affix [ 'xxhash', '0.8.2' ], [ 'XXH_versionNumber', 'xxHash::version' ], [], UInt;
+warn xxHash::version();
+```
 
 Expected parameters include:
 
 - `lib`
 
-    path or name of the library or an explicit `undef` to load functions from the
-    main executable
+    File path or name of the library to load symbols from. Pass an explicit
+    `undef` to pull functions from the main executable.
 
     Optionally, you may provide an array reference with the library and a version
     number if the library was built with such a value as part of its filename.
 
 - `symbol_name`
 
-    the name of the symbol to call
+    Name of the symbol to wrap.
 
     Optionally, you may provide an array reference with the symbol's name and the
-    name of the subroutine
+    name of the wrapping subroutine.
 
 - `parameters`
 
-    signature defining argument types in an array
+    Provide the argument types in an array reference.
 
 - `return`
 
@@ -96,25 +107,25 @@ warn $pow->(5, 10); # 5**10
 
 Parameters include:
 
-- `$lib`
+- `lib`
 
-    path or name of the library or an explicit `undef` to load functions from the
-    main executable
+    File path or name of the library to load symbols from. Pass an explicit
+    `undef` to pull functions from the main executable.
 
     Optionally, you may provide an array reference with the library and a version
     number if the library was built with such a value as part of its filename.
 
-- `$symbol_name`
+- `symbol_name`
 
-    the name of the symbol to call
+    Name of the symbol to wrap.
 
-- `$parameters`
+- `parameters`
 
-    signature defining argument types in an array
+    Provide the argument types in an array reference.
 
-- `$return`
+- `return`
 
-    return type
+    A single return type for the function.
 
 `wrap( ... )` behaves exactly like `affix( ... )` but returns an anonymous
 subroutine and does not pollute the namespace.
@@ -123,40 +134,45 @@ subroutine and does not pollute the namespace.
 
 ```perl
 my $errno;
-pin( $errno, 'libc', 'errno', Int );
+pin $errno, 'libc', 'errno', Int;
 print $errno;
 $errno = 0;
 ```
 
-Variables exported by a library - also names "global" or "extern" variables -
-can be accessed using `pin( ... )`. The above example code applies magic to
-`$error` that binds it to the integer variable named "errno" as exported by
-the [libc](https://metacpan.org/pod/libc) library.
+Variables exported by a library - also referred to as "global" or "extern"
+variables - can be accessed using `pin( ... )`. The above example code applies
+magic to `$error` that binds it to the integer variable named "errno" as
+exported by the [libc](https://metacpan.org/pod/libc) library.
 
 Expected parameters include:
 
-- `$var`
+- `var`
 
     Perl scalar that will be bound to the exported variable.
 
-- `$lib`
+- `lib`
 
-    name or path of the symbol
+    File path or name of the library to load symbols from. Pass an explicit
+    `undef` to pull functions from the main executable.
 
-- `$symbol_name`
+    Optionally, you may provide an array reference with the library and a version
+    number if the library was built with such a value as part of its filename.
 
-    the name of the exported variable name
+- `symbol_name`
+
+    Name of the exported variable to wrap.
 
 - `$type`
 
-    type that data will be coerced in or out of as required
+    Indicate to Affix what type of data the variable contains.
 
 This is likely broken on BSD but patches are welcome.
 
 ## `:Native` CODE attribute
 
-All the sugar is right here in the :Native code attribute. This API is inspired
-by [Raku's `native` trait](https://docs.raku.org/language/nativecall).
+All the sugar is right here in the :Native code attribute. This part of the API
+is inspired by [Raku's `native`
+trait](https://docs.raku.org/language/nativecall).
 
 A simple example would look like this:
 
@@ -195,7 +211,7 @@ sub some_argless_function :Native('foo', v1.2.3)
 Please check [the section on the ABI/API version](#abi-api-version) for
 more information.
 
-## Changing names
+### Changing names
 
 Sometimes you want the name of your Perl subroutine to be different from the
 name used in the library you're loading. Maybe the name is long or has
@@ -218,7 +234,7 @@ creating a module called `Foo` and we'd rather call the routine as
 the name of the symbol in `libfoo` and call the subroutine whatever we want
 (`init` in this case).
 
-## Signatures
+### Signatures
 
 Normal Perl signatures do not convey the type of arguments a native function
 expects and what it returns so you must define them with our final attribute:
@@ -233,7 +249,7 @@ Here, we have declared that the function takes two 32-bit integers and returns
 a 32-bit integer. You can find the other types that you may pass [further down
 this page](#types).
 
-## ABI/API version
+### ABI/API version
 
 If you write `:Native('foo')`, Affix will search `libfoo.so` under Unix like
 system (`libfoo.dynlib` on macOS, `foo.dll` on Windows). In most modern
@@ -254,7 +270,7 @@ sub foo2 :Native('foo', v1.2.3); # Will try to load libfoo.so.1.2.3
 sub pow : Native('m', v6) : Signature([Double, Double] => Double);
 ```
 
-## Library Paths and Names
+### Library Paths and Names
 
 The `:Native` attribute, `affix( ... )`, and `wrap( ... )` all accept the
 library name, the full path, or a subroutine returning either of the two. When
@@ -275,18 +291,18 @@ sub bar :Native({ './lib/Non Standard Naming Scheme' });
 **BE CAREFUL**: the `:Native` attribute and constant might be evaluated at
 compile time.
 
-## Calling into the standard library
+### Calling into the standard library
 
 If you want to call a function that's already loaded, either from the standard
 library or from your own program, you can omit the library value or pass and
 explicit `undef`.
 
-For example on a UNIX-like operating system, you could use the following code
-to print the home directory of the current user:
+For example, on Unix, you could use the following code to gather the home
+directory and other info about the current user:
 
 ```perl
-use Affix;
-use Data::Dumper;
+use Affix qw[:all];
+use Data::Printer;
 typedef PwStruct => Struct [
     name  => Str,     # username
     pass  => Str,     # hashed pass if shadow db isn't in use
@@ -297,12 +313,11 @@ typedef PwStruct => Struct [
     shell => Str      # bash, etc.
 ];
 sub getuid : Native : Signature([]=>Int);
-sub getpwuid : Native : Signature([Int]=>Pointer[PwStruct]);
-my $data = main::getpwuid( getuid() );
-print Dumper( ptr2sv( $data, Pointer [ PwStruct() ] ) );
+sub getpwuid : Native : Signature([Int]=>Pointer[PwStruct()]);
+p( ( Pointer [ PwStruct() ] )->unmarshal( main::getpwuid( getuid() ) ) );
 ```
 
-## Memory Functions
+# Memory Functions
 
 To help toss raw data around, some standard memory related functions are
 exposed here. You may import them by name or with the `:memory` or `:all`
@@ -409,24 +424,12 @@ my $offset = offsetof( $struct, 'age' );
 Returns the offset, in bytes, from the beginning of a structure including
 padding, if any.
 
-## Utility Functions
+# Utility Functions
 
 Here's some thin cushions for the rougher edges of wrapping libraries.
 
 They may be imported by name for now but might be renamed, removed, or changed
 in the future.
-
-## `cast( ... )`
-
-```perl
-my $hash = cast( $ptr, Struct[i => Int, ... ] );
-```
-
-This function will parse a pointer into a given target type.
-
-The source pointer would have normally been obtained from a call to a native
-subroutine that returned a pointer, a lvalue pointer to a native subroutine,
-or, as part of a `Struct[ ... ]`.
 
 ## `DumpHex( ... )`
 
@@ -447,542 +450,48 @@ array, union).
 ## Fundamental Types
 
 <div>
-      <table>
-        <thead>
-          <tr>
-            <th>Affix</th> <th>C99</th> <th>Rust</th> <th>C#</th> <th>pack()</th> <th>Raku</th>
-          </tr>
-        </thead>
-        <tbody>
-          <tr>
-            <td>Void</td> <td>void</td> <td>-&gt;()</td> <td>void/NULL</td> <td>-</td> <td></td>
-          </tr>
-
-          <tr>
-            <td>Bool</td> <td>_Bool</td> <td>bool</td> <td>bool</td> <td>-</td> <td>bool</td>
-          </tr>
-
-          <tr>
-            <td>Char</td>
-
-            <td>int8_t</td>
-
-            <td>i8</td>
-
-            <td>sbyte</td>
-
-            <td>c</td>
-
-            <td>int8</td>
-          </tr>
-
-          <tr>
-            <td>UChar</td>
-
-            <td>uint8_t</td>
-
-            <td>u8</td>
-
-            <td>byte</td>
-
-            <td>C</td>
-
-            <td>byte, uint8</td>
-          </tr>
-
-          <tr>
-            <td>Short</td>
-
-            <td>int16_t</td>
-
-            <td>i16</td>
-
-            <td>short</td>
-
-            <td>s</td>
-
-            <td>int16</td>
-          </tr>
-
-          <tr>
-            <td>UShort</td>
-
-            <td>uint16_t</td>
-
-            <td>u16</td>
-
-            <td>ushort</td>
-
-            <td>S</td>
-
-            <td>uint16</td>
-          </tr>
-
-          <tr>
-            <td>Int</td>
-
-            <td>int32_t</td>
-
-            <td>i32</td>
-
-            <td>int</td>
-
-            <td>i</td>
-
-            <td>int32</td>
-          </tr>
-
-          <tr>
-            <td>UInt</td>
-
-            <td>uint32_t</td>
-
-            <td>u32</td>
-
-            <td>uint</td>
-
-            <td>I</td>
-
-            <td>uint32</td>
-          </tr>
-
-          <tr>
-            <td>Long</td>
-
-            <td>int64_t</td>
-
-            <td>i64</td>
-
-            <td>long</td>
-
-            <td>l</td>
-
-            <td>int64, long</td>
-          </tr>
-
-          <tr>
-            <td>ULong</td>
-
-            <td>uint64_t</td>
-
-            <td>u64</td>
-
-            <td>ulong</td>
-
-            <td>L</td>
-
-            <td>uint64, ulong</td>
-          </tr>
-
-          <tr>
-            <td>LongLong</td>
-
-            <td>-/long long</td>
-
-            <td>i128</td>
-
-            <td>q</td>
-
-            <td>longlong</td>
-
-            <td></td>
-          </tr>
-
-          <tr>
-            <td>ULongLong</td>
-
-            <td>-/unsigned long long</td>
-
-            <td>u128</td>
-
-            <td>Q</td>
-
-            <td>ulonglong</td>
-
-            <td></td>
-          </tr>
-
-          <tr>
-            <td>Float</td>
-
-            <td>float</td>
-
-            <td>f32</td>
-
-            <td>f</td>
-
-            <td>num32</td>
-
-            <td></td>
-          </tr>
-
-          <tr>
-            <td>Double</td>
-
-            <td>double</td>
-
-            <td>f64</td>
-
-            <td>d</td>
-
-            <td>num64</td>
-
-            <td></td>
-          </tr>
-
-          <tr>
-            <td>SSize_t</td>
-
-            <td>SSize_t</td>
-
-            <td>SSize_t</td>
-
-            <td></td>
-
-            <td></td>
-
-            <td></td>
-          </tr>
-
-          <tr>
-            <td>Size_t</td>
-
-            <td>size_t</td>
-
-            <td>size_t</td>
-
-            <td></td>
-
-            <td></td>
-
-            <td></td>
-          </tr>
-
-          <tr>
-            <td>Str</td>
-
-            <td>char *</td>
-
-            <td></td>
-
-            <td></td>
-
-            <td></td>
-
-            <td></td>
-          </tr>
-
-          <tr>
-            <td>WStr</td>
-
-            <td>wchar_t</td>
-
-            <td></td>
-
-            <td></td>
-
-            <td></td>
-          </tr>
-        </tbody>
-      </table>
+    <table>     <thead>       <tr>         <th>Affix</th> <th>C99</th>
+    <th>Rust</th> <th>C#</th> <th>pack()</th> <th>Raku</th>       </tr> </thead>   
+     <tbody>       <tr>         <td>Void</td> <td>void</td> <td>-&gt;()</td>
+    <td>void/NULL</td> <td>-</td> <td></td>       </tr>       <tr>        
+    <td>Bool</td> <td>_Bool</td> <td>bool</td> <td>bool</td> <td>-</td>
+    <td>bool</td>       </tr>       <tr>         <td>Char</td> <td>int8_t</td>     
+       <td>i8</td>         <td>sbyte</td>         <td>c</td>       <td>int8</td>   
+       </tr>       <tr>         <td>UChar</td> <td>uint8_t</td>         <td>u8</td>
+            <td>byte</td>         <td>C</td>       <td>byte, uint8</td>       </tr>
+          <tr>         <td>Short</td>  <td>int16_t</td>         <td>i16</td>       
+     <td>short</td> <td>s</td>         <td>int16</td>       </tr>       <tr>
+    <td>UShort</td>         <td>uint16_t</td>         <td>u16</td> <td>ushort</td> 
+           <td>S</td>         <td>uint16</td>       </tr> <tr>         <td>Int</td>
+            <td>int32_t</td>         <td>i32</td> <td>int</td>         <td>i</td>  
+          <td>int32</td>       </tr>       <tr>       <td>UInt</td>        
+    <td>uint32_t</td>         <td>u32</td> <td>uint</td>         <td>I</td>        
+    <td>uint32</td>       </tr>       <tr>         <td>Long</td>        
+    <td>int64_t</td>         <td>i64</td> <td>long</td>         <td>l</td>        
+    <td>int64, long</td>       </tr> <tr>         <td>ULong</td>        
+    <td>uint64_t</td>         <td>u64</td>    <td>ulong</td>         <td>L</td>    
+        <td>uint64, ulong</td>       </tr>       <tr>         <td>LongLong</td>    
+        <td>-/long long</td> <td>i128</td>         <td>q</td>        
+    <td>longlong</td>         <td></td>    </tr>       <tr>        
+    <td>ULongLong</td>         <td>-/unsigned long long</td>         <td>u128</td> 
+           <td>Q</td>         <td>ulonglong</td>       <td></td>       </tr>      
+    <tr>         <td>Float</td> <td>float</td>         <td>f32</td>        
+    <td>f</td>         <td>num32</td>       <td></td>       </tr>       <tr>       
+     <td>Double</td> <td>double</td>         <td>f64</td>         <td>d</td>       
+     <td>num64</td>        <td></td>       </tr>       <tr>        
+    <td>SSize_t</td> <td>SSize_t</td>         <td>SSize_t</td>         <td></td>   
+         <td></td>       <td></td>       </tr>       <tr>         <td>Size_t</td>
+    <td>size_t</td>         <td>size_t</td>         <td></td>         <td></td>    
+    <td></td>       </tr>       <tr>         <td>Str</td>         <td>char *</td>  
+          <td></td>         <td></td>         <td></td>         <td></td>     
+    </tr>       <tr>         <td>WStr</td>         <td>wchar_t</td> <td></td>      
+      <td></td>         <td></td>       </tr>     </tbody> </table>
 </div>
 
 Given sizes are minimums measured in bits
 
-### `Void`
-
-The `Void` type corresponds to the C `void` type. It is generally found in
-typed pointers representing the equivalent to the `void *` pointer in C.
-
-```perl
-affix undef, 'malloc', [Size_t] => Pointer[Void];
-my $data = malloc( 32 );
-```
-
-As the example above shows, it's represented by a parameterized `Pointer[ ...
-]` type, using as parameter whatever the original pointer is pointing to (in
-this case, `void`). This role represents native pointers, and can be used
-wherever they need to be represented in a Perl script.
-
-In addition, you may place a `Void` in your signature to skip a passed
-argument.
-
-### `Bool`
-
-Boolean type may only have room for one of two values: `true` or `false`.
-
-### `Char`
-
-Signed character. It's guaranteed to have a width of at least 8 bits.
-
-Pointers (`Pointer[Char]`) might be better expressed with a `Str`.
-
-### `UChar`
-
-Unsigned character. It's guaranteed to have a width of at least 8 bits.
-
-### `Short`
-
-Signed short integer. It's guaranteed to have a width of at least 16 bits.
-
-### `UShort`
-
-Unsigned short integer. It's guaranteed to have a width of at least 16 bits.
-
-### `Int`
-
-Basic signed integer type.
-
-It's guaranteed to have a width of at least 16 bits. However, on 32/64 bit
-systems it is almost exclusively guaranteed to have width of at least 32 bits.
-
-### `UInt`
-
-Basic unsigned integer type.
-
-It's guaranteed to have a width of at least 16 bits. However, on 32/64 bit
-systems it is almost exclusively guaranteed to have width of at least 32 bits.
-
-### `Long`
-
-Signed long integer type. It's guaranteed to have a width of at least 32 bits.
-
-### `ULong`
-
-Unsigned long integer type. It's guaranteed to have a width of at least 32
-bits.
-
-### `LongLong`
-
-Signed long long integer type. It's guaranteed to have a width of at least 64
-bits.
-
-### `ULongLong`
-
-Unsigned long long integer type. It's guaranteed to have a width of at least 64
-bits.
-
-### `Float`
-
-[Single precision floating-point
-type](https://en.wikipedia.org/wiki/Single-precision_floating-point_format).
-
-### `Double`
-
-[Double precision floating-point
-type](https://en.wikipedia.org/wiki/Double-precision_floating-point_format).
-
-### `SSize_t`
-
-Signed integer type.
-
-### `Size_t`
-
-Unsigned integer type often expected as the result of `sizeof` or `offsetof`
-but can be found elsewhere.
-
-## `Str`
-
-Automatically handle null terminated character pointers with this rather than
-trying using `Pointer[Char]` and doing it yourself.
-
-You'll learn a bit more about `Pointer[...]` and other parameterized types in
-the next section.
-
-## `WStr`
-
-A null-terminated wide string is a sequence of valid wide characters, ending
-with a null character.
-
-## Parameterized Types
-
-Some types must be provided with more context data.
-
-## `Pointer[ ... ]`
-
-```
-Pointer[Int]  ~~ int *
-Pointer[Void] ~~ void *
-```
-
-Create pointers to (almost) all other defined types including `Struct` and
-`Void`.
-
-To handle a pointer to an object, see [InstanceOf](https://metacpan.org/pod/InstanceOf).
-
-Void pointers (`Pointer[Void]`) might be created with `malloc` and other
-memory related functions.
-
-## `Struct[ ... ]`
-
-```perl
-Struct[                    struct {
-    dob => Struct[              struct {
-        year  => Int,               int year;
-        month => Int,   ~~          int month;
-        day   => Int                int day;
-    ],                          } dob;
-    name => Str              char *name;
-    wId  => Long                long wId;
-];                          };
-```
-
-A struct consists of a sequence of members with storage allocated in an ordered
-sequence (as opposed to `Union`, which is a type consisting of a sequence of
-members where storage overlaps).
-
-A C struct that looks like this:
-
-```
-struct {
-    char *make;
-    char *model;
-    int   year;
-};
-```
-
-...would be defined this way:
-
-```perl
-Struct[
-    make  => Str,
-    model => Str,
-    year  => Int
-];
-```
-
-All fundamental and aggregate types may be found inside of a `Struct`.
-
-## `ArrayRef[ ... ]`
-
-The elements of the array must pass the additional size constraint.
-
-An array length must be given:
-
-```
-ArrayRef[Int, 5];   # int arr[5]
-ArrayRef[Char, 5];  # char arr[5]
-ArrayRef[Str, 10];  # char *arr[10]
-```
-
-## `Union[ ... ]`
-
-A union is a type consisting of a sequence of members with overlapping storage
-(as opposed to `Struct`, which is a type consisting of a sequence of members
-whose storage is allocated in an ordered sequence).
-
-The value of at most one of the members can be stored in a union at any one
-time and the union is only as big as necessary to hold its largest member
-(additional unnamed trailing padding may also be added). The other members are
-allocated in the same bytes as part of that largest member.
-
-A C union that looks like this:
-
-```
-union {
-    char  c[5];
-    float f;
-};
-```
-
-...would be defined this way:
-
-```perl
-Union[
-    c => ArrayRef[Char, 5],
-    f => Float
-];
-```
-
-## `CodeRef[ ... ]`
-
-A value where `ref($value)` equals `CODE`. This would be how callbacks are
-defined.
-
-The argument list and return value must be defined. For example,
-`CodeRef[[Int, Int]=`Int\]> ~~ `typedef int (*fuc)(int a, int b);`; that is to
-say our function accepts two integers and returns an integer.
-
-```perl
-CodeRef[[] => Void];                   # typedef void (*function)();
-CodeRef[[Pointer[Int]] => Int];        # typedef Int (*function)(int * a);
-CodeRef[[Str, Int] => Struct[...]]; # typedef struct Person (*function)(chat * name, int age);
-```
-
-## `InstanceOf[ ... ]`
-
-```
-InstanceOf['Some::Class']
-```
-
-A blessed object of a certain type. When used as an lvalue, the result is
-properly blessed. As an rvalue, the reference is checked to be a subclass of
-the given package.
-
-Note: This "type" is in a state of development flux and might be made complete
-with [issue #32](https://github.com/sanko/Affix.pm/issues/32)
-
-## `Any`
-
-Anything you dump here will be passed along unmodified. We hand off a pointer
-to the `SV*` perl gives us without copying it.
-
-## `Enum[ ... ]`
-
-The value of an `Enum` is defined by its underlying type which includes
-`Int`, `Char`, etc.
-
-This type is declared with an list of strings.
-
-```
-Enum[ 'ALPHA', 'BETA' ];
-# ALPHA = 0
-# BETA  = 1
-```
-
-Unless an enumeration constant is defined in an array reference, its value is
-the value one greater than the value of the previous enumerator in the same
-enumeration. The value of the first enumerator (if it is not defined) is zero.
-
-```perl
-Enum[ 'A', 'B', [C => 10], 'D', [E => 1], 'F', [G => 'F + C'] ];
-# A = 0
-# B = 1
-# C = 10
-# D = 11
-# E = 1
-# F = 2
-# G = 12
-
-Enum[ [ one => 'a' ], 'two', [ 'three' => 'one' ] ]
-# one   = a
-# two   = b
-# three = a
-```
-
-As you can see, enum values may allude to earlier defined values and even basic
-arithmetic is supported.
-
-Additionally, if you `typedef` the enum into a given namespace, you may refer
-to elements by name. They are defined as dualvars so that works:
-
-```perl
-typedef color => Enum[ 'RED', 'GREEN', 'BLUE' ];
-print color::RED();     # RED
-print int color::RED(); # 0
-```
-
-## `IntEnum[ ... ]`
-
-Same as `Enum`.
-
-## `UIntEnum[ ... ]`
-
-`Enum` but with unsigned integers.
-
-## `CharEnum[ ... ]`
-
-`Enum` but with signed chars.
+Other types are also defined according to the system's platform. See
+[Affix::Types](https://metacpan.org/pod/Affix%3A%3ATypes).
 
 # Signatures
 
