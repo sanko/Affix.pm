@@ -9,7 +9,6 @@ use t::lib::helper;
 use Config;
 $|++;
 #
-#~ plan skip_all => 'no support for aggregates by value' unless Affix::Platform::AggrByVal();
 my $lib = compile_test_lib('50_affix_pointers');
 #
 affix $lib, pointer_test =>

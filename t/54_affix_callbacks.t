@@ -8,7 +8,7 @@ $|++;
 #
 use t::lib::helper;
 #
-plan skip_all => 'no support for aggregates by value' unless Affix::Platform::AggrByVal();
+plan skip_all => 'no support for aggregates by value' unless Affix::Platform::AggrByValue();
 #
 my $lib = compile_test_lib('54_affix_callbacks');
 diag $lib;

@@ -993,6 +993,23 @@ XS_EXTERNAL(boot_Affix) {
     //~ export_function("Affix", "DEFAULT_ALIGNMENT", "vars");
     //~ export_constant("Affix", "ALIGNBYTES", "all", AFFIX_ALIGNBYTES);
 
+    // dyncall/dyncall_version.h
+    register_constant("Affix::Platform", "DC_Version",
+                      Perl_newSVpvf(aTHX_ "%d.%d-%7s", DYNCALL_VERSION >> 12,
+                                    (DYNCALL_VERSION >> 8) & 0xf,
+                                    (DYNCALL_VERSION & 0xf00) == 0x300 ? "release" : "current"));
+
+    register_constant("Affix::Platform", "DC_Major", newSViv(DYNCALL_VERSION >> 12));
+
+    register_constant("Affix::Platform", "DC_Minor", newSViv((DYNCALL_VERSION >> 8) & 0xf));
+
+    register_constant("Affix::Platform", "DC_Patch", newSViv((DYNCALL_VERSION >> 4) & 0xf));
+
+    register_constant("Affix::Platform", "DC_Stage",
+                      newSVpv((DYNCALL_VERSION & 0xf00) == 0x300 ? "release" : "current", 7));
+
+    register_constant("Affix::Platform", "DC_RawVersion", newSViv(DYNCALL_VERSION));
+
     // https://dyncall.org/pub/dyncall/dyncall/file/tip/dyncall/dyncall_macros.h
     register_constant("Affix::Platform", "OS",
                       newSVpv(
@@ -1027,11 +1044,11 @@ XS_EXTERNAL(boot_Affix) {
 #elif defined DC__OS_Minix
                           "Minix"
 #else
-                          "UNKNOWN"
+                          "Unknown"
 #endif
                           ,
                           0));
-    register_constant("Affix::Platform::Win32", "Cygwin",
+    register_constant("Affix::Platform", "Cygwin",
                       boolSV(
 #ifdef DC__OS_Cygwin
                           1
@@ -1039,7 +1056,7 @@ XS_EXTERNAL(boot_Affix) {
                           0
 #endif
                           ));
-    register_constant("Affix::Platform::Win32", "MinGW",
+    register_constant("Affix::Platform", "MinGW",
                       boolSV(
 #ifdef DC__OS_MinGW
                           1
@@ -1064,7 +1081,7 @@ XS_EXTERNAL(boot_Affix) {
 #elif defined DC__C_SUNPRO
                           "Oracle"
 #else
-                          "UNKNOWN"
+                          "Unknown"
 #endif
                           ,
                           0));
@@ -1095,7 +1112,7 @@ XS_EXTERNAL(boot_Affix) {
 #elif defined DC__Arch_Sparc
                           "SPARC"
 #else
-                          "UNKNOWN"
+                          "Unknown"
 #endif
                           ,
                           0));
@@ -1107,7 +1124,7 @@ XS_EXTERNAL(boot_Affix) {
                           0
 #endif
                           ));
-    register_constant("Affix::Platform::ARM", "Thumb",
+    register_constant("Affix::Platform", "ARM_Thumb",
                       boolSV(
 #ifdef DC__Arch_ARM_THUMB
                           1
@@ -1115,15 +1132,7 @@ XS_EXTERNAL(boot_Affix) {
                           0
 #endif
                           ));
-    register_constant("Affix::Platform::ARM", "HF",
-                      boolSV(
-#ifdef DC__ABI_ARM_HF
-                          1
-#else
-                          0
-#endif
-                          ));
-    register_constant("Affix::Platform::ARM", "EABI",
+    register_constant("Affix::Platform", "ARM_EABI",
                       boolSV(
 #ifdef DC__ABI_ARM_EABI
                           1
@@ -1131,7 +1140,7 @@ XS_EXTERNAL(boot_Affix) {
                           0
 #endif
                           ));
-    register_constant("Affix::Platform::ARM", "OABI",
+    register_constant("Affix::Platform", "ARM_OABI",
                       boolSV(
 #ifdef DC__ABI_ARM_OABI
                           1
@@ -1139,7 +1148,7 @@ XS_EXTERNAL(boot_Affix) {
                           0
 #endif
                           ));
-    register_constant("Affix::Platform::MIPS", "O32",
+    register_constant("Affix::Platform", "MIPS_O32",
                       boolSV(
 #ifdef DC__ABI_MIPS_O32
                           1
@@ -1147,7 +1156,7 @@ XS_EXTERNAL(boot_Affix) {
                           0
 #endif
                           ));
-    register_constant("Affix::Platform::MIPS", "N64",
+    register_constant("Affix::Platform", "MIPS_N64",
                       boolSV(
 #ifdef DC__ABI_MIPS_N64
                           1
@@ -1155,7 +1164,7 @@ XS_EXTERNAL(boot_Affix) {
                           0
 #endif
                           ));
-    register_constant("Affix::Platform::MIPS", "N32",
+    register_constant("Affix::Platform", "MIPS_N32",
                       boolSV(
 #ifdef DC__ABI_MIPS_N32
                           1
@@ -1163,7 +1172,7 @@ XS_EXTERNAL(boot_Affix) {
                           0
 #endif
                           ));
-    register_constant("Affix::Platform::MIPS", "EABI",
+    register_constant("Affix::Platform", "MIPS_EABI",
                       boolSV(
 #ifdef DC__ABI_MIPS_EABI
                           1
@@ -1171,9 +1180,9 @@ XS_EXTERNAL(boot_Affix) {
                           0
 #endif
                           ));
-    register_constant("Affix::Platform::MIPS", "HF",
+    register_constant("Affix::Platform", "HardFloat",
                       boolSV(
-#ifdef DC__ABI_HARDFLOAT
+#if defined(DC__ABI_ARM_HF) || defined(DC__ABI_HARDFLOAT)
                           1
 #else
                           0
@@ -1195,7 +1204,7 @@ XS_EXTERNAL(boot_Affix) {
                           0
 #endif
                           ));
-    register_constant("Affix::Platform", "AggrByVal",
+    register_constant("Affix::Platform", "AggrByValue",
                       boolSV(
 #ifdef DC__Feature_AggrByVal
                           1
@@ -1204,12 +1213,7 @@ XS_EXTERNAL(boot_Affix) {
 #endif
                           ));
 
-    // dyncall/dyncall_version.h
-    register_constant("Affix::Platform", "Dyncall_Version",
-                      Perl_newSVpvf(aTHX_ "%d.%d-%7s", DYNCALL_VERSION >> 12,
-                                    (DYNCALL_VERSION >> 8) & 0xf,
-                                    (DYNCALL_VERSION & 0xf00) == 0x300 ? "release" : "current"));
-
+    //
     (void)newXSproto_portable("Affix::AggregateBase::FETCH", Affix_Aggregate_FETCH, __FILE__, "$$");
     (void)newXSproto_portable("Affix::AggregateBase::EXISTS", Affix_Aggregate_EXISTS, __FILE__,
                               "$$");
