@@ -106,7 +106,7 @@ XS_INTERNAL(Affix_unpin) {
 void boot_Affix_pin(pTHX_ CV *cv) {
     PERL_UNUSED_VAR(cv);
     (void)newXSproto_portable("Affix::pin", Affix_pin, __FILE__, "$$$$");
-    export_function("Affix", "pin", "default");
+    export_function("Affix", "pin", "base");
     (void)newXSproto_portable("Affix::unpin", Affix_unpin, __FILE__, "$");
-    export_function("Affix", "unpin", "default");
+    export_function("Affix", "unpin", "base");
 }

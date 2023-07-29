@@ -979,10 +979,10 @@ XS_EXTERNAL(boot_Affix) {
     //
     cv = newXSproto_portable("Affix::affix", Affix_affix, __FILE__, "$$@$");
     XSANY.any_i32 = 0;
-    export_function("Affix", "affix", "default");
+    export_function("Affix", "affix", "base");
     cv = newXSproto_portable("Affix::wrap", Affix_affix, __FILE__, "$$@$");
     XSANY.any_i32 = 1;
-    export_function("Affix", "wrap", "default");
+    export_function("Affix", "wrap", "base");
     (void)newXSproto_portable("Affix::DESTROY", Affix_DESTROY, __FILE__, "$");
 
     //~ (void)newXSproto_portable("Affix::CLONE", XS_Affix_CLONE, __FILE__, ";@");

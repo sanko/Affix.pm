@@ -44,7 +44,6 @@
             cv = newXSproto_portable("Affix::CC_" #NAME, Affix_CC_##NAME, __FILE__, "");           \
             XSANY.any_i32 = (int)DC_CHAR;                                                          \
         }                                                                                          \
-        export_function("Affix", "CC_" #NAME, "types");                                            \
         export_function("Affix", "CC_" #NAME, "cc");                                               \
         /* types objects can stringify to sigchars */                                              \
         cv = newXSproto_portable("Affix::Type::CC::" #NAME "::(\"\"", Affix_Type_asint, __FILE__,  \
@@ -250,6 +249,53 @@ XS_INTERNAL(Affix_Type_Union) {
               "epoch => Int, name => Str, ... ]");
     ST(0) = sv_2mortal(
         sv_bless(newRV_inc(MUTABLE_SV(RETVAL_HV)), gv_stashpv("Affix::Type::Union", GV_ADD)));
+    XSRETURN(1);
+}
+
+XS_INTERNAL(Affix_sizeof) {
+    dVAR;
+    dXSARGS;
+    if (items != 1) croak_xs_usage(cv, "type");
+    size_t RETVAL;
+    dXSTARG;
+    SV *type = ST(0);
+    RETVAL = _sizeof(aTHX_ type);
+    XSprePUSH;
+    PUSHu((UV)RETVAL);
+    XSRETURN(1);
+}
+
+XS_INTERNAL(Affix_offsetof) {
+    dVAR;
+    dXSARGS;
+    if (items != 2) croak_xs_usage(cv, "type, field");
+    size_t RETVAL = 0;
+    dXSTARG;
+    SV *type = ST(0);
+    char *field = (char *)SvPV_nolen(ST(1));
+    {
+        if (sv_isobject(type) && (sv_derived_from(type, "Affix::Type::Struct"))) {
+            HV *href = MUTABLE_HV(SvRV(type));
+            SV **fields_ref = hv_fetch(href, "fields", 6, 0);
+            AV *fields = MUTABLE_AV(SvRV(*fields_ref));
+            size_t field_count = av_count(fields);
+            for (size_t i = 0; i < field_count; ++i) {
+                AV *av_field = MUTABLE_AV(SvRV(*av_fetch(fields, i, 0)));
+                SV *sv_field = *av_fetch(av_field, 0, 0);
+                char *this_field = SvPV_nolen(sv_field);
+                if (!strcmp(this_field, field)) {
+                    RETVAL = _offsetof(aTHX_ * av_fetch(av_field, 1, 0));
+                    break;
+                }
+                if (i == field_count)
+                    croak("Given structure does not contain field named '%s'", field);
+            }
+        }
+        else
+            croak("Given type is not a structure");
+    }
+    XSprePUSH;
+    PUSHu((UV)RETVAL);
     XSRETURN(1);
 }
 
@@ -486,6 +532,11 @@ CC(ARM_THUMB);
 void boot_Affix_Type(pTHX_ CV *cv) {
     PERL_UNUSED_VAR(cv);
 
+    (void)newXSproto_portable("Affix::sizeof", Affix_sizeof, __FILE__, "$");
+    export_function("Affix", "sizeof", "base");
+    (void)newXSproto_portable("Affix::offsetof", Affix_offsetof, __FILE__, "$$");
+    export_function("Affix", "offsetof", "base");
+
     TYPE(Any, AFFIX_TYPE_SV, DC_SIGCHAR_SV);
     TYPE(Void, AFFIX_TYPE_VOID, DC_SIGCHAR_VOID);
     TYPE(Bool, AFFIX_TYPE_BOOL, DC_SIGCHAR_BOOL);
@@ -572,7 +623,7 @@ void boot_Affix_Type(pTHX_ CV *cv) {
     CC_TYPE(SYSCALL, DC_SIGCHAR_CC_SYSCALL);
 
     (void)newXSproto_portable("Affix::typedef", Affix_typedef, __FILE__, "$$");
-    export_function("Affix", "typedef", "all");
+    export_function("Affix", "typedef", "types");
 
     (void)newXSproto_portable("Affix::Type::Base::unmarshal", Affix_Type_unmarshal, __FILE__, "$$");
 

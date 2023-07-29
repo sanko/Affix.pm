@@ -18,14 +18,22 @@ package Affix 0.12 {    # 'FFI' is my middle name!
     #
     use parent 'Exporter';
     $EXPORT_TAGS{sugar} = [qw[MODIFY_CODE_ATTRIBUTES AUTOLOAD]];
-    @EXPORT             = ( @{ $EXPORT_TAGS{types} }, @{ $EXPORT_TAGS{default} } );
-    @EXPORT_OK          = sort map { @$_ = sort @$_; @$_ } values %EXPORT_TAGS;
-    $EXPORT_TAGS{all}   = \@EXPORT_OK;
-
-    #~ use Data::Dump;
-    #~ ddx \@EXPORT_OK;
-    #~ ddx \@EXPORT;
-    #~ ddx \%EXPORT_TAGS;
+    {
+        my %seen;
+        push @{ $EXPORT_TAGS{default} }, grep { !$seen{$_}++ } @{ $EXPORT_TAGS{$_} }
+            foreach qw[base types cc];
+    }
+    {
+        my %seen;
+        push @{ $EXPORT_TAGS{all} }, grep { !$seen{$_}++ } @{ $EXPORT_TAGS{$_} }
+            for keys %EXPORT_TAGS;
+    }
+    @EXPORT    = sort @{ $EXPORT_TAGS{default} };
+    @EXPORT_OK = sort @{ $EXPORT_TAGS{all} };
+    use Data::Dump;
+    ddx \@EXPORT_OK;
+    ddx \@EXPORT;
+    ddx \%EXPORT_TAGS;
     #
     my %_delay;
 

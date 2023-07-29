@@ -531,53 +531,6 @@ XS_INTERNAL(Affix_Pointer_DESTROY) {
     XSRETURN_EMPTY;
 }
 
-XS_INTERNAL(Affix_sizeof) {
-    dVAR;
-    dXSARGS;
-    if (items != 1) croak_xs_usage(cv, "type");
-    size_t RETVAL;
-    dXSTARG;
-    SV *type = ST(0);
-    RETVAL = _sizeof(aTHX_ type);
-    XSprePUSH;
-    PUSHu((UV)RETVAL);
-    XSRETURN(1);
-}
-
-XS_INTERNAL(Affix_offsetof) {
-    dVAR;
-    dXSARGS;
-    if (items != 2) croak_xs_usage(cv, "type, field");
-    size_t RETVAL = 0;
-    dXSTARG;
-    SV *type = ST(0);
-    char *field = (char *)SvPV_nolen(ST(1));
-    {
-        if (sv_isobject(type) && (sv_derived_from(type, "Affix::Type::Struct"))) {
-            HV *href = MUTABLE_HV(SvRV(type));
-            SV **fields_ref = hv_fetch(href, "fields", 6, 0);
-            AV *fields = MUTABLE_AV(SvRV(*fields_ref));
-            size_t field_count = av_count(fields);
-            for (size_t i = 0; i < field_count; ++i) {
-                AV *av_field = MUTABLE_AV(SvRV(*av_fetch(fields, i, 0)));
-                SV *sv_field = *av_fetch(av_field, 0, 0);
-                char *this_field = SvPV_nolen(sv_field);
-                if (!strcmp(this_field, field)) {
-                    RETVAL = _offsetof(aTHX_ * av_fetch(av_field, 1, 0));
-                    break;
-                }
-                if (i == field_count)
-                    croak("Given structure does not contain field named '%s'", field);
-            }
-        }
-        else
-            croak("Given type is not a structure");
-    }
-    XSprePUSH;
-    PUSHu((UV)RETVAL);
-    XSRETURN(1);
-}
-
 XS_INTERNAL(Affix_Type_Ref) {
     dXSARGS;
     PERL_UNUSED_VAR(items);
@@ -610,10 +563,6 @@ XS_INTERNAL(Affix_Type_Ref) {
 void boot_Affix_Pointer(pTHX_ CV *cv) {
     PERL_UNUSED_VAR(cv);
     {
-        (void)newXSproto_portable("Affix::sizeof", Affix_sizeof, __FILE__, "$");
-        export_function("Affix", "sizeof", "default");
-        (void)newXSproto_portable("Affix::offsetof", Affix_offsetof, __FILE__, "$$");
-        export_function("Affix", "offsetof", "default");
         (void)newXSproto_portable("Affix::malloc", Affix_malloc, __FILE__, "$");
         export_function("Affix", "malloc", "memory");
         (void)newXSproto_portable("Affix::calloc", Affix_calloc, __FILE__, "$$");
