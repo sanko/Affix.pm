@@ -36,45 +36,45 @@ Affix::Types - A Revew of the Affix 'Type' System
     Str         Essentially const char *
     Enum        Parameterized type such as Enum[ 'up', 'down', 'left', 'right' ]
     Struct      Parameterized type
+    Array       Parameterized type
 
 =end text
 
 =begin html
 
 <table>     <thead>       <tr>         <th>Affix</th> <th>C99</th>
-<th>Rust</th> <th>C#</th> <th>pack()</th> <th>Raku</th>       </tr> </thead> 
+<th>Rust</th> <th>C#</th> <th>pack()</th> <th>Raku</th>       </tr> </thead>
 <tbody>       <tr>         <td>Void</td> <td>void</td> <td>-&gt;()</td>
 <td>void/NULL</td> <td>-</td> <td></td>       </tr>       <tr> <td>Bool</td>
 <td>_Bool</td> <td>bool</td> <td>bool</td> <td>-</td> <td>bool</td>       </tr>
-      <tr>         <td>Char</td> <td>int8_t</td>    <td>i8</td>        
-<td>sbyte</td>         <td>c</td>       <td>int8</td>    </tr>       <tr>      
-  <td>UChar</td> <td>uint8_t</td>         <td>u8</td>         <td>byte</td>    
-    <td>C</td>       <td>byte, uint8</td>       </tr>       <tr>        
-<td>Short</td>  <td>int16_t</td>         <td>i16</td>  <td>short</td>
-<td>s</td>         <td>int16</td>       </tr>       <tr> <td>UShort</td>       
- <td>uint16_t</td>         <td>u16</td> <td>ushort</td>        <td>S</td>      
-  <td>uint16</td>       </tr> <tr>         <td>Int</td>        
-<td>int32_t</td>         <td>i32</td> <td>int</td>         <td>i</td>      
-<td>int32</td>       </tr>       <tr>       <td>UInt</td> <td>uint32_t</td>    
-    <td>u32</td> <td>uint</td>         <td>I</td> <td>uint32</td>       </tr>  
-    <tr>         <td>Long</td> <td>int64_t</td>         <td>i64</td>
-<td>long</td>         <td>l</td> <td>int64, long</td>       </tr> <tr>        
-<td>ULong</td> <td>uint64_t</td>         <td>u64</td>    <td>ulong</td>        
-<td>L</td>     <td>uint64, ulong</td>       </tr>       <tr>        
+      <tr>         <td>Char</td> <td>int8_t</td>    <td>i8</td> <td>sbyte</td>
+       <td>c</td>       <td>int8</td>    </tr>       <tr>   <td>UChar</td>
+<td>uint8_t</td>         <td>u8</td>         <td>byte</td>     <td>C</td>
+<td>byte, uint8</td>       </tr>       <tr> <td>Short</td>  <td>int16_t</td>
+     <td>i16</td>  <td>short</td> <td>s</td>         <td>int16</td>       </tr>
+      <tr> <td>UShort</td>  <td>uint16_t</td>         <td>u16</td>
+<td>ushort</td>        <td>S</td>   <td>uint16</td>       </tr> <tr>
+<td>Int</td> <td>int32_t</td>         <td>i32</td> <td>int</td>
+<td>i</td> <td>int32</td>       </tr>       <tr>       <td>UInt</td>
+<td>uint32_t</td>     <td>u32</td> <td>uint</td>         <td>I</td>
+<td>uint32</td>       </tr>     <tr>         <td>Long</td> <td>int64_t</td>
+    <td>i64</td> <td>long</td>         <td>l</td> <td>int64, long</td>
+</tr> <tr> <td>ULong</td> <td>uint64_t</td>         <td>u64</td>
+<td>ulong</td> <td>L</td>     <td>uint64, ulong</td>       </tr>       <tr>
 <td>LongLong</td>     <td>-/long long</td> <td>i128</td>         <td>q</td>
-<td>longlong</td>         <td></td>    </tr>       <tr> <td>ULongLong</td>     
-   <td>-/unsigned long long</td>         <td>u128</td>        <td>Q</td>       
- <td>ulonglong</td>       <td></td>       </tr> <tr>         <td>Float</td>
-<td>float</td>         <td>f32</td> <td>f</td>         <td>num32</td>      
-<td></td>       </tr>       <tr>  <td>Double</td> <td>double</td>        
-<td>f64</td>         <td>d</td>  <td>num64</td>        <td></td>       </tr>   
-   <tr> <td>SSize_t</td> <td>SSize_t</td>         <td>SSize_t</td>        
-<td></td>      <td></td>       <td></td>       </tr>       <tr>        
-<td>Size_t</td> <td>size_t</td>         <td>size_t</td>         <td></td>      
-  <td></td> <td></td>       </tr>       <tr>         <td>Str</td>        
-<td>char *</td>       <td></td>         <td></td>         <td></td>        
-<td></td> </tr>       <tr>         <td>WStr</td>         <td>wchar_t</td>
-<td></td>   <td></td>         <td></td>       </tr>     </tbody> </table>
+<td>longlong</td>         <td></td>    </tr>       <tr> <td>ULongLong</td>
+<td>-/unsigned long long</td>         <td>u128</td>        <td>Q</td>
+<td>ulonglong</td>       <td></td>       </tr> <tr>         <td>Float</td>
+<td>float</td>         <td>f32</td> <td>f</td>         <td>num32</td> <td></td>
+      </tr>       <tr>  <td>Double</td> <td>double</td> <td>f64</td>
+<td>d</td>  <td>num64</td>        <td></td>       </tr>    <tr>
+<td>SSize_t</td> <td>SSize_t</td>         <td>SSize_t</td> <td></td>
+<td></td>       <td></td>       </tr>       <tr> <td>Size_t</td>
+<td>size_t</td>         <td>size_t</td>         <td></td>   <td></td> <td></td>
+      </tr>       <tr>         <td>Str</td> <td>char *</td>       <td></td>
+    <td></td>         <td></td> <td></td> </tr>       <tr>
+<td>WStr</td>         <td>wchar_t</td> <td></td>   <td></td>         <td></td>
+     </tr>     </tbody> </table>
 
 =end html
 
@@ -245,15 +245,15 @@ A C struct that looks like this:
 
 All fundamental and aggregate types may be found inside of a C<Struct>.
 
-=head2 C<ArrayRef[ ... ]>
+=head2 C<Array[ ... ]>
 
 The elements of the array must pass the additional size constraint.
 
 An array length must be given:
 
-    ArrayRef[Int, 5];   # int arr[5]
-    ArrayRef[Char, 5];  # char arr[5]
-    ArrayRef[Str, 10];  # char *arr[10]
+    Array[Int, 5];   # int arr[5]
+    Array[Char, 5];  # char arr[5]
+    Array[Str, 10];  # char *arr[10]
 
 =head2 C<Union[ ... ]>
 
@@ -276,7 +276,7 @@ A C union that looks like this:
 ...would be defined this way:
 
     Union[
-        c => ArrayRef[Char, 5],
+        c => Array[Char, 5],
         f => Float
     ];
 

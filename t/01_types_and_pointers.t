@@ -23,8 +23,8 @@ subtest types => sub {
         ULongLong, SSize_t, Size_t, Float, Double, Str,
         #
         WStr, Pointer [Int],
-        CodeRef [ [ Pointer [Void], Double, Str, ArrayRef [ Str, 10 ], Pointer [WStr] ] => Str ],
-        Struct [ i => Str, j => Long ], Union [ u => Int, x => Double ], ArrayRef [ Int, 10 ],
+        CodeRef [ [ Pointer [Void], Double, Str, Array [ Str, 10 ], Pointer [WStr] ] => Str ],
+        Struct [ i => Str, j => Long ], Union [ u => Int, x => Double ], Array [ Int, 10 ],
         InstanceOf ['Test::Class'];
 };
 subtest 'Pointer[Int]' => sub {
@@ -465,11 +465,11 @@ subtest 'Pointer[Union[...]]' => sub {
         is_deeply $type->unmarshal($ptr)->{i}, 6, 'round trip is correct';
     };
 };
-subtest 'Pointer[ArrayRef[...]]' => sub {
-    my $type = Pointer [ ArrayRef [ Int, 10 ] ];
+subtest 'Pointer[Array[...]]' => sub {
+    my $type = Pointer [ Array [ Int, 10 ] ];
     subtest 'call something' => sub {
         isa_ok my $code = Affix::wrap( $lib, 'take_pointer_to_array_of_ints', [$type], Int ),
-            'Affix', 'Int take_pointer_to_array_of_ints(Pointer [ ArrayRef [ Int, 10 ] ])';
+            'Affix', 'Int take_pointer_to_array_of_ints(Pointer [ Array [ Int, 10 ] ])';
         is $code->( [ 1 .. 10 ] ), 55, '$code->( [ 1 .. 10 ] )';
     };
     {
@@ -482,7 +482,7 @@ subtest 'Pointer[ArrayRef[...]]' => sub {
 =fdsaf
 
     {
-        my $type = Pointer [ ArrayRef [ Struct [ alpha => Str, numeric => Int ], 3 ] ];
+        my $type = Pointer [ Array [ Struct [ alpha => Str, numeric => Int ], 3 ] ];
         my $data = [
             { alpha => 'Smooth',   numeric => 4 },
             { alpha => 'Move',     numeric => 2 },
@@ -494,7 +494,7 @@ subtest 'Pointer[ArrayRef[...]]' => sub {
         is_deeply [ $type->unmarshal($ptr) ], [$data], 'round trip is correct';
     }
     {
-        my $type = Pointer [ ArrayRef [ CodeRef [ [Str] => Str ], 3 ] ];
+        my $type = Pointer [ Array [ CodeRef [ [Str] => Str ], 3 ] ];
         my $ptr  = $type->marshal(
             [   sub { is shift, 'one',   'proper args passed to 1st'; 'One' },
                 sub { is shift, 'two',   'proper args passed to 2nd'; 'Two' },

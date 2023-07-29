@@ -13,7 +13,7 @@ $|++;
 my $lib = compile_test_lib('50_affix_pointers');
 #
 affix $lib, pointer_test =>
-    [ Pointer [Double], ArrayRef [ Int, 5 ], Int, CodeRef [ [ Int, Int ] => Double ] ] => Double;
+    [ Pointer [Double], Array [ Int, 5 ], Int, CodeRef [ [ Int, Int ] => Double ] ] => Double;
 affix $lib, dbl_ptr => [ Pointer [Double] ] => Str;
 #
 diag __LINE__;

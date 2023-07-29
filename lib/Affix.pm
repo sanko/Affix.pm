@@ -333,7 +333,7 @@ package Affix 0.12 {    # 'FFI' is my middle name!
         sub _mangle_type {
             my ( $func, $type ) = @_;
             return    #'A'
-                'P' . _mangle_type( $func, $type->{type} ) if $type->isa('Affix::Type::ArrayRef');
+                'P' . _mangle_type( $func, $type->{type} ) if $type->isa('Affix::Type::Array');
             if ( $type->isa('Affix::Type::Pointer') && $type->{type}->isa('Affix::Type::Void') ) {
                 return $vp++ ? 'S_' : 'Pv';
             }
@@ -386,6 +386,88 @@ package Affix 0.12 {    # 'FFI' is my middle name!
             my @symbols = grep { $_ =~ $ret } grep { defined $_ } @{ $symbol_cache{$lib} };
             return shift @symbols;
         }
+    }
+    {    # remove
+
+        package Affix::Types { };
+
+        package Affix::Lib { };
+
+        package Affix::Platform { };
+
+        package Affix::Type { };
+
+        package Affix::Type::Base { };
+
+        package Affix::Type::Bool { };
+
+        package Affix::Type::Any { };
+
+        package Affix::Type::Array { };
+
+        package Affix::Type::Base { };
+
+        package Affix::Type::Bool { };
+
+        package Affix::Type::CC { };
+
+        package Affix::Type::Char { };
+
+        package Affix::Type::CharEnum { };
+
+        package Affix::Type::CodeRef { };
+
+        package Affix::Type::Double { };
+
+        package Affix::Type::Enum { };
+
+        package Affix::Type::Float { };
+
+        package Affix::Type::InstanceOf { };
+
+        package Affix::Type::Int { };
+
+        package Affix::Type::IntEnum { };
+
+        package Affix::Type::Long { };
+
+        package Affix::Type::LongLong { };
+
+        package Affix::Type::Pointer { };
+
+        package Affix::Type::Ref { };
+
+        package Affix::Type::SSize_t { };
+
+        package Affix::Type::Short { };
+
+        package Affix::Type::Size_t { };
+
+        package Affix::Type::StdStr { };
+
+        package Affix::Type::Str { };
+
+        package Affix::Type::Struct { };
+
+        package Affix::Type::UChar { };
+
+        package Affix::Type::UInt { };
+
+        package Affix::Type::UIntEnum { };
+
+        package Affix::Type::ULong { };
+
+        package Affix::Type::ULongLong { };
+
+        package Affix::Type::UShort { };
+
+        package Affix::Type::Union { };
+
+        package Affix::Type::Void { };
+
+        package Affix::Type::WChar { };
+
+        package Affix::Type::WStr { };
     }
 };
 1;

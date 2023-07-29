@@ -21,7 +21,9 @@ package t::lib::helper {
     #~ diag $Config{ccname};
     #~ diag $Config{ccsymbols};
     sub compile_test_lib ( $name, $aggs = '', $keep = 0 ) {
-        my $c_file = path( grep { -f $_ } "t/src/$name.cxx", "t/src/$name.c" )->canonpath;
+        my $opt = path( grep { -f $_ } "t/src/$name.cxx", "t/src/$name.c" );
+        return plan skip_all => 'Failed to build test lib' if !$opt;
+        my $c_file = $opt->canonpath;
         my $o_file = path( "t/src/$name" . $Config{_o} )->canonpath;
         my $l_file = path( "t/src/$name." . $Config{so} )->canonpath;
         diag sprintf 'Building %s into %s', $c_file, $l_file;

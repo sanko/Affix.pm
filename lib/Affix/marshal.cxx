@@ -80,7 +80,7 @@ SV *ptr2sv(pTHX_ DCpointer ptr, SV *type_sv) {
             }
         }
         else if (sv_derived_from(subtype, "Affix::Type::Pointer") ||
-                 sv_derived_from(subtype, "Affix::Type::ArrayRef")) {
+                 sv_derived_from(subtype, "Affix::Type::Array")) {
             if (ptr != NULL) { SvSetSV(RETVAL, ptr2sv(aTHX_ * (void **)ptr, subtype)); }
         }
         else {
@@ -327,7 +327,7 @@ void *sv2ptr(pTHX_ SV *type_sv, SV *data, bool packed) {
         //~ }
         //~ else
         if (!(sv_derived_from(subtype, "Affix::Type::Pointer") ||
-              sv_derived_from(subtype, "Affix::Type::ArrayRef"))) {
+              sv_derived_from(subtype, "Affix::Type::Array"))) {
             ret = sv2ptr(aTHX_ subtype, data, packed);
         }
         else {

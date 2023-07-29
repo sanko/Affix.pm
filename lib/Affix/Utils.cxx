@@ -207,7 +207,7 @@ const char *type_as_str(int type) {
     case AFFIX_TYPE_CSTRUCT:
         return "Struct";
     case AFFIX_TYPE_CARRAY:
-        return "ArrayRef";
+        return "Array";
     case AFFIX_TYPE_CALLBACK:
         return "CodeRef";
     case AFFIX_TYPE_CPOINTER:

@@ -108,7 +108,7 @@ XS_INTERNAL(Affix_Type_CodeRef) {
     XSRETURN(1);
 }
 
-XS_INTERNAL(Affix_Type_ArrayRef) {
+XS_INTERNAL(Affix_Type_Array) {
     dXSARGS;
     PERL_UNUSED_VAR(items);
     HV *RETVAL_HV = newHV();
@@ -120,7 +120,7 @@ XS_INTERNAL(Affix_Type_ArrayRef) {
     {
         type = *av_fetch(fields, 0, 0);
         if (!(sv_isobject(type) && sv_derived_from(type, "Affix::Type::Base")))
-            croak("ArrayRef[...] expects a type that is a subclass of Affix::Type::Base");
+            croak("Array[...] expects a type that is a subclass of Affix::Type::Base");
         hv_stores(RETVAL_HV, "type", SvREFCNT_inc(type));
     }
     size_t type_alignof = _alignof(aTHX_ type);
@@ -141,14 +141,14 @@ XS_INTERNAL(Affix_Type_ArrayRef) {
         hv_stores(RETVAL_HV, "size", newSVuv(array_length));
     }
     else
-        croak("ArrayRef[...] expects a type and size. e.g ArrayRef[Int, 50]");
+        croak("Array[...] expects a type and size. e.g ArrayRef[Int, 50]");
 
     hv_stores(RETVAL_HV, "align", newSVuv(type_alignof));
     hv_stores(RETVAL_HV, "name", newSV(0));
     hv_stores(RETVAL_HV, "packed", boolSV(packed));
 
     ST(0) = sv_2mortal(
-        sv_bless(newRV_inc(MUTABLE_SV(RETVAL_HV)), gv_stashpv("Affix::Type::ArrayRef", GV_ADD)));
+        sv_bless(newRV_inc(MUTABLE_SV(RETVAL_HV)), gv_stashpv("Affix::Type::Array", GV_ADD)));
 
     XSRETURN(1);
 }
@@ -541,7 +541,7 @@ void boot_Affix_Type(pTHX_ CV *cv) {
     #define AFFIX_TYPE_UTF8STR 18
     */
     EXT_TYPE(Struct, AFFIX_TYPE_CSTRUCT, AFFIX_TYPE_CSTRUCT);
-    EXT_TYPE(ArrayRef, AFFIX_TYPE_CARRAY, AFFIX_TYPE_CARRAY);
+    EXT_TYPE(Array, AFFIX_TYPE_CARRAY, AFFIX_TYPE_CARRAY);
     EXT_TYPE(CodeRef, AFFIX_TYPE_CALLBACK, AFFIX_TYPE_CALLBACK);
 
     /*
