@@ -187,59 +187,6 @@ Indicate to Affix what type of data the variable contains.
 
 This is likely broken on BSD but patches are welcome.
 
-=head1 Sugary Sweet
-
-This part of the API is inspired by L<Raku's C<native>
-trait|https://docs.raku.org/language/nativecall>.
-
-A simple example would look like this under Affix:
-
-    use Affix;
-    sub some_argless_function :Native('something');
-    some_argless_function();
-
-=head2 C<:Native> CODE attribute
-
-We use the C<:Native> attribute in order to specify that the sub is actually
-defined in a native library.
-
-The first time you call "some_argless_function", the "libsomething" will be
-loaded and the "some_argless_function" will be located in it. A call will then
-be made. Subsequent calls will be faster, since the symbol handle is retained.
-
-Of course, most functions take arguments or return values--but everything else
-that you can do is just adding to this simple pattern of declaring a Perl sub,
-naming it after the symbol you want to call and marking it with the
-C<:Native>-related attributes.
-
-To include a version number, your code should look like this:
-
-    sub some_argless_function :Native('foo', v1.2.3)
-
-=head2 C<:Symbol>
-
-Affix provides the C<:Symbol> attribute for you to specify the name of the
-native routine in your library that may be different from your Perl subroutine
-name.
-
-    package Foo;
-    use Affix;
-    sub init :Native('foo') :Symbol('FOO_INIT');
-
-Inside of C<libfoo> there is a routine called C<FOO_INIT> but, since we're
-creating a module called C<Foo> and we'd rather call the routine as
-C<Foo::init> (instead of C<Foo::FOO_INIT>), we use the symbol trait to specify
-the name of the symbol in C<libfoo> and call the subroutine whatever we want
-(C<init> in this case).
-
-=head2 C<:Signature>
-
-    use Affix;
-    sub add :Native("calculator") :Signature([Int, Int] => Int);
-
-Here, we have declared that the function takes two 32-bit integers and returns
-a 32-bit integer.
-
 =head1 Memory Functions
 
 To help toss raw data around, some standard memory related functions are
@@ -325,7 +272,7 @@ Returns the size, in bytes, of the L<type|/Types> passed to it.
 Returns the offset, in bytes, from the beginning of a structure including
 padding, if any.
 
-=head1 Utility Functions
+=head1 Utilities
 
 Here's some thin cushions for the rougher edges of wrapping libraries.
 
@@ -415,7 +362,7 @@ checking is done at compile or runtime.
 <td>void/NULL</td> <td>-</td> <td></td>       </tr>       <tr> <td>Bool</td>
 <td>_Bool</td> <td>bool</td> <td>bool</td> <td>-</td> <td>bool</td>       </tr>
       <tr>         <td>Char</td> <td>int8_t</td>    <td>i8</td> <td>sbyte</td>
- <td>c</td>       <td>int8</td>    </tr>       <tr>   <td>UChar</td>
+<td>c</td>       <td>int8</td>    </tr>       <tr>   <td>UChar</td>
 <td>uint8_t</td>         <td>u8</td>         <td>byte</td>     <td>C</td>
 <td>byte, uint8</td>       </tr>       <tr> <td>Short</td>  <td>int16_t</td>
 <td>i16</td>  <td>short</td> <td>s</td>         <td>int16</td>       </tr> <tr>
@@ -428,16 +375,16 @@ checking is done at compile or runtime.
 <td>ULong</td> <td>uint64_t</td>     <td>u64</td> <td>ulong</td> <td>L</td>
 <td>uint64, ulong</td> </tr>       <tr> <td>LongLong</td>     <td>-/long
 long</td> <td>i128</td>   <td>q</td> <td>longlong</td>         <td></td> </tr>
-  <tr> <td>ULongLong</td> <td>-/unsigned long long</td> <td>u128</td>
-<td>Q</td> <td>ulonglong</td>       <td></td>       </tr> <tr> <td>Float</td>
+<tr> <td>ULongLong</td> <td>-/unsigned long long</td> <td>u128</td> <td>Q</td>
+<td>ulonglong</td>       <td></td>       </tr> <tr> <td>Float</td>
 <td>float</td>         <td>f32</td> <td>f</td> <td>num32</td> <td></td> </tr>
 <tr>  <td>Double</td> <td>double</td> <td>f64</td> <td>d</td> <td>num64</td>
-   <td></td> </tr>    <tr> <td>SSize_t</td> <td>SSize_t</td> <td>SSize_t</td>
+<td></td> </tr>    <tr> <td>SSize_t</td> <td>SSize_t</td> <td>SSize_t</td>
 <td></td> <td></td>       <td></td>     </tr> <tr> <td>Size_t</td>
 <td>size_t</td>         <td>size_t</td>      <td></td> <td></td> <td></td>
- </tr>       <tr> <td>Str</td> <td>char *</td> <td></td> <td></td>
-<td></td> <td></td> </tr>       <tr> <td>WStr</td> <td>wchar_t</td> <td></td>
-<td></td>         <td></td>      </tr> </tbody> </table>
+</tr>       <tr> <td>Str</td> <td>char *</td> <td></td> <td></td> <td></td>
+<td></td> </tr>       <tr> <td>WStr</td> <td>wchar_t</td> <td></td> <td></td>  
+  <td></td>      </tr> </tbody> </table>
 
 =end html
 
@@ -500,7 +447,7 @@ explicit C<undef>.
 For example, on Unix, you could use the following code to gather the home
 directory and other info about the current user:
 
-    use Affix qw[:all];
+    use Affix;
     use Data::Printer;
     typedef PwStruct => Struct [
         name  => Str,     # username
@@ -511,8 +458,8 @@ directory and other info about the current user:
         dir   => Str,     # ~/
         shell => Str      # bash, etc.
     ];
-    sub getuid : Native : Signature([]=>Int);
-    sub getpwuid : Native : Signature([Int]=>Pointer[PwStruct()]);
+    affix undef, 'getuid',   []    => Int;
+    affix undef, 'getpwuid', [Int] => Pointer [ PwStruct() ];
     p( ( Pointer [ PwStruct() ] )->unmarshal( main::getpwuid( getuid() ) ) );
 
 =head1 ABI/API versions
@@ -532,7 +479,6 @@ code does not care for Minor.)
     use Affix;
     affix ['foo', v1], ...;       # Will try to load libfoo.so.1 on Unix
     affix ['foo', v1.2.3], ...;   # Will try to load libfoo.so.1.2.3 on Unix
-    sub pow : Native('m', v6) : Signature([Double, Double] => Double);
 
 =head1 Stack Size
 

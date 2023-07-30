@@ -3,7 +3,8 @@ use utf8;
 use Test::More 0.98;
 BEGIN { chdir '../' if !-d 't'; }
 use lib '../lib', '../blib/arch', '../blib/lib', 'blib/arch', 'blib/lib', '../../', '.';
-use Affix qw[:all];
+use Affix;
+use Affix::Native;
 use File::Spec;
 use t::lib::helper;
 binmode $_, "encoding(UTF-8)" for Test::More->builder->output, Test::More->builder->failure_output;

@@ -37,7 +37,7 @@ subtest 'Good stuff' => sub {
     is Nothing_I(50), 150, 'Nothing_I(50)';
 };
 done_testing;
-    __END__
+__END__
 die;
 subtest 'bad abi' => sub {
     exception { wrap( [ $lib, 'GCC' ], 'Nothing', [Int], Void ) },

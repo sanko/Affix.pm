@@ -3,21 +3,20 @@ package Affix 0.12 {    # 'FFI' is my middle name!
     # ABSTRACT: A Foreign Function Interface eXtension
     use strict;
     use warnings;
-    no warnings 'redefine';
+
+    #~ no warnings 'redefine';
     use File::Spec::Functions qw[rel2abs canonpath curdir path catdir];
     use File::Basename        qw[basename dirname];
     use File::Find            qw[find];
     use Config;
-    use Sub::Util qw[subname];
-    use Carp      qw[];
-    use vars      qw[@EXPORT_OK @EXPORT %EXPORT_TAGS];
+    use Carp qw[];
+    use vars qw[@EXPORT_OK @EXPORT %EXPORT_TAGS];
     use XSLoader;
 
     #~ our $VMSize = 1024; # defaults to 8192; passed to dcNewCallVM( ... )
     my $ok = XSLoader::load();
     #
     use parent 'Exporter';
-    $EXPORT_TAGS{sugar} = [qw[MODIFY_CODE_ATTRIBUTES AUTOLOAD]];
     {
         my %seen;
         push @{ $EXPORT_TAGS{default} }, grep { !$seen{$_}++ } @{ $EXPORT_TAGS{$_} }
@@ -30,140 +29,12 @@ package Affix 0.12 {    # 'FFI' is my middle name!
     }
     @EXPORT    = sort @{ $EXPORT_TAGS{default} };
     @EXPORT_OK = sort @{ $EXPORT_TAGS{all} };
-    use Data::Dump;
-    ddx \@EXPORT_OK;
-    ddx \@EXPORT;
-    ddx \%EXPORT_TAGS;
+
+    #~ use Data::Dump;
+    #~ ddx \@EXPORT_OK;
+    #~ ddx \@EXPORT;
+    #~ ddx \%EXPORT_TAGS;
     #
-    my %_delay;
-
-    sub AUTOLOAD {
-        my $self = $_[0];           # Not shift, using goto.
-        my $sub  = our $AUTOLOAD;
-        if ( defined $_delay{$sub} ) {
-
-            #warn 'Wrapping ' . $sub;
-            #use Data::Dump;
-            #ddx $_delay{$sub};
-            my $template = qq'package %s {use Affix qw[:types]; sub{%s}->(); }';
-            my $sig      = eval sprintf $template, $_delay{$sub}[0], $_delay{$sub}[4];
-            Carp::croak $@ if $@;
-            my $ret = eval sprintf $template, $_delay{$sub}[0], $_delay{$sub}[5];
-            Carp::croak $@ if $@;
-
-            #use Data::Dump;
-            #ddx $_delay{$sub};
-            #~ ddx locate_lib( $_delay{$sub}[1], $_delay{$sub}[2] );
-            my $lib
-                = defined $_delay{$sub}[1] ?
-                scalar locate_lib( $_delay{$sub}[1], $_delay{$sub}[2] ) :
-                undef;
-
-            #~ use Data::Dump;
-            #~ ddx [
-            #~ $lib, (
-            #~ $_delay{$sub}[3] eq $_delay{$sub}[6] ? $_delay{$sub}[3] :
-            #~ [ $_delay{$sub}[3], $_delay{$sub}[6] ]
-            #~ ),
-            #~ $sig, $ret
-            #~ ];
-            my $cv = affix(
-                $lib, (
-                    $_delay{$sub}[3] eq $_delay{$sub}[6] ? $_delay{$sub}[3] :
-                        [ $_delay{$sub}[3], $_delay{$sub}[6] ]
-                ),
-                $sig, $ret
-            );
-            Carp::croak 'Undefined subroutine &' . $_delay{$sub}[6] unless $cv;
-            delete $_delay{$sub} if defined $_delay{$sub};
-            return &$cv;
-        }
-
-        #~ elsif ( my $code = $self->can('SUPER::AUTOLOAD') ) {
-        #~ return goto &$code;
-        #~ }
-        elsif ( $sub =~ /DESTROY$/ ) {
-            return;
-        }
-        Carp::croak("Undefined subroutine &$sub called");
-    }
-    #
-    #~ use Attribute::Handlers;
-    #~ my %name;
-    #~ sub cache {
-    #~ return $name{$_[2]}||*{$_[1]}{NAME};
-    #~ }
-    #~ sub UNIVERSAL::Name :ATTR {
-    #~ $name{$_[2]} = $_[4];
-    #~ }
-    #~ sub UNIVERSAL::Purpose :ATTR {
-    #~ print STDERR "Purpose of ", &name, " is $_[4]\n";
-    #~ }
-    #~ sub UNIVERSAL::Unit :ATTR {
-    #~ print STDERR &name, " measured in $_[4]\n";
-    #~ }
-    #~ sub dump_cache{use Data::Dump; ddx \%name;}
-    sub MODIFY_CODE_ATTRIBUTES {
-        my ( $package, $code, @attributes ) = @_;
-
-        #~ use Data::Dump;
-        #~ ddx \@_;
-        my ( $library, $library_version, $signature, $return, $symbol, $full_name );
-        for my $attribute (@attributes) {
-
-            #~ warn $attribute;
-            if (
-                $attribute =~ m[^Native(?:\((["']?)(.+?)\1(?:,\s*(.+))?\))?$]
-
-                # m[/^\bNative\s+(?:(\w+)\s*,\s*(\d+))?$/]
-            ) {
-                $library = $2 // ();
-
-                #~ warn $library;
-                #~ warn $library_version;
-                $library_version = $3 // 0;
-            }
-            elsif ( $attribute =~ m[^Symbol\(\s*(['"])?\s*(.+)\s*\1\s*\)$] ) {
-                $symbol = $2;
-            }
-
-           #elsif ( $attribute =~ m[^Signature\s*?\(\s*(.+?)?(?:\s*=>\s*(\w+)?)?\s*\)$] ) { # pretty
-            elsif ( $attribute =~ m[^Signature\(\s*(\[.*\])\s*=>\s*(.*)\)$] ) {    # pretty
-                $signature = $1;
-                $return    = $2;
-            }
-            else { return $attribute }
-        }
-        $signature //= '[]';
-        $return    //= 'Void';
-        $full_name = subname $code;    #$library, $library_version,
-        if ( !grep { !defined } $full_name ) {
-            if ( !defined $symbol ) {
-                $full_name =~ m[::(.*?)$];
-                $symbol = $1;
-            }
-
-            #use Data::Dump;
-            #ddx [
-            #    $package,   $library, $library_version, $symbol,
-            #    $signature, $return,  $full_name
-            #];
-            if ( defined &{$full_name} ) {    #no strict 'refs';
-
-                # TODO: call this defined sub and pass the wrapped symbol and then the passed args
-                #...;
-                return affix(
-                    locate_lib( $library, $library_version ),
-                    ( $symbol eq $full_name ? $symbol : [ $symbol, $full_name ] ),
-                    $signature, $return
-                );
-            }
-            $_delay{$full_name}
-                = [ $package, $library, $library_version, $symbol, $signature, $return,
-                $full_name ];
-        }
-        return;
-    }
     our $OS = $^O;
     my $is_win = $OS eq 'MSWin32';
     my $is_mac = $OS eq 'darwin';
