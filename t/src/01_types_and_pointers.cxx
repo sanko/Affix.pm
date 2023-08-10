@@ -1,6 +1,290 @@
 #include "std.h"
 
 DLLEXPORT
+bool test(bool value) {
+    // return the opposite; makes sure we're updating ST(0)
+    if (value) return false;
+    return true;
+}
+
+DLLEXPORT
+bool test(int pos, bool *ptr) {
+    if (ptr[pos]) return true;
+    return false;
+}
+
+DLLEXPORT
+bool test(int x, int y, bool **ptr) {
+    /*for (int i = 0; i < 3; i++) {
+        printf("# ");
+        for (int j = 0; j < 3; j++) {
+            if (ptr[i][j]) { printf("X "); }
+            else { printf("O "); }
+        }
+        printf("\n");
+    }*/
+    if (ptr[x][y]) return true;
+    return false;
+}
+
+DLLEXPORT
+bool test(int x, int y, int z, bool ***ptr) {
+    /*
+    bool ***board = (bool ***) malloc(sizeof(bool **) * 3);
+    for (int i = 0; i < 3; i++) {
+      board[i] = (bool **) malloc(sizeof(bool *) * 3);
+      for (int j = 0; j < 3; j++) {
+        board[i][j] = (bool *) malloc(sizeof(bool) * 3);
+        for (int k = 0; k < 3; k++) {
+          board[i][j][k] =  (i + j * k) % 2;
+        }
+      }
+    }
+    */
+    printf("#[\n");
+    for (int i = 0; i < 3; i++) {
+        printf("#  [\n");
+        for (int j = 0; j < 3; j++) {
+            printf("#    [");
+            for (int k = 0; k < 3; k++) {
+                printf("%c%d,", (i == x && j == y && k == z) ? '*' : ' ', ptr[i][j][k]);
+            }
+            printf(" ],\n");
+        }
+        printf("#  ],\n");
+    }
+    printf("#]\n");
+    fflush(stdout);
+    if (ptr[x][y][z]) return true;
+    return false;
+}
+
+DLLEXPORT
+bool *Ret_BoolPtr() {
+    bool *arr = (bool *)malloc(sizeof(bool) * 4);
+    int i;
+    for (i = 0; i < 4; i++) {
+        arr[i] = (i % 2 == 0);
+    }
+
+    return arr;
+}
+DLLEXPORT
+bool **Ret_BoolPtrPtr() {
+    bool **board = (bool **)malloc(sizeof(bool *) * 3);
+    for (int i = 0; i < 3; i++) {
+        board[i] = (bool *)malloc(sizeof(bool) * 3);
+        for (int j = 0; j < 3; j++) {
+            board[i][j] = i == j;
+        }
+    }
+    return board;
+}
+
+DLLEXPORT
+char test(char check) {
+    if (check == 'M') return 'Y';
+    return 'N';
+}
+DLLEXPORT
+char test(int pos, char *word) {
+    return word[pos];
+}
+DLLEXPORT
+char *test(int x, char **names) {
+    return names[x];
+}
+DLLEXPORT
+char *test(int x, int y, char ***names) {
+    return names[x][y];
+}
+DLLEXPORT
+char test(int x, int y, int pos, char ***names) {
+    return names[x][y][pos];
+}
+
+DLLEXPORT
+char ***Ret_CharPtrPtrPtr() {
+    int rows = 3;
+    int cols = 3;
+    int depth = 3;
+    char c = 'a';
+
+    char ***array = (char ***)malloc(sizeof(char **) * rows);
+    for (int i = 0; i < rows; i++) {
+        array[i] = (char **)malloc(sizeof(char *) * cols);
+        for (int j = 0; j < cols; j++) {
+            array[i][j] = (char *)malloc(sizeof(char) * depth + 1);
+            for (int k = 0; k < depth; k++) {
+                array[i][j][k] = c++; //'a' + i + j + k; // i + j + k;
+            }
+            array[i][j][depth] = '\0';
+        }
+    }
+#if 1
+    printf("#[\n");
+    for (int i = 0; i < rows; i++) {
+        printf("#  [");
+        for (int j = 0; j < cols; j++) {
+            // printf("#    [");
+            // for (int k = 0; k < 3; k++) {
+            printf(" '%s',", array[i][j]);
+            //}
+            // printf(" ],\n");
+        }
+        printf("  ],\n");
+    }
+    printf("#]\n");
+    fflush(stdout);
+#endif
+    return array;
+}
+
+DLLEXPORT
+int test(int value) {
+    // return the opposite; makes sure we're updating ST(0)
+    return -value;
+}
+
+DLLEXPORT
+int test(int pos, int *ptr) {
+    return -ptr[pos];
+}
+
+DLLEXPORT
+int test(int x, int y, int **ptr) {
+    return ptr[x][y];
+}
+
+DLLEXPORT
+int test(int x, int y, int depth, int ***ptr) {
+    return ptr[x][y][depth];
+}
+
+DLLEXPORT
+int **Ret_IntPtrPtr() {
+    int rows = 3;
+    int cols = 3;
+    int **array = (int **)malloc(sizeof(int *) * rows);
+    for (int i = 0; i < rows; i++) {
+        array[i] = (int *)malloc(sizeof(int) * cols);
+        for (int j = 0; j < cols; j++) {
+            array[i][j] = i * cols + j;
+        }
+    }
+    printf("# [\n");
+    for (int i = 0; i < 3; i++) {
+        printf("#   [");
+        for (int j = 0; j < 3; j++) {
+            printf(" %d, ", array[i][j]);
+        }
+        printf("], # %p\n", array[i]);
+    }
+    printf("# ]\n");
+    return array;
+}
+
+DLLEXPORT
+int ***Ret_IntPtrPtrPtr() {
+    int rows = 3;
+    int cols = 3;
+    int depth = 3;
+
+    int ***array = (int ***)malloc(sizeof(int **) * rows);
+    for (int i = 0; i < rows; i++) {
+        array[i] = (int **)malloc(sizeof(int *) * cols);
+        for (int j = 0; j < cols; j++) {
+            array[i][j] = (int *)malloc(sizeof(int) * depth);
+            for (int k = 0; k < depth; k++) {
+                array[i][j][k] = i * cols * depth + j * depth + k;
+            }
+        }
+    }
+    return array;
+}
+DLLEXPORT
+bool test(char value, char *ptr) {
+    if (ptr == NULL) return false;
+    if (value == *ptr) return true;
+    return false;
+}
+DLLEXPORT
+int test(char *name, char **names) {
+    for (int i = 0; names[i] != NULL; ++i) {
+        warn("---[%p] %s\n", names[i], names[i]);
+        if (strcmp(names[i], name) == 0) return i + 1;
+    }
+    return -1;
+}
+DLLEXPORT
+int xxxtest(char *value, char **ptr, char *yep) {
+    int ret = 0;
+
+    return ret;
+}
+
+DLLEXPORT
+bool test(char *value, char *ptr) {
+    int result = strcmp(value, ptr);
+    // Check the result.
+    if (result == 0) { return true; }
+    else if (result < 0) {
+        // printf("String 1 is less than string 2.\n");
+    }
+    else {
+        // printf("String 1 is greater than string 2.\n");
+    }
+    return false;
+}
+
+DLLEXPORT
+char *Ret_CharPtr(char in) {
+    if (in == '?') return NULL;
+    char *retval = (char *)malloc(sizeof(char) * 17);
+    if (in == 'm')
+        strcpy(retval, "This is string m");
+    else
+        strcpy(retval, "This is string ?");
+    //*retval = in;
+    return retval;
+}
+DLLEXPORT
+char **Ret_CharPtrPtr(char in) {
+    char **retval = (char **)malloc(sizeof(char *));
+    *retval = (char *)malloc(sizeof(char));
+    *(*retval) = in;
+    return retval;
+}
+DLLEXPORT
+char **store_strings(void) {
+    char **pointers = (char **)malloc(2 * sizeof(char *));
+
+    char *string1 = (char *)malloc(17 * sizeof(char));
+    char *string2 = (char *)malloc(17 * sizeof(char));
+
+    strcpy(string1, "This is string 1");
+    strcpy(string2, "This is string 2");
+
+    // Store the pointers to the strings.
+    pointers[0] = string1;
+    pointers[1] = string2;
+
+    // Return the pointer.
+    return pointers;
+}
+
+DLLEXPORT
+bool test(double value, double *ptr) {
+    if (value == *ptr) return true;
+    return false;
+}
+DLLEXPORT
+bool test(double value, double **ptr) {
+    if (value == **ptr) return true;
+    return false;
+}
+
+DLLEXPORT
 bool testIntPointer(int value, int *ptr) {
     //~ warn("# %d == %d = %b", value, *ptr, (*ptr == value));
     if (value == *ptr) return true;
@@ -8,16 +292,6 @@ bool testIntPointer(int value, int *ptr) {
 }
 DLLEXPORT
 bool testIntPointerPointer(int value, int **ptr) {
-    if (value == **ptr) return true;
-    return false;
-}
-DLLEXPORT
-bool testBoolPointer(bool value, bool *ptr) {
-    if (value == *ptr) return true;
-    return false;
-}
-DLLEXPORT
-bool testBoolPointerPointer(bool value, bool **ptr) {
     if (value == **ptr) return true;
     return false;
 }
@@ -197,7 +471,7 @@ template <typename t> class student
 };
 
 DLLEXPORT
-int main() {
+int mainX() {
     // similar to student <int> s1("vipul",100);
     student<int> s1("vipul", 100);
     student<double> s2("yash", 100.0);
@@ -227,4 +501,19 @@ void take_string(char *test) {
 DLLEXPORT
 void take_string(string test) {
     warn("line: %s", test.c_str());
+}
+
+#include <cxxabi.h>
+#include <stdio.h>
+#include <stdlib.h>
+
+DLLEXPORT
+int main() {
+    const char *mangled_name =
+        "_ZNK3MapI10StringName3RefI8GDScriptE10ComparatorIS0_E16DefaultAllocatorE3hasERKS0_";
+    int status = -1;
+    char *demangled_name = abi::__cxa_demangle(mangled_name, NULL, NULL, &status);
+    printf("Demangled: %s\n", demangled_name);
+    free(demangled_name);
+    return 0;
 }

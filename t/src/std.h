@@ -28,7 +28,7 @@ typedef signed __int64 int64_t;
 #define DLLEXPORT __attribute__((dllimport))
 #endif
 #else
-#define DLLEXPORT __declspec(dllimport)
+#define DLLEXPORT __declspec(dllexport)
 #endif
 #include <inttypes.h>
 #include <sys/types.h>
@@ -46,7 +46,7 @@ void _DumpHex(const void *addr, size_t len, const char *file, int line) {
     size_t i;
     unsigned char buff[perLine + 1];
     const unsigned char *pc = (const unsigned char *)addr;
-    fprintf(stderr, "Dumping %zu bytes from %p at %s line %d\n", len, addr, file, line);
+    fprintf(stderr, "# Dumping %zu bytes from %p at %s line %d\n", len, addr, file, line);
     // Length checks.
     if (len == 0) {
         warn("ZERO LENGTH");
@@ -60,7 +60,7 @@ void _DumpHex(const void *addr, size_t len, const char *file, int line) {
         if ((i % perLine) == 0) { // Only print previous-line ASCII buffer for
             // lines beyond first.
             if (i != 0) fprintf(stderr, " | %s\n", buff);
-            fprintf(stderr, "#  %04zu ", i); // Output the offset of current line.
+            fprintf(stderr, "#  %03zu ", i); // Output the offset of current line.
         }
         // Now the hex code for the specific character.
         fprintf(stderr, " %02x", pc[i]);

@@ -77,6 +77,7 @@ size_t _sizeof(pTHX_ SV *type) {
         return DOUBLE_SIZE;
     case AFFIX_TYPE_CSTRUCT:
     case AFFIX_TYPE_CUNION:
+    case AFFIX_TYPE_CPPSTRUCT:
         return SvUV(*hv_fetchs(MUTABLE_HV(SvRV(type)), "sizeof", 0));
     case AFFIX_TYPE_CARRAY:
         if (LIKELY(hv_exists(MUTABLE_HV(SvRV(type)), "sizeof", 6)))
@@ -206,6 +207,8 @@ const char *type_as_str(int type) {
         return "WStr";
     case AFFIX_TYPE_CSTRUCT:
         return "Struct";
+    case AFFIX_TYPE_CPPSTRUCT:
+        return "CPPStruct";
     case AFFIX_TYPE_CARRAY:
         return "Array";
     case AFFIX_TYPE_CALLBACK:

@@ -17,6 +17,9 @@ extern "C" {
 #ifndef sv_setbool_mg
 #define sv_setbool_mg(sv, b) sv_setsv_mg(sv, boolSV(b)) /* new in perl 5.36 */
 #endif
+#ifndef newSVbool
+#define newSVbool(b) boolSV(b) /* new in perl 5.36 */
+#endif
 
 #include <wchar.h>
 
@@ -89,6 +92,10 @@ extern "C" {
 
 #include <dyncall_version.h>
 
+#if defined(DC__C_GNU) || defined(DC__C_CLANG)
+#include <cxxabi.h>
+#endif
+
 #ifdef DC__OS_Win64
 #include <cinttypes>
 static const char *dlerror(void) {
@@ -107,27 +114,29 @@ static const char *dlerror(void) {
 #endif
 
 /* Native argument types */
-#define AFFIX_TYPE_VOID 0
-#define AFFIX_TYPE_BOOL 2
-#define AFFIX_TYPE_CHAR 4
-#define AFFIX_TYPE_UCHAR 6
-#define AFFIX_TYPE_SHORT 8
-#define AFFIX_TYPE_USHORT 10
-#define AFFIX_TYPE_INT 12
-#define AFFIX_TYPE_UINT 14
-#define AFFIX_TYPE_LONG 16
-#define AFFIX_TYPE_ULONG 18
-#define AFFIX_TYPE_LONGLONG 20
-#define AFFIX_TYPE_ULONGLONG 22
-#define AFFIX_TYPE_FLOAT 24
-#define AFFIX_TYPE_DOUBLE 26
+#define AFFIX_TYPE_VOID 'v'
+#define AFFIX_TYPE_BOOL 'b'
+#define AFFIX_TYPE_SCHAR 'a'
+#define AFFIX_TYPE_CHAR 'c'
+#define AFFIX_TYPE_UCHAR 'h'
+#define AFFIX_TYPE_SHORT 's'
+#define AFFIX_TYPE_USHORT 't'
+#define AFFIX_TYPE_INT 'i'
+#define AFFIX_TYPE_UINT 'j'
+#define AFFIX_TYPE_LONG 'l'
+#define AFFIX_TYPE_ULONG 'm'
+#define AFFIX_TYPE_LONGLONG 'x'
+#define AFFIX_TYPE_ULONGLONG 'y'
+#define AFFIX_TYPE_FLOAT 'f'
+#define AFFIX_TYPE_DOUBLE 'd'
 #define AFFIX_TYPE_ASCIISTR 28
 #define AFFIX_TYPE_UTF8STR 30
 #define AFFIX_TYPE_UTF16STR 32
 #define AFFIX_TYPE_CSTRUCT 34
+#define AFFIX_TYPE_CPPSTRUCT 35
 #define AFFIX_TYPE_CARRAY 36
 #define AFFIX_TYPE_CALLBACK 38
-#define AFFIX_TYPE_CPOINTER 40
+#define AFFIX_TYPE_CPOINTER 'P'
 #define AFFIX_TYPE_CUNION 42
 #if Size_t_size == INTSIZE
 #define AFFIX_TYPE_SSIZE_T AFFIX_TYPE_INT
@@ -142,7 +151,7 @@ static const char *dlerror(void) {
 #define AFFIX_TYPE_SSIZE_T AFFIX_TYPE_LONGLONG
 #define AFFIX_TYPE_SIZE_T AFFIX_TYPE_ULONGLONG
 #endif
-#define AFFIX_TYPE_WCHAR 44
+#define AFFIX_TYPE_WCHAR 'w'
 #define AFFIX_TYPE_SV 46
 #define AFFIX_TYPE_REF 48
 #define AFFIX_TYPE_STD_STRING 50
@@ -257,6 +266,9 @@ size_t _offsetof(pTHX_ SV *type);
 SV *wchar2utf(pTHX_ wchar_t *src, int len);
 wchar_t *utf2wchar(pTHX_ SV *src, int len);
 
+// Affix/Aggregate.cxx
+DCaggr *_aggregate(pTHX_ SV *type);
+
 // Affix/Utils.cxx
 #define export_function(package, what, tag)                                                        \
     _export_function(aTHX_ get_hv(form("%s::EXPORT_TAGS", package), GV_ADD), what, tag)
@@ -276,7 +288,7 @@ int type_as_dc(int type);
 
 // Affix/Lib.cxx
 char *locate_lib(pTHX_ SV *_lib, SV *_ver);
-char *mangle(pTHX_ const char *abi, SV *lib, const char *symbol, SV *args);
+char *mangle(pTHX_ const char *abi, SV *affix, const char *symbol, SV *args);
 
 // Affix::affix(...) and Affix::wrap(...) System
 struct Affix {
@@ -289,7 +301,10 @@ struct Affix {
     void *entry_point;
     AV *arg_info;
     SV *ret_info;
-    SV *resolve_lib_name;
+    bool _cpp_constructor;
+    bool _cpp_const;    // const member function in CPPStruct[]
+    bool _cpp_struct;   // CPPStruct[] as this
+    SV *_cpp_this_info; // typedef
 };
 
 // Callback system
@@ -324,6 +339,8 @@ void boot_Affix_Type_InstanceOf(pTHX_ CV *);
 void boot_Affix_Lib(pTHX_ CV *);
 void boot_Affix_Type(pTHX_ CV *);
 void boot_Affix_Type_InstanceOf(pTHX_ CV *);
+void boot_Affix_Aggregate(pTHX_ CV *);
+void boot_Affix_Platform(pTHX_ CV *);
 
 #ifdef __cplusplus
 } /* extern "C" */

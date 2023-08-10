@@ -154,6 +154,7 @@ XS_INTERNAL(Affix_Type_Array) {
 
 XS_INTERNAL(Affix_Type_Struct) {
     dXSARGS;
+    dXSI32;
     PERL_UNUSED_VAR(items);
     HV *RETVAL_HV = newHV();
     AV *fields_in = MUTABLE_AV(SvRV(ST(0)));
@@ -197,14 +198,20 @@ XS_INTERNAL(Affix_Type_Struct) {
             size += padding_needed_for(size, AFFIX_ALIGNBYTES);
         hv_stores(RETVAL_HV, "sizeof", newSVuv(size));
         hv_stores(RETVAL_HV, "align", newSVuv(padding_needed_for(size, AFFIX_ALIGNBYTES)));
-        ST(0) = sv_2mortal(
-            sv_bless(newRV_inc(MUTABLE_SV(RETVAL_HV)), gv_stashpv("Affix::Type::Struct", GV_ADD)));
+        ST(0) = sv_2mortal(sv_bless(
+            newRV_inc(MUTABLE_SV(RETVAL_HV)),
+            gv_stashpv(form("Affix::Type::%sStruct", ix == AFFIX_TYPE_CSTRUCT ? "" : "CPP"),
+                       GV_ADD)));
     }
     else
-        croak("Struct[...] expects an even size list of and field names and types. e.g. "
-              "Struct[ "
-              "epoch => Int, name => Str, ... ]");
+        croak("%sStruct[...] expects an even size list of and field names and types. e.g. "
+              "%sStruct[ epoch => Int, name => Str, ... ]",
+              ix == AFFIX_TYPE_CSTRUCT ? "" : "CPP", ix == AFFIX_TYPE_CSTRUCT ? "" : "CPP");
     XSRETURN(1);
+}
+
+XS_INTERNAL(Affix_Type_CPPStruct) {
+    Affix_Type_Struct(aTHX_ cv);
 }
 
 XS_INTERNAL(Affix_Type_Union) {
@@ -436,16 +443,17 @@ XS_INTERNAL(Affix_typedef) {
                 register_constant(name, SvPV_nolen(*value), *value);
             }
         }
-        else if (sv_derived_from(type, "Affix::Type::Struct") ||
-                 sv_derived_from(type, "Affix::Type::Union")) {
-            HV *href = MUTABLE_HV(SvRV(type));
-            hv_stores(href, "typedef", newSVpv(name, 0));
-        }
+        /*else if (sv_derived_from(type, "Affix::Type::Struct") ||
+                 sv_derived_from(type, "Affix::Type::Union")) {*/
+        HV *href = MUTABLE_HV(SvRV(type));
+        hv_stores(href, "typedef", newSVpv(name, 0));
+        /*}*/
     }
     else { croak("Expected a subclass of Affix::Type::Base"); }
     sv_setsv_mg(ST(1), type);
     SvSETMAGIC(ST(1));
-    XSRETURN_EMPTY;
+    ST(0) = ST(1);
+    XSRETURN(1);
 }
 
 XS_INTERNAL(Affix_Type_unmarshal) {
@@ -585,10 +593,10 @@ void boot_Affix_Type(pTHX_ CV *cv) {
     TYPE(Str, AFFIX_TYPE_ASCIISTR, DC_SIGCHAR_STRING);
     TYPE(WStr, AFFIX_TYPE_UTF16STR, DC_SIGCHAR_POINTER);
 
+    // std::string
     TYPE(StdStr, AFFIX_TYPE_STD_STRING, DC_SIGCHAR_POINTER);
 
     /*
-
     #define AFFIX_TYPE_UTF8STR 18
     */
     EXT_TYPE(Struct, AFFIX_TYPE_CSTRUCT, AFFIX_TYPE_CSTRUCT);
@@ -599,10 +607,7 @@ void boot_Affix_Type(pTHX_ CV *cv) {
     #define AFFIX_TYPE_VMARRAY 30
     */
     EXT_TYPE(Union, AFFIX_TYPE_CUNION, AFFIX_TYPE_CUNION);
-
-    /*
-    #define AFFIX_TYPE_CPPSTRUCT 44
-    */
+    EXT_TYPE(CPPStruct, AFFIX_TYPE_CPPSTRUCT, AFFIX_TYPE_CPPSTRUCT);
 
     set_isa("Affix::Type::UChar", "Affix::Type::Char");
     set_isa("Affix::Type::UInt", "Affix::Type::Int");

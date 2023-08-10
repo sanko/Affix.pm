@@ -84,7 +84,7 @@ DLLEXPORT bool sptr(massive *sptr) {
 }
 
 DLLEXPORT char *dbl_ptr(double *dbl) {
-    //~ warn("# dbl_ptr( %p )");
+    warn("# dbl_ptr( %p )", (void *)dbl);
     if (dbl == NULL)
         return "NULL";
     else if (*dbl == 0) {

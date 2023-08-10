@@ -2,7 +2,7 @@ use strict;
 use Test::More 0.98;
 use Test::Warnings qw[warning :no_end_test];
 BEGIN { chdir '../' if !-d 't'; }
-use lib '../lib', '../blib/arch', '../blib/lib', 'blib/arch', 'blib/lib', '../../', '.';
+use lib '../lib', 'lib', '../blib/arch', '../blib/lib', 'blib/arch', 'blib/lib', '../../', '.';
 use Affix;
 use utf8;
 use t::lib::helper;
@@ -16,7 +16,10 @@ $|++;
 #~ Test2::Tools::Encoding::set_encoding('utf8');
 binmode $_, "encoding(UTF-8)" for Test::More->builder->output, Test::More->builder->failure_output;
 my $lib = compile_test_lib('01_types_and_pointers');
+
+#~ warn `nm -D $lib`;
 #
+use Data::Dump;
 subtest types => sub {
     isa_ok $_, 'Affix::Type::Base'
         for Void, Bool, Char, UChar, WChar, Short, UShort, Int, UInt, Long, ULong, LongLong,
@@ -27,233 +30,206 @@ subtest types => sub {
         Struct [ i => Str, j => Long ], Union [ u => Int, x => Double ], Array [ Int, 10 ],
         InstanceOf ['Test::Class'];
 };
-subtest 'Pointer[Int]' => sub {
-    my $type = Pointer [Int];
-    my $code = Affix::wrap( $lib, 'testIntPointer', [ Int, $type ], Bool );
-    subtest 'marshal=>unmarshal' => sub {
-        {
-            my $ptr = $type->marshal(3939);
-            is( $type->unmarshal($ptr), 3939, '3939 in and out' );
-        }
-        {
-            my $ptr = $type->marshal(-9);
-            is( $type->unmarshal($ptr), -9, '-9 in and out' );
-        }
+subtest 'bool test(bool)' => sub {
+    isa_ok my $code = wrap( $lib, 'test', [Bool] => Bool ), 'Affix', 'wrap ..., [Bool] => Bool';
+    is $code->(1), !1, 'test(1)';
+    is $code->(0), 1,  'test(0)';
+};
+subtest 'bool test(int, bool*)' => sub {
+    isa_ok my $code = wrap( $lib, 'test', [ Int, Pointer [Bool] ] => Bool ), 'Affix',
+        'wrap ..., [Int, Pointer[Bool]] => Bool';
+    is $code->( 0, [ 1, 1, 1, 1 ] ), 1,  '->(0, [1, 1, 1, 1]) == true';
+    is $code->( 1, [ 0, 0, 0, 0 ] ), !1, '->(1, [0, 0, 0, 0]) == false';
+    is $code->( 2, [ 0, 0, 1, 0 ] ), 1,  '->(2, [0, 0, 1, 0]) == true';
+    is $code->( 3, [ 1, 1, 1, 0 ] ), !1, '->(3, [1, 1, 1, 0]) == false';
+};
+subtest 'bool test(int, int, bool**)' => sub {
+    isa_ok my $code = wrap( $lib, 'test', [ Int, Int, Pointer [ Pointer [Bool] ] ] => Bool ),
+        'Affix', 'wrap ..., [Int, Int, Pointer[Pointer[Bool]]] => Bool';
+    is $code->( 1, 0, [ [ 1, 0, 1 ], [ 1, 1, 1 ], [ !1, !1, 1 ] ] ), 1,  '->(1, 0, ...) == true';
+    is $code->( 0, 1, [ [ 1, 0, 1 ], [ 1, 1, 1 ], [ !1, !1, 1 ] ] ), !1, '->(0, 1, ...) == false';
+};
+subtest 'bool test(int, int, int, bool***)' => sub {
+    isa_ok my $code
+        = wrap( $lib, 'test', [ Int, Int, Int, Pointer [ Pointer [ Pointer [Bool] ] ] ] => Bool ),
+        'Affix', 'wrap ..., [Int, Int, Pointer[Pointer[Pointer[Bool]]]] => Bool';
+    is $code->(
+        1, 0, 0,
+        [   [ [ 1, 0, 1 ], [ 1, 1, 1 ], [ !1, !1, 1 ] ],
+            [ [ 1, 0, 1 ], [ 1, 1, 1 ], [ !1, !1, 1 ] ],
+            [ [ 1, 0, 1 ], [ 1, 1, 1 ], [ !1, !1, 1 ] ]
+        ]
+        ),
+        1, '->(1, 0, 0, ...) == true';
+    is $code->(
+        2, 0, 1,
+        [   [ [ 1, 0, 1 ], [ 1, 1, 1 ], [ !1, !1, 1 ] ],
+            [ [ 1, 0, 1 ], [ 1, 1, 1 ], [ !1, !1, 1 ] ],
+            [ [ 1, 0, 1 ], [ 1, 1, 1 ], [ !1, !1, 1 ] ]
+        ]
+        ),
+        !1, '->(2, 0, 1, ...) == false';
+};
+subtest 'bool* Ret_BoolPtr()' => sub {
+    isa_ok my $code = wrap( $lib, 'Ret_BoolPtr', [] => Pointer [Bool] ), 'Affix',
+        'Ret_BoolPtr ..., [ ] => Pointer[Bool]';
+    isa_ok my $type = Array [ Bool, 3 ], 'Affix::Type::Array', ' my $type = Array[Bool, 3]';
+    isa_ok my $ret  = $code->(),         'Affix::Pointer',     'bool *';
+    ddx $type->unmarshal($ret);
+    is_deeply $type->unmarshal($ret), [ 1, !1, 1 ], 'unmarshal bool *';
+};
+subtest 'bool** Ret_BoolPtrPtr()' => sub {
+    isa_ok my $code = wrap( $lib, 'Ret_BoolPtrPtr', [] => Pointer [ Pointer [Bool] ] ), 'Affix',
+        'Ret_BoolPtrPtr ..., [ ] => Pointer[Pointer[Bool]]';
+    isa_ok my $type = Array [ Array [ Bool, 3 ], 3 ], 'Affix::Type::Array',
+        ' my $type = Array[Array[Bool, 3], 3]';
+    isa_ok my $ret = $code->(), 'Affix::Pointer', 'bool **';
+    is_deeply $type->unmarshal($ret), [ [ 1, !1, !1 ], [ !1, 1, !1 ], [ !1, !1, 1 ] ],
+        'unmarshal bool **';
+};
+subtest 'char test(char)' => sub {
+    isa_ok my $code = wrap( $lib, 'test', [Char] => Char ), 'Affix', 'wrap ..., [Char] => Char';
+    is chr $code->('M'),       'Y', 'test("M")';
+    is chr $code->('N'),       'N', 'test("N")';
+    is chr $code->(undef),     'N', 'test(undef)';
+    is chr $code->( ord 'M' ), 'Y', 'test(ord "M")';
+};
+subtest 'char test(int, char*)' => sub {
+    isa_ok my $code = wrap( $lib, 'test', [ Int, Pointer [Char] ] => Char ), 'Affix',
+        'wrap ..., [Int, Pointer[Char]] => Char';
+    is chr $code->( 0, [ 'a', 'b', 'c', 'd' ] ), 'a', '->(0, ["a", "b", "c", "d"]) == "a"';
+    is chr $code->( 1, [ 'a', 'b', 'c', 'd' ] ), 'b', '->(1, ["a", "b", "c", "d"]) == "b"';
+    is chr $code->( 2, [ 'a', 'b', 'c', 'd' ] ), 'c', '->(2, ["a", "b", "c", "d"]) == "c"';
+    is chr $code->( 3, [ 'a', 'b', 'c', 'd' ] ), 'd', '->(3, ["a", "b", "c", "d"]) == "d"';
+    is chr $code->( 3, "Testing" ), 't', '->(3, "Testing") == "t';
+};
+subtest 'char test(int, char**)' => sub {
+    isa_ok my $code = wrap( $lib, 'test', [ Int, Pointer [ Pointer [Char] ] ] => Pointer [Char] ),
+        'Affix', 'wrap ..., [Int, Pointer[Pointer[Char]]] => Pointer[Char]';
+    is $code->(
+        2, [ [ 'S', 'g', '<', 'd', \0 ], [ 'l', 'q', 's', 'm', \0 ], [ 'k', 'b', '9', 'p', \0 ] ]
+        ),
+        'kb9p', '->(2 ...) == "kb9p"';
+    is $code->( 0, [ "This", "is",  "a", "test" ] ), 'This', '->(0, ...) == "This"';
+    is $code->( 3, [ "That", undef, "a", "test" ] ), 'test', '->(3, ...) == "test"';
+    is $code->( 1, [ "That", undef, "a", "test" ] ), undef,  '->(1, ...) == undef';
+};
+subtest 'char* test(int, int, char***)' => sub {
+    isa_ok my $code
+        = wrap( $lib, 'test',
+        [ Int, Int, Pointer [ Pointer [ Pointer [Char] ] ] ] => Pointer [Char] ), 'Affix',
+        'wrap ..., [Int, Int, Pointer[Pointer[Pointer[Char]]]] => Pointer[Char]';
+    is $code->(
+        2, 3,
+        [   [ "The", "cat",  "sat", "on",   "the", "mat" ],
+            [ "I",   "love", "to",  "eat",  "pizza" ],
+            [ "She", "went", "to",  "the",  "store" ],
+            [ "He",  "is",   "a",   "very", "good", "boy" ]
+        ]
+        ),
+        'the', '->(2, 3, ...) == "the"';
+};
+subtest 'char*** Ret_CharPtrPtrPtr()' => sub {
+    isa_ok my $code = wrap( $lib, 'Ret_CharPtrPtrPtr', [] => Pointer [Void] ), 'Affix',
+        'wrap ..., [] => Pointer[Void]';
+    isa_ok my $ptr = $code->(), 'Affix::Pointer', '$code->()';
+    subtest 'Str' => sub {
+        isa_ok my $type = Array [ Array [ Str, 3 ], 3 ], 'Affix::Type::Array',
+            'Array [ Array [ Str, 3 ], 3 ]';
+        is_deeply $type->unmarshal($ptr),
+            [ [ 'abc', 'def', 'ghi' ], [ 'jkl', 'mno', 'pqr' ], [ 'stu', 'vwx', 'yz{' ] ],
+            'unmarshal returned pointer';
     };
-    subtest 'marshal=>code=>unmarshal' => sub {
-        isa_ok my $ptr = $type->marshal(100), 'Affix::Pointer', '$type->marshal(100)';
-        ok $code->( 100, $ptr ), '$code->(100, $ptr)';
-        is $type->unmarshal($ptr), 100, '$ptr->unmarshal';
-        isa_ok $ptr = $type->marshal(1000), 'Affix::Pointer', '$type->marshal(1000)';
-        ok !$code->( 100, $ptr ), '!$code->(100, $ptr)';
-    };
-    subtest 'passing Pointer[Int] to a function' => sub {
-        ok $code->( 1000, 1000 ), '$code->(1000, 1000)';
-        ok !$code->( 100, 1000 ), '!$code->(100, 1000)';
-        ok $code->( 1,    1.1 ),  '$code->(1, 1.1) [float is cast to int]';
-        ok $code->( "1",  1 ),    '$code->("1", 1)';
-
-        #~ like(
-        #~ warning {
-        ok !$code->( 1, "This should break" ), '!$code->(1, "This should break")';
-
-        #~ },
-        #~ qr/numeric/,
-        #~ '...btw, strings are not all numeric'
-        #~ );
+    subtest 'Pointer[Char]' => sub {
+        isa_ok my $type = Array [ Array [ Array [ Char, 3 ], 3 ], 3 ], 'Affix::Type::Array',
+            'Array [ Array [ Array[Char, 3], 3 ], 3 ]';
+        is_deeply $type->unmarshal($ptr),
+            [
+            [ [ "a", "b", "c" ], [ "d", "e", "f" ], [ "g", "h", "i" ] ],
+            [ [ "j", "k", "l" ], [ "m", "n", "o" ], [ "p", "q", "r" ] ],
+            [ [ "s", "t", "u" ], [ "v", "w", "x" ], [ "y", "z", "{" ] ],
+            ],
+            'unmarshal returned pointer';
     };
 };
-subtest 'Pointer[Pointer[Int]]' => sub {
-    my $type = Pointer [ Pointer [Int] ];
-    my $code = Affix::wrap( $lib, 'testIntPointerPointer', [ Int, $type ], Bool );
-    subtest 'marshal=>unmarshal' => sub {
-        {
-            my $ptr = $type->marshal(3939);
-            is( $type->unmarshal($ptr), 3939, '3939 in and out' );
-        }
-        {
-            my $ptr = $type->marshal(-9);
-            is( $type->unmarshal($ptr), -9, '-9 in and out' );
-        }
-    };
-    subtest 'marshal=>code=>unmarshal' => sub {
-        isa_ok my $ptr = $type->marshal(100), 'Affix::Pointer', '$type->marshal(100)';
-        ok $code->( 100, $ptr ), '$code->(100, $ptr)';
-        is $type->unmarshal($ptr), 100, '$ptr->unmarshal';
-        isa_ok $ptr = $type->marshal(1000), 'Affix::Pointer', '$type->marshal(1000)';
-        ok !$code->( 100, $ptr ), '!$code->(100, $ptr)';
-    };
-    subtest 'passing Pointer[Pointer[Int]] to a function' => sub {
-        ok $code->( 1000, 1000 ), '$code->(1000, 1000)';
-        ok !$code->( 100, 1000 ), '!$code->(100, 1000)';
-        ok $code->( 1,    1.1 ),  '$code->(1, 1.1) [float is cast to int]';
-        ok $code->( "1",  1 ),    '$code->("1", 1)';
-
-        #~ like(    # Affix built for debugging throws a ton of warnings
-        #~ warning {
-        ok !$code->( 1, "This should break" ), '!$code->(1, "This should break")';
-
-        #~ },
-        #~ qr/numeric/,
-        #~ '...btw, strings are not all numeric'
-        #~ );
-    };
+subtest 'int test(char*, char**)' => sub {
+    isa_ok my $code = wrap( $lib, 'test', [ Pointer [Char], Pointer [ Pointer [Char] ] ], Int ),
+        'Affix', 'wrap ..., [Pointer[Char], Pointer[Pointer[Char]]] => Int';
+    is $code->( "Alex", [ "John", "Bill", "Sam", "Martin", "Jose", "Alex", "Paul" ] ), 6,
+        '->("Alex", [ "John", "Bill", "Sam", "Martin", "Jose", "Alex", "Paul" ] ) == 6';
 };
-subtest 'Pointer[Bool]' => sub {
-    my $type = Pointer [Bool];
-    my $code = Affix::wrap( $lib, 'testBoolPointer', [ Bool, $type ], Bool );
-    subtest 'marshal=>unmarshal' => sub {
-        {
-            my $ptr = $type->marshal(1);
-            is( $type->unmarshal($ptr), 1, '1 in and out' );
-        }
-        {
-            my $ptr = $type->marshal(0);
-            is( $type->unmarshal($ptr), !1, '!1 in and out' );
-        }
-    };
-    subtest 'marshal=>code=>unmarshal' => sub {
-        isa_ok my $ptr = $type->marshal(1), 'Affix::Pointer', '$type->marshal(1)';
-        ok $code->( 1, $ptr ), '$code->(1, $ptr)';
-        is $type->unmarshal($ptr), 1, '$ptr->unmarshal';
-        isa_ok $ptr = $type->marshal(0), 'Affix::Pointer', '$type->marshal(0)';
-        ok !$code->( 1, $ptr ), '!$code->(1, $ptr)';
-    };
-    subtest 'passing Pointer[Bool] to a function' => sub {
-        ok $code->( 0,  0 ),                   '$code->(0, 0)';
-        ok !$code->( 1, 0 ),                   '!$code->(1, 0)';
-        ok $code->( 1,  "This should break" ), '$code->(1, "This should break")';
-        diag '...btw, strings can be boolean';
-    };
+subtest 'int test(int)' => sub {
+    isa_ok my $code = wrap( $lib, 'test', [Int] => Int ), 'Affix', 'wrap ..., [Int] => Int';
+    is $code->(100), -100, 'test(100)';
+    is $code->(0),   0,    'test(0)';
+    is $code->(-10), 10,   'test(-10)';
 };
-subtest 'Pointer[Pointer[Bool]]' => sub {
-    my $type = Pointer [ Pointer [Bool] ];
-    my $code = Affix::wrap( $lib, 'testBoolPointerPointer', [ Bool, $type ], Bool );
-    subtest 'marshal=>unmarshal' => sub {
-        {
-            my $ptr = $type->marshal(1);
-            is( $type->unmarshal($ptr), 1, '1 in and out' );
-        }
-        {
-            my $ptr = $type->marshal(0);
-            is( $type->unmarshal($ptr), !1, '!1 in and out' );
-        }
-    };
-    subtest 'marshal=>code=>unmarshal' => sub {
-        isa_ok my $ptr = $type->marshal(1), 'Affix::Pointer', '$type->marshal(1)';
-        ok $code->( 1, $ptr ), '$code->(1, $ptr)';
-        is $type->unmarshal($ptr), 1, '$ptr->unmarshal';
-        isa_ok $ptr = $type->marshal(0), 'Affix::Pointer', '$type->marshal(0)';
-        ok !$code->( 1, $ptr ), '!$code->(1, $ptr)';
-    };
-    subtest 'passing Pointer[Pointer[Bool]] to a function' => sub {
-        ok $code->( 0,  0 ),                   '$code->(0, 0)';
-        ok !$code->( 1, 0 ),                   '!$code->(1, 0)';
-        ok $code->( 1,  "This should break" ), '$code->(1, "This should break")';
-        diag '...btw, strings can be boolean';
-    };
+subtest 'int test(int, int*)' => sub {
+    isa_ok my $code = wrap( $lib, 'test', [ Int, Pointer [Int] ] => Int ), 'Affix',
+        'wrap ..., [Int, Pointer[Int]] => Int';
+    is $code->( 0, [ 1,   11, 12,  13 ] ), -1,  '->(0, [1, 11, 12, 13]) == -1';
+    is $code->( 1, [ 50,  40, 30,  20 ] ), -40, '->(1, [50, 40, 30, 20]) == -40';
+    is $code->( 2, [ 10,  80, 61,  0 ] ),  -61, '->(2, [10, 80, 61, 0]) == -61';
+    is $code->( 3, [ 211, 21, 143, 83 ] ), -83, '->(3, [211, 21, 143, 83]) == -83';
 };
-subtest 'Pointer[Void]' => sub {
-    my $type = Pointer [Void];
-
-    #~ my $ptr = Affix::malloc(5);
-    #$$ptr = 'test';
-    my $ptr = $type->marshal('test');
-    isa_ok $ptr, 'Affix::Pointer::Unmanaged';
-
-    #~ $ptr->dump(16);
-    diag __LINE__;
-
-    #~ diag $ptr->deref_scalar;
-    diag $type->unmarshal($ptr);
-    is $ptr->raw(4), 'test', '->raw is correct';
-    $ptr->free;
+subtest 'int test(int, int, int**)' => sub {
+    isa_ok my $code = wrap( $lib, 'test', [ Int, Int, Pointer [ Pointer [Int] ] ] => Int ),
+        'Affix', 'wrap ..., [Int, Int, Pointer[Pointer[Int]]] => Int';
+    is $code->( 1, 0, [ [ 199, 30, 15 ], [ 1934, 1, 1 ], [ !1, !1, 1 ] ] ), 1934,
+        '->(1, 0, ...) == 199';
+    is $code->( 0, 1, [ [ 187, 10, 16 ], [ 1, 1, 1 ], [ !1, !1, 1 ] ] ), 10, '->(0, 1, ...) == 10';
 };
-subtest 'Pointer[Void]' => sub {
-    my $type = Pointer [Void];
-
-    #~ my $ptr = Affix::malloc(5);
-    #$$ptr = 'test';
-    my $ptr = $type->marshal('test');
-    isa_ok $ptr, 'Affix::Pointer::Unmanaged';
-
-    #~ $ptr->dump(16);
-    diag __LINE__;
-
-    #~ diag $ptr->deref_scalar;
-    diag $type->unmarshal($ptr);
-    is $ptr->raw(4), 'test', '->raw is correct';
-    $ptr->free;
+subtest 'int test(int, int, int, int***)' => sub {
+    isa_ok my $code
+        = wrap( $lib, 'test', [ Int, Int, Int, Pointer [ Pointer [ Pointer [Int] ] ] ] => Int ),
+        'Affix', 'wrap ..., [Int, Int, Pointer[Pointer[Pointer[Int]]]] => Int';
+    is $code->(
+        1, 0, 0,
+        [   [ [ 112,  512, 79021 ], [ 1, 1, 1 ], [ !1, !1, 1 ] ],
+            [ [ 1434, 870, 1091 ],  [ 1, 1, 1 ], [ !1, !1, 1 ] ],
+            [ [ 1,    0,   1 ],     [ 1, 1, 1 ], [ !1, !1, 1 ] ]
+        ]
+        ),
+        1434, '->(1, 0, 0, ...) == 1434';
+    is $code->(
+        2, 0, 1,
+        [   [ [ 1, 323,   1 ], [ 1, 222, 1 ], [ !1, !1, 1 ] ],
+            [ [ 1, 89030, 1 ], [ 1, 1,   1 ], [ !1, !1, 1 ] ],
+            [ [ 1, 22,    1 ], [ 1, 1,   1 ], [ !1, !1, 1 ] ]
+        ]
+        ),
+        22, '->(2, 0, 1, ...) == 22';
 };
-diag __LINE__;
-subtest 'Pointer[Char]' => sub {
-    my $type = Pointer [Char];
-    {
-        my $ptr = $type->marshal('Abcd');
-        $ptr->dump(5);
-        is $type->unmarshal($ptr),        'Abcd',   'Abcd in and out';
-        is int( $type->unmarshal($ptr) ), ord('A'), 'Abcd in and out (int)';
-    }
-    {
-        my $ptr = $type->marshal( 'Abcd' x 64 );
-        $ptr->dump(257);
-        diag $type->unmarshal($ptr);
-
-        #~ die;
-        is $type->unmarshal($ptr),        'Abcd' x 64, 'Abcd in and out';
-        is int( $type->unmarshal($ptr) ), ord('A'),    'Abcd in and out (int)';
-    }
-    {
-        my $ptr = $type->marshal( ord 'A' );
-        is int( $type->unmarshal($ptr) ), ord('A'), 'A in and out (int)';
-    }
-    {
-        my $ptr = $type->marshal( -ord 'A' );
-        is int( $type->unmarshal($ptr) ), -ord('A'), '-A in and out (int)';
-    }
+subtest 'int** Ret_IntPtrPtr()' => sub {
+    isa_ok my $code = wrap( $lib, 'Ret_IntPtrPtr', [] => Pointer [ Pointer [Int] ] ), 'Affix',
+        'Ret_IntPtrPtr ..., [ ] => Pointer[Pointer[Int]]';
+    isa_ok my $type = Array [ Array [ Int, 3 ], 3 ], 'Affix::Type::Array',
+        ' my $type = Array[Array[Int, 3], 3]';
+    isa_ok my $ret = $code->(), 'Affix::Pointer', 'int **';
+    is_deeply $type->unmarshal($ret), [ [ 0, 1, 2 ], [ 3, 4, 5 ], [ 6, 7, 8 ] ], 'unmarshal int **';
 };
-subtest 'Pointer[UChar]' => sub {
-    {
-        my $ptr = ( Pointer [UChar] )->marshal('Abcd');
-        $ptr->dump(30);
-        is( ( Pointer [UChar] )->unmarshal($ptr),        'Abcd',   'Abcd in and out' );
-        is( int( ( Pointer [UChar] )->unmarshal($ptr) ), ord('A'), 'Abcd in and out (int)' );
-    }
-    {
-        my $ptr = ( Pointer [UChar] )->marshal( ord 'A' );
-        is( int( ( Pointer [UChar] )->unmarshal($ptr) ), ord('A'), 'A in and out (int)' );
-    }
-    {
-        my $ptr = ( Pointer [UChar] )->marshal( -ord 'A' );
-        is( int( ( Pointer [UChar] )->unmarshal($ptr) ), -ord('A'), '-A in and out (int)' );
-    }
+subtest 'int*** Ret_IntPtrPtrPtr()' => sub {
+    isa_ok my $code = wrap( $lib, 'Ret_IntPtrPtrPtr', [] => Pointer [ Pointer [ Pointer [Int] ] ] ),
+        'Affix', 'Ret_IntPtrPtrPtr ..., [ ] => Pointer[Pointer[Pointer[Int]]]';
+    isa_ok my $type = Array [ Array [ Array [ Int, 3 ], 3 ], 3 ], 'Affix::Type::Array',
+        ' my $type = Array[Array[Array[Int, 3], 3], 3]';
+    isa_ok my $ret = $code->(), 'Affix::Pointer', 'int **';
+    is_deeply $type->unmarshal($ret),
+        [
+        [ [ 0,  1,  2 ],  [ 3,  4,  5 ],  [ 6,  7,  8 ] ],
+        [ [ 9,  10, 11 ], [ 12, 13, 14 ], [ 15, 16, 17 ] ],
+        [ [ 18, 19, 20 ], [ 21, 22, 23 ], [ 24, 25, 26 ] ],
+        ],
+        'unmarshal int ***';
 };
+done_testing;
+__END__
 subtest 'Pointer[WChar]' => sub {
     my $ptr = ( Pointer [WChar] )->marshal('赤');
-    pass 'dummy';
     $ptr->dump(16);
     is( ( Pointer [WChar] )->unmarshal($ptr), '赤', 'wide char in and out' );
 };
-subtest 'Pointer[Short]' => sub {
-    {
-        my $ptr = ( Pointer [Short] )->marshal(3939);
-        is( ( Pointer [Short] )->unmarshal($ptr), 3939, '3939 in and out' );
-    }
-    {
-        my $ptr = ( Pointer [Short] )->marshal(-9);
-        is( ( Pointer [Short] )->unmarshal($ptr), -9, '-9 in and out' );
-    }
-};
-subtest 'Pointer[UShort]' => sub {
-    {
-        my $ptr = ( Pointer [UShort] )->marshal(55);
-        is( ( Pointer [UShort] )->unmarshal($ptr), 55, '55 in and out' );
-    }
-    {
-        my $ptr = ( Pointer [UShort] )->marshal(0);
-        is( ( Pointer [UShort] )->unmarshal($ptr), 0, '0 in and out' );
-    }
-};
+
 subtest 'Pointer[Int]' => sub {
     {
         my $ptr = ( Pointer [Int] )->marshal(3939);

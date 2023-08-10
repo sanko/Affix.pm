@@ -2,6 +2,7 @@
 
 XS_INTERNAL(Affix_Type_Pointer) {
     dXSARGS;
+    PING;
     PERL_UNUSED_VAR(items);
     HV *RETVAL_HV = newHV();
     AV *fields = MUTABLE_AV(SvRV(ST(0)));
@@ -32,6 +33,7 @@ XS_INTERNAL(Affix_Type_Pointer) {
 XS_INTERNAL(Affix_Type_Pointer_marshal) {
     dVAR;
     dXSARGS;
+    PING;
     if (items != 2) croak_xs_usage(cv, "type, data");
     if (UNLIKELY(!sv_derived_from(ST(0), "Affix::Type::Base")))
         croak("type is not of type Affix::Type");
@@ -53,6 +55,8 @@ XS_INTERNAL(Affix_Type_Pointer_marshal) {
 XS_INTERNAL(Affix_Pointer_plus) {
     dVAR;
     dXSARGS;
+    PING;
+
     if (UNLIKELY(items != 3)) croak_xs_usage(cv, "ptr, other, swap");
     DCpointer ptr;
     IV other = (IV)SvIV(ST(1));
@@ -73,6 +77,8 @@ XS_INTERNAL(Affix_Pointer_plus) {
 XS_INTERNAL(Affix_Pointer_minus) {
     dVAR;
     dXSARGS;
+    PING;
+
     if (UNLIKELY(items != 3)) croak_xs_usage(cv, "ptr, other, swap");
     DCpointer ptr;
     IV other = (IV)SvIV(ST(1));
@@ -93,6 +99,8 @@ XS_INTERNAL(Affix_Pointer_minus) {
 XS_INTERNAL(Affix_malloc) {
     dVAR;
     dXSARGS;
+    PING;
+
     if (items != 1) croak_xs_usage(cv, "size");
 
     DCpointer RETVAL;
@@ -114,6 +122,8 @@ XS_INTERNAL(Affix_malloc) {
 XS_INTERNAL(Affix_calloc) {
     dVAR;
     dXSARGS;
+    PING;
+
     if (items != 2) croak_xs_usage(cv, "num, size");
 
     DCpointer RETVAL;
@@ -136,6 +146,8 @@ XS_INTERNAL(Affix_calloc) {
 XS_INTERNAL(Affix_realloc) {
     dVAR;
     dXSARGS;
+    PING;
+
     if (items != 2) croak_xs_usage(cv, "ptr, size");
     DCpointer ptr;
     size_t size = (size_t)SvUV(ST(1));
@@ -161,6 +173,8 @@ XS_INTERNAL(Affix_realloc) {
 XS_INTERNAL(Affix_free) {
     dVAR;
     dXSARGS;
+    PING;
+
     if (items != 1) croak_xs_usage(cv, "ptr");
     SP -= items;
 
@@ -187,6 +201,8 @@ XS_INTERNAL(Affix_free) {
 XS_INTERNAL(Affix_memchr) {
     dVAR;
     dXSARGS;
+    PING;
+
     if (items != 3) croak_xs_usage(cv, "ptr, ch, count");
     {
         DCpointer RETVAL;
@@ -215,6 +231,8 @@ XS_INTERNAL(Affix_memchr) {
 XS_INTERNAL(Affix_memcmp) {
     dVAR;
     dXSARGS;
+    PING;
+
     if (items != 3) croak_xs_usage(cv, "lhs, rhs, count");
     {
         int RETVAL;
@@ -254,6 +272,8 @@ XS_INTERNAL(Affix_memcmp) {
 XS_INTERNAL(Affix_memset) {
     dVAR;
     dXSARGS;
+    PING;
+
     if (items != 3) croak_xs_usage(cv, "dest, ch, count");
     {
         DCpointer RETVAL;
@@ -282,6 +302,8 @@ XS_INTERNAL(Affix_memset) {
 XS_INTERNAL(Affix_memcpy) {
     dVAR;
     dXSARGS;
+    PING;
+
     if (items != 3) croak_xs_usage(cv, "dest, src, nitems");
     size_t nitems = (size_t)SvUV(ST(2));
     DCpointer dest, src, RETVAL;
@@ -320,6 +342,8 @@ XS_INTERNAL(Affix_memcpy) {
 XS_INTERNAL(Affix_memmove) {
     dVAR;
     dXSARGS;
+    PING;
+
     if (items != 3) croak_xs_usage(cv, "dest, src, nitems");
 
     size_t nitems = (size_t)SvUV(ST(2));
@@ -360,6 +384,8 @@ XS_INTERNAL(Affix_memmove) {
 XS_INTERNAL(Affix_strdup) {
     dVAR;
     dXSARGS;
+    PING;
+
     if (items != 1) croak_xs_usage(cv, "str1");
 
     DCpointer RETVAL;
@@ -378,6 +404,8 @@ XS_INTERNAL(Affix_strdup) {
 XS_INTERNAL(Affix_Pointer_as_string) {
     dVAR;
     dXSARGS;
+    PING;
+
     if (items < 1) croak_xs_usage(cv, "ptr, ...");
     {
         char *RETVAL;
@@ -401,6 +429,8 @@ XS_INTERNAL(Affix_Pointer_as_string) {
 XS_INTERNAL(Affix_Pointer_as_double) {
     dVAR;
     dXSARGS;
+    PING;
+
     if (items < 1) croak_xs_usage(cv, "ptr, ...");
 
     double RETVAL;
@@ -424,6 +454,8 @@ XS_INTERNAL(Affix_Pointer_as_double) {
 XS_INTERNAL(Affix_Pointer_as_int) {
     dVAR;
     dXSARGS;
+    PING;
+
     if (items < 1) croak_xs_usage(cv, "ptr, ...");
 
     int RETVAL;
@@ -447,6 +479,8 @@ XS_INTERNAL(Affix_Pointer_as_int) {
 XS_INTERNAL(Affix_Pointer_deref_scalar) {
     dVAR;
     dXSARGS;
+    PING;
+
     if (items < 1) croak_xs_usage(cv, "ptr, ...");
 
     int RETVAL;
@@ -466,6 +500,8 @@ XS_INTERNAL(Affix_Pointer_deref_scalar) {
 XS_INTERNAL(Affix_Pointer_raw) {
     dVAR;
     dXSARGS;
+    PING;
+
     if (items < 2 || items > 3) croak_xs_usage(cv, "ptr, size[, utf8]");
     {
         SV *RETVAL;
@@ -498,6 +534,8 @@ XS_INTERNAL(Affix_Pointer_raw) {
 XS_INTERNAL(Affix_Pointer_DumpHex) {
     dVAR;
     dXSARGS;
+    PING;
+
     if (items != 2) croak_xs_usage(cv, "ptr, size");
     size_t size = (size_t)SvUV(ST(1));
     if (sv_derived_from(ST(0), "Affix::Pointer")) {
@@ -517,22 +555,27 @@ XS_INTERNAL(Affix_Pointer_DESTROY) {
     dXSARGS;
     if (items != 1) croak_xs_usage(cv, "ptr");
     DCpointer ptr;
+    if (UNLIKELY(!sv_derived_from(ST(0), "Affix::Pointer"))) {
+        croak("ptr is not of type Affix::Pointer");
+    }
     if (UNLIKELY(sv_derived_from(ST(0), "Affix::Pointer::Unmanaged"))) { ; }
-    else if (LIKELY(sv_derived_from(ST(0), "Affix::Pointer"))) {
+    else {
         IV tmp = SvIV((SV *)SvRV(ST(0)));
         ptr = INT2PTR(DCpointer, tmp);
+        warn("DESTROY %p", ptr);
         if (ptr != NULL) {
             safefree(ptr);
             ptr = NULL;
         }
     }
-    else
-        croak("ptr is not of type Affix::Pointer");
+
     XSRETURN_EMPTY;
 }
 
 XS_INTERNAL(Affix_Type_Ref) {
     dXSARGS;
+    PING;
+
     PERL_UNUSED_VAR(items);
     HV *RETVAL_HV = newHV();
     AV *fields = MUTABLE_AV(SvRV(ST(0)));

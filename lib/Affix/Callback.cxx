@@ -12,20 +12,8 @@ char cbHandler(DCCallback *cb, DCArgs *args, DCValue *result, DCpointer userdata
     PUSHMARK(SP);
     EXTEND(SP, (int)cbx->sig_len);
     char type;
-    warn("callback! %d args; sig: %s", cbx->sig_len, cbx->sig);
-    /*
-    char *sig;
-    size_t sig_len;
-    char ret;
-    char *perl_sig;
-    SV *cv;
-    AV *args;
-    SV *retval;
-    dTHXfield(perl)
-    */
     for (size_t i = 0; i < cbx->sig_len; ++i) {
         type = cbx->sig[i];
-        warn("arg %d of %d: %c", i, cbx->sig_len, type);
         switch (type) {
         case DC_SIGCHAR_VOID:
             // TODO: push undef?
@@ -88,7 +76,6 @@ char cbHandler(DCCallback *cb, DCArgs *args, DCValue *result, DCpointer userdata
         case DC_SIGCHAR_POINTER: {
             DCpointer ptr = dcbArgPointer(args);
             if (ptr != NULL) {
-                DumpHex(ptr, 32);
                 SV *type = *av_fetch(cbx->arg_info, i, 0);
                 switch (SvIV(type)) {
                 case AFFIX_TYPE_CALLBACK: {
@@ -110,20 +97,6 @@ char cbHandler(DCCallback *cb, DCArgs *args, DCValue *result, DCpointer userdata
             DCpointer ptr = dcbArgPointer(args);
             SV **type_sv = av_fetch(cbx->arg_info, i, 0);
             PUSHs(ptr2sv(aTHX_ ptr, *type_sv));
-            /*
-            typedef struct {
-            char *sig;
-            size_t sig_len;
-            char ret;
-            char *perl_sig;
-            SV *cv;
-            AV *args;
-            SV *retval;
-            dTHXfield(perl)
-            } Callback;
-
-
-            */
         } break;
         //~ case DC_SIGCHAR_INSTANCEOF: {
         //~ DCpointer ptr = dcbArgPointer(args);

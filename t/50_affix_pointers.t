@@ -20,6 +20,8 @@ subtest 'marshalled pointer' => sub {
     my $type = Pointer [Double];
     diag __LINE__;
     my $ptr = $type->marshal(100);
+    $ptr->dump(10);
+    diag __LINE__;
     is dbl_ptr($ptr), 'one hundred', 'dbl_ptr($ptr) where $ptr == 100';
     diag __LINE__;
     is $type->unmarshal($ptr), 1000, '$ptr was changed to 1000';
@@ -28,6 +30,7 @@ subtest 'marshalled pointer' => sub {
 subtest 'scalar ref' => sub {
     diag __LINE__;
     my $ptr = 100;
+    diag __LINE__;
     is dbl_ptr($ptr), 'one hundred', 'dbl_ptr($ptr) where $ptr == 100';
     diag __LINE__;
     is $ptr, 1000, '$ptr was changed to 1000';
@@ -51,7 +54,7 @@ subtest 'Affix::Pointer with a double' => sub {
         my $data = pack 'd', 100.04;
         memcpy( $ptr, $data, length $data );
         $ptr->dump(16);
-        warn( ( Pointer [Double] )->unmarshal($ptr) );
+        diag( ( Pointer [Double] )->unmarshal($ptr) );
     }
     is dbl_ptr($ptr), 'one hundred and change', 'dbl_ptr($ptr) where $ptr == malloc(...)';
     $ptr->dump(16);
