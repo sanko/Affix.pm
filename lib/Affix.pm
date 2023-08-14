@@ -329,8 +329,7 @@ package Affix 0.12 {    # 'FFI' is my middle name!
             #Float128   => 'g'
             #Ellipsis   => 'z',
             #
-            Str() => 'Pc',
-
+            #~ Str() => 'Pc',
             #Pointer(Void()) => 'P',
             WChar() => 'w',
 
@@ -338,6 +337,7 @@ package Affix 0.12 {    # 'FFI' is my middle name!
             'const'               => 'K',
             Pointer( [ Void() ] ) => 'P',
             WStr()                => 'Pw',
+            Array( [ Void() ] )   => 'P',
 
             #CPPStruct([]) => '???'
         };
@@ -394,7 +394,7 @@ package Affix 0.12 {    # 'FFI' is my middle name!
             #~ ddx $data;
             #~ ddx $type;
             my $ret = '';
-            if ( $type->isa('Affix::Type::Pointer') ) {
+            if ( $type->isa('Affix::Type::Pointer') || $type->isa('Affix::Type::Array') ) {
                 $ret = $types->{$type} . Itanium_mangle_type( $affix, $data, $type->{type} );
                 if ( grep { $ret eq $_ } @{ $data->{subs} } ) {
                     $ret = Itanium_check_substitution( $affix, $data, $ret );
@@ -418,6 +418,15 @@ package Affix 0.12 {    # 'FFI' is my middle name!
             {    # TODO: some call conv. are reflected in mangled symbol
                 $ret = '';
             }
+            elsif ( $type->isa('Affix::Type::Str') ) {
+                $ret = $types->{ Pointer( [ Char() ] ) } . $types->{ Char() };
+                if ( grep { $ret eq $_ } @{ $data->{subs} } ) {
+                    $ret = Itanium_check_substitution( $affix, $data, $ret );
+                }
+                else {
+                    push @{ $data->{subs} }, $ret unless grep { $ret eq $_ } @{ $data->{subs} };
+                }
+            }
             elsif ( defined $types->{$type} ) {
                 $ret = $types->{$type};
             }
@@ -426,8 +435,9 @@ package Affix 0.12 {    # 'FFI' is my middle name!
                 if ( defined $_ret ) { $ret = $_ret }
                 else {
                     warn 'Unknown type in mangler: ' . chr scalar $type;
-                    use Data::Dump;
-                    ddx $type;
+
+                    #~ require Data::Dump;
+                    #~ ddx $type;
                     $ret = '';
                 }
             }

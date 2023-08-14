@@ -286,7 +286,7 @@ unsigned short ***Ret_UShortPtrPtrPtr() {
     return array;
 }
 
-// Unknown
+// Int
 DLLEXPORT
 int test(int value) {
     // return the opposite; makes sure we're updating ST(0)
@@ -352,6 +352,274 @@ int ***Ret_IntPtrPtrPtr() {
     }
     return array;
 }
+
+// Long
+DLLEXPORT
+long test(long value) {
+    return -value;
+}
+
+DLLEXPORT
+long test(int pos, long *ptr) {
+    return ptr[pos];
+}
+
+DLLEXPORT
+long test(int x, int y, long **ptr) {
+    return ptr[x][y];
+}
+DLLEXPORT
+long test(int x, int y, int z, long ***ptr) {
+    return ptr[x][y][z];
+}
+
+DLLEXPORT
+long **Ret_LongPtrPtr() {
+    int rows = 3;
+    int cols = 3;
+    long **array = (long **)malloc(sizeof(long *) * rows);
+    for (int i = 0; i < rows; i++) {
+        array[i] = (long *)malloc(sizeof(long) * cols);
+        for (int j = 0; j < cols; j++) {
+            array[i][j] = i * cols + j;
+        }
+    }
+#ifdef DEBUG
+    printf("# [\n");
+    for (int i = 0; i < 3; i++) {
+        printf("#   [");
+        for (int j = 0; j < 3; j++) {
+            printf(" %d, ", array[i][j]);
+        }
+        printf("], # %p\n", array[i]);
+    }
+    printf("# ]\n");
+    fflush(stdout);
+#endif
+    return array;
+}
+
+DLLEXPORT
+long ***Ret_LongPtrPtrPtr() {
+    int rows = 3;
+    int cols = 3;
+    int depth = 3;
+
+    long ***array = (long ***)malloc(sizeof(long **) * rows);
+    for (int i = 0; i < rows; i++) {
+        array[i] = (long **)malloc(sizeof(long *) * cols);
+        for (int j = 0; j < cols; j++) {
+            array[i][j] = (long *)malloc(sizeof(long) * depth);
+            for (int k = 0; k < depth; k++) {
+                array[i][j][k] = i * cols * depth + j * depth + k; // needlessly complex...
+            }
+        }
+    }
+    return array;
+}
+
+// ULong
+DLLEXPORT
+unsigned long test(int pos, unsigned long *ptr) {
+    return ptr[pos];
+}
+
+DLLEXPORT
+unsigned long test(int x, int y, int z, unsigned long ***ptr) {
+    return ptr[x][y][z];
+}
+
+DLLEXPORT
+unsigned long **Ret_ULongPtrPtr() {
+    int rows = 3;
+    int cols = 3;
+    unsigned long **array = (unsigned long **)malloc(sizeof(unsigned long *) * rows);
+    for (int i = 0; i < rows; i++) {
+        array[i] = (unsigned long *)malloc(sizeof(unsigned long) * cols);
+        for (int j = 0; j < cols; j++) {
+            array[i][j] = i * cols + j;
+        }
+    }
+#ifdef DEBUG
+    printf("# [\n");
+    for (int i = 0; i < 3; i++) {
+        printf("#   [");
+        for (int j = 0; j < 3; j++) {
+            printf(" %d, ", array[i][j]);
+        }
+        printf("], # %p\n", array[i]);
+    }
+    printf("# ]\n");
+    fflush(stdout);
+#endif
+    return array;
+}
+
+// LongLong
+DLLEXPORT
+long long test(int pos, long long *ptr) {
+    return ptr[pos];
+}
+
+DLLEXPORT
+long long test(int x, int y, int z, long long ***ptr) {
+    return ptr[x][y][z];
+}
+
+DLLEXPORT
+long long **Ret_LongLongPtrPtr() {
+    int rows = 3;
+    int cols = 3;
+    long long **array = (long long **)malloc(sizeof(long long *) * rows);
+    for (int i = 0; i < rows; i++) {
+        array[i] = (long long *)malloc(sizeof(long long) * cols);
+        for (int j = 0; j < cols; j++) {
+            array[i][j] = i * cols + j;
+        }
+    }
+#ifdef DEBUG
+    printf("# [\n");
+    for (int i = 0; i < 3; i++) {
+        printf("#   [");
+        for (int j = 0; j < 3; j++) {
+            printf(" %d, ", array[i][j]);
+        }
+        printf("], # %p\n", array[i]);
+    }
+    printf("# ]\n");
+    fflush(stdout);
+#endif
+    return array;
+}
+
+// ULongLong
+DLLEXPORT
+unsigned long long test(int pos, unsigned long long *ptr) {
+    return ptr[pos];
+}
+
+DLLEXPORT
+unsigned long long test(int x, int y, int z, unsigned long long ***ptr) {
+    return ptr[x][y][z];
+}
+
+DLLEXPORT
+unsigned long long **Ret_ULongLongPtrPtr() {
+    int rows = 3;
+    int cols = 3;
+    unsigned long long **array = (unsigned long long **)malloc(sizeof(unsigned long long *) * rows);
+    for (int i = 0; i < rows; i++) {
+        array[i] = (unsigned long long *)malloc(sizeof(unsigned long long) * cols);
+        for (int j = 0; j < cols; j++) {
+            array[i][j] = i * cols + j;
+        }
+    }
+#ifdef DEBUG
+    printf("# [\n");
+    for (int i = 0; i < 3; i++) {
+        printf("#   [");
+        for (int j = 0; j < 3; j++) {
+            printf(" %d, ", array[i][j]);
+        }
+        printf("], # %p\n", array[i]);
+    }
+    printf("# ]\n");
+    fflush(stdout);
+#endif
+    return array;
+}
+
+// Float
+DLLEXPORT
+float test(int pos, float *ptr) {
+    return ptr[pos];
+}
+
+DLLEXPORT
+float test(int x, int y, int z, float ***ptr) {
+    return ptr[x][y][z];
+}
+
+DLLEXPORT
+float **Ret_FloatPtrPtr() {
+    int rows = 3;
+    int cols = 3;
+    float **array = (float **)malloc(sizeof(float *) * rows);
+    for (int i = 0; i < rows; i++) {
+        array[i] = (float *)malloc(sizeof(float) * cols);
+        for (int j = 0; j < cols; j++) {
+            array[i][j] = 1 + (i * .1) + (j * .01);
+        }
+    }
+#ifdef DEBUG
+    printf("# [\n");
+    for (int i = 0; i < 3; i++) {
+        printf("#   [");
+        for (int j = 0; j < 3; j++) {
+            printf(" %f, ", array[i][j]);
+        }
+        printf("], # %p\n", array[i]);
+    }
+    printf("# ]\n");
+    fflush(stdout);
+#endif
+    return array;
+}
+// Double
+DLLEXPORT
+double test(int pos, double *ptr) {
+    return ptr[pos];
+}
+
+DLLEXPORT
+double test(int x, int y, int z, double ***ptr) {
+    return ptr[x][y][z];
+}
+
+DLLEXPORT
+double **Ret_DoublePtrPtr() {
+    int rows = 3;
+    int cols = 3;
+    double **array = (double **)malloc(sizeof(double *) * rows);
+    for (int i = 0; i < rows; i++) {
+        array[i] = (double *)malloc(sizeof(double) * cols);
+        for (int j = 0; j < cols; j++) {
+            array[i][j] = 1 + (i * .1) + (j * .01);
+        }
+    }
+#ifdef DEBUG
+    printf("# [\n");
+    for (int i = 0; i < 3; i++) {
+        printf("#   [");
+        for (int j = 0; j < 3; j++) {
+            printf(" %f, ", array[i][j]);
+        }
+        printf("], # %p\n", array[i]);
+    }
+    printf("# ]\n");
+    fflush(stdout);
+#endif
+    return array;
+}
+
+// Str
+static const char *common_names[][2] = {
+    {"John", "Doe"},       {"Mary", "Smith"},     {"Michael", "Brown"}, {"Susan", "Williams"},
+    {"David", "Johnson"},  {"Jennifer", "Jones"}, {"William", "Davis"}, {"Elizabeth", "Wilson"},
+    {"Richard", "Miller"}, {"Linda", "Moore"}};
+
+DLLEXPORT
+char ***Ret_ArrayStr() {
+    char ***name_array = (char ***)malloc(sizeof(char **) * 10);
+    for (int i = 0; i < 10; i++) {
+        name_array[i] = (char **)malloc(sizeof(char *) * 2);
+        name_array[i][0] = (char *)common_names[i][0];
+        name_array[i][1] = (char *)common_names[i][1];
+        warn("# %d: %s, %s", i, name_array[i][1], name_array[i][0]);
+    }
+    return name_array;
+}
+// WChar
 
 // WStr
 /* Mangler doesn't yet understand std::

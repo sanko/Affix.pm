@@ -8,7 +8,7 @@
 #include <string.h>
 
 #define warn(FORMAT, ...)                                                                          \
-    fprintf(stderr, FORMAT " in %s at line %i\n", ##__VA_ARGS__, __FILE__, __LINE__);              \
+    fprintf(stderr, FORMAT " at %s line %i\n", ##__VA_ARGS__, __FILE__, __LINE__);                 \
     fflush(stderr);
 
 #if defined _WIN32 || defined __CYGWIN__
