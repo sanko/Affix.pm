@@ -38,8 +38,8 @@ TODO: {
     sub ReturnByte : Signature([]=>Char) : Native('t/src/43_affix_simple_returns');
 
     #local $TODO = 'platforms are might define a char any way they like';
-    is ReturnByte(), -103, 'returning char works';
-    is ReturnByte(), -103, 'returning char works';
+    is int ReturnByte(), -103, 'returning char works';
+    is int ReturnByte(), -103, 'returning char works';
 }
 #
 sub ReturnDouble : Signature([]=>Double) : Native('t/src/43_affix_simple_returns');
@@ -62,7 +62,7 @@ is ReturnNegInt64(), -0xFFFFFFFFFF, 'returning negative int64 works';
 is ReturnNegInt64(), -0xFFFFFFFFFF, 'returning negative int64 works';
 #
 sub ReturnUint8 : Signature([]=>UChar) : Native('t/src/43_affix_simple_returns');
-is ReturnUint8(), 0xFE, 'returning uint8 works';
+is int ReturnUint8(), 0xFE, 'returning uint8 works';
 #
 sub ReturnUint16 : Signature([]=>UShort) : Native('t/src/43_affix_simple_returns');
 is ReturnUint16(), 0xFFFE, 'returning uint16 works';

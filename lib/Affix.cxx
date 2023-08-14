@@ -389,14 +389,24 @@ extern "C" void Affix_trigger(pTHX_ CV *cv) {
         case AFFIX_TYPE_BOOL: // DCbool is an int!
             RETVAL = boolSV((bool)dcCallBool(MY_CXT.cvm, affix->entry_point));
             break;
-        case AFFIX_TYPE_CHAR:
-            // TODO: Make dualvar
-            RETVAL = newSViv((char)dcCallChar(MY_CXT.cvm, affix->entry_point));
-            break;
-        case AFFIX_TYPE_UCHAR:
-            // TODO: Make dualvar
-            RETVAL = newSVuv((U8)dcCallChar(MY_CXT.cvm, affix->entry_point));
-            break;
+        case AFFIX_TYPE_CHAR: {
+            char value[1];
+            value[0] = dcCallChar(MY_CXT.cvm, affix->entry_point);
+            RETVAL = newSV(0);
+            sv_setsv(RETVAL, newSVpv(value, 1));
+            (void)SvUPGRADE(RETVAL, SVt_PVIV);
+            SvIV_set(RETVAL, ((IV)value[0]));
+            SvIOK_on(RETVAL);
+        } break;
+        case AFFIX_TYPE_UCHAR: {
+            unsigned char value[1];
+            value[0] = dcCallChar(MY_CXT.cvm, affix->entry_point);
+            RETVAL = newSV(0);
+            sv_setsv(RETVAL, newSVpv((char *)value, 1));
+            (void)SvUPGRADE(RETVAL, SVt_PVIV);
+            SvIV_set(RETVAL, ((UV)value[0]));
+            SvIOK_on(RETVAL);
+        } break;
         case AFFIX_TYPE_WCHAR: {
             SV *container;
             RETVAL = newSVpvs("");
@@ -427,9 +437,7 @@ extern "C" void Affix_trigger(pTHX_ CV *cv) {
             RETVAL = newSViv((signed int)dcCallInt(MY_CXT.cvm, affix->entry_point));
             break;
         case AFFIX_TYPE_UINT:
-            PING;
             RETVAL = newSVuv((unsigned int)dcCallInt(MY_CXT.cvm, affix->entry_point));
-            PING;
             break;
         case AFFIX_TYPE_LONG:
             RETVAL = newSViv((long)dcCallLong(MY_CXT.cvm, affix->entry_point));

@@ -29,18 +29,19 @@ bool test(int x, int y, bool **ptr) {
 
 DLLEXPORT
 bool test(int x, int y, int z, bool ***ptr) {
-    /*
-    bool ***board = (bool ***) malloc(sizeof(bool **) * 3);
-    for (int i = 0; i < 3; i++) {
-      board[i] = (bool **) malloc(sizeof(bool *) * 3);
-      for (int j = 0; j < 3; j++) {
-        board[i][j] = (bool *) malloc(sizeof(bool) * 3);
-        for (int k = 0; k < 3; k++) {
-          board[i][j][k] =  (i + j * k) % 2;
-        }
-      }
+/*
+bool ***board = (bool ***) malloc(sizeof(bool **) * 3);
+for (int i = 0; i < 3; i++) {
+  board[i] = (bool **) malloc(sizeof(bool *) * 3);
+  for (int j = 0; j < 3; j++) {
+    board[i][j] = (bool *) malloc(sizeof(bool) * 3);
+    for (int k = 0; k < 3; k++) {
+      board[i][j][k] =  (i + j * k) % 2;
     }
-    */
+  }
+}
+*/
+#ifdef DEBUG
     printf("#[\n");
     for (int i = 0; i < 3; i++) {
         printf("#  [\n");
@@ -55,6 +56,7 @@ bool test(int x, int y, int z, bool ***ptr) {
     }
     printf("#]\n");
     fflush(stdout);
+#endif
     if (ptr[x][y][z]) return true;
     return false;
 }
@@ -86,6 +88,7 @@ char test(char check) {
     if (check == 'M') return 'Y';
     return 'N';
 }
+
 DLLEXPORT
 char test(int pos, char *word) {
     return word[pos];
@@ -121,7 +124,7 @@ char ***Ret_CharPtrPtrPtr() {
             array[i][j][depth] = '\0';
         }
     }
-#if 1
+#ifdef DEBUG
     printf("#[\n");
     for (int i = 0; i < rows; i++) {
         printf("#  [");
@@ -140,6 +143,150 @@ char ***Ret_CharPtrPtrPtr() {
     return array;
 }
 
+DLLEXPORT
+unsigned char test(unsigned char check) {
+    if (check == 'M') return 'Y';
+    return 'N';
+}
+
+DLLEXPORT
+unsigned char test(int pos, unsigned char *ptr) {
+    if (ptr[pos] == 'A') return 'a';
+    return ptr[pos];
+}
+
+DLLEXPORT
+unsigned char ***Ret_UCharPtrPtrPtr() {
+    int rows = 3;
+    int cols = 3;
+    int depth = 3;
+    unsigned char c = 'a';
+
+    unsigned char ***array = (unsigned char ***)malloc(sizeof(unsigned char **) * rows);
+    for (int i = 0; i < rows; i++) {
+        array[i] = (unsigned char **)malloc(sizeof(unsigned char *) * cols);
+        for (int j = 0; j < cols; j++) {
+            array[i][j] = (unsigned char *)malloc(sizeof(unsigned char) * depth + 1);
+            for (int k = 0; k < depth; k++) {
+                array[i][j][k] = c++; //'a' + i + j + k; // i + j + k;
+            }
+            array[i][j][depth] = '\0';
+        }
+    }
+#ifdef DEBUG
+    printf("#[\n");
+    for (int i = 0; i < rows; i++) {
+        printf("#  [");
+        for (int j = 0; j < cols; j++) {
+            // printf("#    [");
+            // for (int k = 0; k < 3; k++) {
+            printf(" '%s',", array[i][j]);
+            //}
+            // printf(" ],\n");
+        }
+        printf("  ],\n");
+    }
+    printf("#]\n");
+    fflush(stdout);
+#endif
+    return array;
+}
+// Short
+DLLEXPORT
+short test(short value) {
+    // return the opposite; makes sure we're updating ST(0)
+    return -value;
+}
+
+DLLEXPORT
+short test(int pos, short *ptr) {
+    return -ptr[pos];
+}
+DLLEXPORT
+short ***Ret_ShortPtrPtrPtr() {
+    int rows = 3;
+    int cols = 3;
+    int depth = 3;
+    short c = 'a';
+
+    short ***array = (short ***)malloc(sizeof(short **) * rows);
+    for (int i = 0; i < rows; i++) {
+        array[i] = (short **)malloc(sizeof(short *) * cols);
+        for (int j = 0; j < cols; j++) {
+            array[i][j] = (short *)malloc(sizeof(short) * depth + 1);
+            for (int k = 0; k < depth; k++) {
+                array[i][j][k] = c * (c % 2 ? 1 : -1); //'a' + i + j + k; // i + j + k;
+                c++;
+            }
+            array[i][j][depth] = '\0';
+        }
+    }
+#ifdef DEBUG
+    printf("#[\n");
+    for (int i = 0; i < rows; i++) {
+        printf("#  [");
+        for (int j = 0; j < cols; j++) {
+            // printf("#    [");
+            // for (int k = 0; k < 3; k++) {
+            printf(" '%s',", array[i][j]);
+            //}
+            // printf(" ],\n");
+        }
+        printf("  ],\n");
+    }
+    printf("#]\n");
+    fflush(stdout);
+#endif
+    return array;
+}
+// UShort
+DLLEXPORT
+unsigned short test(unsigned short value) {
+    return value;
+}
+
+DLLEXPORT
+unsigned short test(int pos, unsigned short *ptr) {
+    return ptr[pos];
+}
+DLLEXPORT
+unsigned short ***Ret_UShortPtrPtrPtr() {
+    int rows = 3;
+    int cols = 3;
+    int depth = 3;
+    unsigned short c = 'a';
+
+    unsigned short ***array = (unsigned short ***)malloc(sizeof(unsigned short **) * rows);
+    for (int i = 0; i < rows; i++) {
+        array[i] = (unsigned short **)malloc(sizeof(unsigned short *) * cols);
+        for (int j = 0; j < cols; j++) {
+            array[i][j] = (unsigned short *)malloc(sizeof(unsigned short) * depth + 1);
+            for (int k = 0; k < depth; k++) {
+                array[i][j][k] = c++;
+            }
+            array[i][j][depth] = '\0';
+        }
+    }
+#ifdef DEBUG
+    printf("#[\n");
+    for (int i = 0; i < rows; i++) {
+        printf("#  [");
+        for (int j = 0; j < cols; j++) {
+            // printf("#    [");
+            // for (int k = 0; k < 3; k++) {
+            printf(" '%s',", array[i][j]);
+            //}
+            // printf(" ],\n");
+        }
+        printf("  ],\n");
+    }
+    printf("#]\n");
+    fflush(stdout);
+#endif
+    return array;
+}
+
+// Unknown
 DLLEXPORT
 int test(int value) {
     // return the opposite; makes sure we're updating ST(0)
@@ -172,6 +319,7 @@ int **Ret_IntPtrPtr() {
             array[i][j] = i * cols + j;
         }
     }
+#ifdef DEBUG
     printf("# [\n");
     for (int i = 0; i < 3; i++) {
         printf("#   [");
@@ -181,6 +329,8 @@ int **Ret_IntPtrPtr() {
         printf("], # %p\n", array[i]);
     }
     printf("# ]\n");
+    fflush(stdout);
+#endif
     return array;
 }
 
@@ -202,6 +352,77 @@ int ***Ret_IntPtrPtrPtr() {
     }
     return array;
 }
+
+//
+
+DLLEXPORT
+unsigned int test(unsigned int value) {
+    // return the opposite; makes sure we're updating ST(0)
+    return value;
+}
+
+DLLEXPORT
+unsigned int test(int pos, unsigned int *ptr) {
+    return ptr[pos];
+}
+
+DLLEXPORT
+unsigned int test(int x, int y, unsigned int **ptr) {
+    return ptr[x][y];
+}
+
+DLLEXPORT
+unsigned int test(int x, int y, int depth, unsigned int ***ptr) {
+    return ptr[x][y][depth];
+}
+
+DLLEXPORT
+unsigned int **Ret_UIntPtrPtr() {
+    int rows = 3;
+    int cols = 3;
+    unsigned int **array = (unsigned int **)malloc(sizeof(unsigned int *) * rows);
+    for (int i = 0; i < rows; i++) {
+        array[i] = (unsigned int *)malloc(sizeof(unsigned int) * cols);
+        for (int j = 0; j < cols; j++) {
+            array[i][j] = i * cols + j;
+        }
+    }
+#ifdef DEBUG
+    printf("# [\n");
+    for (int i = 0; i < 3; i++) {
+        printf("#   [");
+        for (int j = 0; j < 3; j++) {
+            printf(" %d, ", array[i][j]);
+        }
+        printf("], # %p\n", array[i]);
+    }
+    printf("# ]\n");
+    fflush(stdout);
+#endif
+    return array;
+}
+
+DLLEXPORT
+unsigned int ***Ret_UIntPtrPtrPtr() {
+    int rows = 3;
+    int cols = 3;
+    int depth = 3;
+
+    unsigned int ***array = (unsigned int ***)malloc(sizeof(unsigned int **) * rows);
+    for (int i = 0; i < rows; i++) {
+        array[i] = (unsigned int **)malloc(sizeof(unsigned int *) * cols);
+        for (int j = 0; j < cols; j++) {
+            array[i][j] = (unsigned int *)malloc(sizeof(unsigned int) * depth);
+            for (int k = 0; k < depth; k++) {
+                array[i][j][k] = i * cols * depth + j * depth + k;
+            }
+        }
+    }
+    return array;
+}
+
+//
+
 DLLEXPORT
 bool test(char value, char *ptr) {
     if (ptr == NULL) return false;
@@ -211,7 +432,6 @@ bool test(char value, char *ptr) {
 DLLEXPORT
 int test(char *name, char **names) {
     for (int i = 0; names[i] != NULL; ++i) {
-        warn("---[%p] %s\n", names[i], names[i]);
         if (strcmp(names[i], name) == 0) return i + 1;
     }
     return -1;

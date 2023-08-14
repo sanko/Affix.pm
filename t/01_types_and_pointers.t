@@ -75,7 +75,6 @@ subtest 'bool* Ret_BoolPtr()' => sub {
         'Ret_BoolPtr ..., [ ] => Pointer[Bool]';
     isa_ok my $type = Array [ Bool, 3 ], 'Affix::Type::Array', ' my $type = Array[Bool, 3]';
     isa_ok my $ret  = $code->(),         'Affix::Pointer',     'bool *';
-    ddx $type->unmarshal($ret);
     is_deeply $type->unmarshal($ret), [ 1, !1, 1 ], 'unmarshal bool *';
 };
 subtest 'bool** Ret_BoolPtrPtr()' => sub {
@@ -87,6 +86,8 @@ subtest 'bool** Ret_BoolPtrPtr()' => sub {
     is_deeply $type->unmarshal($ret), [ [ 1, !1, !1 ], [ !1, 1, !1 ], [ !1, !1, 1 ] ],
         'unmarshal bool **';
 };
+
+# Char
 subtest 'char test(char)' => sub {
     isa_ok my $code = wrap( $lib, 'test', [Char] => Char ), 'Affix', 'wrap ..., [Char] => Char';
     is chr $code->('M'),       'Y', 'test("M")';
@@ -102,6 +103,12 @@ subtest 'char test(int, char*)' => sub {
     is chr $code->( 2, [ 'a', 'b', 'c', 'd' ] ), 'c', '->(2, ["a", "b", "c", "d"]) == "c"';
     is chr $code->( 3, [ 'a', 'b', 'c', 'd' ] ), 'd', '->(3, ["a", "b", "c", "d"]) == "d"';
     is chr $code->( 3, "Testing" ), 't', '->(3, "Testing") == "t';
+};
+subtest 'int test(char*, char**)' => sub {
+    isa_ok my $code = wrap( $lib, 'test', [ Pointer [Char], Pointer [ Pointer [Char] ] ], Int ),
+        'Affix', 'wrap ..., [Pointer[Char], Pointer[Pointer[Char]]] => Int';
+    is $code->( "Alex", [ "John", "Bill", "Sam", "Martin", "Jose", "Alex", "Paul" ] ), 6,
+        '->("Alex", [ "John", "Bill", "Sam", "Martin", "Jose", "Alex", "Paul" ] ) == 6';
 };
 subtest 'char test(int, char**)' => sub {
     isa_ok my $code = wrap( $lib, 'test', [ Int, Pointer [ Pointer [Char] ] ] => Pointer [Char] ),
@@ -152,12 +159,112 @@ subtest 'char*** Ret_CharPtrPtrPtr()' => sub {
             'unmarshal returned pointer';
     };
 };
-subtest 'int test(char*, char**)' => sub {
-    isa_ok my $code = wrap( $lib, 'test', [ Pointer [Char], Pointer [ Pointer [Char] ] ], Int ),
-        'Affix', 'wrap ..., [Pointer[Char], Pointer[Pointer[Char]]] => Int';
-    is $code->( "Alex", [ "John", "Bill", "Sam", "Martin", "Jose", "Alex", "Paul" ] ), 6,
-        '->("Alex", [ "John", "Bill", "Sam", "Martin", "Jose", "Alex", "Paul" ] ) == 6';
+
+# UChar
+subtest 'unsigned char test(unsigned char)' => sub {
+    isa_ok my $code = wrap( $lib, 'test', [UChar] => UChar ), 'Affix', 'wrap ..., [UChar] => UChar';
+    is $code->('M'), 'Y', 'test(100)';
+    is $code->(0),   'N', 'test(0)';
 };
+subtest 'unsigned char test(int, unsigned char*)' => sub {
+    isa_ok my $code = wrap( $lib, 'test', [ Int, Pointer [UChar] ] => UChar ), 'Affix',
+        'wrap ..., [Int, Pointer[UChar]] => UChar';
+    is $code->( 1, [ ' ', 'A', 'B', 'C' ] ), 'a', q['->(1, [' ', 'A', 'B', 'C'] == a];
+    is $code->( 0, [ ' ', 'A', 'B', 'C' ] ), ' ', q['->(0, [' ', 'A', 'B', 'C'] == ' '];
+    is $code->( 2, [ ' ', 'A', 'B', 'C' ] ), 'B', q['->(2, [' ', 'A', 'B', 'C'] == 'B'];
+};
+subtest 'unsigned char*** Ret_UCharPtrPtrPtr()' => sub {
+    isa_ok my $code = wrap( $lib, 'Ret_UCharPtrPtrPtr', [] => Pointer [Void] ), 'Affix',
+        'wrap ..., [] => Pointer[Void]';
+    isa_ok my $ptr = $code->(), 'Affix::Pointer', '$code->()';
+    subtest 'Str' => sub {
+        isa_ok my $type = Array [ Array [ Str, 3 ], 3 ], 'Affix::Type::Array',
+            'Array [ Array [ Str, 3 ], 3 ]';
+        is_deeply $type->unmarshal($ptr),
+            [ [ 'abc', 'def', 'ghi' ], [ 'jkl', 'mno', 'pqr' ], [ 'stu', 'vwx', 'yz{' ] ],
+            'unmarshal returned pointer';
+    };
+    subtest 'Pointer[UChar]' => sub {
+        isa_ok my $type = Array [ Array [ Array [ UChar, 3 ], 3 ], 3 ], 'Affix::Type::Array',
+            'Array [ Array [ Array[UChar, 3], 3 ], 3 ]';
+        is_deeply $type->unmarshal($ptr),
+            [
+            [ [ "a", "b", "c" ], [ "d", "e", "f" ], [ "g", "h", "i" ] ],
+            [ [ "j", "k", "l" ], [ "m", "n", "o" ], [ "p", "q", "r" ] ],
+            [ [ "s", "t", "u" ], [ "v", "w", "x" ], [ "y", "z", "{" ] ],
+            ],
+            'unmarshal returned pointer';
+    };
+};
+
+# Short
+subtest 'short test(short)' => sub {
+    isa_ok my $code = wrap( $lib, 'test', [Short] => Short ), 'Affix', 'wrap ..., [Short] => Short';
+    is $code->(100), -100, 'test(100)';
+    is $code->(0),   0,    'test(0)';
+};
+subtest 'short test(int, short char*)' => sub {
+    isa_ok my $code = wrap( $lib, 'test', [ Int, Pointer [Short] ] => Short ), 'Affix',
+        'wrap ..., [Int, Pointer[Short]] => Short';
+    is $code->( 1, [ map {ord} ' ', 'A', 'B', 'C' ] ), -65,
+        q['->(1, [ map {ord} ' ', 'A', 'B', 'C'] == -65];
+    is $code->( 0, [ map {ord} ' ', 'A', 'B', 'C' ] ), -32,
+        q['->(0, [ map {ord} ' ', 'A', 'B', 'C'] == -32];
+    is $code->( 2, [ map {ord} ' ', 'A', 'B', 'C' ] ), -66,
+        q['->(2, [ map {ord} ' ', 'A', 'B', 'C'] == -66];
+};
+subtest 'unsigned short*** Ret_ShortPtrPtrPtr()' => sub {
+    isa_ok my $code = wrap( $lib, 'Ret_ShortPtrPtrPtr', [] => Pointer [Void] ), 'Affix',
+        'wrap ..., [] => Pointer[Void]';
+    isa_ok my $ptr = $code->(), 'Affix::Pointer', '$code->()';
+    subtest 'Pointer[Short]' => sub {
+        isa_ok my $type = Array [ Array [ Array [ Short, 3 ], 3 ], 3 ], 'Affix::Type::Array',
+            'Array [ Array [ Array[Short, 3], 3 ], 3 ]';
+        is_deeply $type->unmarshal($ptr),
+            [
+            [ [ 97,   -98,  99 ],   [ -100, 101,  -102 ], [ 103,  -104, 105 ] ],
+            [ [ -106, 107,  -108 ], [ 109,  -110, 111 ],  [ -112, 113,  -114 ] ],
+            [ [ 115,  -116, 117 ],  [ -118, 119,  -120 ], [ 121,  -122, 123 ] ],
+            ],
+            'unmarshal returned pointer';
+    };
+};
+
+# UShort
+subtest 'unsigned short test(unsigned short)' => sub {
+    isa_ok my $code = wrap( $lib, 'test', [UShort] => UShort ), 'Affix',
+        'wrap ..., [UShort] => UShort';
+    is $code->(100), 100, 'test(100)';
+    is $code->(0),   0,   'test(0)';
+};
+subtest 'unsigned short test(int, unsigned short char*)' => sub {
+    isa_ok my $code = wrap( $lib, 'test', [ Int, Pointer [UShort] ] => UShort ), 'Affix',
+        'wrap ..., [Int, Pointer[UShort]] => UShort';
+    is $code->( 1, [ map {ord} ' ', 'A', 'B', 'C' ] ), 65,
+        q['->(1, [ map {ord} ' ', 'A', 'B', 'C'] == 65];
+    is $code->( 0, [ map {ord} ' ', 'A', 'B', 'C' ] ), 32,
+        q['->(0, [ map {ord} ' ', 'A', 'B', 'C'] == 32];
+    is $code->( 2, [ map {ord} ' ', 'A', 'B', 'C' ] ), 66,
+        q['->(2, [ map {ord} ' ', 'A', 'B', 'C'] == 66];
+};
+subtest 'unsigned short*** Ret_UShortPtrPtrPtr()' => sub {
+    isa_ok my $code = wrap( $lib, 'Ret_UShortPtrPtrPtr', [] => Pointer [Void] ), 'Affix',
+        'wrap ..., [] => Pointer[Void]';
+    isa_ok my $ptr = $code->(), 'Affix::Pointer', '$code->()';
+    subtest 'Pointer[UShort]' => sub {
+        isa_ok my $type = Array [ Array [ Array [ UShort, 3 ], 3 ], 3 ], 'Affix::Type::Array',
+            'Array [ Array [ Array[UShort, 3], 3 ], 3 ]';
+        is_deeply $type->unmarshal($ptr),
+            [
+            [ [ 97,  98,  99 ],  [ 100, 101, 102 ], [ 103, 104, 105 ] ],
+            [ [ 106, 107, 108 ], [ 109, 110, 111 ], [ 112, 113, 114 ] ],
+            [ [ 115, 116, 117 ], [ 118, 119, 120 ], [ 121, 122, 123 ] ],
+            ],
+            'unmarshal returned pointer';
+    };
+};
+
+# Int
 subtest 'int test(int)' => sub {
     isa_ok my $code = wrap( $lib, 'test', [Int] => Int ), 'Affix', 'wrap ..., [Int] => Int';
     is $code->(100), -100, 'test(100)';
@@ -167,10 +274,12 @@ subtest 'int test(int)' => sub {
 subtest 'int test(int, int*)' => sub {
     isa_ok my $code = wrap( $lib, 'test', [ Int, Pointer [Int] ] => Int ), 'Affix',
         'wrap ..., [Int, Pointer[Int]] => Int';
-    is $code->( 0, [ 1,   11, 12,  13 ] ), -1,  '->(0, [1, 11, 12, 13]) == -1';
-    is $code->( 1, [ 50,  40, 30,  20 ] ), -40, '->(1, [50, 40, 30, 20]) == -40';
-    is $code->( 2, [ 10,  80, 61,  0 ] ),  -61, '->(2, [10, 80, 61, 0]) == -61';
-    is $code->( 3, [ 211, 21, 143, 83 ] ), -83, '->(3, [211, 21, 143, 83]) == -83';
+    is $code->( 0, [ 1,   11,    12,  13 ] ), -1,   '->(0, [1, 11, 12, 13]) == -1';
+    is $code->( 1, [ 50,  40,    30,  20 ] ), -40,  '->(1, [50, 40, 30, 20]) == -40';
+    is $code->( 2, [ 10,  80,    61,  0 ] ),  -61,  '->(2, [10, 80, 61, 0]) == -61';
+    is $code->( 1, [ 10,  -1380, 61,  0 ] ),  1380, '->(1, [10, -1380, 61, 0]) == 1380';
+    is $code->( 3, [ 10,  -1380, 61,  0 ] ),  0,    '->(3, [10, -1380, 61, 0]) == 0';
+    is $code->( 3, [ 211, 21,    143, 83 ] ), -83,  '->(3, [211, 21, 143, 83]) == -83';
 };
 subtest 'int test(int, int, int**)' => sub {
     isa_ok my $code = wrap( $lib, 'test', [ Int, Int, Pointer [ Pointer [Int] ] ] => Int ),
@@ -199,6 +308,14 @@ subtest 'int test(int, int, int, int***)' => sub {
         ]
         ),
         22, '->(2, 0, 1, ...) == 22';
+    is $code->(
+        2, 0, 1,
+        [   [ [ 1, 323,   1 ], [ 1, 222, 1 ], [ !1, !1, 1 ] ],
+            [ [ 1, 89030, 1 ], [ 1, 1,   1 ], [ !1, !1, 1 ] ],
+            [ [ 1, -22,   1 ], [ 1, 1,   1 ], [ !1, !1, 1 ] ]
+        ]
+        ),
+        -22, '->(2, 0, 1, ...) == -22';
 };
 subtest 'int** Ret_IntPtrPtr()' => sub {
     isa_ok my $code = wrap( $lib, 'Ret_IntPtrPtr', [] => Pointer [ Pointer [Int] ] ), 'Affix',
@@ -212,7 +329,7 @@ subtest 'int*** Ret_IntPtrPtrPtr()' => sub {
     isa_ok my $code = wrap( $lib, 'Ret_IntPtrPtrPtr', [] => Pointer [ Pointer [ Pointer [Int] ] ] ),
         'Affix', 'Ret_IntPtrPtrPtr ..., [ ] => Pointer[Pointer[Pointer[Int]]]';
     isa_ok my $type = Array [ Array [ Array [ Int, 3 ], 3 ], 3 ], 'Affix::Type::Array',
-        ' my $type = Array[Array[Array[Int, 3], 3], 3]';
+        'my $type = Array[Array[Array[Int, 3], 3], 3]';
     isa_ok my $ret = $code->(), 'Affix::Pointer', 'int **';
     is_deeply $type->unmarshal($ret),
         [
@@ -222,6 +339,91 @@ subtest 'int*** Ret_IntPtrPtrPtr()' => sub {
         ],
         'unmarshal int ***';
 };
+
+# UInt
+subtest 'unsigned int test(unsigned int)' => sub {
+    isa_ok my $code = wrap( $lib, 'test', [UInt] => UInt ), 'Affix', 'wrap ..., [UInt] => UInt';
+    is $code->(100), 100, 'test(100)';
+    is $code->(0),   0,   'test(0)';
+};
+subtest 'unsigned int test(int, unsigned int*)' => sub {
+    isa_ok my $code = wrap( $lib, 'test', [ Int, Pointer [UInt] ] => UInt ), 'Affix',
+        'wrap ..., [Int, Pointer[UInt]] => UInt';
+    is $code->( 0, [ 1,   11, 12,  13 ] ), 1,  '->(0, [1, 11, 12, 13]) == 1';
+    is $code->( 1, [ 50,  40, 30,  20 ] ), 40, '->(1, [50, 40, 30, 20]) == 40';
+    is $code->( 2, [ 10,  80, 61,  0 ] ),  61, '->(2, [10, 80, 61, 0]) == 61';
+    is $code->( 3, [ 211, 21, 143, 83 ] ), 83, '->(3, [211, 21, 143, 83]) == 83';
+};
+subtest 'int test(int, int, int**)' => sub {
+    isa_ok my $code = wrap( $lib, 'test', [ Int, Int, Pointer [ Pointer [Int] ] ] => Int ),
+        'Affix', 'wrap ..., [Int, Int, Pointer[Pointer[Int]]] => Int';
+    is $code->( 1, 0, [ [ 199, 30, 15 ], [ 1934, 1, 1 ], [ !1, !1, 1 ] ] ), 1934,
+        '->(1, 0, ...) == 199';
+    is $code->( 0, 1, [ [ 187, 10, 16 ], [ 1, 1, 1 ], [ !1, !1, 1 ] ] ), 10, '->(0, 1, ...) == 10';
+};
+subtest 'unsigned int test(int, int, int, unsigned int***)' => sub {
+    isa_ok my $code
+        = wrap( $lib, 'test', [ Int, Int, Int, Pointer [ Pointer [ Pointer [UInt] ] ] ] => UInt ),
+        'Affix', 'wrap ..., [Int, Int, Pointer[Pointer[Pointer[UInt]]]] => UInt';
+    is $code->(
+        1, 0, 0,
+        [   [ [ 112,  512, 79021 ], [ 1, 1, 1 ], [ !1, !1, 1 ] ],
+            [ [ 1434, 870, 1091 ],  [ 1, 1, 1 ], [ !1, !1, 1 ] ],
+            [ [ 1,    0,   1 ],     [ 1, 1, 1 ], [ !1, !1, 1 ] ]
+        ]
+        ),
+        1434, '->(1, 0, 0, ...) == 1434';
+    is $code->(
+        2, 0, 1,
+        [   [ [ 1, 323,   1 ], [ 1, 222, 1 ], [ !1, !1, 1 ] ],
+            [ [ 1, 89030, 1 ], [ 1, 1,   1 ], [ !1, !1, 1 ] ],
+            [ [ 1, 22,    1 ], [ 1, 1,   1 ], [ !1, !1, 1 ] ]
+        ]
+        ),
+        22, '->(2, 0, 1, ...) == 22';
+};
+subtest 'unsigned int** Ret_UIntPtrPtr()' => sub {
+    isa_ok my $code = wrap( $lib, 'Ret_UIntPtrPtr', [] => Pointer [ Pointer [UInt] ] ), 'Affix',
+        'Ret_UIntPtrPtr ..., [ ] => Pointer[Pointer[UInt]]';
+    isa_ok my $type = Array [ Array [ UInt, 3 ], 3 ], 'Affix::Type::Array',
+        ' my $type = Array[Array[UInt, 3], 3]';
+    isa_ok my $ret = $code->(), 'Affix::Pointer', 'unsigned int **';
+    is_deeply $type->unmarshal($ret), [ [ 0, 1, 2 ], [ 3, 4, 5 ], [ 6, 7, 8 ] ], 'unmarshal int **';
+};
+subtest 'unsigned int*** Ret_UIntPtrPtrPtr()' => sub {
+    isa_ok my $code
+        = wrap( $lib, 'Ret_UIntPtrPtrPtr', [] => Pointer [ Pointer [ Pointer [UInt] ] ] ), 'Affix',
+        'Ret_UIntPtrPtrPtr ..., [ ] => Pointer[Pointer[Pointer[UInt]]]';
+    isa_ok my $type = Array [ Array [ Array [ Int, 3 ], 3 ], 3 ], 'Affix::Type::Array',
+        'my $type = Array[Array[Array[UInt, 3], 3], 3]';
+    isa_ok my $ret = $code->(), 'Affix::Pointer', 'unsigned int **';
+    is_deeply $type->unmarshal($ret),
+        [
+        [ [ 0,  1,  2 ],  [ 3,  4,  5 ],  [ 6,  7,  8 ] ],
+        [ [ 9,  10, 11 ], [ 12, 13, 14 ], [ 15, 16, 17 ] ],
+        [ [ 18, 19, 20 ], [ 21, 22, 23 ], [ 24, 25, 26 ] ],
+        ],
+        'unmarshal unsigned int ***';
+};
+
+# Long
+# ULong
+# LongLong
+# ULongLong
+# Float
+# Double
+# Str
+# WChar
+# WStr
+# StdStr
+# Struct
+# Array
+# Union
+# Enum
+# CPPStruct / Class
+# CodeRef
+# Pointer[Void]
+# Pointer[SV]
 done_testing;
 __END__
 subtest 'Pointer[WChar]' => sub {

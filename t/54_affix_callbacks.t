@@ -66,7 +66,7 @@ ok !Affix::wrap( $lib, 'cb_b_b', [ CodeRef [ [Bool] => Bool ] ] => Bool )->(
     }
     ),
     '    => Bool [false]';
-is Affix::wrap( $lib, 'cb_c_c', [ CodeRef [ [Char] => Char ] ] => Char )->(
+is int Affix::wrap( $lib, 'cb_c_c', [ CodeRef [ [Char] => Char ] ] => Char )->(
     sub {
         #~ is_deeply( \@_, [-ord 'A'], '[ Char ] (natural)' );
         my $arg = shift;
@@ -75,7 +75,7 @@ is Affix::wrap( $lib, 'cb_c_c', [ CodeRef [ [Char] => Char ] ] => Char )->(
     }
     ),
     -ord 'B', '    => Char';
-is Affix::wrap( $lib, 'cb_C_C', [ CodeRef [ [UChar] => UChar ] ] => UChar )->(
+is int Affix::wrap( $lib, 'cb_C_C', [ CodeRef [ [UChar] => UChar ] ] => UChar )->(
     sub {
         is_deeply( \@_, ['Q'], '[ UChar ] (natural)' );
         my $arg = shift;
