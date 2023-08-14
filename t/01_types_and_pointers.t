@@ -414,7 +414,59 @@ subtest 'unsigned int*** Ret_UIntPtrPtrPtr()' => sub {
 # Double
 # Str
 # WChar
-# WStr
+subtest 'wchar_t * reverse(wchar_t * str)' => sub {
+    isa_ok my $code = wrap( $lib, 'reverse', [WStr] => WStr ), 'Affix',
+        'reverse ..., [ WStr ] => WStr';
+    is $code->('虚空'), '空虚', '虚空 => 空虚';
+};
+subtest 'wchar_t ** Ret_WStrPtr()' => sub {
+    isa_ok my $code = wrap( $lib, 'Ret_WStrPtr', [] => Array [ WStr, 5 ] ), 'Affix',
+        'reverse ..., [ WStr ] => Pointer[WStr]';
+    is_deeply $code->(), [ "안녕하세요", "감사합니다", "미안합니다", "잘 부탁합니다", "안녕히 계세요" ],
+        '5 korean phrases returned';
+};
+subtest 'WStr marshaling' => sub {
+    my $type = Pointer [WStr];
+    for my $str (
+        '赤',          '時空',             'こんにちは、世界',        'Привет, мир!',
+        '안녕하세요, 세계!', 'مرحبا بالعالم!', 'नमस्ते दुनिया! ', '',
+        undef,        <<'END') {
+気付かれないでトドメを刺す
+どの時代も生き延びてきた
+嘘みたいな空の下
+恐いものなんて憶えちゃいない
+
+街をそっと見下ろして
+気紛れに踏んづけたり
+そこら中に火をつけた
+そう言えば何て名前だったっけ
+
+悲しみを全部引き受けたって大丈夫
+手加減なんていらない
+どこでだって誰の前でだって
+ただ自分でいたい
+
+引っ張り出した影の影
+染みこんでる孤独な日々
+世界中が苛ついたって
+デタラメに今日もわめいてみせる
+
+そんなに見ないで
+ヒントずらしたくらいでいい
+裸みたいな気分
+浮き足立った未来に不満でも
+目を覚ましていたい
+
+悲しみを全部引き受けたって大丈夫
+手加減なんていらない
+どこでだって誰の前でだって
+ただ自分でいたい
+END
+        my $ptr = $type->marshal($str);
+        is $type->unmarshal($ptr), $str, defined $str ? $str eq '' ? "''" : $str : 'undef';
+    }
+};
+
 # StdStr
 # Struct
 # Array
@@ -548,49 +600,6 @@ subtest 'Pointer[Str]' => sub {
     {
         my $ptr = ( Pointer [Str] )->marshal('');
         is( ( Pointer [Str] )->unmarshal($ptr), '', q['' in and out] );
-    }
-};
-subtest 'Pointer[WStr]' => sub {
-    my $type = Pointer [WStr];
-    for my $str (
-        '赤',                                     '時空',
-        'こんにちは、世界',                'Привет, мир!',
-        '안녕하세요, 세계!',                'مرحبا بالعالم!',
-        'नमस्ते दुनिया! ', '',
-        undef,                                     <<'END') {
-気付かれないでトドメを刺す
-どの時代も生き延びてきた
-嘘みたいな空の下
-恐いものなんて憶えちゃいない
-
-街をそっと見下ろして
-気紛れに踏んづけたり
-そこら中に火をつけた
-そう言えば何て名前だったっけ
-
-悲しみを全部引き受けたって大丈夫
-手加減なんていらない
-どこでだって誰の前でだって
-ただ自分でいたい
-
-引っ張り出した影の影
-染みこんでる孤独な日々
-世界中が苛ついたって
-デタラメに今日もわめいてみせる
-
-そんなに見ないで
-ヒントずらしたくらいでいい
-裸みたいな気分
-浮き足立った未来に不満でも
-目を覚ましていたい
-
-悲しみを全部引き受けたって大丈夫
-手加減なんていらない
-どこでだって誰の前でだって
-ただ自分でいたい
-END
-        my $ptr = $type->marshal($str);
-        is $type->unmarshal($ptr), $str, defined $str ? $str eq '' ? "''" : $str : 'undef';
     }
 };
 subtest 'Pointer[CodeRef[...]]' => sub {

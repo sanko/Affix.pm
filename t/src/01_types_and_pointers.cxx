@@ -353,6 +353,42 @@ int ***Ret_IntPtrPtrPtr() {
     return array;
 }
 
+// WStr
+/* Mangler doesn't yet understand std::
+// Function to reverse a wide string
+std::wstring reverse_string(std::wstring str) {
+  // Create a reversed string
+  std::wstring reversed_str;
+
+  // Loop through the original string from back to front
+  for (int i = str.length() - 1; i >= 0; i--) {
+    // Add the current character to the reversed string
+    reversed_str += str[i];
+  }
+
+  // Return the reversed string
+  return reversed_str;
+}*/
+
+#include <wchar.h>
+DLLEXPORT
+wchar_t *reverse(wchar_t *str) {
+    int len = wcslen(str);
+    wchar_t *reversed_str = (wchar_t *)malloc(sizeof(wchar_t) * len);
+    warn("# len: %d", len);
+    for (int i = 0, j = len - 1; i < len; i++, j--) {
+        reversed_str[i] = str[j];
+    }
+    reversed_str[len] = L'\0';
+    return reversed_str;
+}
+DLLEXPORT
+const wchar_t **Ret_WStrPtr() {
+    static const wchar_t *phrases[] = {L"안녕하세요", L"감사합니다", L"미안합니다",
+                                       L"잘 부탁합니다", L"안녕히 계세요"};
+    return phrases;
+}
+
 //
 
 DLLEXPORT

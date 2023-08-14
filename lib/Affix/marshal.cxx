@@ -132,7 +132,7 @@ SV *ptr2sv(pTHX_ DCpointer ptr, SV *type_sv) {
             if (ptr && wcslen((wchar_t *)ptr)) {
                 retval = wchar2utf(aTHX_ * (wchar_t **)ptr, wcslen(*(wchar_t **)ptr));
             }
-            else { sv_set_undef(retval); }
+            else { retval = &PL_sv_undef; }
         } break;
         case AFFIX_TYPE_CSTRUCT:
         case AFFIX_TYPE_CPPSTRUCT: {

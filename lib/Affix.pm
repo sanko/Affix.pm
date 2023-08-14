@@ -337,6 +337,7 @@ package Affix 0.12 {    # 'FFI' is my middle name!
             #~ InstanceOf(Void()) => ''
             'const'               => 'K',
             Pointer( [ Void() ] ) => 'P',
+            WStr()                => 'Pw',
 
             #CPPStruct([]) => '???'
         };
@@ -423,7 +424,12 @@ package Affix 0.12 {    # 'FFI' is my middle name!
             else {
                 my $_ret = Itanium_check_substitution( $affix, $data, $type->{typedef} );
                 if ( defined $_ret ) { $ret = $_ret }
-                else { warn 'Unknown type in mangler: ' . chr scalar $type; $ret = '' }
+                else {
+                    warn 'Unknown type in mangler: ' . chr scalar $type;
+                    use Data::Dump;
+                    ddx $type;
+                    $ret = '';
+                }
             }
             return $ret;
         }
