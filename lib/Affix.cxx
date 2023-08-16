@@ -239,6 +239,10 @@ extern "C" void Affix_trigger(pTHX_ CV *cv) {
             ) {
                 dcArgPointer(MY_CXT.cvm, NULL);
             }
+            else if (SvOK(ST(arg_pos)) && sv_derived_from(ST(arg_pos), "Affix::Pointer")) {
+                IV tmp = SvIV(SvRV(ST(arg_pos)));
+                dcArgPointer(MY_CXT.cvm, INT2PTR(DCpointer, tmp));
+            }
             else {
                 if (!free_ptrs) Newxz(free_ptrs, num_args, DCpointer);
                 if (!SvROK(ST(arg_pos)) || SvTYPE(SvRV(ST(arg_pos))) != SVt_PVHV)
@@ -246,7 +250,6 @@ extern "C" void Affix_trigger(pTHX_ CV *cv) {
                 //~ AV *elements = MUTABLE_AV(SvRV(ST(i)));
                 SV **type = av_fetch(affix->arg_info, info_pos, 0);
                 DCaggr *agg = _aggregate(aTHX_ * type);
-                PING;
                 free_ptrs[num_ptrs] = sv2ptr(aTHX_ * type, ST(arg_pos), false);
                 dcArgAggr(MY_CXT.cvm, agg, free_ptrs[num_ptrs++]);
             }
@@ -257,6 +260,10 @@ extern "C" void Affix_trigger(pTHX_ CV *cv) {
             if (!SvOK(ST(arg_pos)) && SvREADONLY(ST(arg_pos)) // explicit undef
             ) {
                 dcArgPointer(MY_CXT.cvm, NULL);
+            }
+            else if (SvOK(ST(arg_pos)) && sv_derived_from(ST(arg_pos), "Affix::Pointer")) {
+                IV tmp = SvIV(SvRV(ST(arg_pos)));
+                dcArgPointer(MY_CXT.cvm, INT2PTR(DCpointer, tmp));
             }
             else {
                 if (!free_ptrs) Newxz(free_ptrs, num_args, DCpointer);
@@ -546,6 +553,9 @@ extern "C" void Affix_trigger(pTHX_ CV *cv) {
     {
         for (int i = 0, p = 0; LIKELY(i < items); ++i) {
             PING;
+            if (sv_derived_from(ST(i), "Affix::Pointer")) {
+                continue; // No need to try and update a pointer
+            }
             if (LIKELY(!SvREADONLY(ST(i)))) { // explicit undef
                 switch (arg_types[i]) {
                 case AFFIX_TYPE_CARRAY: {

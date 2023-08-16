@@ -109,6 +109,7 @@ subtest 'int test(char*, char**)' => sub {
     is $code->( "Alex", [ "John", "Bill", "Sam", "Martin", "Jose", "Alex", "Paul" ] ), 6,
         '->("Alex", [ "John", "Bill", "Sam", "Martin", "Jose", "Alex", "Paul" ] ) == 6';
 };
+diag;
 subtest 'char test(int, char**)' => sub {
     isa_ok my $code = wrap( $lib, 'test', [ Int, Pointer [ Pointer [Char] ] ] => Pointer [Char] ),
         'Affix', 'wrap ..., [Int, Pointer[Pointer[Char]]] => Pointer[Char]';
@@ -636,7 +637,7 @@ subtest 'float ** Ret_FloatPtrPtr()' => sub {
         [ 1.000000, 1.010000, 1.020000 ], [ 1.100000, 1.110000, 1.120000 ],
         [ 1.200000, 1.210000, 1.220000 ]
     ];
-    subtest 'unmarshall float **' => sub {
+    subtest 'unmarshal float **' => sub {
         for my $i ( 0 .. 2 ) {
             for my $j ( 0 .. 2 ) {
                 is_approx $data->[$i][$j], $ideal->[$i][$j], sprintf '->[%d][%d] == %f', $i, $j,
@@ -689,7 +690,7 @@ subtest 'double ** Ret_DoublePtrPtr()' => sub {
         [ 1.000000, 1.010000, 1.020000 ], [ 1.100000, 1.110000, 1.120000 ],
         [ 1.200000, 1.210000, 1.220000 ]
     ];
-    subtest 'unmarshall double **' => sub {
+    subtest 'unmarshal double **' => sub {
         for my $i ( 0 .. 2 ) {
             for my $j ( 0 .. 2 ) {
                 is_approx $data->[$i][$j], $ideal->[$i][$j], sprintf '->[%d][%d] == %f', $i, $j,
@@ -852,7 +853,63 @@ subtest 'C2* Ret_UnionPtr(int)' => sub {
 # Array
 # Enum
 # CPPStruct / Class
+isa_ok typedef( S1 => Struct [ i => Int ] ), 'Affix::Type::Struct', 'Struct[...] S1';
+subtest 'int test(S1)' => sub {
+    my $val = { i => 55 };
+    is wrap( $lib, 'test', [ S1() ] => Int )->($val), 55, '->(...) == 55';
+};
+subtest 'int test(int, S1*)' => sub {
+    is wrap( $lib, 'test', [ Int, Pointer [ S1() ] ] => Int )
+        ->( 2, [ { i => 55 }, { i => 568935 }, { i => 1789 }, { i => 287 }, { i => 43 } ] ), 1789,
+        '->(2, ...) == 1789';
+    is wrap( $lib, 'test', [ Int, Pointer [ S1() ] ] => Int )->( 0, { i => 55 } ), 55,
+        '->(0, ...) == 55';
+};
+subtest 'S1 Ret_Struct(void)' => sub {
+    is_deeply wrap( $lib, 'Ret_Struct', [] => S1() )->(), { i => 300 }, '-> == { i => 300 }';
+};
+subtest 'S1 * Ret_StructPtr(void)' => sub {
+    my $ptr = wrap( $lib, 'Ret_StructPtr', [] => Pointer [ S1() ] )->();
+    is_deeply S1()->unmarshal($ptr), { i => 500 }, '->() returns pointer';
+};
+subtest 'S1 ** Ret_StructPtrPtr(int)' => sub {
+    isa_ok my $code = wrap( $lib, 'Ret_StructPtrPtr', [Int] => Pointer [ Pointer [ S1() ] ] ),
+        'Affix', 'Ret_StructPtrPtr ..., [ Int ] => Pointer[Pointer[S1()]]';
+    isa_ok my $type = Array [ Array [ S1(), 1 ], 5 ], 'Affix::Type::Array',
+        'my $type = Array [ Array [ S1(), 1 ], 5 ]';
+    isa_ok my $ret = $code->(5), 'Affix::Pointer', 'S1 **';
+    is_deeply $type->unmarshal($ret),
+        [ [ { i => 0 } ], [ { i => 1 } ], [ { i => 2 } ], [ { i => 3 } ], [ { i => 4 } ] ],
+        'unmarshal S1 **';
+    {
+        isa_ok my $code = wrap( $lib, 'test', [ Array [ Pointer [ S1() ] ] ] => Int ), 'Affix',
+            'test ..., [ $type ] => $type';
+is $code->($ret), 10, '->( $ret )'; # Round trip of raw pointer
+        #~ warn $code->($type->unmarshal($ret));
+
+        is $code->(
+            [ [ { i => 0 } ], [ { i => 1 } ], [ { i => 2 } ], [ { i => 3 } ], [ { i => 4 } ] ] ),
+            10, '->([ ... ])';#  Round trip of marshalled data
+    }
+};
+done_testing; exit;
+
 # CodeRef
+{
+    my $type = Pointer [ Array [ CodeRef [ [Str] => Str ], 3 ] ];
+    my $ptr  = $type->marshal(
+        [   sub { is shift, 'one',   'proper args passed to 1st'; 'One' },
+            sub { is shift, 'two',   'proper args passed to 2nd'; 'Two' },
+            sub { is shift, 'three', 'proper args passed to 3rd'; 'Three' }
+        ]
+    );
+    my $cv = $type->unmarshal($ptr);
+    is scalar @$cv,         3,       '3 coderefs unpacked';
+    is $cv->[0]->('one'),   'One',   'proper return value from 1st';
+    is $cv->[1]->('two'),   'Two',   'proper return value from 2nd';
+    is $cv->[2]->('three'), 'Three', 'proper return value from 3rd';
+};
+
 # Pointer[Void]
 # Pointer[SV]
 done_testing;

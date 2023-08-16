@@ -177,6 +177,7 @@ SV *ptr2sv(pTHX_ DCpointer ptr, SV *type_sv) {
         case AFFIX_TYPE_CPOINTER: {
             SV *subtype_sv = *hv_fetch(MUTABLE_HV(SvRV(type_sv)), "type", 4, 0);
             int subtype = SvIV(subtype_sv);
+            warn("subtype: %s", type_as_str(subtype));
             switch (subtype) {
             case AFFIX_TYPE_CHAR:
             case AFFIX_TYPE_SCHAR:
@@ -202,6 +203,14 @@ SV *ptr2sv(pTHX_ DCpointer ptr, SV *type_sv) {
                 }
                 PING;
             } break;
+            //~ case AFFIX_TYPE_CPOINTER:{
+            //~ retval = ptr2sv(aTHX_ *(void**)ptr, subtype_sv);
+            //~ }break;
+            //~ case AFFIX_TYPE_CSTRUCT:
+            //~ case AFFIX_TYPE_CPPSTRUCT:
+            //~ case AFFIX_TYPE_CUNION: {
+            //~ retval = ptr2sv(aTHX_ *(void**)ptr, subtype_sv);
+            //~ }break;
             default: {
                 retval = ptr2sv(aTHX_ ptr, subtype_sv);
             } break;
@@ -458,28 +467,27 @@ SV *ptr2svx(pTHX_ DCpointer ptr, SV *type_sv) {
     return RETVAL;
 }
 
-void *av2ptr(pTHX_ SV *type, SV *data, bool packed) {
+void *av2ptr(pTHX_ SV *type, AV *av_data, bool packed) {
     // DCpointer ret = NULL;
     HV *hv_type = MUTABLE_HV(SvRV(type));
     SV *subtype = *hv_fetchs(hv_type, "type", 0);
     int16_t i_type = SvIV(type);
-#if DEBUG
+    //~ #if DEBUG
     warn("av2ptr(%s (%d), ..., %s) at %s line %d", type_as_str(i_type), i_type,
          (packed ? "true" : "false"), __FILE__, __LINE__);
-#if DEBUG > 1
+    //~ #if DEBUG > 1
     DD(type);
-    DD(data);
-#endif
-#endif
-    if (SvOK(SvRV(data)) && SvTYPE(SvRV(data)) != SVt_PVAV) croak("Expected an array");
-    AV *av_data = MUTABLE_AV(SvRV(data));
+    DD(MUTABLE_SV(av_data));
+    //~ sv_dump(av_data);
+    //~ #endif
+    //~ #endif
     SV **size_ptr = hv_fetchs(hv_type, "size", 0);
     size_t size = size_ptr != NULL && SvOK(*size_ptr) ? SvIV(*size_ptr) : av_count(av_data);
     DCpointer ret =
         safemalloc(_sizeof(aTHX_ type) * (size + 1)); // XXX: THIS IS INCORRECT!!!!!!!!!!!!!!
     if (size_ptr != NULL && SvOK(*size_ptr)) {
         size_t av_len = av_count(av_data);
-        if (av_len != size) croak("Expected and array of %zu elements; found %zu", size, av_len);
+        if (av_len != size) croak("Expected an array of %zu elements; found %zu", size, av_len);
     }
     size_t el_len = _sizeof(aTHX_ subtype);
     size_t pos = 0; // override
@@ -665,7 +673,8 @@ void *sv2ptr(pTHX_ SV *type_sv, SV *data, bool packed) {
         //~ else
         if (!SvOK(data)) { ret = safecalloc(_sizeof(aTHX_ subtype), 1); }
         else if (SvROK(data) && SvTYPE(SvRV(data)) == SVt_PVAV) {
-            ret = av2ptr(aTHX_ type_sv, data, packed);
+            warn("Sending from CPOINTER or REF");
+            ret = av2ptr(aTHX_ type_sv, MUTABLE_AV(SvRV(data)), packed);
         }
         //~ else if (!(sv_derived_from(subtype, "Affix::Type::Pointer") ||
         //~ sv_derived_from(subtype, "Affix::Type::Array"))) {
@@ -807,7 +816,8 @@ void *sv2ptr(pTHX_ SV *type_sv, SV *data, bool packed) {
             PING;
             int subtype = SvIV(subtype_sv);
             PING;
-            ret = av2ptr(aTHX_ type_sv, data, packed);
+            warn("Sending from CARRAY");
+            ret = av2ptr(aTHX_ type_sv, elements, packed);
 
             /*
             switch (subtype) {
@@ -842,6 +852,7 @@ void *sv2ptr(pTHX_ SV *type_sv, SV *data, bool packed) {
             Zero(ret, 1, intptr_t);
     } break;
     case AFFIX_TYPE_CALLBACK: {
+        warn("CALLBACK!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!");
         ret = safemalloc(INTPTR_T_SIZE);
         if (SvOK(data)) {
             DCCallback *cb = NULL;

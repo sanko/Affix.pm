@@ -29,18 +29,18 @@ bool test(int x, int y, bool **ptr) {
 
 DLLEXPORT
 bool test(int x, int y, int z, bool ***ptr) {
-/*
-bool ***board = (bool ***) malloc(sizeof(bool **) * 3);
-for (int i = 0; i < 3; i++) {
-  board[i] = (bool **) malloc(sizeof(bool *) * 3);
-  for (int j = 0; j < 3; j++) {
-    board[i][j] = (bool *) malloc(sizeof(bool) * 3);
-    for (int k = 0; k < 3; k++) {
-      board[i][j][k] =  (i + j * k) % 2;
+    /*
+    bool ***board = (bool ***) malloc(sizeof(bool **) * 3);
+    for (int i = 0; i < 3; i++) {
+      board[i] = (bool **) malloc(sizeof(bool *) * 3);
+      for (int j = 0; j < 3; j++) {
+        board[i][j] = (bool *) malloc(sizeof(bool) * 3);
+        for (int k = 0; k < 3; k++) {
+          board[i][j][k] =  (i + j * k) % 2;
+        }
+      }
     }
-  }
-}
-*/
+    */
 #ifdef DEBUG
     printf("#[\n");
     for (int i = 0; i < 3; i++) {
@@ -1098,6 +1098,53 @@ union C2 *Ret_UnionPtr(int n) {
         }
     }
     return unions;
+}
+
+struct S1 {
+    int i;
+};
+
+DLLEXPORT
+int test(S1 s) {
+    return s.i;
+}
+
+DLLEXPORT
+int test(int index, S1 *s) {
+    return s[index].i;
+}
+
+DLLEXPORT
+S1 Ret_Struct() {
+    S1 ret = {300};
+    return ret;
+}
+
+DLLEXPORT
+S1 *Ret_StructPtr() {
+    S1 *ret = new S1;
+    ret->i = 500;
+    return ret;
+}
+
+DLLEXPORT
+S1 **Ret_StructPtrPtr(int size) {
+    S1 **ret = new S1 *[size];
+    for (int i = 0; i < size; i++) {
+        ret[i] = new S1();
+        ret[i]->i = i;
+        //~ warn("# ret[%d]->i == %d", i, ret[i]->i);
+    }
+    return ret;
+}
+
+DLLEXPORT
+int test(S1 **list) {
+    int ret = 0;
+    for (int i = 0; i < 5; ++i) {
+        ret += list[i]->i;
+    }
+    return ret;
 }
 
 /*
