@@ -162,8 +162,8 @@ SV *ptr2sv(pTHX_ DCpointer ptr, SV *type_sv) {
                     0);
             }
             SvSetSV(retval, newRV(MUTABLE_SV(RETVAL_)));
-            sv_dump(MUTABLE_SV(RETVAL_));
-            sv_dump(retval);
+            //~ sv_dump(MUTABLE_SV(RETVAL_));
+            //~ sv_dump(retval);
 #endif
         } break;
         case AFFIX_TYPE_CARRAY: {
@@ -207,10 +207,7 @@ SV *ptr2sv(pTHX_ DCpointer ptr, SV *type_sv) {
             } break;
             }
         } break;
-
         case AFFIX_TYPE_CUNION: {
-            PING;
-            warn("UNION!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!");
             HV *RETVAL_ = newHV_mortal();
             SV *p = newSV(0);
             sv_setref_pv(p, "Affix::Pointer::Unmanaged", ptr);
@@ -219,7 +216,7 @@ SV *ptr2sv(pTHX_ DCpointer ptr, SV *type_sv) {
             hv_store(MUTABLE_HV(SvRV(tie)), "type", 4, newRV_inc(type_sv), 0);
             sv_bless(tie, gv_stashpv("Affix::Union", TRUE));
             hv_magic(RETVAL_, tie, PERL_MAGIC_tied);
-            SvSetSV(retval, newRV(MUTABLE_SV(RETVAL_)));
+            retval = newRV(MUTABLE_SV(RETVAL_));
         } break;
             /*
 
@@ -250,14 +247,14 @@ SV *ptr2sv(pTHX_ DCpointer ptr, SV *type_sv) {
         PING;
         if (typedef_ptr != NULL) {
             PING;
-            sv_dump(*typedef_ptr);
-            sv_dump(retval);
+            //~ sv_dump(*typedef_ptr);
+            //~ sv_dump(retval);
             PING;
             // sv_bless(retval, SvSTASH(*typedef_ptr));
             PING;
             // retval = newSVrv(retval, SvPV_nolen(*typedef_ptr));
-            sv_dump(retval);
-            DD(retval);
+            //~ sv_dump(retval);
+            //~ DD(retval);
         }
         PING;
         //

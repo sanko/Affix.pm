@@ -607,7 +607,10 @@ void boot_Affix_Type(pTHX_ CV *cv) {
     #define AFFIX_TYPE_VMARRAY 30
     */
     EXT_TYPE(Union, AFFIX_TYPE_CUNION, AFFIX_TYPE_CUNION);
+    set_isa("Affix::Union", "Affix::Aggregate");
+
     EXT_TYPE(CPPStruct, AFFIX_TYPE_CPPSTRUCT, AFFIX_TYPE_CPPSTRUCT);
+    //~ set_isa("Affix::CPPStruct", "Affix::Aggregate");
 
     set_isa("Affix::Type::UChar", "Affix::Type::Char");
     set_isa("Affix::Type::UInt", "Affix::Type::Int");

@@ -406,7 +406,9 @@ package Affix 0.12 {    # 'FFI' is my middle name!
             elsif ( $type->isa('Affix::Type::InstanceOf') ) {
                 $ret = '';    # TODO: Only return 'v' if function is a class method!!!!!!
             }
-            elsif ( $type->isa('Affix::Type::Struct') ) {    # TODO: croak if not a typedef'd struct
+            elsif ( $type->isa('Affix::Type::Struct') || $type->isa('Affix::Type::Union') ) {
+
+                # TODO: croak if not a typedef'd becuase we don't yet handle anon struct/union
                 $ret = length( $type->{typedef} ) . $type->{typedef};
                 my $_ret = Itanium_check_substitution( $affix, $data, $ret );
                 if ( $ret eq $_ret ) {
@@ -495,6 +497,8 @@ package Affix 0.12 {    # 'FFI' is my middle name!
         }
     }
     {    # remove
+
+        package Affix::Aggregate { };
 
         package Affix::Cache { };
 

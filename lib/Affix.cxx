@@ -232,6 +232,7 @@ extern "C" void Affix_trigger(pTHX_ CV *cv) {
             }
             else { dcArgPointer(MY_CXT.cvm, NULL); }
         } break;
+        case AFFIX_TYPE_CUNION:
         case AFFIX_TYPE_CSTRUCT:
         case AFFIX_TYPE_CPPSTRUCT: {
             if (!SvOK(ST(arg_pos)) && SvREADONLY(ST(arg_pos)) // explicit undef
@@ -355,7 +356,6 @@ extern "C" void Affix_trigger(pTHX_ CV *cv) {
                 num_ptrs++;
             }
         } break;
-        case AFFIX_TYPE_CUNION:
         default:
             croak("Unhandled arg type %s (%d) at %s line %d", type_as_str(arg_types[info_pos]),
                   (arg_types[info_pos]), __FILE__, __LINE__);

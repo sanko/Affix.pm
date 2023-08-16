@@ -1027,6 +1027,80 @@ void take_string(string test) {
     warn("line: %s", test.c_str());
 }
 
+// Union
+union A
+{
+    int x;
+    int y[4];
+};
+DLLEXPORT
+size_t union_A_sizeof() {
+    return sizeof(union A);
+}
+
+struct B {
+    A a;
+};
+union C
+{
+    B b;
+    int k;
+};
+DLLEXPORT
+size_t union_C_sizeof() {
+    return sizeof(union C);
+}
+
+DLLEXPORT
+int test(C c) {
+    c.b.a.y[3] += 4;
+    return c.b.a.y[3];
+}
+
+DLLEXPORT
+C Ret_Union() {
+    C c;
+    c.b.a.y[3] = 4;
+    return c;
+}
+
+DLLEXPORT
+void Update_UnionPtr(C *c) {
+    c->k = 100;
+    return;
+}
+
+union C2
+{
+    int i;
+    float j;
+};
+
+DLLEXPORT
+int test(int index, C2 *c) {
+    return c[index].i;
+}
+DLLEXPORT
+union C2 *Ret_UnionPtr(int n) {
+    union C2 *unions = (union C2 *)malloc(n * sizeof(union C2));
+    int i = 5;
+    float j = 3.0L;
+    for (int index = 0; index < n; ++index) {
+        if (index % 2) {
+            unions[index].i = i;
+            i *= 2;
+            //~ warn("%d.i == %d", index, unions[index].i);
+        }
+        else {
+            unions[index].j = j;
+            j *= 2;
+            //~ warn("%d.j == %f", index, unions[index].j);
+        }
+    }
+    return unions;
+}
+
+/*
 #include <cxxabi.h>
 #include <stdio.h>
 #include <stdlib.h>
@@ -1041,3 +1115,4 @@ int main() {
     free(demangled_name);
     return 0;
 }
+*/

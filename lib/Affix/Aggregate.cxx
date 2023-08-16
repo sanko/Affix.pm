@@ -4,7 +4,6 @@ DCaggr *_aggregate(pTHX_ SV *type) {
 #if DEBUG
     warn("_aggregate(...)");
 #endif
-    PING;
     int t = SvIV(type);
     size_t size = _sizeof(aTHX_ type);
     switch (t) {
@@ -12,7 +11,6 @@ DCaggr *_aggregate(pTHX_ SV *type) {
     case AFFIX_TYPE_CPPSTRUCT:
     case AFFIX_TYPE_CARRAY:
     case AFFIX_TYPE_CUNION: {
-        PING;
         HV *hv_type = MUTABLE_HV(SvRV(type));
         SV **agg_sv_ptr = hv_fetch(hv_type, "aggregate", 9, 0);
         if (agg_sv_ptr != NULL) {
@@ -95,18 +93,17 @@ DCaggr *_aggregate(pTHX_ SV *type) {
 XS_INTERNAL(Affix_Aggregate_FETCH) {
     dVAR;
     dXSARGS;
-    PING;
-
-#if DEBUG > 1
-    warn("Affix::Aggregate::FETCH()");
-    sv_dump(ST(0));
-#endif
     if (items != 2) croak_xs_usage(cv, "union, key");
     SV *RETVAL = newSV(0);
     HV *h = MUTABLE_HV(SvRV(ST(0)));
     SV **type_ptr = hv_fetchs(MUTABLE_HV(SvRV(SvRV(*hv_fetchs(h, "type", 0)))), "fields", 0);
     SV **ptr_ptr = hv_fetchs(h, "pointer", 0);
+    IV tmp = SvIV(SvRV(*ptr_ptr));
     char *key = SvPV_nolen(ST(1));
+#if DEBUG > 1
+    warn("Affix::Aggregate::FETCH( '%s' ) @ %p", key, INT2PTR(DCpointer, tmp));
+    sv_dump(ST(0));
+#endif
     AV *types = MUTABLE_AV(SvRV(*type_ptr));
     SSize_t size = av_count(types);
     for (SSize_t i = 0; i < size; ++i) {
@@ -115,12 +112,7 @@ XS_INTERNAL(Affix_Aggregate_FETCH) {
         if (strcmp(key, SvPV(*name, PL_na)) == 0) {
             SV *_type = *av_fetch(MUTABLE_AV(SvRV(*elm)), 1, 0);
             size_t offset = _offsetof(aTHX_ _type); // meaningless for union
-            DCpointer ptr;
-            {
-                IV tmp = SvIV(SvRV(*ptr_ptr));
-                ptr = INT2PTR(DCpointer, tmp + offset);
-            }
-            sv_setsv(RETVAL, sv_2mortal(ptr2sv(aTHX_ ptr, _type)));
+            sv_setsv(RETVAL, sv_2mortal(ptr2sv(aTHX_ INT2PTR(DCpointer, tmp + offset), _type)));
             break;
         }
     }
@@ -131,8 +123,6 @@ XS_INTERNAL(Affix_Aggregate_FETCH) {
 XS_INTERNAL(Affix_Aggregate_EXISTS) {
     dVAR;
     dXSARGS;
-    PING;
-
     if (items != 2) croak_xs_usage(cv, "union, key");
     HV *h = MUTABLE_HV(SvRV(ST(0)));
     SV **type_ptr = hv_fetchs(h, "type", 0);
@@ -151,8 +141,6 @@ XS_INTERNAL(Affix_Aggregate_EXISTS) {
 XS_INTERNAL(Affix_Aggregate_FIRSTKEY) {
     dVAR;
     dXSARGS;
-    PING;
-
     if (items != 1) croak_xs_usage(cv, "union");
     HV *h = MUTABLE_HV(SvRV(ST(0)));
     SV **type_ptr = hv_fetchs(h, "type", 0);
@@ -171,7 +159,6 @@ XS_INTERNAL(Affix_Aggregate_FIRSTKEY) {
 XS_INTERNAL(Affix_Aggregate_NEXTKEY) {
     dVAR;
     dXSARGS;
-    PING;
     if (items != 2) croak_xs_usage(cv, "union, key");
     HV *h = MUTABLE_HV(SvRV(ST(0)));
     SV **type_ptr = hv_fetchs(h, "type", 0);
@@ -192,13 +179,13 @@ XS_INTERNAL(Affix_Aggregate_NEXTKEY) {
     XSRETURN_UNDEF;
 }
 
+// TODO: DESTROY and free the pointer
+
 void boot_Affix_Aggregate(pTHX_ CV *cv) {
     PERL_UNUSED_VAR(cv);
-    (void)newXSproto_portable("Affix::AggregateBase::FETCH", Affix_Aggregate_FETCH, __FILE__, "$$");
-    (void)newXSproto_portable("Affix::AggregateBase::EXISTS", Affix_Aggregate_EXISTS, __FILE__,
-                              "$$");
-    (void)newXSproto_portable("Affix::AggregateBase::FIRSTKEY", Affix_Aggregate_FIRSTKEY, __FILE__,
+    (void)newXSproto_portable("Affix::Aggregate::FETCH", Affix_Aggregate_FETCH, __FILE__, "$$");
+    (void)newXSproto_portable("Affix::Aggregate::EXISTS", Affix_Aggregate_EXISTS, __FILE__, "$$");
+    (void)newXSproto_portable("Affix::Aggregate::FIRSTKEY", Affix_Aggregate_FIRSTKEY, __FILE__,
                               "$");
-    (void)newXSproto_portable("Affix::AggregateBase::NEXTKEY", Affix_Aggregate_NEXTKEY, __FILE__,
-                              "$$");
+    (void)newXSproto_portable("Affix::Aggregate::NEXTKEY", Affix_Aggregate_NEXTKEY, __FILE__, "$$");
 }

@@ -19,7 +19,6 @@ my $lib = compile_test_lib('01_types_and_pointers');
 
 #~ warn `nm -D $lib`;
 #
-use Data::Dump;
 subtest types => sub {
     isa_ok $_, 'Affix::Type::Base'
         for Void, Bool, Char, UChar, WChar, Short, UShort, Int, UInt, Long, ULong, LongLong,
@@ -789,9 +788,68 @@ END
 };
 
 # StdStr
-# Struct
+# Union/Struct
+isa_ok typedef( A => Union [ x => Int, y => Array [ Int, 4 ] ] ), 'Affix::Type::Union',
+    'Union[...] A';
+is sizeof( A() ), wrap( $lib, 'union_A_sizeof', [] => Size_t )->(), 'Union A sizeof';
+isa_ok typedef( B => Struct [ a => A() ] ),          'Affix::Type::Struct', 'Struct[...] B';
+isa_ok typedef( C => Union [ b => B(), k => Int ] ), 'Affix::Type::Union',  'Union[...] C';
+is sizeof( C() ), wrap( $lib, 'union_C_sizeof', [] => Size_t )->(), 'Union C sizeof';
+
+#~ warn `nm -D $lib`;
+subtest 'int test(C c)' => sub {
+    my $val = { b => { a => { y => [ 1, 2, 3, 4 ] } } };
+    is wrap( $lib, 'test', [ C() ] => Int )->($val), 8, '->(...) == 8';
+
+    # TODO: Make sure the union was updated after Affix::trigger
+    #~ ddx $val;
+};
+subtest 'C Ret_Union()' => sub {
+    isa_ok my $code = wrap( $lib, 'Ret_Union', [] => C() ), 'Affix', 'Ret_Union ..., [ ] => C';
+    my ($union) = $code->();
+    is_deeply $union->{b}{a}{y}[3], 4, 'union is correct...';
+TODO: {
+        local $TODO = 'Rather useless to test union values that were not properly init';
+        is_deeply $union, { b => { a => { x => 0, y => [ 0, 0, 0, 4 ], }, }, k => 0, },
+            'union is fancy!';
+    }
+    isa_ok $code = wrap( $lib, 'Update_UnionPtr', [ Pointer [ C() ] ] => Void ), 'Affix',
+        'Update_Union ..., [ Pointer[C] ] => Void';
+    $code->($union);
+    is $union->{k}, 100, 'union updated...';
+};
+
+#~ warn `nm -D $lib`;
+subtest 'void test(int, C2**)' => sub {
+    isa_ok typedef( C2 => Union [ i => Int, j => Float ] ), 'Affix::Type::Union', 'Union[...] C2';
+    isa_ok my $code = wrap( $lib, 'test', [ Int, Pointer [ C2() ] ] => Int ), 'Affix',
+        'test ..., [ Int, Pointer [ C2 ] ] => Void';
+    is $code->(
+        5,
+        [   { i => 10 },
+            { i => 112340 },
+            { i => 1120 },
+            { i => 14540 },
+            { i => 1410 },
+            { i => 16894230 },
+            { i => 1210 },
+            { i => 920 },
+            { i => 1399310 },
+            { i => 13890 },
+            { i => 1237010 },
+            { i => 597432 },
+        ]
+        ),
+        16894230, '$code->( 5, [ ... ] )';
+};
+subtest 'C2* Ret_UnionPtr(int)' => sub {
+    isa_ok my $code = wrap( $lib, 'Ret_UnionPtr', [Int] => Array [ C2(), 5 ] ), 'Affix',
+        'Return_UnionPtr ..., [ Int ] => Pointer [ C2 ]';
+    my @unions = $code->(5);
+    is $unions[0][3]{i}, 10, '$code->(5)';
+};
+
 # Array
-# Union
 # Enum
 # CPPStruct / Class
 # CodeRef
