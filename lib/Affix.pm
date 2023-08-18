@@ -409,7 +409,7 @@ package Affix 0.12 {    # 'FFI' is my middle name!
             elsif ( $type->isa('Affix::Type::Struct') || $type->isa('Affix::Type::Union') ) {
 
                 # TODO: croak if not a typedef'd becuase we don't yet handle anon struct/union
-                $ret = length( $type->{typedef} ) . $type->{typedef};
+                $ret = length( $type->{class} ) . $type->{class};
                 my $_ret = Itanium_check_substitution( $affix, $data, $ret );
                 if ( $ret eq $_ret ) {
                     push @{ $data->{subs} }, $ret unless grep { $ret eq $_ } @{ $data->{subs} };
@@ -433,7 +433,7 @@ package Affix 0.12 {    # 'FFI' is my middle name!
                 $ret = $types->{$type};
             }
             else {
-                my $_ret = Itanium_check_substitution( $affix, $data, $type->{typedef} );
+                my $_ret = Itanium_check_substitution( $affix, $data, $type->{class} );
                 if ( defined $_ret ) { $ret = $_ret }
                 else {
                     warn 'Unknown type in mangler: ' . chr scalar $type;
@@ -496,6 +496,9 @@ package Affix 0.12 {    # 'FFI' is my middle name!
             return shift @symbols;
         }
     }
+
+    # Dumb but easy in pure perl
+    sub Type(@) { return $Affix::Types::_registry{ $_[0][0] } }
     {    # remove
 
         package Affix::Aggregate { };

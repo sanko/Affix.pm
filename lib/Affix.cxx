@@ -489,11 +489,21 @@ extern "C" void Affix_trigger(pTHX_ CV *cv) {
             //~ SV *cls = *hv_fetchs(MUTABLE_HV(SvRV(affix->ret_info)), "class", 0);
             //~ sv_setref_pv(RETVAL, SvPV_nolen(cls), p);
             //~ }
+
             else {
-                PING;
                 RETVAL = newSV(1);
-                PING;
-                sv_setref_pv(RETVAL, "Affix::Pointer::Unmanaged", p);
+                HV *_type = MUTABLE_HV(SvRV(affix->ret_info));
+                SV **typedef_ptr = hv_fetch(_type, "class", 5, 0);
+
+                if (typedef_ptr != NULL) { sv_setref_pv(RETVAL, SvPV_nolen(*typedef_ptr), p); }
+                else {
+
+                    PING;
+                    PING;
+                    sv_dump(affix->ret_info);
+                    sv_setref_pv(RETVAL, "Affix::Pointer::Unmanaged::505", p);
+                }
+                // sv_dump(affix->ret_info);
             }
             //~ }
             //~ else {
@@ -553,61 +563,65 @@ extern "C" void Affix_trigger(pTHX_ CV *cv) {
     {
         for (int i = 0, p = 0; LIKELY(i < items); ++i) {
             PING;
-            if (sv_derived_from(ST(i), "Affix::Pointer")) {
+            if ((SvREADONLY(ST(i))) // explicit undef
+                ||
+
+                sv_derived_from(ST(i), "Affix::Pointer")) {
+                PING;
+
                 continue; // No need to try and update a pointer
             }
-            if (LIKELY(!SvREADONLY(ST(i)))) { // explicit undef
-                switch (arg_types[i]) {
-                case AFFIX_TYPE_CARRAY: {
-                    SV *sv = ptr2sv(aTHX_ free_ptrs[p++], *av_fetch(affix->arg_info, i, 0));
-                    if (SvFLAGS(ST(i)) & SVs_TEMP) { // likely a temp ref
-                        AV *av = MUTABLE_AV(SvRV(sv));
-                        av_clear(MUTABLE_AV(SvRV(ST(i))));
-                        size_t av_len = av_count(av);
-                        for (size_t q = 0; q < av_len; ++q) {
-                            sv_setsv(*av_fetch(MUTABLE_AV(SvRV(ST(i))), q, 1), *av_fetch(av, q, 0));
-                        }
-                        SvSETMAGIC(SvRV(ST(i)));
+            PING;
+            switch (arg_types[i]) {
+            case AFFIX_TYPE_CARRAY: {
+                SV *sv = ptr2sv(aTHX_ free_ptrs[p++], *av_fetch(affix->arg_info, i, 0));
+                if (SvFLAGS(ST(i)) & SVs_TEMP) { // likely a temp ref
+                    AV *av = MUTABLE_AV(SvRV(sv));
+                    av_clear(MUTABLE_AV(SvRV(ST(i))));
+                    size_t av_len = av_count(av);
+                    for (size_t q = 0; q < av_len; ++q) {
+                        sv_setsv(*av_fetch(MUTABLE_AV(SvRV(ST(i))), q, 1), *av_fetch(av, q, 0));
                     }
-                    else { // scalar ref is faster :D
-                        SvSetMagicSV(ST(i), sv);
-                    }
+                    SvSETMAGIC(SvRV(ST(i)));
+                }
+                else { // scalar ref is faster :D
+                    SvSetMagicSV(ST(i), sv);
+                }
 
-                } break;
-                case AFFIX_TYPE_CPOINTER:
-                case AFFIX_TYPE_REF: {
-                    PING;
-                    if (sv_derived_from((ST(i)), "Affix::Pointer")) {
-                        ;
-                        //~ warn("raw pointer");
-                    }
-                    else if (!SvREADONLY(ST(i))) {
-                        //~ DD((ST(i)));
-                        //~ DD(SvRV(ST(i)));
-                        //~ PING;
+            } break;
+            case AFFIX_TYPE_CPOINTER:
+            case AFFIX_TYPE_REF: {
+                PING;
+                if (sv_derived_from((ST(i)), "Affix::Pointer")) {
+                    ;
+                    //~ warn("raw pointer");
+                }
+                else if (!SvREADONLY(ST(i))) {
+                    //~ DD((ST(i)));
+                    //~ DD(SvRV(ST(i)));
+                    //~ PING;
 #if TIE_MAGIC
-                        if (SvOK(ST(i))) {
-                            const MAGIC *mg = SvTIED_mg((SV *)SvRV(ST(i)), PERL_MAGIC_tied);
-                            if (LIKELY(SvOK(ST(i)) && SvTYPE(SvRV(ST(i))) == SVt_PVHV && mg
-                                       //~ &&  sv_derived_from(SvRV(ST(i)), "Affix::Union")
-                                       )) { // Already a known union pointer
-                            }
-                            else {
-                                sv_setsv_mg(ST(i), ptr2sv(aTHX_ free_ptrs[p++],
-                                                          *av_fetch(affix->arg_info, i, 0)));
-                            }
+                    if (SvOK(ST(i))) {
+                        const MAGIC *mg = SvTIED_mg((SV *)SvRV(ST(i)), PERL_MAGIC_tied);
+                        if (LIKELY(SvOK(ST(i)) && SvTYPE(SvRV(ST(i))) == SVt_PVHV && mg
+                                   //~ &&  sv_derived_from(SvRV(ST(i)), "Affix::Union")
+                                   )) { // Already a known union pointer
                         }
                         else {
                             sv_setsv_mg(ST(i), ptr2sv(aTHX_ free_ptrs[p++],
                                                       *av_fetch(affix->arg_info, i, 0)));
                         }
-#else
+                    }
+                    else {
                         sv_setsv_mg(ST(i),
                                     ptr2sv(aTHX_ free_ptrs[p++], *av_fetch(affix->arg_info, i, 0)));
-#endif
                     }
-                } break;
+#else
+                    sv_setsv_mg(ST(i),
+                                ptr2sv(aTHX_ free_ptrs[p++], *av_fetch(affix->arg_info, i, 0)));
+#endif
                 }
+            } break;
             }
         }
     }

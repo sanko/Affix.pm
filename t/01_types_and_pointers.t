@@ -790,23 +790,23 @@ END
 
 # StdStr
 # Union/Struct
-isa_ok typedef( A => Union [ x => Int, y => Array [ Int, 4 ] ] ), 'Affix::Type::Union',
+isa_ok my $type = typedef( A => Union [ x => Int, y => Array [ Int, 4 ] ] ), 'Affix::Type::Union',
     'Union[...] A';
-is sizeof( A() ), wrap( $lib, 'union_A_sizeof', [] => Size_t )->(), 'Union A sizeof';
-isa_ok typedef( B => Struct [ a => A() ] ),          'Affix::Type::Struct', 'Struct[...] B';
-isa_ok typedef( C => Union [ b => B(), k => Int ] ), 'Affix::Type::Union',  'Union[...] C';
-is sizeof( C() ), wrap( $lib, 'union_C_sizeof', [] => Size_t )->(), 'Union C sizeof';
+is sizeof($type), wrap( $lib, 'union_A_sizeof', [] => Size_t )->(), 'Union A sizeof';
+isa_ok my $B = typedef( B => Struct [ a => $type ] ),       'Affix::Type::Struct', 'Struct[...] B';
+isa_ok my $C = typedef( C => Union [ b => $B, k => Int ] ), 'Affix::Type::Union',  'Union[...] C';
+is sizeof($C), wrap( $lib, 'union_C_sizeof', [] => Size_t )->(), 'Union C sizeof';
 
 #~ warn `nm -D $lib`;
 subtest 'int test(C c)' => sub {
     my $val = { b => { a => { y => [ 1, 2, 3, 4 ] } } };
-    is wrap( $lib, 'test', [ C() ] => Int )->($val), 8, '->(...) == 8';
+    is wrap( $lib, 'test', [$C] => Int )->($val), 8, '->(...) == 8';
 
     # TODO: Make sure the union was updated after Affix::trigger
     #~ ddx $val;
 };
 subtest 'C Ret_Union()' => sub {
-    isa_ok my $code = wrap( $lib, 'Ret_Union', [] => C() ), 'Affix', 'Ret_Union ..., [ ] => C';
+    isa_ok my $code = wrap( $lib, 'Ret_Union', [] => $C ), 'Affix', 'Ret_Union ..., [ ] => C';
     my ($union) = $code->();
     is_deeply $union->{b}{a}{y}[3], 4, 'union is correct...';
 TODO: {
@@ -814,16 +814,17 @@ TODO: {
         is_deeply $union, { b => { a => { x => 0, y => [ 0, 0, 0, 4 ], }, }, k => 0, },
             'union is fancy!';
     }
-    isa_ok $code = wrap( $lib, 'Update_UnionPtr', [ Pointer [ C() ] ] => Void ), 'Affix',
+    isa_ok $code = wrap( $lib, 'Update_UnionPtr', [ Pointer [$C] ] => Void ), 'Affix',
         'Update_Union ..., [ Pointer[C] ] => Void';
     $code->($union);
     is $union->{k}, 100, 'union updated...';
 };
 
 #~ warn `nm -D $lib`;
+isa_ok my $C2 = typedef( C2 => Union [ i => Int, j => Float ] ), 'Affix::Type::Union',
+    'Union[...] C2';
 subtest 'void test(int, C2**)' => sub {
-    isa_ok typedef( C2 => Union [ i => Int, j => Float ] ), 'Affix::Type::Union', 'Union[...] C2';
-    isa_ok my $code = wrap( $lib, 'test', [ Int, Pointer [ C2() ] ] => Int ), 'Affix',
+    isa_ok my $code = wrap( $lib, 'test', [ Int, Pointer [$C2] ] => Int ), 'Affix',
         'test ..., [ Int, Pointer [ C2 ] ] => Void';
     is $code->(
         5,
@@ -844,7 +845,7 @@ subtest 'void test(int, C2**)' => sub {
         16894230, '$code->( 5, [ ... ] )';
 };
 subtest 'C2* Ret_UnionPtr(int)' => sub {
-    isa_ok my $code = wrap( $lib, 'Ret_UnionPtr', [Int] => Array [ C2(), 5 ] ), 'Affix',
+    isa_ok my $code = wrap( $lib, 'Ret_UnionPtr', [Int] => Array [ $C2, 5 ] ), 'Affix',
         'Return_UnionPtr ..., [ Int ] => Pointer [ C2 ]';
     my @unions = $code->(5);
     is $unions[0][3]{i}, 10, '$code->(5)';
@@ -853,46 +854,47 @@ subtest 'C2* Ret_UnionPtr(int)' => sub {
 # Array
 # Enum
 # CPPStruct / Class
-isa_ok typedef( S1 => Struct [ i => Int ] ), 'Affix::Type::Struct', 'Struct[...] S1';
+isa_ok my $S1 = typedef( S1 => Struct [ i => Int ] ), 'Affix::Type::Struct', 'Struct[...] S1';
 subtest 'int test(S1)' => sub {
     my $val = { i => 55 };
-    is wrap( $lib, 'test', [ S1() ] => Int )->($val), 55, '->(...) == 55';
+    is wrap( $lib, 'test', [$S1] => Int )->($val), 55, '->(...) == 55';
 };
 subtest 'int test(int, S1*)' => sub {
-    is wrap( $lib, 'test', [ Int, Pointer [ S1() ] ] => Int )
+    is wrap( $lib, 'test', [ Int, Pointer [$S1] ] => Int )
         ->( 2, [ { i => 55 }, { i => 568935 }, { i => 1789 }, { i => 287 }, { i => 43 } ] ), 1789,
         '->(2, ...) == 1789';
-    is wrap( $lib, 'test', [ Int, Pointer [ S1() ] ] => Int )->( 0, { i => 55 } ), 55,
+    is wrap( $lib, 'test', [ Int, Pointer [$S1] ] => Int )->( 0, { i => 55 } ), 55,
         '->(0, ...) == 55';
 };
 subtest 'S1 Ret_Struct(void)' => sub {
-    is_deeply wrap( $lib, 'Ret_Struct', [] => S1() )->(), { i => 300 }, '-> == { i => 300 }';
+    is_deeply wrap( $lib, 'Ret_Struct', [] => $S1 )->(), { i => 300 }, '-> == { i => 300 }';
 };
 subtest 'S1 * Ret_StructPtr(void)' => sub {
-    my $ptr = wrap( $lib, 'Ret_StructPtr', [] => Pointer [ S1() ] )->();
-    is_deeply S1()->unmarshal($ptr), { i => 500 }, '->() returns pointer';
+    my $ptr = wrap( $lib, 'Ret_StructPtr', [] => Pointer [$S1] )->();
+    is_deeply $S1->unmarshal($ptr), { i => 500 }, '->() returns pointer';
 };
 subtest 'S1 ** Ret_StructPtrPtr(int)' => sub {
-    isa_ok my $code = wrap( $lib, 'Ret_StructPtrPtr', [Int] => Pointer [ Pointer [ S1() ] ] ),
-        'Affix', 'Ret_StructPtrPtr ..., [ Int ] => Pointer[Pointer[S1()]]';
-    isa_ok my $type = Array [ Array [ S1(), 1 ], 5 ], 'Affix::Type::Array',
-        'my $type = Array [ Array [ S1(), 1 ], 5 ]';
+    isa_ok my $code = wrap( $lib, 'Ret_StructPtrPtr', [Int] => Pointer [ Pointer [$S1] ] ),
+        'Affix', 'Ret_StructPtrPtr ..., [ Int ] => Pointer[Pointer[$S1]]';
+    isa_ok my $type = Array [ Array [ $S1, 1 ], 5 ], 'Affix::Type::Array',
+        'my $type = Array [ Array [ $S1, 1 ], 5 ]';
     isa_ok my $ret = $code->(5), 'Affix::Pointer', 'S1 **';
     is_deeply $type->unmarshal($ret),
         [ [ { i => 0 } ], [ { i => 1 } ], [ { i => 2 } ], [ { i => 3 } ], [ { i => 4 } ] ],
         'unmarshal S1 **';
     {
-        isa_ok my $code = wrap( $lib, 'test', [ Array [ Pointer [ S1() ] ] ] => Int ), 'Affix',
+        isa_ok my $code = wrap( $lib, 'test', [ Array [ Pointer [$S1] ] ] => Int ), 'Affix',
             'test ..., [ $type ] => $type';
-is $code->($ret), 10, '->( $ret )'; # Round trip of raw pointer
-        #~ warn $code->($type->unmarshal($ret));
+        is $code->($ret), 10, '->( $ret )';    # Round trip of raw pointer
 
+        #~ warn $code->($type->unmarshal($ret));
         is $code->(
             [ [ { i => 0 } ], [ { i => 1 } ], [ { i => 2 } ], [ { i => 3 } ], [ { i => 4 } ] ] ),
-            10, '->([ ... ])';#  Round trip of marshalled data
+            10, '->([ ... ])';                 #  Round trip of marshalled data
     }
 };
-done_testing; exit;
+done_testing;
+exit;
 
 # CodeRef
 {

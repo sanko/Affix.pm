@@ -188,9 +188,9 @@ is Affix::wrap( $lib, 'cb_A', [ Struct [ cb => CodeRef [ [Str] => Str ], i => In
     ),
     'Go!', 'Callback inside struct';
 #
-Affix::typedef cv => CodeRef [ [] => Str ];
-my $cv = sub { pass 'Callback!'; };
-is Affix::wrap( $lib, 'cb_CV_Z', [ CodeRef [ [ Str, cv() ] => Str ], cv() ] => Str )->(
+my $cv_ = Affix::typedef cv => CodeRef [ [] => Str ];
+my $cv  = sub { pass 'Callback!'; };
+is Affix::wrap( $lib, 'cb_CV_Z', [ CodeRef [ [ Str, $cv_ ] => Str ], $cv_ ] => Str )->(
     sub {
         is_deeply( \@_, [ 'Ready!', $cv ], '[ Str, CodeRef ]' );
         return 'Go!';
@@ -199,8 +199,8 @@ is Affix::wrap( $lib, 'cb_CV_Z', [ CodeRef [ [ Str, cv() ] => Str ], cv() ] => S
     ),
     'Go!', '    => Str';
 #
-Affix::typedef cb_caller => CodeRef [ [ Pointer [Void], Int ] => Int ];
-isa_ok my $ptr = Affix::wrap( $lib, 'put_cb_in_struct', [ cb_caller() ] => Pointer [Void] )->(
+my $cb_caller = Affix::typedef cb_caller => CodeRef [ [ Pointer [Void], Int ] => Int ];
+isa_ok my $ptr = Affix::wrap( $lib, 'put_cb_in_struct', [$cb_caller] => Pointer [Void] )->(
     sub {
         my ( $self, $num ) = @_;
         is $num, 50, 'arg passed to callback is correct';

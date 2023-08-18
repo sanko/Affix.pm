@@ -13,8 +13,8 @@ package Fake::Affix {
     sub cpp_constructor { shift->{cpp_constructor} }
 }
 #
-typedef 'Structure'                                                    => Struct [];
-typedef halide_buffer_t                                                => Struct [];
+my $Structure       = typedef 'Structure'     => Struct [];
+my $halide_buffer_t = typedef halide_buffer_t => Struct [];
 typedef 'test_namespace::test_namespace::enclosing_class::test_struct' => Struct [];
 #
 is Affix::Itanium_mangle( $fake_affix, 'test_function', [] ), '_Z13test_functionv',
@@ -39,7 +39,7 @@ is Affix::Itanium_mangle(
         ULong,          LongLong,
         ULongLong,      Float,
         Double,         Pointer [Void],
-        Structure(),    Pointer [ Structure() ],
+        $Structure,     Pointer [$Structure],
         Pointer [Void], Pointer [Void],
         Pointer [ Pointer [Void] ]
     ]
@@ -56,9 +56,9 @@ is Affix::Itanium_mangle(
         ULong,                      LongLong,
         ULongLong,                  Float,
         Double,                     Pointer [Void],
-        Structure(),                Pointer [ Structure() ],
+        $Structure,                 Pointer [$Structure],
         Pointer [Void],             Pointer [Void],
-        Pointer [ Pointer [Void] ], Structure()
+        Pointer [ Pointer [Void] ], $Structure
     ]
     ),
     '_Z13test_functionbchstijlmxyfdPv9StructurePS0_S_S_PS_S0_',
@@ -70,7 +70,7 @@ is Affix::Itanium_mangle( $fake_affix, 'foo::bar::test_function', [] ),
 is Affix::Itanium_mangle( $fake_affix, 'foo::bar::test_function', [Int] ),
     '_ZN3foo3bar13test_functionEi', '_ZN3foo3bar13test_functionEi';
 is Affix::Itanium_mangle( $fake_affix, 'foo::bar::test_function',
-    [ Int, Pointer [ halide_buffer_t() ] ] ),
+    [ Int, Pointer [$halide_buffer_t] ] ),
     '_ZN3foo3bar13test_functionEiP15halide_buffer_t',
     '_ZN3foo3bar13test_functionEiP15halide_buffer_t';
 is Affix::Itanium_mangle( $fake_affix, 'testBoolPointerPointer',

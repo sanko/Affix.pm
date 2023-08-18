@@ -428,12 +428,16 @@ XS_INTERNAL(Affix_typedef) {
     if (items != 2) croak_xs_usage(cv, "name, type");
     const char *name = (const char *)SvPV_nolen(ST(0));
     SV *type = ST(1);
-    {
-        CV *cv = newXSproto_portable(name, Types_return_typedef, __FILE__, "");
-        XSANY.any_sv = SvREFCNT_inc(newSVsv(type));
-    }
+
     if (sv_derived_from(type, "Affix::Type::Base")) {
-        if (sv_derived_from(type, "Affix::Type::Enum")) {
+        if (sv_derived_from(type, "Affix::Type::Pointer")) {
+            set_isa(name, "Affix::Pointer::Unmanaged");
+        }
+        else if (sv_derived_from(type, "Affix::Type::Enum")) {
+            {
+                CV *cv = newXSproto_portable(name, Types_return_typedef, __FILE__, "");
+                XSANY.any_sv = SvREFCNT_inc(newSVsv(type));
+            }
             HV *href = MUTABLE_HV(SvRV(type));
             SV **values_ref = hv_fetch(href, "values", 6, 0);
             AV *values = MUTABLE_AV(SvRV(*values_ref));
@@ -446,12 +450,15 @@ XS_INTERNAL(Affix_typedef) {
         /*else if (sv_derived_from(type, "Affix::Type::Struct") ||
                  sv_derived_from(type, "Affix::Type::Union")) {*/
         HV *href = MUTABLE_HV(SvRV(type));
-        hv_stores(href, "typedef", newSVpv(name, 0));
+        hv_stores(href, "class", newSVpv(name, 0));
         /*}*/
     }
     else { croak("Expected a subclass of Affix::Type::Base"); }
     sv_setsv_mg(ST(1), type);
     SvSETMAGIC(ST(1));
+    { // Boneheaded type registry
+        (void)hv_store(get_hv("Affix::Types::_registry", 1), name, strlen(name), newSVsv(type), 0);
+    }
     ST(0) = ST(1);
     XSRETURN(1);
 }
@@ -632,6 +639,7 @@ void boot_Affix_Type(pTHX_ CV *cv) {
 
     (void)newXSproto_portable("Affix::typedef", Affix_typedef, __FILE__, "$$");
     export_function("Affix", "typedef", "types");
+    export_function("Affix", "Type", "types"); // defined in pure perl
 
     (void)newXSproto_portable("Affix::Type::Base::unmarshal", Affix_Type_unmarshal, __FILE__, "$$");
 
