@@ -527,7 +527,7 @@ SIMPLE_TYPE(Float);
 SIMPLE_TYPE(Double);
 SIMPLE_TYPE(Str);
 SIMPLE_TYPE(WStr);
-SIMPLE_TYPE(Any);
+SIMPLE_TYPE(SV);
 SIMPLE_TYPE(StdStr);
 
 CC(DEFAULT);
@@ -552,7 +552,7 @@ void boot_Affix_Type(pTHX_ CV *cv) {
     (void)newXSproto_portable("Affix::offsetof", Affix_offsetof, __FILE__, "$$");
     export_function("Affix", "offsetof", "base");
 
-    TYPE(Any, AFFIX_TYPE_SV, DC_SIGCHAR_SV);
+    TYPE(SV, AFFIX_TYPE_SV, DC_SIGCHAR_SV);
     TYPE(Void, AFFIX_TYPE_VOID, DC_SIGCHAR_VOID);
     TYPE(Bool, AFFIX_TYPE_BOOL, DC_SIGCHAR_BOOL);
     TYPE(Char, AFFIX_TYPE_CHAR, DC_SIGCHAR_CHAR);

@@ -335,7 +335,6 @@ extern "C" void Affix_trigger(pTHX_ CV *cv) {
 #endif
 #endif
             if (UNLIKELY(!SvOK(ST(arg_pos)) && SvREADONLY(ST(arg_pos)))) { // explicit undef
-                warn("NULL POINTER");
                 dcArgPointer(MY_CXT.cvm, NULL);
             }
             else if (sv_derived_from(ST(arg_pos),
