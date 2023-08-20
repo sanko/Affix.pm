@@ -11,10 +11,8 @@ char cbHandler(DCCallback *cb, DCArgs *args, DCValue *result, DCpointer userdata
     SAVETMPS;
     PUSHMARK(SP);
     EXTEND(SP, (int)cbx->sig_len);
-    char type;
     for (size_t i = 0; i < cbx->sig_len; ++i) {
-        type = cbx->sig[i];
-        switch (type) {
+        switch (cbx->sig[i]) {
         case DC_SIGCHAR_VOID:
             // TODO: push undef?
             break;

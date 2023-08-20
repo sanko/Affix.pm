@@ -24,7 +24,7 @@ subtest types => sub {
         for Void, Bool, Char, UChar, WChar, Short, UShort, Int, UInt, Long, ULong, LongLong,
         ULongLong, SSize_t, Size_t, Float, Double, Str,
         #
-        WStr, Pointer [Int], Pointer[SV],
+        WStr, Pointer [Int], Pointer [SV],
         CodeRef [ [ Pointer [Void], Double, Str, Array [ Str, 10 ], Pointer [WStr] ] => Str ],
         Struct [ i => Str, j => Long ], Union [ u => Int, x => Double ], Array [ Int, 10 ],
         InstanceOf ['Test::Class'];

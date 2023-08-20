@@ -172,8 +172,7 @@ SV *ptr2sv(pTHX_ DCpointer ptr, SV *type_sv) {
             retval = ptr2av(aTHX_ ptr, type_sv);
         } break;
         case AFFIX_TYPE_CALLBACK: {
-            CallbackWrapper *p = (CallbackWrapper *)ptr;
-            Callback *cb = (Callback *)dcbGetUserData((DCCallback *)p->cb);
+            Callback *cb = (Callback *)dcbGetUserData((DCCallback *)((CallbackWrapper *)ptr)->cb);
             SvSetSV(retval, cb->cv);
         } break;
         case AFFIX_TYPE_CPOINTER: {
@@ -278,202 +277,6 @@ SV *ptr2sv(pTHX_ DCpointer ptr, SV *type_sv) {
     // DD(retval);
 #endif
     return retval;
-}
-
-SV *ptr2svx(pTHX_ DCpointer ptr, SV *type_sv) {
-    if (ptr == NULL) return newSV(0);
-    SV *RETVAL = newSV(1); // sv_newmortal();
-    int16_t type = SvIV(type_sv);
-//~ {
-#if DEBUG
-    warn("ptr2sv(%p, %s (%d)) at %s line %d", ptr, type_as_str(type), type, __FILE__, __LINE__);
-#endif
-    //~ if (type != AFFIX_TYPE_VOID) {
-    //~ size_t l = _sizeof(type_sv);
-    //~ DumpHex(ptr, l);
-    //~ }
-    //~ }
-    PING;
-
-    switch (type) {
-    case AFFIX_TYPE_SV: {
-        if (ptr == NULL) { RETVAL = newSV(0); }
-        else if (*(void **)ptr != NULL && SvOK(MUTABLE_SV(*(void **)ptr))) {
-            RETVAL = MUTABLE_SV(*(void **)ptr);
-        }
-    } break;
-    case AFFIX_TYPE_VOID: {
-        if (ptr == NULL) { RETVAL = newSV(0); }
-        else {
-            warn("HERE");
-
-            sv_setref_pv(RETVAL, "Affix::Pointer::Unmanaged", ptr);
-        }
-    } break;
-    case AFFIX_TYPE_BOOL:
-        sv_setbool_mg(RETVAL, (bool)*(bool *)ptr);
-        break;
-    case AFFIX_TYPE_CHAR:
-    case AFFIX_TYPE_UCHAR:
-        sv_setsv(RETVAL, newSVpv((char *)ptr, 0));
-        (void)SvUPGRADE(RETVAL, SVt_PVIV);
-        SvIV_set(RETVAL, ((IV) * (char *)ptr));
-        SvIOK_on(RETVAL);
-        break;
-    case AFFIX_TYPE_WCHAR: {
-        if (wcslen((wchar_t *)ptr)) {
-            RETVAL = wchar2utf(aTHX_(wchar_t *) ptr, wcslen((wchar_t *)ptr));
-        }
-    } break;
-    case AFFIX_TYPE_SHORT:
-        sv_setiv(RETVAL, *(short *)ptr);
-        break;
-    case AFFIX_TYPE_USHORT:
-        sv_setuv(RETVAL, *(unsigned short *)ptr);
-        break;
-    case AFFIX_TYPE_INT:
-        sv_setiv(RETVAL, *(int *)ptr);
-        break;
-    case AFFIX_TYPE_UINT:
-        sv_setuv(RETVAL, *(unsigned int *)ptr);
-        break;
-    case AFFIX_TYPE_LONG:
-        sv_setiv(RETVAL, *(long *)ptr);
-        break;
-    case AFFIX_TYPE_ULONG:
-        sv_setuv(RETVAL, *(unsigned long *)ptr);
-        break;
-    case AFFIX_TYPE_LONGLONG:
-        sv_setiv(RETVAL, *(I64 *)ptr);
-        break;
-    case AFFIX_TYPE_ULONGLONG:
-        sv_setuv(RETVAL, *(U64 *)ptr);
-        break;
-    case AFFIX_TYPE_FLOAT:
-        sv_setnv(RETVAL, *(float *)ptr);
-        break;
-    case AFFIX_TYPE_DOUBLE:
-        sv_setnv(RETVAL, *(double *)ptr);
-        break;
-    case AFFIX_TYPE_CPOINTER:
-    case AFFIX_TYPE_REF: {
-        SV *subtype = *hv_fetchs(MUTABLE_HV(SvRV(type_sv)), "type", 0);
-        if (sv_derived_from(type_sv, "Affix::Type::InstanceOf")) {
-            if (ptr == NULL) { RETVAL = newSV(0); }
-            else {
-                SV *cls = *hv_fetchs(MUTABLE_HV(SvRV(type_sv)), "class", 0);
-                sv_setref_pv(RETVAL, SvPV_nolen(cls), ptr);
-            }
-        }
-        else if (sv_derived_from(subtype, "Affix::Type::Pointer") ||
-                 sv_derived_from(subtype, "Affix::Type::Array")) {
-            if (ptr != NULL) { SvSetSV(RETVAL, ptr2sv(aTHX_ * (void **)ptr, subtype)); }
-        }
-        else {
-            SV *subtype = *hv_fetchs(MUTABLE_HV(SvRV(type_sv)), "type", 0);
-            SvSetSV(RETVAL, ptr2sv(aTHX_ ptr, subtype));
-        }
-    } break;
-    case AFFIX_TYPE_ASCIISTR:
-        PING;
-
-        if ((char *)ptr) sv_setsv(RETVAL, newSVpv((char *)ptr, 0));
-        PING;
-
-        break;
-    case AFFIX_TYPE_UTF16STR: {
-        if (ptr && wcslen((wchar_t *)ptr)) {
-            RETVAL = wchar2utf(aTHX_ * (wchar_t **)ptr, wcslen(*(wchar_t **)ptr));
-        }
-        else { sv_set_undef(RETVAL); }
-    } break;
-    case AFFIX_TYPE_CARRAY: {
-        PING;
-        AV *RETVAL_ = newAV_mortal();
-        HV *_type = MUTABLE_HV(SvRV(type_sv));
-        SV *subtype = *hv_fetchs(_type, "type", 0);
-        PING;
-        if (sv_derived_from(subtype, "Affix::Type::Char")) { PING; }
-        else {
-            PING;
-            SV **size_ptr = hv_fetchs(_type, "size", 0);
-            if (size_ptr == NULL) size_ptr = hv_fetchs(_type, "dyn_size", 0);
-            size_t size = SvIV(*size_ptr);
-            PING;
-            size_t el_len = _sizeof(aTHX_ subtype);
-            size_t pos = 0; // override
-            for (size_t i = 0; i < size; ++i) {
-                //~ warn("int[%d] of %d", i, size);
-                //~ warn("Putting index %d into pointer plus %d", i, pos);
-                SV *hold = ptr2sv(aTHX_ INT2PTR(DCpointer, PTR2IV(ptr) + pos), subtype);
-                // sv_dump(hold);
-                av_push(RETVAL_, hold);
-                pos += el_len;
-                //~ warn("i: %d, pos == %d, %p", i, pos, INT2PTR(DCpointer, PTR2IV(ptr) + pos));
-            }
-        }
-        PING;
-
-        SvSetSV(RETVAL, newRV(MUTABLE_SV(RETVAL_)));
-        PING;
-
-    } break;
-    case AFFIX_TYPE_CSTRUCT: {
-#if TIE_MAGIC
-        HV *RETVAL_ = newHV_mortal();
-        SV *p = newSV(0);
-        sv_setref_pv(p, "Affix::Pointer::Unmanaged", ptr);
-        SV *tie = newRV_noinc(MUTABLE_SV(newHV()));
-        hv_store(MUTABLE_HV(SvRV(tie)), "pointer", 7, p, 0);
-        hv_store(MUTABLE_HV(SvRV(tie)), "type", 4, newRV_inc(type_sv), 0);
-        sv_bless(tie, gv_stashpv("Affix::Struct", TRUE));
-        hv_magic(RETVAL_, tie, PERL_MAGIC_tied);
-        SvSetSV(RETVAL, newRV(MUTABLE_SV(RETVAL_)));
-#else
-        HV *RETVAL_ = newHV_mortal();
-        HV *_type = MUTABLE_HV(SvRV(type_sv));
-        AV *fields = MUTABLE_AV(SvRV(*hv_fetchs(_type, "fields", 0)));
-
-        size_t field_count = av_count(fields);
-        for (size_t i = 0; i < field_count; ++i) {
-            AV *field = MUTABLE_AV(SvRV(*av_fetch(fields, i, 0)));
-            SV *name = *av_fetch(field, 0, 0);
-            SV *subtype = *av_fetch(field, 1, 0);
-            (void)hv_store_ent(
-                RETVAL_, name,
-                ptr2sv(aTHX_ INT2PTR(DCpointer, PTR2IV(ptr) + _offsetof(aTHX_ subtype)), subtype),
-                0);
-        }
-        SvSetSV(RETVAL, newRV(MUTABLE_SV(RETVAL_)));
-#endif
-    } break;
-    case AFFIX_TYPE_CUNION: {
-        PING;
-        warn("UNION!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!");
-        HV *RETVAL_ = newHV_mortal();
-        SV *p = newSV(0);
-        warn("THERE");
-
-        sv_setref_pv(p, "Affix::Pointer::Unmanaged", ptr);
-        SV *tie = newRV_noinc(MUTABLE_SV(newHV()));
-        hv_store(MUTABLE_HV(SvRV(tie)), "pointer", 7, p, 0);
-        hv_store(MUTABLE_HV(SvRV(tie)), "type", 4, newRV_inc(type_sv), 0);
-        sv_bless(tie, gv_stashpv("Affix::Union", TRUE));
-        hv_magic(RETVAL_, tie, PERL_MAGIC_tied);
-        SvSetSV(RETVAL, newRV(MUTABLE_SV(RETVAL_)));
-    } break;
-    case AFFIX_TYPE_CALLBACK: {
-        CallbackWrapper *p = (CallbackWrapper *)ptr;
-        Callback *cb = (Callback *)dcbGetUserData((DCCallback *)p->cb);
-        SvSetSV(RETVAL, cb->cv);
-    } break;
-    default:
-        croak("Unhandled type in ptr2sv: %s (%d)", type_as_str(type), type);
-    }
-#if DEBUG
-    warn("/ptr2sv(%p, %s (%d)) at %s line %d", ptr, type_as_str(type), type, __FILE__, __LINE__);
-#endif
-    return RETVAL;
 }
 
 void *av2ptr(pTHX_ SV *type, AV *av_data, bool packed) {
@@ -817,9 +620,7 @@ void *sv2ptr(pTHX_ SV *type_sv, SV *data, bool packed) {
             Zero(ret, 1, intptr_t);
     } break;
     case AFFIX_TYPE_CALLBACK: {
-        ret = safemalloc(INTPTR_T_SIZE);
         if (SvOK(data)) {
-            DCCallback *cb = NULL;
             PING;
             HV *field = MUTABLE_HV(SvRV(type_sv)); // Make broad assumptions
             //~ SV **ret = hv_fetchs(field, "ret", 0);
@@ -831,8 +632,7 @@ void *sv2ptr(pTHX_ SV *type_sv, SV *data, bool packed) {
             size_t arg_count = av_count(callback->arg_info);
             Newxz(callback->sig, arg_count, char);
             for (size_t i = 0; i < arg_count; ++i) {
-                SV **type = av_fetch(callback->arg_info, i, 0);
-                callback->sig[i] = type_as_dc(SvIV(*type));
+                callback->sig[i] = type_as_dc(SvIV(*av_fetch(callback->arg_info, i, 0)));
             }
             callback->sig = SvPV_nolen(*sig);
             callback->sig_len = strchr(callback->sig, ')') - callback->sig;
@@ -840,16 +640,10 @@ void *sv2ptr(pTHX_ SV *type_sv, SV *data, bool packed) {
             callback->cv = SvREFCNT_inc(data);
             storeTHX(callback->perl);
             PING;
-            cb = dcbNewCallback(callback->sig, cbHandler, callback);
-            {
-                CallbackWrapper *hold;
-                Newxz(hold, 1, CallbackWrapper);
-                hold->cb = cb;
-                Copy(hold, ret, 1, DCpointer);
-            }
+            Newxz(ret, 1, CallbackWrapper);
+            ((CallbackWrapper *)ret)->cb = dcbNewCallback(callback->sig, cbHandler, callback);
         }
-        else
-            Zero(ret, 1, intptr_t);
+        else { Newxz(ret, 1, intptr_t); }
     } break;
     case AFFIX_TYPE_SV: {
         if (SvOK(data)) {
