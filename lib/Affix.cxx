@@ -334,10 +334,12 @@ extern "C" void Affix_trigger(pTHX_ CV *cv) {
             DD(*av_fetch(affix->arg_info, info_pos, 0));
 #endif
 #endif
+
             if (UNLIKELY(!SvOK(ST(arg_pos)) && SvREADONLY(ST(arg_pos)))) { // explicit undef
                 dcArgPointer(MY_CXT.cvm, NULL);
             }
-            else if (sv_derived_from(ST(arg_pos),
+            else if (SvOK(ST(arg_pos)) &&
+                     sv_derived_from(ST(arg_pos),
                                      "Affix::Pointer")) { // pass pointers directly through
                 IV tmp = SvIV(SvRV(ST(arg_pos)));
                 dcArgPointer(MY_CXT.cvm, INT2PTR(DCpointer, tmp));
@@ -346,8 +348,7 @@ extern "C" void Affix_trigger(pTHX_ CV *cv) {
                 PING;
                 if (!free_ptrs) Newxz(free_ptrs, num_args, DCpointer);
                 SV *type = *av_fetch(affix->arg_info, info_pos, 0);
-
-                if (UNLIKELY(sv_isobject(ST(arg_pos)) &&
+                if (UNLIKELY(SvOK(ST(arg_pos)) && sv_isobject(ST(arg_pos)) &&
                              sv_derived_from(type, "Affix::Type::InstanceOf"))) {
                     SV *cls = *hv_fetch(MUTABLE_HV(SvRV(type)), "class", 5, 0);
                     if (!sv_derived_from_sv(ST(arg_pos), cls, 0)) {
@@ -562,12 +563,9 @@ extern "C" void Affix_trigger(pTHX_ CV *cv) {
     {
         for (int i = 0, p = 0; LIKELY(i < items); ++i) {
             PING;
-            if ((SvREADONLY(ST(i))) // explicit undef
-                ||
-
-                sv_derived_from(ST(i), "Affix::Pointer")) {
+            if (SvREADONLY(ST(i)) // explicit undef
+                || (SvOK(ST(i)) && sv_derived_from(ST(i), "Affix::Pointer"))) {
                 PING;
-
                 continue; // No need to try and update a pointer
             }
             PING;
@@ -591,7 +589,7 @@ extern "C" void Affix_trigger(pTHX_ CV *cv) {
             case AFFIX_TYPE_CPOINTER:
             case AFFIX_TYPE_REF: {
                 PING;
-                if (sv_derived_from((ST(i)), "Affix::Pointer")) {
+                if (SvOK(ST(i)) && sv_derived_from((ST(i)), "Affix::Pointer")) {
                     ;
                     //~ warn("raw pointer");
                 }
