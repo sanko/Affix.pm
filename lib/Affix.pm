@@ -498,7 +498,7 @@ package Affix 0.12 {    # 'FFI' is my middle name!
     }
 
     # Dumb but easy in pure perl
-    sub Type(@) { return $Affix::Types::_registry{ $_[0][0] } }
+    sub Type($) { $Affix::Types::_registry{ $_[0][0] } }
     {    # remove
 
         package Affix::Aggregate { };
