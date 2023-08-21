@@ -1,0 +1,123 @@
+=encoding utf-8
+
+=head1 NAME
+
+Affix::Cookbook - Simple, Real World Examples using Affix
+
+=head1 DESCRIPTION
+
+As I tinker, I'll fill this cookbook with simple recipes that could give you a
+head start on larger projects.
+
+=head1 Media players
+
+The most fun projects, IMO, are those that entertain. In this section, I'll
+collect a few examples based around playing music or videos with popular libs.
+
+=head2 libVLC
+
+L<VLC|https://www.videolan.org/vlc/> is likely the most pervasive open-source
+media player ever created. It works everywhere, is easy to install, and plays
+nearly everything. In Perl, we could use L<one of the many VLC modules on
+CPAN|https://metacpan.org/search?size=20&q=vlc> but we're trying to learn
+something here so let's head over to the L<VideoLAN Wiki for libVLC's
+documentation|https://videolan.videolan.me/vlc/group__libvlc.html> and wrap
+L<libVLC|https://www.videolan.org/vlc/libvlc.html> ourselves!
+
+Here's a very rough sketch to get you started:
+
+    use Affix;
+    affix( 'vlc', [ 'libvlc_get_version', 'VLC::get_version' ], [], Str );
+    affix( 'vlc', [ 'libvlc_new', 'VLC::new' ], [ Int, Int ], Pointer [Void] );
+    affix(
+        'vlc',
+        [ 'libvlc_media_new_path', 'VLC::new_path' ],
+        [ Pointer [Void],          Str ],
+        Pointer [Void]
+    );
+    affix(
+        'vlc',
+        [ 'libvlc_media_new_location', 'VLC::new_location' ],
+        [ Pointer [Void],              Str ],
+        Pointer [Void]
+    );
+    affix(
+        'vlc',
+        [ 'libvlc_media_player_new_from_media', 'VLC::new_from_media' ],
+        [ Pointer [Void] ],
+        Pointer [Void]
+    );
+    affix(
+        'vlc',
+        [ 'libvlc_media_player_get_length', 'VLC::get_length' ],
+        [ Pointer [Void] ], LongLong
+    );
+    affix( 'vlc', [ 'libvlc_media_player_play',  'VLC::play' ],  [ Pointer [Void] ], Int );
+    affix( 'vlc', [ 'libvlc_media_player_stop',  'VLC::stop' ],  [ Pointer [Void] ], Int );
+    affix( 'vlc', [ 'libvlc_media_player_pause', 'VLC::pause' ], [ Pointer [Void] ], Int );
+
+There's a lot of nice things there (like the various 'release' functions) that
+we aren't going to bother with here but your code should wrap those.
+
+Now, let's listen to the radio.
+
+WGBH is an NPR station here in Boston and they stream content 24 hours a day.
+Here's how you'd tune in:
+
+    warn 'Using libVLC v' . VLC::get_version();
+    my $vlc    = VLC::new( 0, 0 );
+    my $media  = VLC::new_location( $vlc, 'https://streams.audio.wgbh.org/wgbh-aac' );
+    my $player = VLC::new_from_media($media);
+    VLC::play($player);
+    sleep;    # 24/7
+
+VLC does most things asynchronously so we could continue doing other work in
+our program and pause or stop it later in a GUI of some sort. In this basic
+example, I'm just sleeping forever.
+
+If you have a local file you'd like to listen to, here's a snippet that'll play
+it for you:
+
+    my $vlc    = VLC::new( 0, 0 );
+    my $media  = VLC::new_path( $vlc, '/path/to/sample.mp3' );
+    my $player = VLC::new_from_media($media);
+    VLC::play($player);
+    sleep 5;    # give VLC a sec to parse media asynchronously
+    sleep int( ( VLC::get_length($player) / 1000 ) - 5 ); # length is microsecs
+    exit;
+
+VLC can gather play length on local files but it takes a moment. Here, we move
+on as soon as the mp3 is finished playing. And as a bonus, you could use this
+exact same code to play a video!
+
+=head1 See Also
+
+Examples found in C<eg/>.
+
+L<LibUI> for a larger demo project based on Affix
+
+=head1 LICENSE
+
+Original code and documentation are Copyright (C) Sanko Robinson.
+
+This library is free software; you can redistribute it and/or modify it under
+the terms found in the Artistic License 2. Other copyrights, terms, and
+conditions may apply to data transmitted through this module.
+
+=head1 AUTHOR
+
+Sanko Robinson E<lt>sanko@cpan.orgE<gt>
+
+=begin stopwords
+
+dyncall libVLC MacOS mp3
+
+=end stopwords
+
+=begin todo
+
+https://wiki.videolan.org/LibVLC_SampleCode_SDL/
+
+=end todo
+
+=cut

@@ -2,7 +2,7 @@ use strict;
 use Test::More 0.98;
 BEGIN { chdir '../' if !-d 't'; }
 use lib '../lib', '../blib/arch', '../blib/lib', 'blib/arch', 'blib/lib', '../../', '.';
-use Affix qw[:all];
+use Affix::Native;
 use File::Spec;
 use t::lib::helper;
 #
@@ -23,9 +23,11 @@ sub short : Native('t/src/41_affix_argless') : Signature([]=>Short) :
 Nothing();
 pass 'survived the call';
 #
-is Argless(),                2, 'called argless function returning int32';
-is ArglessChar(),            2, 'called argless function returning char';
-is ArglessLongLong(),        2, 'called argless function returning long long';
+is Argless(),         2,     'called argless function returning int32';
+is int ArglessChar(), 2,     'called argless function returning char [dualvar int]';
+is ArglessChar(),     chr 2, 'called argless function returning char [dualvar str]';
+is ArglessLongLong(), 2,     'called argless function returning long long';
+isa_ok ArglessIntPointer(), 'Affix::Pointer';
 is ${ ArglessIntPointer() }, 2, 'called argless function returning int pointer';
 isa_ok ArglessVoidPointer(), 'Affix::Pointer', 'called argless function returning void pointer';
 is ArglessUTF8String(), 'Just a string', 'called argless function returning string';

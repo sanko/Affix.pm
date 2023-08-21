@@ -7,7 +7,7 @@ use File::Spec;
 use t::lib::helper;
 use experimental 'signatures';
 $|++;
-plan skip_all => 'no support for aggregates by value' unless Affix::Feature::AggrByVal();
+plan skip_all => 'no support for aggregates by value' unless Affix::Platform::AggrByValue();
 #
 my $lib = compile_test_lib('44_affix_aggr_args');
 #
@@ -15,7 +15,7 @@ is Affix::wrap( $lib, TakeIntStruct => [ Struct [ int => Int ] ] => Int )->( { i
     'passed struct with a single int';
 is Affix::wrap( $lib, TakeIntIntStruct => [ Struct [ a => Int, b => Int ] ] => Int )
     ->( { a => 5, b => 9 } ), 14, 'passed struct with a two ints';
-is Affix::wrap( $lib, TakeIntArray => [ ArrayRef [ Int, 3 ] ] => Int )->( [ 1, 2, 3 ] ), 6,
+is Affix::wrap( $lib, TakeIntArray => [ Array [ Int, 3 ] ] => Int )->( [ 1, 2, 3 ] ), 6,
     'passed array with a three ints';
 #
 done_testing;

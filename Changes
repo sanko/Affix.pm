@@ -2,6 +2,9 @@ Revision history for Perl extension Affix.pm
 
 {{$NEXT}}
 
+    - Cookbook with a few examples to start:
+        - streaming and local playback with libVLC
+
 0.11 2023-03-30T02:50:47Z
 
     - Support for WChar

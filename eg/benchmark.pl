@@ -291,7 +291,6 @@ affix_coderef 4299/s        635%     44%        2%            --         -16% -4
 inline_c_sin  5138/s        778%     72%       22%           20%           -- -34%
 perl          7819/s       1236%    161%       86%           82%          52%   --
 
-      perl: 32.124 wallclock secs (32.09 usr +  0.00 sys = 32.09 CPU) @ 7923.34/s (n=254260)
                 Rate ffi_coderef ffi_sub affix_sub affix_coderef inline_c_sin perl
 ffi_coderef    557/s          --    -83%      -87%          -87%         -90% -93%
 ffi_sub       3212/s        477%      --      -24%          -27%         -40% -59%
@@ -299,3 +298,11 @@ affix_sub     4253/s        664%     32%        --           -3%         -21% -4
 affix_coderef 4397/s        690%     37%        3%            --         -18% -45%
 inline_c_sin  5393/s        869%     68%       27%           23%           -- -32%
 perl          7923/s       1323%    147%       86%           80%          47%   --
+
+                Rate ffi_coderef ffi_sub affix_sub affix_coderef inline_c_sin perl
+ffi_coderef    600/s          --    -81%      -85%          -86%         -89% -92%
+ffi_sub       3135/s        422%      --      -22%          -29%         -42% -61%
+affix_sub     4008/s        568%     28%        --          -10%         -25% -50%
+affix_coderef 4429/s        638%     41%       11%            --         -18% -45%
+inline_c_sin  5377/s        796%     72%       34%           21%           -- -33%
+perl          7994/s       1232%    155%       99%           80%          49%   --

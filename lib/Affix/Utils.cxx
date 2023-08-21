@@ -52,40 +52,46 @@ size_t padding_needed_for(size_t offset, size_t alignment) {
 size_t _sizeof(pTHX_ SV *type) {
     int _type = SvIV(type);
     switch (_type) {
-    case AFFIX_ARG_VOID:
+    case AFFIX_TYPE_VOID:
         return 0;
-    case AFFIX_ARG_BOOL:
+    case AFFIX_TYPE_BOOL:
         return BOOL_SIZE;
-    case AFFIX_ARG_CHAR:
-    case AFFIX_ARG_UCHAR:
+    case AFFIX_TYPE_CHAR:
+    case AFFIX_TYPE_UCHAR:
         return I8SIZE;
-    case AFFIX_ARG_SHORT:
-    case AFFIX_ARG_USHORT:
+    case AFFIX_TYPE_SHORT:
+    case AFFIX_TYPE_USHORT:
         return SHORTSIZE;
-    case AFFIX_ARG_INT:
-    case AFFIX_ARG_UINT:
+    case AFFIX_TYPE_INT:
+    case AFFIX_TYPE_UINT:
         return INTSIZE;
-    case AFFIX_ARG_LONG:
-    case AFFIX_ARG_ULONG:
+    case AFFIX_TYPE_LONG:
+    case AFFIX_TYPE_ULONG:
         return LONGSIZE;
-    case AFFIX_ARG_LONGLONG:
-    case AFFIX_ARG_ULONGLONG:
+    case AFFIX_TYPE_LONGLONG:
+    case AFFIX_TYPE_ULONGLONG:
         return LONGLONGSIZE;
-    case AFFIX_ARG_FLOAT:
+    case AFFIX_TYPE_FLOAT:
         return FLOAT_SIZE;
-    case AFFIX_ARG_DOUBLE:
+    case AFFIX_TYPE_DOUBLE:
         return DOUBLE_SIZE;
-    case AFFIX_ARG_CSTRUCT:
-    case AFFIX_ARG_CUNION:
+    case AFFIX_TYPE_CSTRUCT:
+    case AFFIX_TYPE_CUNION:
+    case AFFIX_TYPE_CPPSTRUCT:
         return SvUV(*hv_fetchs(MUTABLE_HV(SvRV(type)), "sizeof", 0));
-    case AFFIX_ARG_CARRAY:
+    case AFFIX_TYPE_CARRAY:
         if (LIKELY(hv_exists(MUTABLE_HV(SvRV(type)), "sizeof", 6)))
             return SvUV(*hv_fetchs(MUTABLE_HV(SvRV(type)), "sizeof", 0));
         {
+            PING;
             size_t type_alignof = _alignof(aTHX_ * hv_fetchs(MUTABLE_HV(SvRV(type)), "type", 0));
+            PING;
             size_t array_length = SvUV(*hv_fetchs(MUTABLE_HV(SvRV(type)), "dyn_size", 0));
+            PING;
             bool packed = SvTRUE(*hv_fetchs(MUTABLE_HV(SvRV(type)), "packed", 0));
+            PING;
             size_t type_sizeof = _sizeof(aTHX_ * hv_fetchs(MUTABLE_HV(SvRV(type)), "type", 0));
+            PING;
             size_t array_sizeof = 0;
             for (size_t i = 0; i < array_length; ++i) {
                 array_sizeof += type_sizeof;
@@ -94,19 +100,22 @@ size_t _sizeof(pTHX_ SV *type) {
                                                                               ? type_sizeof
                                                                               : type_alignof);
             }
+            PING;
             return array_sizeof;
         }
+        PING;
         croak("Do some math!");
         return 0;
-    case AFFIX_ARG_CALLBACK: // automatically wrapped in a DCCallback pointer
-    case AFFIX_ARG_CPOINTER:
-    case AFFIX_ARG_ASCIISTR:
-    case AFFIX_ARG_UTF16STR:
-    //~ case AFFIX_ARG_ANY:
-    case AFFIX_ARG_CPPSTRUCT:
-    case AFFIX_ARG_SV:
+    case AFFIX_TYPE_CALLBACK: // automatically wrapped in a DCCallback pointer
+    case AFFIX_TYPE_CPOINTER:
+    case AFFIX_TYPE_ASCIISTR:
+    case AFFIX_TYPE_UTF8STR:
+    case AFFIX_TYPE_UTF16STR:
+    case AFFIX_TYPE_STD_STRING:
+    //~ case AFFIX_TYPE_ANY:
+    case AFFIX_TYPE_SV:
         return INTPTR_T_SIZE;
-    case AFFIX_ARG_WCHAR:
+    case AFFIX_TYPE_WCHAR:
         return WCHAR_T_SIZE;
     default:
         croak("Failed to gather sizeof info for unknown type: %d", _type);
@@ -117,44 +126,45 @@ size_t _sizeof(pTHX_ SV *type) {
 size_t _alignof(pTHX_ SV *type) {
     int _type = SvIV(type);
     switch (_type) {
-    case AFFIX_ARG_VOID:
+    case AFFIX_TYPE_VOID:
         return 0;
-    case AFFIX_ARG_BOOL:
+    case AFFIX_TYPE_BOOL:
         return BOOL_ALIGN;
-    case AFFIX_ARG_CHAR:
-    case AFFIX_ARG_UCHAR:
+    case AFFIX_TYPE_CHAR:
+    case AFFIX_TYPE_UCHAR:
         return I8ALIGN;
-    case AFFIX_ARG_SHORT:
-    case AFFIX_ARG_USHORT:
+    case AFFIX_TYPE_SHORT:
+    case AFFIX_TYPE_USHORT:
         return SHORTALIGN;
-    case AFFIX_ARG_INT:
-    case AFFIX_ARG_UINT:
+    case AFFIX_TYPE_INT:
+    case AFFIX_TYPE_UINT:
         return INTALIGN;
-    case AFFIX_ARG_LONG:
-    case AFFIX_ARG_ULONG:
+    case AFFIX_TYPE_LONG:
+    case AFFIX_TYPE_ULONG:
         return LONGALIGN;
-    case AFFIX_ARG_LONGLONG:
-    case AFFIX_ARG_ULONGLONG:
+    case AFFIX_TYPE_LONGLONG:
+    case AFFIX_TYPE_ULONGLONG:
         return LONGLONGALIGN;
-    case AFFIX_ARG_FLOAT:
+    case AFFIX_TYPE_FLOAT:
         return FLOAT_ALIGN;
-    case AFFIX_ARG_DOUBLE:
+    case AFFIX_TYPE_DOUBLE:
         return DOUBLE_ALIGN;
-    case AFFIX_ARG_CSTRUCT:
-    case AFFIX_ARG_CUNION:
-    case AFFIX_ARG_CARRAY:
+    case AFFIX_TYPE_CSTRUCT:
+    case AFFIX_TYPE_CUNION:
+    case AFFIX_TYPE_CARRAY:
         //~ sv_dump(type);
         //~ DD(type);
         return SvUV(*hv_fetchs(MUTABLE_HV(SvRV(type)), "align", 0));
-    case AFFIX_ARG_CALLBACK: // automatically wrapped in a DCCallback pointer
-    case AFFIX_ARG_CPOINTER:
-    case AFFIX_ARG_ASCIISTR:
-    case AFFIX_ARG_UTF16STR:
-    //~ case AFFIX_ARG_ANY:
-    case AFFIX_ARG_CPPSTRUCT:
-    case AFFIX_ARG_SV:
+    case AFFIX_TYPE_CALLBACK: // automatically wrapped in a DCCallback pointer
+    case AFFIX_TYPE_CPOINTER:
+    case AFFIX_TYPE_ASCIISTR:
+    case AFFIX_TYPE_UTF8STR:
+    case AFFIX_TYPE_UTF16STR:
+    case AFFIX_TYPE_STD_STRING:
+    //~ case AFFIX_TYPE_ANY:
+    case AFFIX_TYPE_SV:
         return INTPTR_T_ALIGN;
-    case AFFIX_ARG_WCHAR:
+    case AFFIX_TYPE_WCHAR:
         return WCHAR_T_ALIGN;
     default:
         croak("Failed to gather alignment info for unknown type: %d", _type);
@@ -170,55 +180,59 @@ size_t _offsetof(pTHX_ SV *type) {
 
 const char *type_as_str(int type) {
     switch (type) {
-    case AFFIX_ARG_SV:
+    case AFFIX_TYPE_SV:
         return "Any";
-    case AFFIX_ARG_VOID:
+    case AFFIX_TYPE_VOID:
         return "Void";
-    case AFFIX_ARG_BOOL:
+    case AFFIX_TYPE_BOOL:
         return "Bool";
-    case AFFIX_ARG_CHAR:
+    case AFFIX_TYPE_CHAR:
         return "Char";
-    case AFFIX_ARG_SHORT:
+    case AFFIX_TYPE_SHORT:
         return "Short";
-    case AFFIX_ARG_INT:
+    case AFFIX_TYPE_INT:
         return "Int";
-    case AFFIX_ARG_LONG:
+    case AFFIX_TYPE_LONG:
         return "Long";
-    case AFFIX_ARG_LONGLONG:
+    case AFFIX_TYPE_LONGLONG:
         return "LongLong";
-    case AFFIX_ARG_FLOAT:
+    case AFFIX_TYPE_FLOAT:
         return "Float";
-    case AFFIX_ARG_DOUBLE:
+    case AFFIX_TYPE_DOUBLE:
         return "Double";
-    case AFFIX_ARG_ASCIISTR:
-    case AFFIX_ARG_UTF8STR:
+    case AFFIX_TYPE_ASCIISTR:
+    case AFFIX_TYPE_UTF8STR:
         return "Str";
-    case AFFIX_ARG_UTF16STR:
+    case AFFIX_TYPE_UTF16STR:
         return "WStr";
-    case AFFIX_ARG_CSTRUCT:
+    case AFFIX_TYPE_CSTRUCT:
         return "Struct";
-    case AFFIX_ARG_CARRAY:
-        return "ArrayRef";
-    case AFFIX_ARG_CALLBACK:
+    case AFFIX_TYPE_CPPSTRUCT:
+        return "CPPStruct";
+    case AFFIX_TYPE_CARRAY:
+        return "Array";
+    case AFFIX_TYPE_CALLBACK:
         return "CodeRef";
-    case AFFIX_ARG_CPOINTER:
+    case AFFIX_TYPE_CPOINTER:
         return "Pointer";
-    /*case  AFFIX_ARG_VMARRAY 30*/
-    case AFFIX_ARG_UCHAR:
+    /*case  AFFIX_TYPE_VMARRAY 30*/
+    case AFFIX_TYPE_UCHAR:
         return "UChar";
-    case AFFIX_ARG_USHORT:
+    case AFFIX_TYPE_USHORT:
         return "UShort";
-    case AFFIX_ARG_UINT:
+    case AFFIX_TYPE_UINT:
         return "UInt";
-    case AFFIX_ARG_ULONG:
+    case AFFIX_TYPE_ULONG:
         return "ULong";
-    case AFFIX_ARG_ULONGLONG:
+    case AFFIX_TYPE_ULONGLONG:
         return "ULongLong";
-    case AFFIX_ARG_CUNION:
+    case AFFIX_TYPE_CUNION:
         return "Union";
-    /*case  AFFIX_ARG_CPPSTRUCT 44*/
-    case AFFIX_ARG_WCHAR:
+    /*case  AFFIX_TYPE_CPPSTRUCT 44*/
+    case AFFIX_TYPE_WCHAR:
         return "WChar";
+    case AFFIX_TYPE_STD_STRING:
+        return "std::string";
     default:
         return "Unknown";
     }
@@ -226,50 +240,51 @@ const char *type_as_str(int type) {
 
 int type_as_dc(int type) {
     switch (type) {
-    case AFFIX_ARG_VOID:
+    case AFFIX_TYPE_VOID:
         return DC_SIGCHAR_VOID;
-    case AFFIX_ARG_BOOL:
+    case AFFIX_TYPE_BOOL:
         return DC_SIGCHAR_BOOL;
-    case AFFIX_ARG_CHAR:
+    case AFFIX_TYPE_CHAR:
         return DC_SIGCHAR_CHAR;
-    case AFFIX_ARG_SHORT:
+    case AFFIX_TYPE_SHORT:
         return DC_SIGCHAR_SHORT;
-    case AFFIX_ARG_INT:
+    case AFFIX_TYPE_INT:
         return DC_SIGCHAR_INT;
-    case AFFIX_ARG_LONG:
+    case AFFIX_TYPE_LONG:
         return DC_SIGCHAR_LONG;
-    case AFFIX_ARG_LONGLONG:
+    case AFFIX_TYPE_LONGLONG:
         return DC_SIGCHAR_LONGLONG;
-    case AFFIX_ARG_FLOAT:
+    case AFFIX_TYPE_FLOAT:
         return DC_SIGCHAR_FLOAT;
-    case AFFIX_ARG_DOUBLE:
+    case AFFIX_TYPE_DOUBLE:
         return DC_SIGCHAR_DOUBLE;
-    case AFFIX_ARG_ASCIISTR:
-    case AFFIX_ARG_UTF8STR:
+    case AFFIX_TYPE_ASCIISTR:
+    case AFFIX_TYPE_UTF8STR:
         return DC_SIGCHAR_STRING;
-    case AFFIX_ARG_UTF16STR:
-    case AFFIX_ARG_CARRAY:
-    case AFFIX_ARG_CALLBACK:
-    case AFFIX_ARG_CPOINTER:
-    case AFFIX_ARG_SV:
+    case AFFIX_TYPE_UTF16STR:
+    case AFFIX_TYPE_CARRAY:
+    case AFFIX_TYPE_CALLBACK:
+    case AFFIX_TYPE_CPOINTER:
+    case AFFIX_TYPE_SV:
+    case AFFIX_TYPE_STD_STRING:
         return DC_SIGCHAR_POINTER;
-    /*case  AFFIX_ARG_VMARRAY 30*/
-    case AFFIX_ARG_UCHAR:
+    /*case  AFFIX_TYPE_VMARRAY 30*/
+    case AFFIX_TYPE_UCHAR:
         return DC_SIGCHAR_UCHAR;
-    case AFFIX_ARG_USHORT:
+    case AFFIX_TYPE_USHORT:
         return DC_SIGCHAR_USHORT;
-    case AFFIX_ARG_UINT:
+    case AFFIX_TYPE_UINT:
         return DC_SIGCHAR_UINT;
-    case AFFIX_ARG_ULONG:
+    case AFFIX_TYPE_ULONG:
         return DC_SIGCHAR_ULONG;
-    case AFFIX_ARG_ULONGLONG:
+    case AFFIX_TYPE_ULONGLONG:
         return DC_SIGCHAR_ULONGLONG;
-    case AFFIX_ARG_CSTRUCT:
-    case AFFIX_ARG_CUNION:
+    case AFFIX_TYPE_CSTRUCT:
+    case AFFIX_TYPE_CUNION:
         return DC_SIGCHAR_AGGREGATE;
-    /*case  AFFIX_ARG_CPPSTRUCT 44*/
-    case AFFIX_ARG_WCHAR:
-        return (int)AFFIX_ARG_WCHAR;
+    /*case  AFFIX_TYPE_CPPSTRUCT 44*/
+    case AFFIX_TYPE_WCHAR:
+        return (int)AFFIX_TYPE_WCHAR;
     //~ DC_SIGCHAR_POINTER;
     default:
         return -1;

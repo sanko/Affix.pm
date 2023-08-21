@@ -8,7 +8,7 @@ $|++;
 #
 use t::lib::helper;
 #
-plan skip_all => 'no support for aggregates by value' unless Affix::Feature::AggrByVal();
+plan skip_all => 'no support for aggregates by value' unless Affix::Platform::AggrByValue();
 #
 my $lib = compile_test_lib('54_affix_callbacks');
 diag $lib;
@@ -66,7 +66,7 @@ ok !Affix::wrap( $lib, 'cb_b_b', [ CodeRef [ [Bool] => Bool ] ] => Bool )->(
     }
     ),
     '    => Bool [false]';
-is Affix::wrap( $lib, 'cb_c_c', [ CodeRef [ [Char] => Char ] ] => Char )->(
+is int Affix::wrap( $lib, 'cb_c_c', [ CodeRef [ [Char] => Char ] ] => Char )->(
     sub {
         #~ is_deeply( \@_, [-ord 'A'], '[ Char ] (natural)' );
         my $arg = shift;
@@ -75,7 +75,7 @@ is Affix::wrap( $lib, 'cb_c_c', [ CodeRef [ [Char] => Char ] ] => Char )->(
     }
     ),
     -ord 'B', '    => Char';
-is Affix::wrap( $lib, 'cb_C_C', [ CodeRef [ [UChar] => UChar ] ] => UChar )->(
+is int Affix::wrap( $lib, 'cb_C_C', [ CodeRef [ [UChar] => UChar ] ] => UChar )->(
     sub {
         is_deeply( \@_, ['Q'], '[ UChar ] (natural)' );
         my $arg = shift;
@@ -188,9 +188,9 @@ is Affix::wrap( $lib, 'cb_A', [ Struct [ cb => CodeRef [ [Str] => Str ], i => In
     ),
     'Go!', 'Callback inside struct';
 #
-Affix::typedef cv => CodeRef [ [] => Str ];
-my $cv = sub { pass 'Callback!'; };
-is Affix::wrap( $lib, 'cb_CV_Z', [ CodeRef [ [ Str, cv() ] => Str ], cv() ] => Str )->(
+my $cv_ = Affix::typedef cv => CodeRef [ [] => Str ];
+my $cv  = sub { pass 'Callback!'; };
+is Affix::wrap( $lib, 'cb_CV_Z', [ CodeRef [ [ Str, $cv_ ] => Str ], $cv_ ] => Str )->(
     sub {
         is_deeply( \@_, [ 'Ready!', $cv ], '[ Str, CodeRef ]' );
         return 'Go!';
@@ -198,4 +198,19 @@ is Affix::wrap( $lib, 'cb_CV_Z', [ CodeRef [ [ Str, cv() ] => Str ], cv() ] => S
     $cv
     ),
     'Go!', '    => Str';
+#
+my $cb_caller = Affix::typedef cb_caller => CodeRef [ [ Pointer [Void], Int ] => Int ];
+isa_ok my $ptr = Affix::wrap( $lib, 'put_cb_in_struct', [$cb_caller] => Pointer [Void] )->(
+    sub {
+        my ( $self, $num ) = @_;
+        is $num, 50, 'arg passed to callback is correct';
+        return 100;
+    },
+    ),
+    'Affix::Pointer';
+is Affix::wrap( $lib, 'call_cb_in_struct', [ Pointer [Void], Int ] => Int )->( $ptr, 50 ), 100,
+    'callback stored in a struct triggers correctly';
+ok Affix::wrap( $lib, 'free_cb_in_struct', [ Pointer [Void] ] => Int )->($ptr),
+    'free struct pointer';
+#
 done_testing;

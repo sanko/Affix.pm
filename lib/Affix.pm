@@ -1,160 +1,40 @@
 package Affix 0.12 {    # 'FFI' is my middle name!
+
+    # ABSTRACT: A Foreign Function Interface eXtension
     use strict;
     use warnings;
-    no warnings 'redefine';
+
+    #~ no warnings 'redefine';
     use File::Spec::Functions qw[rel2abs canonpath curdir path catdir];
     use File::Basename        qw[basename dirname];
     use File::Find            qw[find];
     use Config;
-    use Sub::Util qw[subname];
-    use Carp      qw[];
-    use vars      qw[@EXPORT_OK @EXPORT %EXPORT_TAGS];
+    use Carp qw[];
+    use vars qw[@EXPORT_OK @EXPORT %EXPORT_TAGS];
     use XSLoader;
 
     #~ our $VMSize = 1024; # defaults to 8192; passed to dcNewCallVM( ... )
     my $ok = XSLoader::load();
     #
     use parent 'Exporter';
-    $EXPORT_TAGS{sugar} = [qw[MODIFY_CODE_ATTRIBUTES AUTOLOAD]];
-    @EXPORT             = ( @{ $EXPORT_TAGS{types} }, @{ $EXPORT_TAGS{default} } );
-    @EXPORT_OK          = sort map { @$_ = sort @$_; @$_ } values %EXPORT_TAGS;
-    $EXPORT_TAGS{'all'} = \@EXPORT_OK;
+    {
+        my %seen;
+        push @{ $EXPORT_TAGS{default} }, grep { !$seen{$_}++ } @{ $EXPORT_TAGS{$_} }
+            foreach qw[base types cc];
+    }
+    {
+        my %seen;
+        push @{ $EXPORT_TAGS{all} }, grep { !$seen{$_}++ } @{ $EXPORT_TAGS{$_} }
+            for keys %EXPORT_TAGS;
+    }
+    @EXPORT    = sort @{ $EXPORT_TAGS{default} };
+    @EXPORT_OK = sort @{ $EXPORT_TAGS{all} };
 
     #~ use Data::Dump;
     #~ ddx \@EXPORT_OK;
     #~ ddx \@EXPORT;
     #~ ddx \%EXPORT_TAGS;
     #
-    my %_delay;
-
-    #~ our @CARP_NOT = [__PACKAGE__];
-    BEGIN { $Carp::Internal{ (__PACKAGE__) }++ }
-
-    sub AUTOLOAD {
-        my $self = $_[0];           # Not shift, using goto.
-        my $sub  = our $AUTOLOAD;
-        if ( defined $_delay{$sub} ) {
-
-            #warn 'Wrapping ' . $sub;
-            #use Data::Dump;
-            #ddx $_delay{$sub};
-            my $template = qq'package %s {use Affix qw[:types]; sub{%s}->(); }';
-            my $sig      = eval sprintf $template, $_delay{$sub}[0], $_delay{$sub}[4];
-            Carp::croak $@ if $@;
-            my $ret = eval sprintf $template, $_delay{$sub}[0], $_delay{$sub}[5];
-            Carp::croak $@ if $@;
-
-            #use Data::Dump;
-            #ddx $_delay{$sub};
-            #~ ddx locate_lib( $_delay{$sub}[1], $_delay{$sub}[2] );
-            my $lib
-                = defined $_delay{$sub}[1] ?
-                scalar locate_lib( $_delay{$sub}[1], $_delay{$sub}[2] ) :
-                undef;
-
-            #~ use Data::Dump;
-            #~ ddx [
-            #~     $lib, (
-            #~         $_delay{$sub}[3] eq $_delay{$sub}[6] ? $_delay{$sub}[3] :
-            #~             [ $_delay{$sub}[3], $_delay{$sub}[6] ]
-            #~     ),
-            #~     $sig, $ret
-            #~ ];
-            my $cv = affix(
-                $lib, (
-                    $_delay{$sub}[3] eq $_delay{$sub}[6] ? $_delay{$sub}[3] :
-                        [ $_delay{$sub}[3], $_delay{$sub}[6] ]
-                ),
-                $sig, $ret
-            );
-            Carp::croak 'Undefined subroutine &' . $_delay{$sub}[6] unless $cv;
-            delete $_delay{$sub} if defined $_delay{$sub};
-            return &$cv;
-        }
-
-        #~ elsif ( my $code = $self->can('SUPER::AUTOLOAD') ) {
-        #~ return goto &$code;
-        #~ }
-        elsif ( $sub =~ /DESTROY$/ ) {
-            return;
-        }
-        Carp::croak("Undefined subroutine &$sub called");
-    }
-    #
-    #~ use Attribute::Handlers;
-    #~ my %name;
-    #~ sub cache {
-    #~ return $name{$_[2]}||*{$_[1]}{NAME};
-    #~ }
-    #~ sub UNIVERSAL::Name :ATTR {
-    #~ $name{$_[2]} = $_[4];
-    #~ }
-    #~ sub UNIVERSAL::Purpose :ATTR {
-    #~ print STDERR "Purpose of ", &name, " is $_[4]\n";
-    #~ }
-    #~ sub UNIVERSAL::Unit :ATTR {
-    #~ print STDERR &name, " measured in $_[4]\n";
-    #~ }
-    #~ sub dump_cache{use Data::Dump; ddx \%name;}
-    sub MODIFY_CODE_ATTRIBUTES {
-        my ( $package, $code, @attributes ) = @_;
-
-        #~ use Data::Dump;
-        #~ ddx \@_;
-        my ( $library, $library_version, $signature, $return, $symbol, $full_name );
-        for my $attribute (@attributes) {
-            if (
-                $attribute =~ m[^Native\((["']?)(.+?)\1(?:,\s*(.+))?\)$]
-
-                # m[/^\bNative\s+(?:(\w+)\s*,\s*(\d+))?$/]
-            ) {
-                $library = $2 // ();
-
-                #~ warn $library;
-                #~ warn $library_version;
-                $library_version = $3 // 0;
-            }
-            elsif ( $attribute =~ m[^Symbol\(\s*(['"])?\s*(.+)\s*\1\s*\)$] ) {
-                $symbol = $2;
-            }
-
-           #elsif ( $attribute =~ m[^Signature\s*?\(\s*(.+?)?(?:\s*=>\s*(\w+)?)?\s*\)$] ) { # pretty
-            elsif ( $attribute =~ m[^Signature\(\s*(\[.*\])\s*=>\s*(.*)\)$] ) {    # pretty
-                $signature = $1;
-                $return    = $2;
-            }
-            else { return $attribute }
-        }
-        $signature //= '[]';
-        $return    //= 'Void';
-        $full_name = subname $code;    #$library, $library_version,
-        if ( !grep { !defined } $full_name ) {
-            if ( !defined $symbol ) {
-                $full_name =~ m[::(.*?)$];
-                $symbol = $1;
-            }
-
-            #use Data::Dump;
-            #ddx [
-            #    $package,   $library, $library_version, $symbol,
-            #    $signature, $return,  $full_name
-            #];
-            if ( defined &{$full_name} ) {    #no strict 'refs';
-
-                # TODO: call this defined sub and pass the wrapped symbol and then the passed args
-                #...;
-                return affix(
-                    locate_lib( $library, $library_version ),
-                    ( $symbol eq $full_name ? $symbol : [ $symbol, $full_name ] ),
-                    $signature, $return
-                );
-            }
-            $_delay{$full_name}
-                = [ $package, $library, $library_version, $symbol, $signature, $return,
-                $full_name ];
-        }
-        return;
-    }
     our $OS = $^O;
     my $is_win = $OS eq 'MSWin32';
     my $is_mac = $OS eq 'darwin';
@@ -163,6 +43,12 @@ package Affix 0.12 {    # 'FFI' is my middle name!
 
     sub locate_libs {
         my ( $lib, $version ) = @_;
+        $lib =~ s[^lib][];
+        my $ver;
+        if ( defined $version ) {
+            require version;
+            $ver = version->parse($version);
+        }
 
         #~ warn $lib;
         #~ warn $version;
@@ -200,57 +86,94 @@ package Affix 0.12 {    # 'FFI' is my middle name!
         if ( !defined $regex ) {
             $regex = $is_win ?
                 qr/^
-        (?:lib)?(?<name>\w+?)
+        (?:lib)?(?<name>\w+)
         (?:[_-](?<version>[0-9\-\._]+))?_*
         \.$Config{so}
         $/ix :
                 $is_mac ?
                 qr/^
-        (?:lib)?(?<name>\w+?)
+        (?:lib)?(?<name>\w+)
         (?:\.(?<version>[0-9]+(?:\.[0-9]+)*))?
         \.(?:so|dylib|bundle)
         $/x :    # assume *BSD or linux
                 qr/^
-        (?:lib)?(?<name>\w+?)
+        (?:lib)?(?<name>\w+)
         \.$Config{so}
         (?:\.(?<version>[0-9]+(?:\.[0-9]+)*))?
         $/x;
         }
-        my @store;
+        my %store;
 
         #~ warn join ', ', @$libdirs;
+        my %_seen;
         find(
-            sub {
+            0 ?
+                sub {    # This is rather slow...
+                warn $File::Find::name;
+                return if $store{ basename $File::Find::name};
+
+                #~ return if $_seen{basename $File::Find::name}++;
+                return if !-e $File::Find::name;
+                warn basename $File::Find::name;
+                warn;
+                $File::Find::prune = 1
+                    if !grep { canonpath $_ eq canonpath $File::Find::name } @$libdirs;
+                /$regex/ or return;
+                warn;
+                $+{name} eq $lib or return;
+                warn;
+                my $lib_ver;
+                $lib_ver = version->parse( $+{version} ) if defined $+{version};
+                $store{ canonpath $File::Find::name} = {
+                    %+,
+                    path => $File::Find::name,
+                    ( defined $lib_ver ? ( version => $lib_ver ) : () )
+                    }
+                    if ( defined($ver) && defined($lib_ver) ? $lib_ver == $ver : 1 );
+                } :
+                sub {
                 $File::Find::prune = 1
                     if !grep { canonpath $_ eq canonpath $File::Find::name } @$libdirs;
 
                 #~ return                 if -d $_;
                 return unless $_ =~ $regex;
+                return unless defined $+{name};
+                return unless $+{name} eq $lib;
+                return unless -B $File::Find::name;
+                my $lib_ver;
+                $lib_ver = version->parse( $+{version} ) if defined $+{version};
+                return unless ( defined $lib_ver && defined($ver) ? $ver == $lib_ver : 1 );
 
                 #~ use Data::Dump;
                 #~ warn $File::Find::name;
                 #~ ddx %+;
-                push @store, { %+, path => $File::Find::name }
-                    if defined $+{name}                                                          &&
-                    ( $+{name} eq $lib )                                                         &&
-                    ( defined $version ? defined( $+{version} ) && $version == $+{version} : 1 ) &&
-                    -B $File::Find::name;
-            },
+                $store{ canonpath $File::Find::name} //= {
+                    %+,
+                    path => $File::Find::name,
+                    ( defined $lib_ver ? ( version => $lib_ver ) : () )
+                };
+                },
             @$libdirs
         );
-        @store;
+        values %store;
     }
 
     sub locate_lib {
         my ( $name, $version ) = @_;
-        return $name if $name && -e $name;
-        CORE::state $cache;
-        return $cache->{$name}{ $version // 0 }->{path} if defined $cache->{$name}{ $version // 0 };
+        return $name if $name && -B $name;
+        CORE::state $cache //= {};
+        return $cache->{$name}{ $version // '' }->{path}
+            if defined $cache->{$name}{ $version // '' };
         if ( !$version ) {
-            return $cache->{$name}{0}{path} = rel2abs($name) if -e rel2abs($name);
-            return $cache->{$name}{0}{path} = rel2abs( $name . '.' . $Config{so} )
-                if -e rel2abs( $name . '.' . $Config{so} );
+            return $cache->{$name}{''}{path} = rel2abs($name) if -B rel2abs($name);
+            return $cache->{$name}{''}{path} = rel2abs( $name . '.' . $Config{so} )
+                if -B rel2abs( $name . '.' . $Config{so} );
         }
+        my $libname = basename $name;
+        $libname =~ s/^lib//;
+        $libname =~ s/\..*$//;
+        return $cache->{$libname}{ $version // '' }->{path}
+            if defined $cache->{$libname}{ $version // '' };
         my @libs = locate_libs( $name, $version );
 
         #~ warn;
@@ -258,10 +181,9 @@ package Affix 0.12 {    # 'FFI' is my middle name!
         #~ warn join ', ', @_;
         #~ ddx \@_;
         #~ ddx $cache;
-        #~ ddx \@libs;
         if (@libs) {
-            ( $cache->{$name}{ $version // 0 } ) = @libs;
-            return $cache->{$name}{ $version // 0 }->{path};
+            ( $cache->{$name}{ $version // '' } ) = @libs;
+            return $cache->{$name}{ $version // '' }->{path};
         }
         ();
     }
@@ -272,933 +194,406 @@ package Affix 0.12 {    # 'FFI' is my middle name!
         #~ ☑️ https://github.com/apple/swift/blob/main/docs/ABI/Mangling.rst#identifiers
         #~ ☑️ https://mikeash.com/pyblog/friday-qa-2014-08-15-swift-name-mangling.html
         #~ ☑️ https://dlang.org/spec/abi.html#name_mangling
-        my @cache;
-        my $vp = 0;    # void *
-        my %symbol_cache;
+        #~ ☑️ https://github.com/gcc-mirror/gcc/blob/master/libiberty/rust-demangle.c
+        my $operators = {
+            '&&'                => 'aa',    # operator
+            '&'                 => 'ad',    # (unary)
+            '&'                 => 'an',
+            '&='                => 'aN',
+            '='                 => 'aS',
+            'alignof_type'      => 'at',    # alignof of a type (C++11)
+            'co_await'          => 'aw',    # co_await (C++2a)
+            'alignof_expr'      => 'az',    # alignof of an expression (C++11)
+            '()'                => 'cl',    # operator
+            ','                 => 'cm',    # operator
+            '~',                => 'co',    # operator
+            '(cast)'            => 'cv',    # operator
+            'delete[]'          => 'da',    # operator delete[]
+            '*'                 => 'de',    # operator * (unary)
+            'delete'            => 'dl',    # operator delete
+            '.'                 => 'dt',    # member access (.)
+            '/'                 => 'dv',    # operator /
+            '/='                => 'dV',    # operator /=
+            '^'                 => 'eo',    # operator ^
+            '^='                => 'eO',    # operator ^=
+            '=='                => 'eq',    # operator ==
+            '>='                => 'ge',    # operator >=
+            '>'                 => 'gt',    # operator >
+            '[]'                => 'ix',    # operator []
+            '<='                => 'le',    # operator <=
+            '<<'                => 'ls',    # operator <<
+            '<<='               => 'lS',    # operator <<=
+            '<'                 => 'lt',    # operator <
+            '-'                 => 'mi',    # operator -
+            '-='                => 'mI',    # operator -=
+            '*'                 => 'ml',    # operator *
+            '*='                => 'mL',    # operator *=
+            '--'                => 'mm',    # operator --
+            'new[]'             => 'na',    # operator new[]
+            '!='                => 'ne',    # operator !=
+            '-(unary)'          => 'ng',    # operator - (unary)
+            '!'                 => 'nt',    # operator !
+            'new'               => 'nw',    # operator new
+            '||'                => 'oo',    # operator ||
+            '|'                 => 'or',    # operator |
+            '|='                => 'oR',    # operator |=
+            '+'                 => 'pl',    # operator +
+            '+='                => 'pL',    # operator +=
+            '->*'               => 'pm',    # operator ->*
+            '++'                => 'pp',    # operator ++
+            '+(unary)'          => 'ps',    # operator + (unary)
+            '->'                => 'pt',    # operator ->
+            '?'                 => 'qu',    # operator ?
+            '%'                 => 'rm',    # operator %
+            '%='                => 'rM',    # operator %=
+            '>>'                => 'rs',    # operator >>
+            '>>='               => 'rS',    # operator >>=
+            'expansion'         => 'sp',    # Expression pack expansion operator
+            '::'                => 'sr',    # Scope resolution operator
+            '<=>'               => 'ss',    # operator <=> (C++2a "spaceship")
+            'sizeof_type'       => 'st',    # operator sizeof (a type)
+            'sizeof_expression' => 'sz',    # operator sizeof (an expression)
+            'sizeof_expansion'  => 'sZ',    # operator sizeof (a pack expansion)
+            'ext_operator'      => 'v\d'    # vendor extended operator
+        };
+        my $object = {
+            'complete_new'        => 'C1',    # complete object (in-charge) constructor
+            'incomplete_new'      => 'C2',    # base object (not-in-charge) constructor
+            'complete_new_alloc'  => 'C3',    # complete object (in-charge) allocating constructor
+            'bind'                => 'DC',    # structured binding declaration (C++1z)
+            'delete'              => 'D0',    # deleting destructor
+            'complete_destroy'    => 'D1',    # Complete object (in-charge) destructor
+            'incomplete_destroy'  => 'D2',    # Base object (not-in-charge) destructor
+            'func'                => 'F',     # function
+            'sentry'              => 'GV',    # Sentry object for 1-time init
+            'literal'             => 'L',     # literal, external name prefix
+            'virtual_covariant'   => 'Tc',    # virtual function covariant override thunk
+            'typeinfo'            => 'TD',    #	typeinfo common proxy
+            'virtual_non_virtual' => 'Th',    # virtual function non-virtual override thunk
+            'typeinfo'            => 'TI',    # typeinfo structure
+            'RTTI'                => 'TS',    # RTTI name (NTBS)
+            'VTT'                 => 'TT',    # VTT table
+            'virtual_override'    => 'Tv',    # virtual function virtual override thunk
+            'virtual_table'       => 'TV',    # virtual table
+            'local'               => 'Z',     # local name prefix
+            'name'                => '\d'     # name (length followed by name)
+        };
+        my $syntax = {
+            'field_init'  => 'di',            # designated field initilizer
+            'array_init'  => 'dx',            # designated array initilizer
+            'range_init'  => 'dX',            # designated array range initilizer
+            'braced_init' => 'il'             # braced-init-list
+        };
+        my $deliminator = {
+            'end_of_list'       => 'E',       # End of argument list
+            'template_arg_list' => 'I',       # Template argument list
+            'name_list'         => 'N',       # dependent/qualifier name list
+            'expression'        => 'X'        # expression prefix
+        };
+        my $name = {
+            'local' => 's'                    # local string prefix
+        };
+        my $abbreviation = {
+            'substitution'          => 'S_',     #substituted name
+            'substitution_digit'    => 'S\d',    #substituted name (repeated)
+            'substitution_upper'    => 'S\U',    #substituted name (repeated)
+            'substitution_lower'    => 'S\u',    #substituted name (standard abbreviation)
+            '::std::'               => 'St',     # ::std::
+            'template_param'        => 'T_',     #template parameter
+            'template_param_repeat' => 'T\d'     #template parameter (repeated)
+        };
 
-        sub _mangle_name ($$) {
-            my ( $func, $name ) = @_;
-            if ( grep { $_ eq $name } @cache ) {
-                return join '', 'S', ( grep { $cache[$_] eq $name } 0 .. $#cache ), '_';
+        #~ https://itanium-cxx-abi.github.io/cxx-abi/abi.html#mangling-builtin
+        my $types = {
+            Void() => 'v',
+            Bool() => 'b',
+            Char() => 'c',
+
+            #~ SChar()     => 'a',
+            UChar()     => 'h',
+            Short()     => 's',
+            UShort()    => 't',
+            Int()       => 'i',
+            UInt()      => 'j',
+            Long()      => 'l',
+            ULong()     => 'm',
+            LongLong()  => 'x',
+            ULongLong() => 'y',
+
+            #I128 => 'n',
+            #U128 => 'o',
+            Float()  => 'f',    # Num32
+            Double() => 'd',    # Num64
+
+            #LongDouble => 'e',
+            #Float128   => 'g'
+            #Ellipsis   => 'z',
+            #
+            #~ Str() => 'Pc',
+            #Pointer(Void()) => 'P',
+            WChar() => 'w',
+
+            #~ InstanceOf(Void()) => ''
+            'const'               => 'K',
+            Pointer( [ Void() ] ) => 'P',
+            WStr()                => 'Pw',
+            Array( [ Void() ] )   => 'P',
+
+            #CPPStruct([]) => '???'
+        };
+
+        sub Itanium_mangle_name {
+            my ( $affix, $data, $name ) = @_;
+            my @parts    = split '::', $name;
+            my $_mangled = '';
+            $_mangled .= $deliminator->{name_list} if @parts > 1;
+            $_mangled .= $types->{const}           if $affix->cpp_const;
+            #
+            if ( scalar @parts >= 2 ) {
+                push @{ $data->{subs} }, join '::', @parts[ 0 .. $#parts - 1 ];
             }
-            push @cache, $name;
-            $name =~ s[^$func][S0_];
-            sprintf $name =~ '::' ? 'N%sE' : '%s',
-                join( '', ( map { length($_) . $_ } split '::', $name ) );
+            if ( scalar(@parts) >= 2 && ( $parts[-1] eq 'new' || $parts[-2] eq $parts[-1] ) ) {
+                $affix->cpp_constructor(1);
+                $_mangled .= join '', map { length($_) . $_ } @parts[ 0 .. $#parts - 1 ];
+                $_mangled .= $object->{complete_new};
+            }
+            elsif ( scalar(@parts) >= 2 && ( $parts[-1] eq "DESTROY" || $parts[-2] eq $parts[-1] ) )
+            {
+                $_mangled .= join '', map { length($_) . $_ } @parts[ 0 .. $#parts - 1 ];
+                $_mangled .= $object->{complete_destroy};
+            }
+            else {
+                $_mangled .= join '', map { length($_) . $_ } @parts;
+            }
+            $_mangled .= $deliminator->{end_of_list} if @parts > 1;
+
+            #~ $object->{complete_new} if
+            return $_mangled;
+            my $ret = scalar @parts == 1 ? $_mangled :
+                $deliminator->{name_list} . $_mangled . $deliminator->{end_of_list};
+            $data->{class} = scalar @parts > 1;
+            return $ret;
         }
 
-        sub _mangle_type {
-            my ( $func, $type ) = @_;
-            return    #'A'
-                'P' . _mangle_type( $func, $type->{type} ) if $type->isa('Affix::Type::ArrayRef');
-            if ( $type->isa('Affix::Type::Pointer') && $type->{type}->isa('Affix::Type::Void') ) {
-                return $vp++ ? 'S_' : 'Pv';
+        sub Itanium_check_substitution {
+            my ( $affix, $data, $type ) = @_;
+            for my $pos ( 0 .. $#{ $data->{subs} } ) {
+                if ( $data->{subs}[$pos] eq $type ) {
+                    $type = 'S';
+                    if   ( $pos == 0 ) { $type .= '_' }
+                    else               { $type .= ( $pos - 1 ) . '_' }
+                }
             }
-            return 'P' . _mangle_type( $func, $type->{type} ) if $type->isa('Affix::Type::Pointer');
-            return _mangle_name( $func, $type->{typedef} )    if $type->isa('Affix::Type::Struct');
-            CORE::state $types;
-            $types //= {
-                Char(),  'c',    # Note: signed char == 'a'
-                Bool(),  'b', Double(), 'd', Long(),  'e', Float(), 'f', UChar(),  'h', Int(),  'i',
-                UInt(),  'j', Long(),   'l', ULong(), 'm', Short(), 's', UShort(), 't', Void(), 'v',
-                WChar(), 'w', LongLong(), 'x', ULongLong(), 'y', ord '_', ''   # Calling conventions
-            };
-            $types->{$type} // die sprintf 'Unknown type: %s (%d)', chr($type), $type;
+            $type;
+        }
+
+        sub Itanium_mangle_type {
+            my ( $affix, $data, $type ) = @_;
+
+            #~ use Data::Dump;
+            #~ ddx $data;
+            #~ ddx $type;
+            my $ret = '';
+            if ( $type->isa('Affix::Type::Pointer') || $type->isa('Affix::Type::Array') ) {
+                $ret = $types->{$type} . Itanium_mangle_type( $affix, $data, $type->{type} );
+                if ( grep { $ret eq $_ } @{ $data->{subs} } ) {
+                    $ret = Itanium_check_substitution( $affix, $data, $ret );
+                }
+                else {
+                    push @{ $data->{subs} }, $ret unless grep { $ret eq $_ } @{ $data->{subs} };
+                }
+            }
+            elsif ( $type->isa('Affix::Type::InstanceOf') ) {
+                $ret = '';    # TODO: Only return 'v' if function is a class method!!!!!!
+            }
+            elsif ( $type->isa('Affix::Type::Struct') || $type->isa('Affix::Type::Union') ) {
+
+                # TODO: croak if not a typedef'd becuase we don't yet handle anon struct/union
+                $ret = length( $type->{class} ) . $type->{class};
+                my $_ret = Itanium_check_substitution( $affix, $data, $ret );
+                if ( $ret eq $_ret ) {
+                    push @{ $data->{subs} }, $ret unless grep { $ret eq $_ } @{ $data->{subs} };
+                }
+                $ret = $_ret;
+            }
+            elsif ( $type->isa('Affix::Type::CC') )
+            {    # TODO: some call conv. are reflected in mangled symbol
+                $ret = '';
+            }
+            elsif ( $type->isa('Affix::Type::Str') ) {
+                $ret = $types->{ Pointer( [ Char() ] ) } . $types->{ Char() };
+                if ( grep { $ret eq $_ } @{ $data->{subs} } ) {
+                    $ret = Itanium_check_substitution( $affix, $data, $ret );
+                }
+                else {
+                    push @{ $data->{subs} }, $ret unless grep { $ret eq $_ } @{ $data->{subs} };
+                }
+            }
+            elsif ( defined $types->{$type} ) {
+                $ret = $types->{$type};
+            }
+            else {
+                my $_ret = Itanium_check_substitution( $affix, $data, $type->{class} );
+                if ( defined $_ret ) { $ret = $_ret }
+                else {
+                    warn 'Unknown type in mangler: ' . chr scalar $type;
+
+                    #~ require Data::Dump;
+                    #~ ddx $type;
+                    $ret = '';
+                }
+            }
+            return $ret;
         }
 
         sub Itanium_mangle {
-            my ( $lib, $name, $affix ) = @_;
-            @cache = ();
-            $vp    = 0;
-            my $ret = '_Z' . sprintf $name =~ '::' ? 'N%sE' : '%s',
-                join( '', ( map { length($_) . $_ } split '::', $name ) );
 
-            #~ for my $arg ( scalar @{ $affix->{args} } ? @{ $affix->{args} } : Void() ) {
-            my @args = scalar @{$affix} ? @{$affix} : Void();
-            while (@args) {
-                my $arg = shift @args;
-                $ret .= _mangle_type( $name, $arg );
-                if ( "$arg" == ord '_' ) {
-                    shift @args;
-                    push @args, Void() if !@args;    # skip calling conventions
-                }
+            #~ use Data::Dump;
+            #~ ddx \@_;
+            my ( $affix, $name, $types, $prefix ) = @_;
+            my $data = {};
+
+            #~ use Data::Dump;
+            #~ ddx $types;
+            $prefix //= '_Z';
+            my $ret = join '', $prefix, Itanium_mangle_name( $affix, $data, $name );
+
+            #~ ddx $types;
+            if ( $affix->cpp_struct ) {
+                my ( $S_, @etc ) = split '::', $name;
+                shift @$types
+                    if $affix->cpp_constructor &&
+                    scalar @$types &&
+                    $types->[0]->isa('Affix::Type::CPPStruct');
+
+                #~ $ret .= $abbreviation->{substitution} unless $etc[-1] eq 'new';
             }
-            $ret;
+
+            #~ push @$types, Void() if $affix->cpp_constructor;
+            $types = [ Void() ] unless scalar @$types;
+
+            #~ ddx $types;
+            #~ warn $affix->cpp_struct;
+            #~ && !;
+            $ret .= join '', map { Itanium_mangle_type( $affix, $data, $_ ) } @$types;
+
+            #~ ddx $data;
+            #~ warn $ret;
+            return $ret;
         }
 
         # legacy
         sub Rust_legacy_mangle {
-            my ( $lib, $name, $affix ) = @_;
-            $symbol_cache{$lib} //= $lib->list_symbols();
-            @cache = ();
-            $vp    = 0;
-            return $name if grep { $name eq $_ } grep { defined $_ } @{ $symbol_cache{$lib} };
-            my $ret = qr'^_ZN(?:\d+\w+?)?' . sprintf $name =~ '::' ? '%sE' : '%s17h\w{16}E$',
+            my ( $affix, $name, $types, $prefix ) = @_;
+            my ($symbol_cache) = $affix->lib->list_symbols();
+            my @cache          = ();
+            my $vp             = 0;
+            return $name if grep { $name eq $_ } grep { defined $_ } @$symbol_cache;
+            my $itanium = Itanium_mangle( $affix, $name . ( 'x' x 17 ), $types, '' );
+            my $ret     = qr'^_ZN?.+?' . sprintf $name =~ '::' ? '%sE' : '%s17h\w{16}E$',
                 join( '', ( map { length($_) . $_ } split '::', $name ) );
-            my @symbols = grep { $_ =~ $ret } grep { defined $_ } @{ $symbol_cache{$lib} };
+            my @symbols = grep { $_ =~ /$ret/ } grep { defined $_ } @$symbol_cache;
             return shift @symbols;
         }
+    }
+
+    # Dumb but easy in pure perl
+    sub Type(@) { return $Affix::Types::_registry{ $_[0][0] } }
+    {    # remove
+
+        package Affix::Aggregate { };
+
+        package Affix::Cache { };
+
+        package Affix::Cache::Symbols { };
+
+        package Affix::Cache::Libs { };
+
+        package Affix::Types { };
+
+        package Affix::Lib { };
+
+        package Affix::Platform { };
+
+        package Affix::Type { };
+
+        package Affix::Type::Base { };
+
+        package Affix::Type::Bool { };
+
+        package Affix::Type::Any { };
+
+        package Affix::Type::Array { };
+
+        package Affix::Type::Base { };
+
+        package Affix::Type::Bool { };
+
+        package Affix::Type::CC { };
+
+        package Affix::Type::Char { };
+
+        package Affix::Type::CharEnum { };
+
+        package Affix::Type::CodeRef { };
+
+        package Affix::Type::Double { };
+
+        package Affix::Type::Enum { };
+
+        package Affix::Type::Float { };
+
+        package Affix::Type::InstanceOf { };
+
+        package Affix::Type::Int { };
+
+        package Affix::Type::IntEnum { };
+
+        package Affix::Type::Long { };
+
+        package Affix::Type::LongLong { };
+
+        package Affix::Type::Pointer { };
+
+        package Affix::Type::Ref { };
+
+        package Affix::Type::SSize_t { };
+
+        package Affix::Type::Short { };
+
+        package Affix::Type::Size_t { };
+
+        package Affix::Type::StdStr { };
+
+        package Affix::Type::Str { };
+
+        package Affix::Type::Struct { };
+
+        package Affix::Type::UChar { };
+
+        package Affix::Type::UInt { };
+
+        package Affix::Type::UIntEnum { };
+
+        package Affix::Type::ULong { };
+
+        package Affix::Type::ULongLong { };
+
+        package Affix::Type::UShort { };
+
+        package Affix::Type::Union { };
+
+        package Affix::Type::Void { };
+
+        package Affix::Type::WChar { };
+
+        package Affix::Type::WStr { };
     }
 };
 1;
 __END__
-
-=encoding utf-8
-
-=head1 NAME
-
-Affix - A Foreign Function Interface eXtension
-
-=head1 SYNOPSIS
-
-    use Affix;
-
-    # bind to exported function
-    affix( 'libfoo', 'bar', [Str, Float] => Double );
-    print bar( 'Baz', 3.14 );
-
-    # bind to exported function but with sugar
-    sub bar : Native('libfoo') : Signature([Str, Float] => Double);
-    print bar( 'Baz', 10.9 );
-
-    # wrap an exported function in a code reference
-    my $bar = wrap( 'libfoo', 'bar', [Str, Float] => Double );
-    print $bar->( 'Baz', 3.14 );
-
-    # bind an exported value to a Perl value
-    pin( my $ver, 'libfoo', 'VERSION', Int );
-
-=head1 DESCRIPTION
-
-Affix is an L<FFI|https://en.wikipedia.org/wiki/Foreign_function_interface> to
-wrap libraries developed in other languages (C, C++, Rust, etc.) with pure
-Perl; without XS!
-
-=head1 Basic Usage
-
-The basic API is rather simple but not lacking in power. It's likely what
-you'll decide to use in your projects.
-
-=head2 C<affix( ... )>
-
-    affix( 'C:\Windows\System32\user32.dll', 'pow', [Double, Double] => Double );
-    warn pow( 3, 5 );
-
-    affix( 'foo', ['foo', 'foobar'] => [ Str ] );
-    foobar( 'Hello' );
-
-    affix( ['foo_dylib', RUST], ['foo', 'foobar'] => [ Str ] );
-    foobar( 'Hello' );
-
-Attaches a given symbol in a named perl sub.
-
-Parameters include:
-
-=over
-
-=item C<$lib>
-
-path or name of the library or an explicit C<undef> to load functions from the
-main executable
-
-Optionally, you may provide an array reference with the library and an L<ABI
-hint|/"ABI Hints"> if the library was built with mangled exports
-
-=item C<$symbol_name>
-
-the name of the symbol to call
-
-Optionally, you may provide an array reference with the symbol's name and the
-name of the subroutine
-
-=item C<$parameters>
-
-signature defining argument types in an array
-
-=item C<$return>
-
-optional return type
-
-default is C<Void>
-
-=back
-
-Returns a code reference on success.
-
-=head2 C<wrap( ... )>
-
-Creates a wrapper around a given symbol in a given library.
-
-    my $pow = wrap( 'C:\Windows\System32\user32.dll', 'pow', [Double, Double] => Double );
-    warn $pow->(5, 10); # 5**10
-
-Parameters include:
-
-=over
-
-=item C<$lib>
-
-path or name of the library or an explicit C<undef> to load functions from the
-main executable
-
-Optionally, you may provide an array reference with the library and an L<ABI
-hint|/"ABI Hints"> if the library was built with mangled exports
-
-=item C<$symbol_name>
-
-the name of the symbol to call
-
-=item C<$parameters>
-
-signature defining argument types in an array
-
-=item C<$return>
-
-return type
-
-=back
-
-C<wrap( ... )> behaves exactly like C<affix( ... )> but returns an anonymous
-subroutine and does not pollute the namespace.
-
-=head2 C<pin( ... )>
-
-    my $errno;
-    pin( $errno, 'libc', 'errno', Int );
-    print $errno;
-    $errno = 0;
-
-Variables exported by a library - also names "global" or "extern" variables -
-can be accessed using C<pin( ... )>. The above example code applies magic to
-C<$error> that binds it to the integer variable named "errno" as exported by
-the L<libc> library.
-
-Expected parameters include:
-
-=over
-
-=item C<$var>
-
-Perl scalar that will be bound to the exported variable.
-
-=item C<$lib>
-
-name or path of the symbol
-
-=item C<$symbol_name>
-
-the name of the exported variable name
-
-=item C<$type>
-
-type that data will be coerced in or out of as required
-
-=back
-
-This is likely broken on BSD but patches are welcome.
-
-=head1 C<:Native> CODE attribute
-
-All the sugar is right here in the :Native code attribute. This API is inspired
-by L<Raku's C<native> trait|https://docs.raku.org/language/nativecall>.
-
-A simple example would look like this:
-
-    use Affix;
-    sub some_argless_function :Native('something');
-    some_argless_function();
-
-The first line imports various code attributes and types. The next line looks
-like a relatively ordinary Perl sub declaration--with a twist. We use the
-C<:Native> attribute in order to specify that the sub is actually defined in a
-native library. The platform-specific extension (e.g., .so or .dll), as well as
-any customary prefixes (e.g., lib) will be added for you.
-
-The first time you call "some_argless_function", the "libsomething" will be
-loaded and the "some_argless_function" will be located in it. A call will then
-be made. Subsequent calls will be faster, since the symbol handle is retained.
-
-Of course, most functions take arguments or return values--but everything else
-that you can do is just adding to this simple pattern of declaring a Perl sub,
-naming it after the symbol you want to call and marking it with the
-C<:Native>-related attributes.
-
-Except in the case you are using your own compiled libraries, or any other kind
-of bundled library, shared libraries are versioned, i.e., they will be in a
-file C<libfoo.so.x.y.z>, and this shared library will be symlinked to
-C<libfoo.so.x>. By default, Affix will pick up that file if it's the only
-existing one. This is why it's safer, and advisable, to always include a
-version, this way:
-
-    sub some_argless_function :Native('foo', v1.2.3)
-
-Please check L<the section on the ABIE<sol>API version|/ABI/API version> for
-more information.
-
-=head2 Changing names
-
-Sometimes you want the name of your Perl subroutine to be different from the
-name used in the library you're loading. Maybe the name is long or has
-different casing or is otherwise cumbersome within the context of the module
-you are trying to create.
-
-Affix provides the C<:Symbol> attribute for you to specify the name of the
-native routine in your library that may be different from your Perl subroutine
-name.
-
-    package Foo;
-    use Affix;
-    sub init :Native('foo') :Symbol('FOO_INIT');
-
-Inside of C<libfoo> there is a routine called C<FOO_INIT> but, since we're
-creating a module called C<Foo> and we'd rather call the routine as
-C<Foo::init> (instead of C<Foo::FOO_INIT>), we use the symbol trait to specify
-the name of the symbol in C<libfoo> and call the subroutine whatever we want
-(C<init> in this case).
-
-=head2 Signatures
-
-Normal Perl signatures do not convey the type of arguments a native function
-expects and what it returns so you must define them with our final attribute:
-C<:Signature>
-
-    use Affix;
-    sub add :Native("calculator") :Signature([Int, Int] => Int);
-
-Here, we have declared that the function takes two 32-bit integers and returns
-a 32-bit integer. You can find the other types that you may pass L<further down
-this page|/Types>.
-
-=head2 ABI/API version
-
-If you write C<:Native('foo')>, Affix will search C<libfoo.so> under Unix like
-system (C<libfoo.dynlib> on macOS, C<foo.dll> on Windows). In most modern
-system it will require you or the user of your module to install the
-development package because it's recommended to always provide an API/ABI
-version to a shared library, so C<libfoo.so> ends often being a symbolic link
-provided only by a development package.
-
-To avoid that, the C<:Native> attribute allows you to specify the API/ABI
-version. It can be a full version or just a part of it. (Try to stick to Major
-version, some BSD code does not care for Minor.)
-
-    use Affix;
-    sub foo1 :Native('foo', v1); # Will try to load libfoo.so.1
-    sub foo2 :Native('foo', v1.2.3); # Will try to load libfoo.so.1.2.3
-
-    sub pow : Native('m', v6) : Signature([Double, Double] => Double);
-
-=head2 Library Paths and Names
-
-The C<:Native> attribute, C<affix( ... )>, and C<wrap( ... )> all accept the
-library name, the full path, or a subroutine returning either of the two. When
-using the library name, the name is assumed to be prepended with lib and
-appended with C<.so> (or just appended with C<.dll> on Windows), and will be
-searched for in the paths in the C<LD_LIBRARY_PATH> (C<PATH> on Windows)
-environment variable.
-
-You can also put an incomplete path like C<'./foo'> and Affix will
-automatically put the right extension according to the platform specification.
-If you wish to suppress this expansion, simply pass the string as the body of a
-block.
-
-    sub bar :Native({ './lib/Non Standard Naming Scheme' });
-
-B<BE CAREFUL>: the C<:Native> attribute and constant might be evaluated at
-compile time.
-
-=head2 Calling into the standard library
-
-If you want to call a function that's already loaded, either from the standard
-library or from your own program, you can omit the library value or pass and
-explicit C<undef>.
-
-For example on a UNIX-like operating system, you could use the following code
-to print the home directory of the current user:
-
-    use Affix;
-    use Data::Dumper;
-    typedef PwStruct => Struct [
-        name  => Str,     # username
-        pass  => Str,     # hashed pass if shadow db isn't in use
-        uuid  => UInt,    # user
-        guid  => UInt,    # group
-        gecos => Str,     # real name
-        dir   => Str,     # ~/
-        shell => Str      # bash, etc.
-    ];
-    sub getuid : Native : Signature([]=>Int);
-    sub getpwuid : Native : Signature([Int]=>Pointer[PwStruct]);
-    my $data = main::getpwuid( getuid() );
-    print Dumper( ptr2sv( $data, Pointer [ PwStruct() ] ) );
-
-=head1 Memory Functions
-
-To help toss raw data around, some standard memory related functions are
-exposed here. You may import them by name or with the C<:memory> or C<:all>
-tags.
-
-=head2 C<malloc( ... )>
-
-    my $ptr = malloc( $size );
-
-Allocates C<$size> bytes of uninitialized storage.
-
-=head2 C<calloc( ... )>
-
-    my $ptr = calloc( $num, $size );
-
-Allocates memory for an array of C<$num> objects of C<$size> and initializes
-all bytes in the allocated storage to zero.
-
-=head2 C<realloc( ... )>
-
-    $ptr = realloc( $ptr, $new_size );
-
-Reallocates the given area of memory. It must be previously allocated by
-C<malloc( ... )>, C<calloc( ... )>, or C<realloc( ... )> and not yet freed with
-a call to C<free( ... )> or C<realloc( ... )>. Otherwise, the results are
-undefined.
-
-=head2 C<free( ... )>
-
-    free( $ptr );
-
-Deallocates the space previously allocated by C<malloc( ... )>, C<calloc( ...
-)>, or C<realloc( ... )>.
-
-=head2 C<memchr( ... )>
-
-    memchr( $ptr, $ch, $count );
-
-Finds the first occurrence of C<$ch> in the initial C<$count> bytes (each
-interpreted as unsigned char) of the object pointed to by C<$ptr>.
-
-=head2 C<memcmp( ... )>
-
-    my $cmp = memcmp( $lhs, $rhs, $count );
-
-Compares the first C<$count> bytes of the objects pointed to by C<$lhs> and
-C<$rhs>. The comparison is done lexicographically.
-
-=head2 C<memset( ... )>
-
-    memset( $dest, $ch, $count );
-
-Copies the value C<$ch> into each of the first C<$count> characters of the
-object pointed to by C<$dest>.
-
-=head2 C<memcpy( ... )>
-
-    memcpy( $dest, $src, $count );
-
-Copies C<$count> characters from the object pointed to by C<$src> to the object
-pointed to by C<$dest>.
-
-=head2 C<memmove( ... )>
-
-    memmove( $dest, $src, $count );
-
-Copies C<$count> characters from the object pointed to by C<$src> to the object
-pointed to by C<$dest>.
-
-=head2 C<sizeof( ... )>
-
-    my $size = sizeof( Int );
-    my $size1 = sizeof( Struct[ name => Str, age => Int ] );
-
-Returns the size, in bytes, of the L<type|/Types> passed to it.
-
-=head2 C<offsetof( ... )>
-
-    my $struct = Struct[ name => Str, age => Int ];
-    my $offset = offsetof( $struct, 'age' );
-
-Returns the offset, in bytes, from the beginning of a structure including
-padding, if any.
-
-=head1 Utility Functions
-
-Here's some thin cushions for the rougher edges of wrapping libraries.
-
-They may be imported by name for now but might be renamed, removed, or changed
-in the future.
-
-=head2 C<cast( ... )>
-
-    my $hash = cast( $ptr, Struct[i => Int, ... ] );
-
-This function will parse a pointer into a given target type.
-
-The source pointer would have normally been obtained from a call to a native
-subroutine that returned a pointer, a lvalue pointer to a native subroutine,
-or, as part of a C<Struct[ ... ]>.
-
-=head2 C<DumpHex( ... )>
-
-    DumpHex( $ptr, $length );
-
-Dumps C<$length> bytes of raw data from a given point in memory.
-
-This is a debugging function that probably shouldn't find its way into your
-code and might not be public in the future.
-
-=head1 Types
-
-Raku offers a set of native types with a fixed, and known, representation in
-memory but this is Perl so we need to do the work ourselves with a pseudo-type
-system. Affix supports the fundamental types (void, int, etc.) and aggregates
-(struct, array, union.
-
-=head2 Fundamental Types
-
-    Affix       C99                   Rust    C#          pack()  Raku
-    ----------------------------------------------------------------------------
-    Void        void                  ->()    void/NULL   -
-    Bool        _Bool                 bool    bool        -       bool
-    Char        int8_t                i8      sbyte       c       int8
-    UChar       uint8_t               u8      byte        C       byte, uint8
-    Short       int16_t               i16     short       s       int16
-    UShort      uint16_t              u16     ushort      S       uint16
-    Int         int32_t               i32     int         i       int32
-    UInt        uint32_t              u32     uint        I       uint32
-    Long        int64_t               i64     long        l       int64, long
-    ULong       uint64_t              u64     ulong       L       uint64, ulong
-    LongLong    -/long long           i128                q       longlong
-    ULongLong   -/unsigned long long  u128                Q       ulonglong
-    Float       float                 f32                 f       num32
-    Double      double                f64                 d       num64
-    SSize_t     SSize_t                                           SSize_t
-    Size_t      size_t                                            size_t
-    Str         char *
-    WStr        wchar_t
-
-Given sizes are minimums measured in bits
-
-=head3 C<Void>
-
-The C<Void> type corresponds to the C C<void> type. It is generally found in
-typed pointers representing the equivalent to the C<void *> pointer in C.
-
-    affix undef, 'malloc', [Size_t] => Pointer[Void];
-    my $data = malloc( 32 );
-
-As the example above shows, it's represented by a parameterized C<Pointer[ ...
-]> type, using as parameter whatever the original pointer is pointing to (in
-this case, C<void>). This role represents native pointers, and can be used
-wherever they need to be represented in a Perl script.
-
-In addition, you may place a C<Void> in your signature to skip a passed
-argument.
-
-=head3 C<Bool>
-
-Boolean type may only have room for one of two values: C<true> or C<false>.
-
-=head3 C<Char>
-
-Signed character. It's guaranteed to have a width of at least 8 bits.
-
-Pointers (C<Pointer[Char]>) might be better expressed with a C<Str>.
-
-=head3 C<UChar>
-
-Unsigned character. It's guaranteed to have a width of at least 8 bits.
-
-=head3 C<Short>
-
-Signed short integer. It's guaranteed to have a width of at least 16 bits.
-
-=head3 C<UShort>
-
-Unsigned short integer. It's guaranteed to have a width of at least 16 bits.
-
-=head3 C<Int>
-
-Basic signed integer type.
-
-It's guaranteed to have a width of at least 16 bits. However, on 32/64 bit
-systems it is almost exclusively guaranteed to have width of at least 32 bits.
-
-=head3 C<UInt>
-
-Basic unsigned integer type.
-
-It's guaranteed to have a width of at least 16 bits. However, on 32/64 bit
-systems it is almost exclusively guaranteed to have width of at least 32 bits.
-
-=head3 C<Long>
-
-Signed long integer type. It's guaranteed to have a width of at least 32 bits.
-
-=head3 C<ULong>
-
-Unsigned long integer type. It's guaranteed to have a width of at least 32
-bits.
-
-=head3 C<LongLong>
-
-Signed long long integer type. It's guaranteed to have a width of at least 64
-bits.
-
-=head3 C<ULongLong>
-
-Unsigned long long integer type. It's guaranteed to have a width of at least 64
-bits.
-
-=head3 C<Float>
-
-L<Single precision floating-point
-type|https://en.wikipedia.org/wiki/Single-precision_floating-point_format>.
-
-=head3 C<Double>
-
-L<Double precision floating-point
-type|https://en.wikipedia.org/wiki/Double-precision_floating-point_format>.
-
-=head3 C<SSize_t>
-
-Signed integer type.
-
-=head3 C<Size_t>
-
-Unsigned integer type often expected as the result of C<sizeof> or C<offsetof>
-but can be found elsewhere.
-
-=head2 C<Str>
-
-Automatically handle null terminated character pointers with this rather than
-trying using C<Pointer[Char]> and doing it yourself.
-
-You'll learn a bit more about C<Pointer[...]> and other parameterized types in
-the next section.
-
-=head2 C<WStr>
-
-A null-terminated wide string is a sequence of valid wide characters, ending
-with a null character.
-
-=head1 Parameterized Types
-
-Some types must be provided with more context data.
-
-=head2 C<Pointer[ ... ]>
-
-    Pointer[Int]  ~~ int *
-    Pointer[Void] ~~ void *
-
-Create pointers to (almost) all other defined types including C<Struct> and
-C<Void>.
-
-To handle a pointer to an object, see L<InstanceOf>.
-
-Void pointers (C<Pointer[Void]>) might be created with C<malloc> and other
-memory related functions.
-
-=begin future
-
-=head2 C<Aggregate>
-
-This is currently undefined and reserved for possible future use.
-
-=end future
-
-=head2 C<Struct[ ... ]>
-
-    Struct[                    struct {
-        dob => Struct[              struct {
-            year  => Int,               int year;
-            month => Int,   ~~          int month;
-            day   => Int                int day;
-        ],                          } dob;
-        name => Str,                char *name;
-        wId  => Long                long wId;
-    ];                          };
-
-A struct consists of a sequence of members with storage allocated in an ordered
-sequence (as opposed to C<Union>, which is a type consisting of a sequence of
-members where storage overlaps).
-
-A C struct that looks like this:
-
-    struct {
-        char *make;
-        char *model;
-        int   year;
-    };
-
-...would be defined this way:
-
-    Struct[
-        make  => Str,
-        model => Str,
-        year  => Int
-    ];
-
-All fundamental and aggregate types may be found inside of a C<Struct>.
-
-=head2 C<ArrayRef[ ... ]>
-
-The elements of the array must pass the additional size constraint.
-
-An array length must be given:
-
-    ArrayRef[Int, 5];   # int arr[5]
-    ArrayRef[Any, 20];  # SV * arr[20]
-    ArrayRef[Char, 5];  # char arr[5]
-    ArrayRef[Str, 10];  # char *arr[10]
-
-=head2 C<Union[ ... ]>
-
-A union is a type consisting of a sequence of members with overlapping storage
-(as opposed to C<Struct>, which is a type consisting of a sequence of members
-whose storage is allocated in an ordered sequence).
-
-The value of at most one of the members can be stored in a union at any one
-time and the union is only as big as necessary to hold its largest member
-(additional unnamed trailing padding may also be added). The other members are
-allocated in the same bytes as part of that largest member.
-
-A C union that looks like this:
-
-    union {
-        char  c[5];
-        float f;
-    };
-
-...would be defined this way:
-
-    Union[
-        c => ArrayRef[Char, 5],
-        f => Float
-    ];
-
-=head2 C<CodeRef[ ... ]>
-
-A value where C<ref($value)> equals C<CODE>. This would be how callbacks are
-defined.
-
-The argument list and return value must be defined. For example,
-C<CodeRef[[Int, Int]=>Int]> ~~ C<typedef int (*fuc)(int a, int b);>; that is to
-say our function accepts two integers and returns an integer.
-
-    CodeRef[[] => Void];                # typedef void (*function)();
-    CodeRef[[Pointer[Int]] => Int];     # typedef Int (*function)(int * a);
-    CodeRef[[Str, Int] => Struct[...]]; # typedef struct Person (*function)(chat * name, int age);
-
-=head2 C<InstanceOf[ ... ]>
-
-    InstanceOf['Some::Class']
-
-A blessed object of a certain type. When used as an lvalue, the result is
-properly blessed. As an rvalue, the reference is checked to be a subclass of
-the given package.
-
-Note: This "type" is in a state of development flux and might be made complete
-with L<issue #32|https://github.com/sanko/Affix.pm/issues/32>
-
-=head2 C<Any>
-
-Anything you dump here will be passed along unmodified. We hand off a pointer
-to the C<SV*> perl gives us without copying it.
-
-=head2 C<Enum[ ... ]>
-
-The value of an C<Enum> is defined by its underlying type which includes
-C<Int>, C<Char>, etc.
-
-This type is declared with an list of strings.
-
-    Enum[ 'ALPHA', 'BETA' ];
-    # ALPHA = 0
-    # BETA  = 1
-
-Unless an enumeration constant is defined in an array reference, its value is
-the value one greater than the value of the previous enumerator in the same
-enumeration. The value of the first enumerator (if it is not defined) is zero.
-
-    Enum[ 'A', 'B', [C => 10], 'D', [E => 1], 'F', [G => 'F + C'] ];
-    # A = 0
-    # B = 1
-    # C = 10
-    # D = 11
-    # E = 1
-    # F = 2
-    # G = 12
-
-    Enum[ [ one => 'a' ], 'two', [ 'three' => 'one' ] ]
-    # one   = a
-    # two   = b
-    # three = a
-
-As you can see, enum values may allude to earlier defined values and even basic
-arithmetic is supported.
-
-Additionally, if you C<typedef> the enum into a given namespace, you may refer
-to elements by name. They are defined as dualvars so that works:
-
-    typedef color => Enum[ 'RED', 'GREEN', 'BLUE' ];
-    print color::RED();     # RED
-    print int color::RED(); # 0
-
-=head2 C<IntEnum[ ... ]>
-
-Same as C<Enum>.
-
-=head2 C<UIntEnum[ ... ]>
-
-C<Enum> but with unsigned integers.
-
-=head2 C<CharEnum[ ... ]>
-
-C<Enum> but with signed chars.
-
-=head1 Signatures
-
-Affix's advisory signatures are required to give us a little hint about what we
-should expect.
-
-    [ Int, ArrayRef[ Int, 100 ], Str ] => Int
-
-Arguments are defined in a list: C<[ Int, ArrayRef[ Char, 5 ], Str ]>
-
-The return value comes next: C<Int>
-
-To call the function with such a signature, your Perl would look like this:
-
-    mh $int = func( 500, [ 'a', 'b', 'x', '4', 'H' ], 'Test');
-
-See the aptly named sections entitled L<Types|/Types> for more on the possible
-types and L<Calling Conventions/Calling Conventions> for flags that may also be
-defined as part of your signature.
-
-=head1 Calling Conventions
-
-Handle with care! Using these without understanding them can break your code!
-
-Refer to L<the dyncall manual|https://dyncall.org/docs/manual/manualse11.html>,
-L<http://www.angelcode.com/dev/callconv/callconv.html>,
-L<https://en.wikipedia.org/wiki/Calling_convention>, and your local
-university's Comp Sci department for a deeper explanation.
-
-Anyway, here are the current options:
-
-=over
-
-=item C<CC_DEFAULT>
-
-=item C<CC_THISCALL>
-
-=item C<CC_ELLIPSIS>
-
-=item C<CC_ELLIPSIS_VARARGS>
-
-=item C<CC_CDECL>
-
-=item C<CC_STDCALL>
-
-=item C<CC_FASTCALL_MS>
-
-=item C<CC_FASTCALL_GNU>
-
-=item C<CC_THISCALL_MS>
-
-=item C<CC_THISCALL_GNU>
-
-=item C<CC_ARM_ARM>
-
-=item C<CC_ARM_THUMB>
-
-=item C<CC_SYSCALL>
-
-=back
-
-When used in L<signatures/Signatures>, most of these cause the internal
-argument stack to be reset. The exception is C<CC_ELLIPSIS_VARARGS> which is
-used prior to binding varargs of variadic functions.
-
-=head1 ABI Hints
-
-Advanced languages may L<mangle the names of exported
-symbols|https://en.wikipedia.org/wiki/Name_mangling> according to their ABIs.
-Affix can handle wrap the correct symbol when provided with a language/platform
-hint.
-
-Currently supported ABIs include:
-
-=over
-
-=item C<ITANIUM> - basic C++ mangling (https://itanium-cxx-abi.github.io/cxx-abi/abi.html#mangling)
-
-=item C<RUST> - legacy rust mangling (current stable)
-
-=back
-
-These may be imported by name or with the C<:abi> tag and this list will grow
-as this project matures.
-
-=head1 Platform Support
-
-Not all features of dyncall are supported on all platforms, for those, the
-underlying library defines macros you can use to detect support. These values
-are exposed under the C<Affix::Feature> package:
-
-=over
-
-=item C<Affix::Feature::Syscall()>
-
-If true, your platform supports a syscall calling conventions.
-
-=item C<Affix::Feature::AggrByVal()>
-
-If true, your platform supports passing around aggregates (struct, union) by
-value.
-
-=back
-
-=head1 Stack Size
-
-You may control the max size of the internal stack that will be allocated and
-used to bind the arguments to by setting the C<$VMSize> variable before using
-Affix.
-
-    BEGIN{ $Affix::VMSize = 2 ** 16; }
-
-This value is C<4096> by default.
-
-=head1 Examples
-
-The best example of use might be L<LibUI>. Brief examples will be found in
-C<eg/>. Very short examples might find their way here.
-
-=head1 See Also
-
-All the heavy lifting is done by L<dyncall|https://dyncall.org/>.
-
-Check out L<FFI::Platypus> for a more robust and mature FFI
-
-L<LibUI> for a larger demo project based on Affix
-
-L<Types::Standard> for the inspiration of the advisory types system
-
-=head1 LICENSE
-
 Copyright (C) Sanko Robinson.
 
 This library is free software; you can redistribute it and/or modify it under
 the terms found in the Artistic License 2. Other copyrights, terms, and
 conditions may apply to data transmitted through this module.
-
-=head1 AUTHOR
-
-Sanko Robinson E<lt>sanko@cpan.orgE<gt>
-
-=begin stopwords
-
-dyncall OpenBSD FreeBSD macOS DragonFlyBSD NetBSD iOS ReactOS mips mips64 ppc32
-ppc64 sparc sparc64 co-existing varargs variadic struct enum eXtension rvalue
-dualvars libsomething versioned errno syscall
-
-=end stopwords
-
-=cut

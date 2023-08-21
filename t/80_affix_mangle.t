@@ -5,13 +5,22 @@ use lib '../lib', 'lib', '../blib/arch', '../blib/lib', 'blib/arch', 'blib/lib',
 use Affix qw[typedef :types];
 use Test::More;
 #
-typedef 'Structure'                                                    => Struct [];
-typedef halide_buffer_t                                                => Struct [];
+my $fake_affix = bless { cpp_struct => 0, cpp_const => 0, cpp_constructor => 0 }, 'Fake::Affix';
+
+package Fake::Affix {
+    sub cpp_struct      { shift->{cpp_struct} }
+    sub cpp_const       { shift->{cpp_const} }
+    sub cpp_constructor { shift->{cpp_constructor} }
+}
+#
+my $Structure       = typedef 'Structure'     => Struct [];
+my $halide_buffer_t = typedef halide_buffer_t => Struct [];
 typedef 'test_namespace::test_namespace::enclosing_class::test_struct' => Struct [];
 #
-is Affix::Itanium_mangle( undef, 'test_function', [] ), '_Z13test_functionv', '_Z13test_functionv';
+is Affix::Itanium_mangle( $fake_affix, 'test_function', [] ), '_Z13test_functionv',
+    '_Z13test_functionv';
 is Affix::Itanium_mangle(
-    undef,
+    $fake_affix,
     'test_function',
     [   Bool, Char, UChar, Short, UShort, Int, UInt, Long, ULong, LongLong, ULongLong, Float,
         Double,
@@ -21,7 +30,7 @@ is Affix::Itanium_mangle(
     ),
     '_Z13test_functionbchstijlmxyfdPvS_', '_Z13test_functionbchstijlmxyfdPvS_';
 is Affix::Itanium_mangle(
-    undef,
+    $fake_affix,
     'test_function',
     [   Bool,           Char,
         UChar,          Short,
@@ -30,7 +39,7 @@ is Affix::Itanium_mangle(
         ULong,          LongLong,
         ULongLong,      Float,
         Double,         Pointer [Void],
-        Structure(),    Pointer [ Structure() ],
+        $Structure,     Pointer [$Structure],
         Pointer [Void], Pointer [Void],
         Pointer [ Pointer [Void] ]
     ]
@@ -38,7 +47,7 @@ is Affix::Itanium_mangle(
     '_Z13test_functionbchstijlmxyfdPv9StructurePS0_S_S_PS_',
     '_Z13test_functionbchstijlmxyfdPv9StructurePS0_S_S_PS_';
 is Affix::Itanium_mangle(
-    undef,
+    $fake_affix,
     'test_function',
     [   Bool,                       Char,
         UChar,                      Short,
@@ -47,23 +56,31 @@ is Affix::Itanium_mangle(
         ULong,                      LongLong,
         ULongLong,                  Float,
         Double,                     Pointer [Void],
-        Structure(),                Pointer [ Structure() ],
+        $Structure,                 Pointer [$Structure],
         Pointer [Void],             Pointer [Void],
-        Pointer [ Pointer [Void] ], Structure()
+        Pointer [ Pointer [Void] ], $Structure
     ]
     ),
     '_Z13test_functionbchstijlmxyfdPv9StructurePS0_S_S_PS_S0_',
     '_Z13test_functionbchstijlmxyfdPv9StructurePS0_S_S_PS_S0_';
-is Affix::Itanium_mangle( undef, 'foo::test_function', [] ), '_ZN3foo13test_functionEv',
+is Affix::Itanium_mangle( $fake_affix, 'foo::test_function', [] ), '_ZN3foo13test_functionEv',
     '_ZN3foo13test_functionEv';
-is Affix::Itanium_mangle( undef, 'foo::bar::test_function', [] ), '_ZN3foo3bar13test_functionEv',
-    '_ZN3foo3bar13test_functionEv';
-is Affix::Itanium_mangle( undef, 'foo::bar::test_function', [Int] ),
+is Affix::Itanium_mangle( $fake_affix, 'foo::bar::test_function', [] ),
+    '_ZN3foo3bar13test_functionEv', '_ZN3foo3bar13test_functionEv';
+is Affix::Itanium_mangle( $fake_affix, 'foo::bar::test_function', [Int] ),
     '_ZN3foo3bar13test_functionEi', '_ZN3foo3bar13test_functionEi';
-is Affix::Itanium_mangle( undef, 'foo::bar::test_function',
-    [ Int, Pointer [ halide_buffer_t() ] ] ),
+is Affix::Itanium_mangle( $fake_affix, 'foo::bar::test_function',
+    [ Int, Pointer [$halide_buffer_t] ] ),
     '_ZN3foo3bar13test_functionEiP15halide_buffer_t',
     '_ZN3foo3bar13test_functionEiP15halide_buffer_t';
+is Affix::Itanium_mangle( $fake_affix, 'testBoolPointerPointer',
+    [ Bool, Pointer [ Pointer [Bool] ] ] ),
+    '_Z22testBoolPointerPointerbPPb', '_Z22testBoolPointerPointerbPPb';
+is Affix::Itanium_mangle( $fake_affix, 'xxxtest', [ Pointer [Char], Pointer [ Pointer [Char] ] ] ),
+    '_Z7xxxtestPcPS_', '_Z7xxxtestPcPS_';
+is Affix::Itanium_mangle( $fake_affix, 'xxxtest',
+    [ Pointer [Char], Pointer [ Pointer [Char] ], Pointer [Char] ] ),
+    '_Z7xxxtestPcPS_S_', '_Z7xxxtestPcPS_S_';
 
 #~ [   'test_namespace::test_namespace::test_function',
 #~ CodeRef [ [ test_namespace::test_namespace::enclosing_class::test_struct() ] => Int ],

@@ -17,6 +17,8 @@ jobs:
         exclude:
           - os: macos-latest
             flags: -Dusequadmath
+          - os: macos-latest
+            flags: --thread
         os:
           - ubuntu-latest
           - macos-latest

@@ -25,7 +25,7 @@ subtest 'Float' => sub {
     is wrap( $lib, 'TakeAFloat',     [Float]  => Int )->(4.2e0),  5, '[Float] => Int';
     is wrap( $lib, 'TakeAFloatNaN',  [Float]  => Int )->('NaN'),  5, '[Float] => Int (NaN)';
 };
-subtest 'String' => sub {
+subtest 'Str' => sub {
     is wrap( $lib, 'TakeAString', [Str] => Int )->('ok 6 - passed a string'), 6, '[Str] => Int';
     #
     affix $lib, 'TakeAStringThenNull', [ Long, Str ] => Int;

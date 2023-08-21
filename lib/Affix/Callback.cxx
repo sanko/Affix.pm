@@ -11,22 +11,8 @@ char cbHandler(DCCallback *cb, DCArgs *args, DCValue *result, DCpointer userdata
     SAVETMPS;
     PUSHMARK(SP);
     EXTEND(SP, (int)cbx->sig_len);
-    char type;
-    //~ warn("callback! %d args; sig: %s", cbx->sig_len, cbx->sig);
-    /*
-    char *sig;
-    size_t sig_len;
-    char ret;
-    char *perl_sig;
-    SV *cv;
-    AV *args;
-    SV *retval;
-    dTHXfield(perl)
-    */
     for (size_t i = 0; i < cbx->sig_len; ++i) {
-        type = cbx->sig[i];
-        //~ warn("arg %d of %d: %c", i, cbx->sig_len, type);
-        switch (type) {
+        switch (cbx->sig[i]) {
         case DC_SIGCHAR_VOID:
             // TODO: push undef?
             break;
@@ -44,7 +30,7 @@ char cbHandler(DCCallback *cb, DCArgs *args, DCValue *result, DCpointer userdata
             SvIOK_on(w);
             mPUSHs(w);
         } break;
-        case AFFIX_ARG_WCHAR: {
+        case AFFIX_TYPE_WCHAR: {
             wchar_t *c;
             Newx(c, 2, wchar_t);
             c[0] = (wchar_t)dcbArgLong(args);
@@ -87,50 +73,28 @@ char cbHandler(DCCallback *cb, DCArgs *args, DCValue *result, DCpointer userdata
             break;
         case DC_SIGCHAR_POINTER: {
             DCpointer ptr = dcbArgPointer(args);
-            SV *__type = *av_fetch(cbx->args, i, 0);
-            int _type = SvIV(__type);
-            //~ warn("Pointer to (%d/%s)...", _type, type_as_str(_type));
-            //~ sv_dump(__type);
-            switch (_type) { // true type
-            case AFFIX_ARG_WCHAR: {
-                //~ SV *wchar2utf(pTHX_ wchar_t *str, int len);
-                mPUSHs(ptr2sv(aTHX_ ptr, newSViv(_type)));
-            } break;
-            case AFFIX_ARG_VOID: {
-                SV *s = ptr2sv(aTHX_ ptr, __type);
-                mPUSHs(s);
-            } break;
-            case AFFIX_ARG_CALLBACK: {
-                Callback *cb = (Callback *)dcbGetUserData((DCCallback *)ptr);
-                mPUSHs(cb->cv);
-            } break;
-            default:
-                mPUSHs(sv_setref_pv(newSV(1), "Affix::Pointer::Unmanaged", ptr));
-                break;
+            if (ptr != NULL) {
+                SV *type = *av_fetch(cbx->arg_info, i, 0);
+                switch (SvIV(type)) {
+                case AFFIX_TYPE_CALLBACK: {
+                    Callback *cb = (Callback *)dcbGetUserData((DCCallback *)ptr);
+                    mPUSHs(cb->cv);
+                } break;
+                default: {
+                    mPUSHs(ptr2sv(aTHX_ ptr, type));
+                } break;
+                }
             }
+            else { mPUSHs(newSV(0)); }
         } break;
         case DC_SIGCHAR_STRING: {
             DCpointer ptr = dcbArgPointer(args);
             PUSHs(newSVpv((char *)ptr, 0));
         } break;
-        case AFFIX_ARG_UTF16STR: {
+        case AFFIX_TYPE_UTF16STR: {
             DCpointer ptr = dcbArgPointer(args);
-            SV **type_sv = av_fetch(cbx->args, i, 0);
+            SV **type_sv = av_fetch(cbx->arg_info, i, 0);
             PUSHs(ptr2sv(aTHX_ ptr, *type_sv));
-            /*
-            typedef struct {
-            char *sig;
-            size_t sig_len;
-            char ret;
-            char *perl_sig;
-            SV *cv;
-            AV *args;
-            SV *retval;
-            dTHXfield(perl)
-            } Callback;
-
-
-            */
         } break;
         //~ case DC_SIGCHAR_INSTANCEOF: {
         //~ DCpointer ptr = dcbArgPointer(args);
@@ -179,7 +143,7 @@ char cbHandler(DCCallback *cb, DCArgs *args, DCValue *result, DCpointer userdata
         case DC_SIGCHAR_UCHAR:
             result->C = SvIOK(ret) ? ((UV)SvUVx(ret)) : 0;
             break;
-        case AFFIX_ARG_WCHAR: {
+        case AFFIX_TYPE_WCHAR: {
             ret_c = DC_SIGCHAR_LONG; // Fake it
             if (SvPOK(ret)) {
                 STRLEN len;

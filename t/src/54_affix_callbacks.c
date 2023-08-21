@@ -120,3 +120,21 @@ DLLEXPORT char *cb_CV_Z(CV_Z cb, sub code) {
     //~ warn("# here at %s line %d", __FILE__, __LINE__);
     return ((*cb)("Ready!", code));
 }
+
+//
+struct cb_caller {
+    int (*trigger)(struct cb_caller *, int);
+};
+typedef int (*pi_i)(struct cb_caller *, int);
+DLLEXPORT struct cb_caller *put_cb_in_struct(pi_i cb) {
+    struct cb_caller *retval = (struct cb_caller *)malloc(sizeof(struct cb_caller));
+    retval->trigger = cb;
+    return retval;
+}
+DLLEXPORT int call_cb_in_struct(struct cb_caller *this, int num) {
+    return this->trigger(this, num);
+}
+DLLEXPORT int free_cb_in_struct(struct cb_caller *this) {
+    free(this);
+    return 1;
+}

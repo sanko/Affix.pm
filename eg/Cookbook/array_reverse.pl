@@ -1,8 +1,8 @@
 use Affix;
 use strict;
 $|++;
-affix './array_reverse.so', array_reverse => [ ArrayRef [Int], Int ], Int;
-affix './array_reverse.so', array_reverse10 => [ ArrayRef [ Int, 10 ] ], Int;
+affix './array_reverse.so', array_reverse => [ Array [Int], Int ], Int;
+affix './array_reverse.so', array_reverse10 => [ Array [ Int, 10 ] ], Int;
 #
 my @a = ( 1 .. 10 );
 array_reverse10( \@a );

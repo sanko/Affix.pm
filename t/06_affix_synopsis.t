@@ -10,7 +10,7 @@ is pow( 2, 10 ), 1024, 'pow( 2, 10 ) == 1024';
 done_testing;
 
 sub get_lib {
-    return 'ntdll' if $^O eq 'MSWin32';
+    return 'ntdll'                    if $^O eq 'MSWin32';
     return '/usr/lib/libSystem.dylib' if $^O eq 'darwin';
     [ 'm', 6 ];
 }

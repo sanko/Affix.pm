@@ -26,7 +26,7 @@ use Config;
 my $libver;
 my $DEBUG = 0;
 my $CFLAGS
-    = $DEBUG                     ? '-DDEBUG' :
+    = $DEBUG                     ? '-DDEBUG=' . $DEBUG :
     $Config{osname} eq 'MSWin32' ? '' :
     ' -DNDEBUG -DBOOST_DISABLE_ASSERTS -O2 -ffast-math -fno-align-functions -fno-align-loops -fno-omit-frame-pointer ';
 my $LDFLAGS = ' ';    # https://wiki.freebsd.org/LinkTimeOptimization
@@ -331,8 +331,17 @@ sub process_cxx {
     warn $@                                            if $@;
     my @objs;
     require ExtUtils::CBuilder;
-    my $builder = ExtUtils::CBuilder->new( config => ( $opt{config}->values_set ) );
-    my $pre     = Path::Tiny->cwd->child(qw[blib arch auto])->absolute;
+    my $builder = ExtUtils::CBuilder->new(
+        config => {
+
+            #~ (
+            #~ $opt{config}->get('osname') !~ /bsd/ &&
+            #~ $opt{config}->get('ld') eq 'cc' ? ( ld => 'g++' ) : ()
+            #~ ),
+            %{ $opt{config}->values_set }
+        }
+    );
+    my $pre = Path::Tiny->cwd->child(qw[blib arch auto])->absolute;
     my $source;
     require DynaLoader;
     my $mod2fname
@@ -350,7 +359,10 @@ sub process_cxx {
         my $version = $opt{meta}->version;
         my $obj     = $builder->object_file($source);
         push @dirs, rel2abs dirname($source);
-        push @objs,
+        push @objs,    # misses headers but that's okay
+            ( ( !-f $obj ) ||
+                ( stat($source)->mtime > stat($obj)->mtime ) ||
+                ( stat(__FILE__)->mtime > stat($obj)->mtime ) ) ?
             $builder->compile(
             'C++'        => ( $source =~ /\.cxx$/ ),
             source       => $source,
@@ -362,7 +374,8 @@ sub process_cxx {
                     ( $opt{config}->get('osname') =~ /bsd/ ? ''     : $CFLAGS ) .
                     ( $DEBUG ? ' -ggdb3 -g -Wall -Wextra -pedantic' : '' )
             )
-            );
+            ) :
+            $obj;
 
         #my $op_lib_file = catfile(
         #    $paths->install_destination('arch'),
@@ -370,20 +383,25 @@ sub process_cxx {
         #'Pad' . $opt{config}->get('dlext')
         #);
     }
-    warn join ', ', @dirs;
-    warn join ', ', @parts;
-    warn $lib_file;
-    return $builder->link(
-        extra_linker_flags => (
-            ( $opt{config}->get('osname') =~ /bsd/ ? '' : $LDFLAGS ) .
-                ( join ' ', map { ' -L' . $_ } @dirs ) . ' -L' .
-                $pre->child( $opt{meta}->name, 'lib' )->stringify .
-                ' -ldyncall_s -ldyncallback_s -ldynload_s'
-        ),
-        objects     => [@objs],
-        lib_file    => $lib_file,
-        module_name => join '::',
-        @parts
+
+    #~ warn join ', ', @dirs;
+    #~ warn join ', ', @parts;
+    #~ warn $lib_file;
+    return (
+        ( ( !-f $lib_file ) || grep { stat($_)->mtime > stat($lib_file)->mtime } @objs ) ?
+            $builder->link(
+            extra_linker_flags => (
+                ( $opt{config}->get('osname') =~ /bsd/ ? '' : $LDFLAGS ) .
+                    ( join ' ', map { ' -L' . $_ } @dirs ) . ' -L' .
+                    $pre->child( $opt{meta}->name, 'lib' )->stringify .
+                    ' -lstdc++ -ldyncall_s -ldyncallback_s -ldynload_s'
+            ),
+            objects     => [@objs],
+            lib_file    => $lib_file,
+            module_name => join '::',
+            @parts
+            ) :
+            $lib_file
     );
 }
 
@@ -393,7 +411,8 @@ sub find {
     File::Find::find( sub { push @ret, $File::Find::name if /$pattern/ && -f }, $dir ) if -d $dir;
     return @ret;
 }
-my %actions = (
+my %actions;
+%actions = (
     build => sub {
         my %opt = @_;
         for my $pl_file ( find( qr/\.PL$/, 'lib' ) ) {
@@ -430,7 +449,9 @@ my %actions = (
     },
     test => sub {
         my %opt = @_;
-        die "Must run `./Build build` first\n" if not -d 'blib';
+
+        #~ die "Must run `./Build build` first\n" if not -d 'blib';
+        $actions{build}->(%opt);
         require TAP::Harness::Env;
         my %test_args = (
             ( verbosity => $opt{verbose} ) x !!exists $opt{verbose},
@@ -443,18 +464,22 @@ my %actions = (
     },
     install => sub {
         my %opt = @_;
-        die "Must run `./Build build` first\n" if not -d 'blib';
+
+        #~ die "Must run `./Build build` first\n" if not -d 'blib';
+        $actions{build}->(%opt);
         install( $opt{install_paths}->install_map, @opt{qw/verbose dry_run uninst/} );
         return 0;
     },
     clean => sub {
         my %opt = @_;
         rmtree( $_, $opt{verbose} ) for qw/blib temp/;
+        unlink $_ for find( qr/\.o$/, 'lib' );
         return 0;
     },
     realclean => sub {
         my %opt = @_;
-        rmtree( $_, $opt{verbose} ) for qw/blib temp Build _build_params MYMETA.yml MYMETA.json/;
+        $actions{clean}->(%opt);
+        rmtree( $_, $opt{verbose} ) for qw/Build _build_params MYMETA.yml MYMETA.json/;
         return 0;
     }
 );
