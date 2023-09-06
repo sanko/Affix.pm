@@ -30,7 +30,7 @@ char cbHandler(DCCallback *cb, DCArgs *args, DCValue *result, DCpointer userdata
             SvIOK_on(w);
             mPUSHs(w);
         } break;
-        case AFFIX_TYPE_WCHAR: {
+        case WCHAR_FLAG: {
             wchar_t *c;
             Newx(c, 2, wchar_t);
             c[0] = (wchar_t)dcbArgLong(args);
@@ -76,7 +76,7 @@ char cbHandler(DCCallback *cb, DCArgs *args, DCValue *result, DCpointer userdata
             if (ptr != NULL) {
                 SV *type = *av_fetch(cbx->arg_info, i, 0);
                 switch (SvIV(type)) {
-                case AFFIX_TYPE_CALLBACK: {
+                case CODEREF_FLAG: {
                     Callback *cb = (Callback *)dcbGetUserData((DCCallback *)ptr);
                     mPUSHs(cb->cv);
                 } break;
@@ -91,7 +91,7 @@ char cbHandler(DCCallback *cb, DCArgs *args, DCValue *result, DCpointer userdata
             DCpointer ptr = dcbArgPointer(args);
             PUSHs(newSVpv((char *)ptr, 0));
         } break;
-        case AFFIX_TYPE_UTF16STR: {
+        case WSTRING_FLAG: {
             DCpointer ptr = dcbArgPointer(args);
             SV **type_sv = av_fetch(cbx->arg_info, i, 0);
             PUSHs(ptr2sv(aTHX_ ptr, *type_sv));
@@ -143,7 +143,7 @@ char cbHandler(DCCallback *cb, DCArgs *args, DCValue *result, DCpointer userdata
         case DC_SIGCHAR_UCHAR:
             result->C = SvIOK(ret) ? ((UV)SvUVx(ret)) : 0;
             break;
-        case AFFIX_TYPE_WCHAR: {
+        case WCHAR_FLAG: {
             ret_c = DC_SIGCHAR_LONG; // Fake it
             if (SvPOK(ret)) {
                 STRLEN len;

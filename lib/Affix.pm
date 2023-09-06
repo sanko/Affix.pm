@@ -12,23 +12,28 @@ package Affix 0.12 {    # 'FFI' is my middle name!
     use Carp qw[];
     use vars qw[@EXPORT_OK @EXPORT %EXPORT_TAGS];
     use XSLoader;
+    use Affix::Type;
 
     #~ our $VMSize = 1024; # defaults to 8192; passed to dcNewCallVM( ... )
     my $ok = XSLoader::load();
     #
     use parent 'Exporter';
-    {
-        my %seen;
-        push @{ $EXPORT_TAGS{default} }, grep { !$seen{$_}++ } @{ $EXPORT_TAGS{$_} }
-            foreach qw[base types cc];
-    }
-    {
-        my %seen;
-        push @{ $EXPORT_TAGS{all} }, grep { !$seen{$_}++ } @{ $EXPORT_TAGS{$_} }
-            for keys %EXPORT_TAGS;
-    }
-    @EXPORT    = sort @{ $EXPORT_TAGS{default} };
-    @EXPORT_OK = sort @{ $EXPORT_TAGS{all} };
+    $EXPORT_TAGS{types} = [
+        'Void', 'SV',
+
+        # Aggregates
+        'Struct', 'Array', 'Union',
+
+        # Numerics
+        'Bool',     'Char', 'UChar', 'WChar', 'Short', 'UShort', 'Int', 'UInt', 'Long', 'ULong',
+        'LongLong', 'ULongLong', 'Float', 'Double', 'Size_t', 'SSize_t',
+
+        # Enumerations
+        'Enum', 'IntEnum', 'UIntEnum', 'CharEnum',
+
+        # Pointers
+        'String', 'WString', 'StdString', 'Pointer', 'CodeRef'
+    ];
 
     #~ use Data::Dump;
     #~ ddx \@EXPORT_OK;
@@ -68,7 +73,7 @@ package Affix 0.12 {    # 'FFI' is my middle name!
             else {
                 $libdirs = [
                     ( split ' ', $Config{libsdirs} ),
-                    map      { warn $ENV{$_}; split /[:;]/, ( $ENV{$_} ) }
+                    map { warn $ENV{$_}; split /[:;]/, ( $ENV{$_} ) }
                         grep { $ENV{$_} }
                         qw[LD_LIBRARY_PATH DYLD_LIBRARY_PATH DYLD_FALLBACK_LIBRARY_PATH]
                 ];
@@ -76,7 +81,7 @@ package Affix 0.12 {    # 'FFI' is my middle name!
             no warnings qw[once];
             require DynaLoader;
             $libdirs = [
-                grep    { -d $_ }
+                grep { -d $_ }
                     map { rel2abs($_) }
                     qw[. ./lib ~/lib /usr/local/lib /usr/lib /lib /usr/lib/system],
                 @DynaLoader::dl_library_path, @$libdirs
@@ -186,6 +191,366 @@ package Affix 0.12 {    # 'FFI' is my middle name!
             return $cache->{$name}{ $version // '' }->{path};
         }
         ();
+    }
+    {
+        # ctypes util
+        sub padding_needed_for {
+            my ( $offset, $alignment ) = @_;
+            return $alignment unless $offset;
+            return 0          unless $alignment;
+            my $misalignment = $offset % $alignment;
+            return $alignment - $misalignment
+                if $misalignment;    # round to the next multiple of $alignment
+            return 0;                # already a multiple of $alignment
+        }
+        #
+        sub typedef {
+            my ( $new, $original ) = @_;
+            no strict 'refs';
+            no warnings 'once';
+
+            #~ use diagnostics;
+            *{$new} = sub {$original};
+            @{ 'Affix::Type::' . $new . '::ISA' } = 'Affix::Type::' . $original;
+            push @{ $EXPORT_TAGS{types} }, $new;
+        }
+
+        sub Void() {    # could use state var if we didn't use the objects to store offset, etc.
+            bless( [ 'Void', VOID_FLAG(), 0, 0, undef ], 'Affix::Type::Void' );
+        }
+
+        sub Bool() {
+            bless( [ 'Bool', BOOL_FLAG(), BOOL_SIZE(), BOOL_ALIGN(), undef ], 'Affix::Type::Bool' );
+        }
+
+        sub Char() {
+            bless( [ 'Char', CHAR_FLAG(), CHAR_SIZE(), CHAR_ALIGN(), undef ], 'Affix::Type::Char' );
+        }
+
+        sub SChar() {
+            bless( [ 'SChar', SCHAR_FLAG(), CHAR_SIZE(), CHAR_ALIGN(), undef ],
+                'Affix::Type::SChar' );
+        }
+
+        sub UChar() {
+            bless( [ 'UChar', UCHAR_FLAG(), UCHAR_SIZE(), UCHAR_ALIGN(), undef ],
+                'Affix::Type::UChar' );
+        }
+
+        sub WChar() {
+            bless( [ 'WChar', WCHAR_FLAG(), WCHAR_SIZE(), WCHAR_ALIGN(), undef ],
+                'Affix::Type::WChar' );
+        }
+
+        sub Short() {
+            bless( [ 'Short', SHORT_FLAG(), SHORT_SIZE(), SHORT_ALIGN(), undef ],
+                'Affix::Type::Short' );
+        }
+
+        sub UShort() {
+            bless( [ 'UShort', USHORT_FLAG(), USHORT_SIZE(), USHORT_ALIGN(), undef ],
+                'Affix::Type::UShort' );
+        }
+
+        sub Int () {
+            bless( [ 'Int', INT_FLAG(), INT_SIZE(), INT_ALIGN(), undef ], 'Affix::Type::Int' );
+        }
+
+        sub UInt () {
+            bless( [ 'UInt', UINT_FLAG(), UINT_SIZE(), UINT_ALIGN(), undef ], 'Affix::Type::UInt' );
+        }
+
+        sub Long () {
+            bless( [ 'Long', LONG_FLAG(), LONG_SIZE(), LONG_ALIGN(), undef ], 'Affix::Type::Long' );
+        }
+
+        sub ULong () {
+            bless( [ 'ULong', ULONG_FLAG(), ULONG_SIZE(), ULONG_ALIGN(), undef ],
+                'Affix::Type::ULong' );
+        }
+
+        sub LongLong () {
+            bless( [ 'LongLong', LONGLONG_FLAG(), LONGLONG_SIZE(), LONGLONG_ALIGN(), undef ],
+                'Affix::Type::LongLong' );
+        }
+
+        sub ULongLong () {
+            bless( [ 'ULongLong', ULONGLONG_FLAG(), ULONGLONG_SIZE(), ULONGLONG_ALIGN(), undef ],
+                'Affix::Type::ULongLong' );
+        }
+
+        sub Float () {
+            bless( [ 'Float', FLOAT_FLAG(), FLOAT_SIZE(), FLOAT_ALIGN(), undef ],
+                'Affix::Type::Float' );
+        }
+
+        sub Double () {
+            bless( [ 'Double', DOUBLE_FLAG(), DOUBLE_SIZE(), DOUBLE_ALIGN(), undef ],
+                'Affix::Type::Double' );
+        }
+
+        sub Size_t () {
+            bless( [ 'Size_t', SSIZE_T_FLAG(), SIZE_T_SIZE(), SIZE_T_ALIGN(), undef ],
+                'Affix::Type::Size_t' );
+        }
+
+        sub SSize_t () {
+            bless( [ 'SSize_t', SSIZE_T_FLAG(), SSIZE_T_SIZE(), SSIZE_T_ALIGN(), undef ],
+                'Affix::Type::SSize_t' );
+        }
+
+        sub String () {
+            bless( [ 'String', STRING_FLAG(), INTPTR_T_SIZE(), INTPTR_T_ALIGN(), undef ],
+                'Affix::Type::String' );
+        }
+
+        sub WString () {
+            bless( [ 'String', WSTRING_FLAG(), INTPTR_T_SIZE(), INTPTR_T_ALIGN(), undef ],
+                'Affix::Type::WString' );
+        }
+
+        sub StdString () {
+            bless( [ 'StdString', STD_STRING_FLAG(), INTPTR_T_SIZE(), INTPTR_T_ALIGN(), undef ],
+                'Affix::Type::StdString' );
+        }
+
+        sub Struct ($) {
+            my (@types) = @{ +shift };
+            my @fields;
+            my $sizeof = 0;
+            my $packed = 0;
+
+            #~ for my ( $field, $type )(@types) { # Perl 5.36
+            for ( my $i = 0; $i < $#types; $i += 2 ) {
+                my $field = $types[$i];
+                my $type  = $types[ $i + 1 ];
+                push @fields, sprintf '%s => %s', $field, $type;
+                my $__sizeof = $type->sizeof;
+                my $__align  = $type->align;
+                $sizeof += $packed ? 0 :
+                    padding_needed_for( $sizeof, $__align > $__sizeof ? $__sizeof : $__align );
+                $type->[4] = $sizeof;    # offset
+                $sizeof += $__sizeof;
+            }
+            bless(
+                [   sprintf( 'Struct[ %s ]', join ', ', @fields ),
+                    STRUCT_FLAG(), $sizeof, $sizeof + padding_needed_for( $sizeof, BYTE_ALIGN() ),
+                    \@types
+                ],
+                'Affix::Type::Struct'
+            );
+        }
+
+        # TODO: CPPStruct
+        sub Union ($) {
+            my (@types) = @{ +shift };
+            my @fields;
+            my $sizeof    = 0;
+            my $alignment = 0;
+            my $packed    = 0;
+
+            #~ for my ( $field, $type )(@types) { # Perl 5.36
+            for ( my $i = 0; $i < $#types; $i += 2 ) {
+                my $field = $types[$i];
+                my $type  = $types[ $i + 1 ];
+                push @fields, sprintf '%s => %s', $field, $type;
+                my $__sizeof = $type->sizeof;
+                if ( $sizeof < $__sizeof ) {
+                    $sizeof    = $__sizeof;
+                    $alignment = $type->align;
+                }
+            }
+            bless(
+                [   sprintf( 'Union[ %s ]', join ', ', @fields ),
+                    UNION_FLAG(), $sizeof, $alignment, \@types
+                ],
+                'Affix::Type::Union'
+            );
+        }
+
+        sub Array ($) {    # [ text, id, size, align, offset, subtype, length, aggregate ]
+            my ( $type, $size ) = @{ +shift };
+            my $sizeof = undef;
+            my $packed = 0;
+            if ($size) {
+                my $__sizeof = $type->sizeof;
+                my $__align  = $type->align;
+                for ( 0 ... $size ) {
+                    $sizeof += $packed ? 0 :
+                        padding_needed_for( $sizeof, $__align > $__sizeof ? $__sizeof : $__align );
+                    $sizeof += $__sizeof;
+                }
+            }
+            bless(
+                [   sprintf( 'Array[ %s%s ]', $type, defined($size) ? ', ' . $size : '' ),
+                    ARRAY_FLAG(), $sizeof, undef, undef, $type, $size, undef
+                ],
+                'Affix::Type::Array'
+            );
+        }
+
+        sub CodeRef($) {
+            my (@elements) = @{ +shift };
+            my ( $args, $ret ) = @elements;
+            bless(
+                [   sprintf( 'CodeRef[ [ %s ] => %s ]', join( ', ', @$args ), $ret ),
+                    CODEREF_FLAG(), INTPTR_T_SIZE(), INTPTR_T_ALIGN(), $args, $ret
+                ],
+                'Affix::Type::CodeRef'
+            );
+        }
+
+        sub Pointer (;$) {    # [ text, id, size, align, offset, subtype, sizeof, package ]
+            my $sizeof  = 0;
+            my $packed  = 0;
+            my $subtype = undef;
+            if (@_) {
+                ($subtype) = @{ +shift };
+                my $__sizeof = $subtype->sizeof;
+                my $__align  = $subtype->align;
+                $sizeof += $packed ? 0 :
+                    padding_needed_for( $sizeof, $__align > $__sizeof ? $__sizeof : $__align );
+                $sizeof += $__sizeof;
+            }
+            else {
+                $subtype = Void();    # Defaults to Pointer[Void]
+            }
+            bless(
+                [   'Pointer[ ' . $subtype . ' ]',
+                    POINTER_FLAG(), INTPTR_T_SIZE(), INTPTR_T_ALIGN(), undef, $subtype, $sizeof,
+                    undef
+                ],
+                'Affix::Type::Pointer'
+            );
+        }
+
+        sub SV () {    # Should only be used inside of a Pointer[]
+            bless( [ 'SV', SV_FLAG(), 0, 0, undef ], 'Affix::Type::SV' );
+        }
+
+        sub _Enum($) {
+            my (@elements) = @{ +shift };
+            my $fields;
+            my $index = 0;
+            my $enum;
+            for my $element (@elements) {
+                ( $element, $index ) = @$element if ref $element eq 'ARRAY';
+                if ( $index =~ /[+|-|\*|\/|^|%|\D]/ ) {
+                    $index =~ s[(\w+)][$enum->{$1}//$1]xeg;
+                    $index = eval $index;
+                }
+                $enum->{$element} = $index;
+                push @$fields, sprintf '%s => %s', $element, $index++;
+            }
+            return $fields, $enum;
+        }
+
+        sub Enum($) {
+            my ( $fields, $enum ) = &_Enum;
+            bless(
+                [   sprintf( 'Enum[ %s ]', join ', ', @$fields ),
+                    'i', Int->sizeof, Int->sizeof, $enum
+                ],
+                'Affix::Type::Enum'
+            );
+        }
+
+        sub IntEnum($) {
+            my ( $fields, $enum ) = &_Enum;
+            bless(
+                [   sprintf( 'IntEnum[ %s ]', join ', ', @$fields ),
+                    'i', Int->sizeof, Int->sizeof, $enum
+                ],
+                'Affix::Type::IntEnum'
+            );
+        }
+
+        sub UIntEnum($) {
+            my ( $fields, $enum ) = &_Enum;
+            bless(
+                [   sprintf( 'UIntEnum[ %s ]', join ', ', @$fields ),
+                    'j', UInt->sizeof, UInt->sizeof, $enum
+                ],
+                'Affix::Type::UIntEnum'
+            );
+        }
+
+        sub CharEnum($) {
+            my (@elements) = @{ +shift };
+            my @fields;
+            my $index = 0;
+            my %enum;
+            for my $element (@elements) {
+                ( $element, $index ) = @$element if ref $element eq 'ARRAY';
+                if ( $index =~ /[+|-|\*|\/|^|%]/ ) {
+                    $index =~ s[(\w+)][$enum{$1}//$1]xeg;
+                    $index =~ s[\b(\D)\b][ord $1]xeg;
+                    $index = eval $index;
+                }
+                $enum{$element} = $index =~ /\D/ ? ord $index : $index;
+                push @fields, sprintf '%s => %s', $element, $enum{$element};
+                $index++;
+            }
+            bless(
+                [   sprintf( 'CharEnum[ %s ]', join ', ', @fields ),
+                    'c', UInt->sizeof, UInt->sizeof, \%enum
+                ],
+                'Affix::Type::CharEnum'
+            );
+        }
+        #
+        typedef ShortInt     => Short;
+        typedef SShort       => Short;
+        typedef SShortInt    => Short;
+        typedef UShortInt    => UShort;
+        typedef Signed       => Int;
+        typedef SInt         => Int;
+        typedef Unsigned     => UInt;
+        typedef LongInt      => Long;
+        typedef SLongInt     => Long;
+        typedef LongLongInt  => LongLong;
+        typedef SLongLong    => LongLong;
+        typedef SLongLongInt => LongLong;
+        typedef ULongLongInt => ULongLong;
+        typedef Str          => String;
+        typedef WStr         => WString;
+        #
+        typedef i8  => Char;
+        typedef u8  => UChar;
+        typedef i16 => Short;
+        typedef u16 => UShort;
+        typedef i32 => Int;
+        typedef u32 => UInt;
+        typedef i64 => LongLong;
+        typedef u64 => ULongLong;
+        #
+        typedef wchar_t => WChar;
+        #
+        @Affix::Type::Void::ISA = @Affix::Type::SV::ISA
+
+            # Aggregates
+            = @Affix::Type::Struct::ISA = @Affix::Type::Array::ISA = @Affix::Type::Union::ISA
+
+            # Numerics
+            = @Affix::Type::Bool::ISA  = @Affix::Type::Char::ISA     = @Affix::Type::UChar::ISA
+            = @Affix::Type::WChar::ISA = @Affix::Type::Short::ISA    = @Affix::Type::UShort::ISA
+            = @Affix::Type::Int::ISA   = @Affix::Type::UInt::ISA     = @Affix::Type::Long::ISA
+            = @Affix::Type::ULong::ISA = @Affix::Type::LongLong::ISA = @Affix::Type::ULongLong::ISA
+            = @Affix::Type::Float::ISA = @Affix::Type::Double::ISA   = @Affix::Type::Size_t::ISA
+            = @Affix::Type::SSize_t::ISA
+
+            # Enumerations
+            = @Affix::Type::Enum::ISA = @Affix::Type::IntEnum::ISA = @Affix::Type::UIntEnum::ISA
+            = @Affix::Type::CharEnum::ISA
+
+            # Pointers
+            = @Affix::Type::String::ISA = @Affix::Type::WString::ISA = @Affix::Type::StdString::ISA
+            = @Affix::Type::Pointer::ISA = @Affix::Type::CodeRef::ISA
+
+            # Typedef'd aliases
+            = @Affix::Type::Str::ISA
+            #
+            = 'Affix::Type';
     }
     {
         #~ ✅ https://gcc.gnu.org/git?p=gcc.git;a=blob_plain;f=gcc/cp/mangle.cc;hb=HEAD
@@ -305,11 +670,10 @@ package Affix 0.12 {    # 'FFI' is my middle name!
 
         #~ https://itanium-cxx-abi.github.io/cxx-abi/abi.html#mangling-builtin
         my $types = {
-            Void() => 'v',
-            Bool() => 'b',
-            Char() => 'c',
-
-            #~ SChar()     => 'a',
+            Void()      => 'v',
+            Bool()      => 'b',
+            Char()      => 'c',
+            SChar()     => 'a',
             UChar()     => 'h',
             Short()     => 's',
             UShort()    => 't',
@@ -336,7 +700,7 @@ package Affix 0.12 {    # 'FFI' is my middle name!
             #~ InstanceOf(Void()) => ''
             'const'               => 'K',
             Pointer( [ Void() ] ) => 'P',
-            WStr()                => 'Pw',
+            WString()             => 'Pw',
             Array( [ Void() ] )   => 'P',
 
             #CPPStruct([]) => '???'
@@ -389,13 +753,14 @@ package Affix 0.12 {    # 'FFI' is my middle name!
 
         sub Itanium_mangle_type {
             my ( $affix, $data, $type ) = @_;
-
-            #~ use Data::Dump;
-            #~ ddx $data;
-            #~ ddx $type;
+            use Data::Dump;
+            ddx $data;
+            ddx $type;
             my $ret = '';
             if ( $type->isa('Affix::Type::Pointer') || $type->isa('Affix::Type::Array') ) {
-                $ret = $types->{$type} . Itanium_mangle_type( $affix, $data, $type->{type} );
+                warn chr int $type;
+                warn $types->{$type};
+                $ret = $types->{ chr int $type } . Itanium_mangle_type( $affix, $data, $type->[5] );
                 if ( grep { $ret eq $_ } @{ $data->{subs} } ) {
                     $ret = Itanium_check_substitution( $affix, $data, $ret );
                 }
@@ -498,7 +863,7 @@ package Affix 0.12 {    # 'FFI' is my middle name!
     }
 
     # Dumb but easy in pure perl
-    sub Type($) { $Affix::Types::_registry{ $_[0][0] } }
+    sub Type($) { $Affix::Type::_registry{ $_[0][0] } }
     {    # remove
 
         package Affix::Aggregate { };
@@ -509,7 +874,7 @@ package Affix 0.12 {    # 'FFI' is my middle name!
 
         package Affix::Cache::Libs { };
 
-        package Affix::Types { };
+        package Affix::Type { };
 
         package Affix::Lib { };
 
@@ -589,6 +954,18 @@ package Affix 0.12 {    # 'FFI' is my middle name!
 
         package Affix::Type::WStr { };
     }
+    {
+        my %seen;
+        push @{ $EXPORT_TAGS{default} }, grep { !$seen{$_}++ } @{ $EXPORT_TAGS{$_} }
+            foreach qw[base types cc];
+    }
+    {
+        my %seen;
+        push @{ $EXPORT_TAGS{all} }, grep { !$seen{$_}++ } @{ $EXPORT_TAGS{$_} }
+            for keys %EXPORT_TAGS;
+    }
+    @EXPORT    = sort @{ $EXPORT_TAGS{default} };
+    @EXPORT_OK = sort @{ $EXPORT_TAGS{all} };
 };
 1;
 __END__

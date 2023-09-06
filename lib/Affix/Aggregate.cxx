@@ -5,12 +5,17 @@ DCaggr *_aggregate(pTHX_ SV *type) {
     warn("_aggregate(...)");
 #endif
     int t = SvIV(type);
-    size_t size = _sizeof(aTHX_ type);
+    size_t size = AFFIX_SIZEOF(type);
+    size_t array_len;
     switch (t) {
-    case AFFIX_TYPE_CSTRUCT:
-    case AFFIX_TYPE_CPPSTRUCT:
-    case AFFIX_TYPE_CARRAY:
-    case AFFIX_TYPE_CUNION: {
+    case ARRAY_FLAG: {
+        array_len = SvIV(*av_fetch(MUTABLE_AV(type), 6, 0));
+        if (!array_len) return NULL;
+    }
+    // fall-through
+    case STRUCT_FLAG:
+    case CPPSTRUCT_FLAG:
+    case UNION_FLAG: {
         HV *hv_type = MUTABLE_HV(SvRV(type));
         SV **agg_sv_ptr = hv_fetch(hv_type, "aggregate", 9, 0);
         if (agg_sv_ptr != NULL) {
@@ -27,7 +32,7 @@ DCaggr *_aggregate(pTHX_ SV *type) {
             PING;
             SV **idk_wtf = hv_fetchs(MUTABLE_HV(SvRV(type)), "fields", 0);
 
-            //~ if (t == AFFIX_TYPE_CSTRUCT) {
+            //~ if (t == STRUCT_FLAG) {
             //~ SV **sv_packed = hv_fetchs(MUTABLE_HV(SvRV(type)), "packed", 0);
             //~ }
             AV *idk_arr = MUTABLE_AV(SvRV(*idk_wtf));
@@ -39,21 +44,21 @@ DCaggr *_aggregate(pTHX_ SV *type) {
             for (size_t i = 0; i < field_count; ++i) {
                 SV **field_ptr = av_fetch(idk_arr, i, 0);
                 AV *field = MUTABLE_AV(SvRV(*field_ptr));
-                SV **type_ptr = av_fetch(field, 1, 0);
-                size_t offset = _offsetof(aTHX_ * type_ptr);
-                int _t = SvIV(*type_ptr);
+                SV **subtype = av_fetch(field, 1, 0);
+                size_t offset = AFFIX_OFFSEST(*subtype);
+                int _t = SvIV(*subtype);
                 switch (_t) {
-                case AFFIX_TYPE_CSTRUCT:
-                case AFFIX_TYPE_CUNION: {
-                    DCaggr *child = _aggregate(aTHX_ * type_ptr);
+                case STRUCT_FLAG:
+                case CPPSTRUCT_FLAG:
+                case UNION_FLAG: {
+                    DCaggr *child = _aggregate(aTHX_ * subtype);
 #if DEBUG
                     warn("  dcAggrField(%p, DC_SIGCHAR_AGGREGATE, %ld, 1, child);", (void *)agg,
                          offset);
 #endif
                     dcAggrField(agg, DC_SIGCHAR_AGGREGATE, offset, 1, child);
                 } break;
-                case AFFIX_TYPE_CARRAY: {
-                    int array_len = SvIV(*hv_fetchs(MUTABLE_HV(SvRV(*type_ptr)), "size", 0));
+                case ARRAY_FLAG: {
 #if DEBUG
                     warn("  dcAggrField(%p, '%c', %ld, %d);", (void *)agg, type_as_dc(_t), offset,
                          array_len);
@@ -76,7 +81,7 @@ DCaggr *_aggregate(pTHX_ SV *type) {
                 SV *RETVALSV;
                 RETVALSV = newSV(1);
                 sv_setref_pv(RETVALSV, "Affix::Aggregate", (DCpointer)agg);
-                hv_stores(MUTABLE_HV(SvRV(type)), "aggregate", newSVsv(RETVALSV));
+                av_store(MUTABLE_AV(SvRV(type)), 7, newSVsv(RETVALSV));
             }
             return agg;
         }
@@ -86,7 +91,6 @@ DCaggr *_aggregate(pTHX_ SV *type) {
         break;
     }
     }
-    PING;
     return NULL;
 }
 
@@ -96,7 +100,7 @@ XS_INTERNAL(Affix_Aggregate_FETCH) {
     if (items != 2) croak_xs_usage(cv, "union, key");
     SV *RETVAL = newSV(0);
     HV *h = MUTABLE_HV(SvRV(ST(0)));
-    SV **type_ptr = hv_fetchs(MUTABLE_HV(SvRV(SvRV(*hv_fetchs(h, "type", 0)))), "fields", 0);
+    SV **subtype = hv_fetchs(MUTABLE_HV(SvRV(SvRV(*hv_fetchs(h, "type", 0)))), "fields", 0);
     SV **ptr_ptr = hv_fetchs(h, "pointer", 0);
     IV tmp = SvIV(SvRV(*ptr_ptr));
     char *key = SvPV_nolen(ST(1));
@@ -104,14 +108,14 @@ XS_INTERNAL(Affix_Aggregate_FETCH) {
     warn("Affix::Aggregate::FETCH( '%s' ) @ %p", key, INT2PTR(DCpointer, tmp));
     sv_dump(ST(0));
 #endif
-    AV *types = MUTABLE_AV(SvRV(*type_ptr));
+    AV *types = MUTABLE_AV(SvRV(*subtype));
     SSize_t size = av_count(types);
     for (SSize_t i = 0; i < size; ++i) {
         SV **elm = av_fetch(types, i, 0);
         SV **name = av_fetch(MUTABLE_AV(SvRV(*elm)), 0, 0);
         if (strcmp(key, SvPV(*name, PL_na)) == 0) {
             SV *_type = *av_fetch(MUTABLE_AV(SvRV(*elm)), 1, 0);
-            size_t offset = _offsetof(aTHX_ _type); // meaningless for union
+            size_t offset = AFFIX_OFFSEST(_type); // meaningless for union
             sv_setsv(RETVAL, sv_2mortal(ptr2sv(aTHX_ INT2PTR(DCpointer, tmp + offset), _type)));
             break;
         }
@@ -125,8 +129,8 @@ XS_INTERNAL(Affix_Aggregate_EXISTS) {
     dXSARGS;
     if (items != 2) croak_xs_usage(cv, "union, key");
     HV *h = MUTABLE_HV(SvRV(ST(0)));
-    SV **type_ptr = hv_fetchs(h, "type", 0);
-    SV **type = hv_fetchs(MUTABLE_HV(SvRV(SvRV(*type_ptr))), "fields", 0);
+    SV **subtype = hv_fetchs(h, "type", 0);
+    SV **type = hv_fetchs(MUTABLE_HV(SvRV(SvRV(*subtype))), "fields", 0);
     char *u = SvPV_nolen(ST(1));
     AV *types = MUTABLE_AV(SvRV(*type));
     SSize_t size = av_count(types);
@@ -143,8 +147,8 @@ XS_INTERNAL(Affix_Aggregate_FIRSTKEY) {
     dXSARGS;
     if (items != 1) croak_xs_usage(cv, "union");
     HV *h = MUTABLE_HV(SvRV(ST(0)));
-    SV **type_ptr = hv_fetchs(h, "type", 0);
-    SV **type = hv_fetchs(MUTABLE_HV(SvRV(SvRV(*type_ptr))), "fields", 0);
+    SV **subtype = hv_fetchs(h, "type", 0);
+    SV **type = hv_fetchs(MUTABLE_HV(SvRV(SvRV(*subtype))), "fields", 0);
     AV *types = MUTABLE_AV(SvRV(*type));
     SSize_t size = av_count(types);
     for (SSize_t i = 0; i < size; ++i) {
@@ -161,8 +165,8 @@ XS_INTERNAL(Affix_Aggregate_NEXTKEY) {
     dXSARGS;
     if (items != 2) croak_xs_usage(cv, "union, key");
     HV *h = MUTABLE_HV(SvRV(ST(0)));
-    SV **type_ptr = hv_fetchs(h, "type", 0);
-    SV **type = hv_fetchs(MUTABLE_HV(SvRV(SvRV(*type_ptr))), "fields", 0);
+    SV **subtype = hv_fetchs(h, "type", 0);
+    SV **type = hv_fetchs(MUTABLE_HV(SvRV(SvRV(*subtype))), "fields", 0);
     char *u = SvPV_nolen(ST(1));
     AV *types = MUTABLE_AV(SvRV(*type));
     SSize_t size = av_count(types);

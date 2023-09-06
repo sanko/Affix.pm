@@ -5,22 +5,28 @@ SV *ptr2av(pTHX_ DCpointer ptr, SV *type_sv) {
     warn("ptr2av(%p, %s (%d)) at %s line %d", ptr, type_as_str((int)SvIV(type_sv)),
          (int)SvIV(type_sv), __FILE__, __LINE__);
 #endif
+    PING;
+
     SV *retval = NULL;
     if (ptr == NULL) { retval = newSV(0); }
     else {
-        size_t field_size = _sizeof(aTHX_ type_sv);
+        PING;
+
 #if DEBUG > 1
-        DumpHex(ptr, field_size);
+        // size_t field_size = AFFIX_SIZEOF(type_sv);
+        // DumpHex(ptr, field_size);
 #endif
+        PING;
+
         AV *RETVAL_ = newAV_mortal();
         HV *_type = MUTABLE_HV(SvRV(type_sv));
         SV *subtype = *hv_fetchs(_type, "type", 0);
         SV **size_ptr = hv_fetchs(_type, "size", 0);
         if (size_ptr == NULL) size_ptr = hv_fetchs(_type, "dyn_size", 0);
         size_t size = SvIV(*size_ptr);
-        size_t el_len = _sizeof(aTHX_ subtype);
+        size_t el_len = AFFIX_SIZEOF(subtype);
         size_t pos = 0; // override
-        if (sv_derived_from(subtype, "Affix::Type::Array")) {
+        if (sv_derived_from(subtype, "Affix::Types::Array")) {
             void **_ptr = (void **)ptr;
             for (size_t i = 0; i < size; ++i) {
                 //~ warn("%s[%d] of %d", type_as_str(SvIV(subtype)), i, size);
@@ -59,83 +65,79 @@ SV *ptr2sv(pTHX_ DCpointer ptr, SV *type_sv) {
         retval = &PL_sv_undef;
     }
     else {
-        size_t field_size = _sizeof(aTHX_ type_sv);
+        PING;
 #if DEBUG > 1
-        if (ptr != NULL) DumpHex(ptr, field_size);
+        // size_t field_size = AFFIX_SIZEOF(type_sv);
+        // if (ptr != NULL) DumpHex(ptr, field_size);
 #endif
         switch (SvIV(type_sv)) {
-        case AFFIX_TYPE_BOOL: {
+        case BOOL_FLAG: {
             retval = newSV(0);
             sv_setbool_mg(retval, (bool)*(bool *)ptr);
         } break;
-        case AFFIX_TYPE_CHAR:
-        case AFFIX_TYPE_SCHAR: {
+        case CHAR_FLAG:
+        case SCHAR_FLAG: {
             retval = newSV(0);
             sv_setsv(retval, newSVpv((char *)ptr, 1));
             (void)SvUPGRADE(retval, SVt_PVIV);
             SvIV_set(retval, ((IV) * (char *)ptr));
             SvIOK_on(retval);
         } break;
-        case AFFIX_TYPE_UCHAR: {
+        case UCHAR_FLAG: {
             retval = newSV(0);
             sv_setsv(retval, newSVpv((char *)(unsigned char *)ptr, 1));
             (void)SvUPGRADE(retval, SVt_PVIV);
             SvIV_set(retval, ((UV) * (unsigned char *)ptr));
             SvIOK_on(retval);
         } break;
-        case AFFIX_TYPE_WCHAR: {
+        case WCHAR_FLAG: {
             if (wcslen((wchar_t *)ptr)) {
                 retval = wchar2utf(aTHX_(wchar_t *) ptr, 1 /*wcslen((wchar_t *)ptr)*/);
             }
         } break;
-        case AFFIX_TYPE_SHORT: {
+        case SHORT_FLAG: {
             retval = newSViv(*(short *)ptr);
         } break;
-        case AFFIX_TYPE_USHORT: {
+        case USHORT_FLAG: {
             retval = newSVuv(*(unsigned short *)ptr);
         } break;
-        case AFFIX_TYPE_INT: {
+        case INT_FLAG: {
             retval = newSViv(*(int *)ptr);
         } break;
-        case AFFIX_TYPE_UINT: {
+        case UINT_FLAG: {
             retval = newSVuv(*(unsigned int *)ptr);
         } break;
-        case AFFIX_TYPE_LONG: {
+        case LONG_FLAG: {
             retval = newSViv(*(long *)ptr);
         } break;
-        case AFFIX_TYPE_ULONG: {
+        case ULONG_FLAG: {
             retval = newSVuv(*(unsigned long *)ptr);
         } break;
-        case AFFIX_TYPE_LONGLONG: {
+        case LONGLONG_FLAG: {
             retval = newSViv(*(long long *)ptr);
         } break;
-        case AFFIX_TYPE_ULONGLONG: {
+        case ULONGLONG_FLAG: {
             retval = newSVuv(*(unsigned long long *)ptr);
         } break;
-        case AFFIX_TYPE_FLOAT: {
+        case FLOAT_FLAG: {
             retval = newSVnv(*(float *)ptr);
         } break;
-        case AFFIX_TYPE_DOUBLE: {
+        case DOUBLE_FLAG: {
             retval = newSVnv(*(double *)ptr);
         } break;
-        case AFFIX_TYPE_ASCIISTR: {
+        case STRING_FLAG: {
             char *str = (char *)*(void **)ptr;
             STRLEN len = strlen(str);
             retval = len ? newSVpv(str, len) : &PL_sv_undef;
         } break;
-
-            /*
-                #define AFFIX_TYPE_UTF8STR 30
-
-        */
-        case AFFIX_TYPE_UTF16STR: {
+        case WSTRING_FLAG: {
             if (ptr && wcslen((wchar_t *)ptr)) {
                 retval = wchar2utf(aTHX_ * (wchar_t **)ptr, wcslen(*(wchar_t **)ptr));
             }
             else { retval = &PL_sv_undef; }
         } break;
-        case AFFIX_TYPE_CSTRUCT:
-        case AFFIX_TYPE_CPPSTRUCT: {
+        case STRUCT_FLAG:
+        case CPPSTRUCT_FLAG: {
             retval = newSV(0);
             HV *RETVAL_ = newHV_mortal();
             HV *_type = MUTABLE_HV(SvRV(type_sv));
@@ -159,8 +161,7 @@ SV *ptr2sv(pTHX_ DCpointer ptr, SV *type_sv) {
                 SV *subtype = *av_fetch(field, 1, 0);
                 (void)hv_store_ent(
                     RETVAL_, name,
-                    ptr2sv(aTHX_ INT2PTR(DCpointer, PTR2IV(ptr) + _offsetof(aTHX_ subtype)),
-                           subtype),
+                    ptr2sv(aTHX_ INT2PTR(DCpointer, PTR2IV(ptr) + AFFIX_OFFSEST(subtype)), subtype),
                     0);
             }
             SvSetSV(retval, newRV(MUTABLE_SV(RETVAL_)));
@@ -168,31 +169,31 @@ SV *ptr2sv(pTHX_ DCpointer ptr, SV *type_sv) {
             //~ sv_dump(retval);
 #endif
         } break;
-        case AFFIX_TYPE_CARRAY: {
+        case ARRAY_FLAG: {
             retval = ptr2av(aTHX_ ptr, type_sv);
         } break;
-        case AFFIX_TYPE_CALLBACK: {
+        case CODEREF_FLAG: {
             Callback *cb = (Callback *)dcbGetUserData((DCCallback *)((CallbackWrapper *)ptr)->cb);
             SvSetSV(retval, cb->cv);
         } break;
-        case AFFIX_TYPE_CPOINTER: {
+        case POINTER_FLAG: {
             SV *subtype_sv = *hv_fetch(MUTABLE_HV(SvRV(type_sv)), "type", 4, 0);
             int subtype = SvIV(subtype_sv);
             //~ warn("subtype: %s", type_as_str(subtype));
             switch (subtype) {
-            case AFFIX_TYPE_CHAR:
-            case AFFIX_TYPE_SCHAR:
-            case AFFIX_TYPE_UCHAR: {
+            case CHAR_FLAG:
+            case SCHAR_FLAG:
+            case UCHAR_FLAG: {
                 char *str = (char *)*(void **)&ptr;
                 STRLEN len = strlen(str);
                 retval = len ? newSVpv(str, len) : &PL_sv_undef;
             } break;
-            case AFFIX_TYPE_WCHAR: {
+            case WCHAR_FLAG: {
                 if (wcslen((wchar_t *)ptr)) {
                     retval = wchar2utf(aTHX_(wchar_t *) ptr, wcslen((wchar_t *)ptr));
                 }
             } break;
-            case AFFIX_TYPE_VOID: {
+            case VOID_FLAG: {
                 retval = newSV(0);
                 if (ptr != NULL) {
                     HV *_type = MUTABLE_HV(SvRV(type_sv));
@@ -203,12 +204,12 @@ SV *ptr2sv(pTHX_ DCpointer ptr, SV *type_sv) {
                     else { sv_setref_pv(retval, "Affix::Pointer::Unmanaged", ptr); }
                 }
             } break;
-            //~ case AFFIX_TYPE_CPOINTER:{
+            //~ case POINTER_FLAG:{
             //~ retval = ptr2sv(aTHX_ *(void**)ptr, subtype_sv);
             //~ }break;
-            //~ case AFFIX_TYPE_CSTRUCT:
-            //~ case AFFIX_TYPE_CPPSTRUCT:
-            //~ case AFFIX_TYPE_CUNION: {
+            //~ case STRUCT_FLAG:
+            //~ case CPPSTRUCT_FLAG:
+            //~ case UNION_FLAG: {
             //~ retval = ptr2sv(aTHX_ *(void**)ptr, subtype_sv);
             //~ }break;
             default: {
@@ -216,7 +217,7 @@ SV *ptr2sv(pTHX_ DCpointer ptr, SV *type_sv) {
             } break;
             }
         } break;
-        case AFFIX_TYPE_CUNION: {
+        case UNION_FLAG: {
             HV *RETVAL_ = newHV_mortal();
             warn("HEfdsafdasfdasfdsaRE");
 
@@ -231,9 +232,9 @@ SV *ptr2sv(pTHX_ DCpointer ptr, SV *type_sv) {
         } break;
             /*
 
-        #define AFFIX_TYPE_WCHAR 44
+        #define WCHAR_FLAG 44
 */
-        case AFFIX_TYPE_SV: {
+        case SV_FLAG: {
             if (ptr == NULL) { retval = newSV(0); }
             else if (*(void **)ptr != NULL && SvOK(MUTABLE_SV(*(void **)ptr))) {
                 retval = MUTABLE_SV(*(void **)ptr);
@@ -280,6 +281,9 @@ SV *ptr2sv(pTHX_ DCpointer ptr, SV *type_sv) {
 }
 
 void *av2ptr(pTHX_ SV *type, AV *av_data, bool packed) {
+    PING;
+    DD(type);
+
     // DCpointer ret = NULL;
     HV *hv_type = MUTABLE_HV(SvRV(type));
     SV *subtype = *hv_fetchs(hv_type, "type", 0);
@@ -293,29 +297,39 @@ void *av2ptr(pTHX_ SV *type, AV *av_data, bool packed) {
 //~ sv_dump(av_data);
 #endif
 #endif
+
+    warn("sizeof(...) == %d", AFFIX_SIZEOF(type));
+
     SV **size_ptr = hv_fetchs(hv_type, "size", 0);
     size_t size = size_ptr != NULL && SvOK(*size_ptr) ? SvIV(*size_ptr) : av_count(av_data);
-    DCpointer ret =
-        safemalloc(_sizeof(aTHX_ type) * (size + 1)); // XXX: THIS IS INCORRECT!!!!!!!!!!!!!!
+    // XXX: THIS IS INCORRECT!!!!!!!!!!!!!!
+    DCpointer ret = safemalloc(AFFIX_SIZEOF(type) * (size + 1));
     if (size_ptr != NULL && SvOK(*size_ptr)) {
         size_t av_len = av_count(av_data);
         if (av_len != size) croak("Expected an array of %zu elements; found %zu", size, av_len);
     }
-    size_t el_len = _sizeof(aTHX_ subtype);
+    size_t el_len = AFFIX_SIZEOF(subtype);
+    PING;
     size_t pos = 0; // override
-    if (sv_derived_from(subtype, "Affix::Type::Pointer")) {
+    PING;
+    if (sv_derived_from(subtype, "Affix::Types::Pointer") ||
+        sv_derived_from(subtype, "Affix::Types::Array")) {
         for (size_t i = 0; i < size; ++i) {
             DCpointer block = sv2ptr(aTHX_ subtype, *(av_fetch(av_data, i, 0)), packed);
-            Copy(&block, INT2PTR(DCpointer, PTR2IV(ret) + pos), _sizeof(aTHX_ subtype), char);
+            Move(&block, INT2PTR(DCpointer, PTR2IV(ret) + pos), AFFIX_SIZEOF(subtype), char);
             pos += el_len;
+            warn("posX: %d", pos);
         }
     }
     else {
         for (size_t i = 0; i < size; ++i) {
             DCpointer block = sv2ptr(aTHX_ subtype, *(av_fetch(av_data, i, 0)), packed);
-            Move(block, INT2PTR(DCpointer, PTR2IV(ret) + pos), _sizeof(aTHX_ subtype), char);
-            safefree(block);
+            Move(block, INT2PTR(DCpointer, PTR2IV(ret) + pos), AFFIX_SIZEOF(subtype), char);
+            //~ safefree(block);
             pos += el_len;
+            warn("posY: %d", pos);
+
+            PING;
         }
     }
 #if DEBUG
@@ -348,60 +362,62 @@ void *sv2ptr(pTHX_ SV *type_sv, SV *data, bool packed) {
     //~ __FILE__, __LINE__);
 
     switch (type) {
-    case AFFIX_TYPE_VOID: {
+    case VOID_FLAG: {
         if (!SvOK(data)) {
             ret = NULL;
             //~ ret = safemalloc(sizeof(intptr_t));
             //~ Zero(ret, 1, intptr_t);
         }
         else if (sv_derived_from(data, "Affix::Pointer")) {
+            croak("UGH!");
             IV tmp = SvIV((SV *)SvRV(data));
             ret = INT2PTR(DCpointer, tmp);
         }
         else {
+            croak("UGH!");
             size_t len;
             char *raw = SvPV(data, len);
             Renew(ret, len + 1, char);
             Copy((DCpointer)raw, ret, len + 1, char);
         }
     } break;
-    case AFFIX_TYPE_BOOL: {
+    case BOOL_FLAG: {
         ret = safemalloc(BOOL_SIZE);
         bool value = SvOK(data) ? SvTRUE(data) : false; // default to false
         Copy(&value, ret, 1, bool);
     } break;
-    case AFFIX_TYPE_CHAR: {
-        if (!SvOK(data)) { ret = safecalloc(sizeof(char), 1); }
+    case CHAR_FLAG: {
+        if (!SvOK(data)) { ret = safecalloc(CHAR_SIZE, 1); }
         else if (SvPOK(data)) {
             STRLEN len;
             DCpointer value = (DCpointer)SvPV(data, len);
             if (len) {
-                ret = safecalloc(sizeof(char), len + 1);
+                ret = safecalloc(CHAR_SIZE, len + 1);
                 Copy(value, ret, len + 1, char);
             }
             else
-                ret = safecalloc(sizeof(char), 1);
+                ret = safecalloc(CHAR_SIZE, 1);
         }
         else {
             char value = SvIOK(data) ? SvIV(data) : 0;
-            ret = safemalloc(sizeof(char));
+            ret = safemalloc(CHAR_SIZE);
             Copy(&value, ret, 1, char);
         }
     } break;
-    case AFFIX_TYPE_UCHAR: {
+    case UCHAR_FLAG: {
         if (SvPOK(data)) {
             STRLEN len;
             DCpointer value = (DCpointer)SvPV(data, len);
-            ret = safemalloc(sizeof(unsigned char) * (len + 1));
+            ret = safemalloc(UCHAR_SIZE * (len + 1));
             Copy(value, ret, len + 1, unsigned char);
         }
         else {
             unsigned char value = SvIOK(data) ? SvIV(data) : 0;
-            ret = safemalloc(sizeof(unsigned char));
+            ret = safemalloc(UCHAR_SIZE);
             Copy(&value, ret, 1, unsigned char);
         }
     } break;
-    case AFFIX_TYPE_WCHAR: {
+    case WCHAR_FLAG: {
         if (SvPOK(data)) {
             STRLEN len;
             (void)SvPVutf8(data, len);
@@ -416,92 +432,71 @@ void *sv2ptr(pTHX_ SV *type_sv, SV *data, bool packed) {
             Copy(&value, ret, 1, wchar_t);
         }
     } break;
-    case AFFIX_TYPE_SHORT: {
+    case SHORT_FLAG: {
         short value = SvOK(data) ? (short)SvIV(data) : 0;
         ret = safemalloc(sizeof(short));
         Copy(&value, ret, 1, short);
     } break;
-    case AFFIX_TYPE_USHORT: {
+    case USHORT_FLAG: {
         unsigned short value = SvOK(data) ? (unsigned short)SvUV(data) : 0;
         ret = safemalloc(sizeof(unsigned short));
         Copy(&value, ret, 1, unsigned short);
     } break;
-    case AFFIX_TYPE_INT: {
+    case INT_FLAG: {
         int value = SvOK(data) ? SvIV(data) : 0;
         ret = safemalloc(INTSIZE);
         Copy(&value, ret, 1, int);
     } break;
-    case AFFIX_TYPE_UINT: {
+    case UINT_FLAG: {
         unsigned int value = SvOK(data) ? SvUV(data) : 0;
         ret = safemalloc(sizeof(unsigned int));
         Copy(&value, ret, 1, unsigned int);
     } break;
-    case AFFIX_TYPE_LONG: {
+    case LONG_FLAG: {
         long value = SvOK(data) ? SvIV(data) : 0;
         ret = safemalloc(sizeof(long));
         Copy(&value, ret, 1, long);
     } break;
-    case AFFIX_TYPE_ULONG: {
+    case ULONG_FLAG: {
         unsigned long value = SvOK(data) ? SvUV(data) : 0;
         ret = safemalloc(sizeof(unsigned long));
         Copy(&value, ret, 1, unsigned long);
     } break;
-    case AFFIX_TYPE_LONGLONG: {
+    case LONGLONG_FLAG: {
         I64 value = SvOK(data) ? SvIV(data) : 0;
         ret = safemalloc(sizeof(long long));
         Copy(&value, ret, 1, I64);
     } break;
-    case AFFIX_TYPE_ULONGLONG: {
+    case ULONGLONG_FLAG: {
         U64 value = SvOK(data) ? SvUV(data) : 0;
         ret = safemalloc(sizeof(unsigned long long));
         Copy(&value, ret, 1, U64);
     } break;
-    case AFFIX_TYPE_FLOAT: {
+    case FLOAT_FLAG: {
         float value = SvOK(data) ? SvNV(data) : 0;
         ret = safemalloc(sizeof(float));
         Copy(&value, ret, 1, float);
     } break;
-    case AFFIX_TYPE_DOUBLE: {
+    case DOUBLE_FLAG: {
         double value = SvOK(data) ? SvNV(data) : 0;
         ret = safemalloc(sizeof(double));
         Copy(&value, ret, 1, double);
     } break;
-    case AFFIX_TYPE_CPOINTER:
-    case AFFIX_TYPE_REF: {
+    case POINTER_FLAG: {
         HV *type_hv = MUTABLE_HV(SvRV(type_sv));
         SV *subtype = *hv_fetchs(type_hv, "type", 0);
-        //~ if (sv_derived_from(subtype, "Affix::Type::Char")) {
-        //~ if (SvPOK(data)) {
-        //~ STRLEN len;
-        //~ void *hold = SvPV(data, len);
-        //~ Renew(ret, len + 1, char);
-        //~ Copy(hold, ret, len + 1, char);
-        //~ }
-        //~ else {
-        //~ char value = SvIOK(data) ? SvIV(data) : 0;
-        //~ Copy(&value, ret, 1, char);
-        //~ }
-        //~ }
-        //~ else
-        if (!SvOK(data)) { ret = safecalloc(_sizeof(aTHX_ subtype), 1); }
+        if (!SvOK(data)) { ret = safecalloc(AFFIX_SIZEOF(subtype), 1); }
         else if (SvROK(data) && SvTYPE(SvRV(data)) == SVt_PVAV) {
             ret = av2ptr(aTHX_ type_sv, MUTABLE_AV(SvRV(data)), packed);
         }
-        //~ else if (!(sv_derived_from(subtype, "Affix::Type::Pointer") ||
-        //~ sv_derived_from(subtype, "Affix::Type::Array"))) {
-        //~ warn("Pointer %d", __LINE__);
-
-        //~ warn("Pointer or Array");
-        //~ ret = sv2ptr(aTHX_ subtype, data, packed);
-        //~ }
         else {
             DCpointer block = sv2ptr(aTHX_ subtype, data, packed);
             ret = safemalloc(INTPTR_T_SIZE);
             Copy(block, ret, 1, intptr_t);
-            // safefree(block);
+            safefree(block);
         }
     } break;
-    case AFFIX_TYPE_ASCIISTR: {
+    case STRING_FLAG: {
         if (SvPOK(data)) {
             STRLEN len;
             const char *str = SvPV(data, len);
@@ -514,13 +509,13 @@ void *sv2ptr(pTHX_ SV *type_sv, SV *data, bool packed) {
         else {
             const char *str = "";
             DCpointer value;
-            ret = safemalloc(sizeof(char));
+            ret = safemalloc(CHAR_SIZE);
             Newxz(value, 1, char);
             Copy(str, value, 1, char);
             Copy(&value, ret, 1, intptr_t);
         }
     } break;
-    case AFFIX_TYPE_UTF16STR: {
+    case WSTRING_FLAG: {
         ret = safemalloc(INTPTR_T_SIZE);
         if (SvPOK(data)) {
             STRLEN len;
@@ -538,8 +533,8 @@ void *sv2ptr(pTHX_ SV *type_sv, SV *data, bool packed) {
             Zero(ret, 1, intptr_t);
         }
     } break;
-    case AFFIX_TYPE_CSTRUCT: {
-        ret = safemalloc(_sizeof(aTHX_ type_sv));
+    case STRUCT_FLAG: {
+        ret = safemalloc(AFFIX_SIZEOF(type_sv));
         if (SvOK(data)) {
             if (SvTYPE(SvRV(data)) != SVt_PVHV) croak("Expected a hash reference");
             HV *hv_type = MUTABLE_HV(SvRV(type_sv));
@@ -557,8 +552,8 @@ void *sv2ptr(pTHX_ SV *type_sv, SV *data, bool packed) {
                 SV **_data = hv_fetch(hv_data, key, strlen(key), 1);
                 if (_data != NULL) {
                     DCpointer block = sv2ptr(aTHX_ * type_ptr, *_data, packed);
-                    Move(block, INT2PTR(DCpointer, PTR2IV(ret) + _offsetof(aTHX_ * type_ptr)),
-                         _sizeof(aTHX_ * type_ptr), char);
+                    Move(block, INT2PTR(DCpointer, PTR2IV(ret) + AFFIX_OFFSEST(*type_ptr)),
+                         AFFIX_SIZEOF(type_ptr), char);
                     safefree(block);
                 }
             }
@@ -566,7 +561,7 @@ void *sv2ptr(pTHX_ SV *type_sv, SV *data, bool packed) {
         else
             Zero(ret, 1, intptr_t);
     } break;
-    case AFFIX_TYPE_CUNION: {
+    case UNION_FLAG: {
         ret = safemalloc(INTPTR_T_SIZE);
         if (SvOK(data)) {
             if (SvTYPE(SvRV(data)) != SVt_PVHV) croak("Expected a hash reference");
@@ -586,8 +581,8 @@ void *sv2ptr(pTHX_ SV *type_sv, SV *data, bool packed) {
                 if (data != NULL && SvOK(*_data)) {
                     DCpointer block =
                         sv2ptr(aTHX_ * type_ptr, *(hv_fetch(hv_data, key, strlen(key), 1)), packed);
-                    Move(block, INT2PTR(DCpointer, PTR2IV(ret) + _offsetof(aTHX_ * type_ptr)),
-                         _sizeof(aTHX_ * type_ptr), char);
+                    Move(block, INT2PTR(DCpointer, PTR2IV(ret) + AFFIX_OFFSEST(*type_ptr)),
+                         AFFIX_SIZEOF(*type_ptr), char);
                     safefree(block);
                     break;
                 }
@@ -596,13 +591,12 @@ void *sv2ptr(pTHX_ SV *type_sv, SV *data, bool packed) {
         else
             Zero(ret, 1, intptr_t);
     } break;
-    case AFFIX_TYPE_CARRAY: {
-        ret = safemalloc(_sizeof(aTHX_ type_sv));
+    case ARRAY_FLAG: {
+        ret = safemalloc(AFFIX_SIZEOF(type_sv));
         if (SvOK(data)) {
             AV *elements;
             PING;
-            if (SvPOK(data)) {
-                PING;
+            if (SvPOK(data)) { // char[]
                 elements = newAV_mortal();
                 STRLEN len;
                 char *str = SvPV(data, len);
@@ -619,7 +613,7 @@ void *sv2ptr(pTHX_ SV *type_sv, SV *data, bool packed) {
         else
             Zero(ret, 1, intptr_t);
     } break;
-    case AFFIX_TYPE_CALLBACK: {
+    case CODEREF_FLAG: {
         if (SvOK(data)) {
             PING;
             HV *field = MUTABLE_HV(SvRV(type_sv)); // Make broad assumptions
@@ -645,7 +639,7 @@ void *sv2ptr(pTHX_ SV *type_sv, SV *data, bool packed) {
         }
         else { Newxz(ret, 1, intptr_t); }
     } break;
-    case AFFIX_TYPE_SV: {
+    case SV_FLAG: {
         if (SvOK(data)) {
             ret = safemalloc(INTPTR_T_SIZE);
             SvREFCNT_inc(data); // TODO: This might leak; I'm just being lazy

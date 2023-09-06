@@ -2,7 +2,6 @@ use strict;
 use warnings;
 use lib '../lib', '../blib/arch', '../blib/lib';
 use Affix;
-use Config;
 $|++;
 my $libfile = Affix::locate_lib( $^O eq 'MSWin32' ? 'ntdll.dll' : ( 'm', 6 ) );
 #

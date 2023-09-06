@@ -1,41 +1,11 @@
 #include "../../Affix.h"
 
-XS_INTERNAL(Affix_Type_Pointer) {
-    dXSARGS;
-    PING;
-    PERL_UNUSED_VAR(items);
-    HV *RETVAL_HV = newHV();
-    AV *fields = MUTABLE_AV(SvRV(ST(0)));
-    SV *rw_ref = NULL;
-    switch (av_count(fields)) {
-    case 2: {
-        rw_ref = *av_fetch(fields, 1, 0);
-    } // fall through
-    case 1: {
-        SV **type_ref = av_fetch(fields, 0, 0);
-        SV *type = *type_ref;
-        if (!(sv_isobject(type) && sv_derived_from(type, "Affix::Type::Base")))
-            croak("Pointer[...] expects a subclass of Affix::Type::Base");
-        hv_stores(RETVAL_HV, "type", SvREFCNT_inc(type));
-        hv_stores(RETVAL_HV, "class", SvREFCNT_inc(newSVpv("Affix::Pointer::Unmanaged", 0)));
-        hv_stores(RETVAL_HV, "rw", SvREFCNT_inc(rw_ref == NULL ? newSV_false() : rw_ref));
-    } break;
-    default:
-        croak("Pointer[...] expects a single type. e.g. Pointer[Int]");
-    };
-    PING;
-    ST(0) = sv_2mortal(
-        sv_bless(newRV_inc(MUTABLE_SV(RETVAL_HV)), gv_stashpv("Affix::Type::Pointer", GV_ADD)));
-    PING;
-    XSRETURN(1);
-}
-
 XS_INTERNAL(Affix_Type_Pointer_marshal) {
     dVAR;
     dXSARGS;
     PING;
     if (items != 2) croak_xs_usage(cv, "type, data");
-    if (UNLIKELY(!sv_derived_from(ST(0), "Affix::Type::Base")))
+    if (UNLIKELY(!sv_derived_from(ST(0), "Affix::Types::Base")))
         croak("type is not of type Affix::Type");
     SV *data = ST(1);
     PING;
@@ -587,8 +557,8 @@ XS_INTERNAL(Affix_Type_Ref) {
     case 1: {
         SV **type_ref = av_fetch(fields, 0, 0);
         SV *type = *type_ref;
-        if (!(sv_isobject(type) && sv_derived_from(type, "Affix::Type::Base")))
-            croak("Pointer[...] expects a subclass of Affix::Type::Base");
+        if (!(sv_isobject(type) && sv_derived_from(type, "Affix::Types::Base")))
+            croak("Pointer[...] expects a subclass of Affix::Types::Base");
         hv_stores(RETVAL_HV, "type", SvREFCNT_inc(type));
         hv_stores(RETVAL_HV, "class", SvREFCNT_inc(newSVpv("Affix::Ref", 0)));
         hv_stores(RETVAL_HV, "rw", SvREFCNT_inc(rw_ref == NULL ? newSV_false() : rw_ref));
@@ -598,7 +568,7 @@ XS_INTERNAL(Affix_Type_Ref) {
     };
     PING;
     ST(0) = sv_2mortal(
-        sv_bless(newRV_inc(MUTABLE_SV(RETVAL_HV)), gv_stashpv("Affix::Type::Ref", GV_ADD)));
+        sv_bless(newRV_inc(MUTABLE_SV(RETVAL_HV)), gv_stashpv("Affix::Types::Ref", GV_ADD)));
     PING;
     XSRETURN(1);
 }
@@ -628,13 +598,10 @@ void boot_Affix_Pointer(pTHX_ CV *cv) {
         export_function("Affix", "strdup", "memory");
     }
 
-    EXT_TYPE(Pointer, AFFIX_TYPE_CPOINTER, AFFIX_TYPE_CPOINTER);
-    EXT_TYPE(Ref, AFFIX_TYPE_REF, AFFIX_TYPE_REF);
+    (void)newXSproto_portable("Affix::Types::Pointer::marshal", Affix_Type_Pointer_marshal,
+                              __FILE__, "$$");
 
-    (void)newXSproto_portable("Affix::Type::Pointer::marshal", Affix_Type_Pointer_marshal, __FILE__,
-                              "$$");
-
-    (void)newXSproto_portable("Affix::Type::Pointer::(|", Affix_Type_Pointer, __FILE__, "");
+    //(void)newXSproto_portable("Affix::Types::Pointer::(|", Affix_Type_Pointer, __FILE__, "");
     /* The magic for overload gets a GV* via gv_fetchmeth as */
     /* mentioned above, and looks in the SV* slot of it for */
     /* the "fallback" status. */
@@ -642,7 +609,7 @@ void boot_Affix_Pointer(pTHX_ CV *cv) {
     /* Making a sub named "Affix::Pointer::()" allows the package */
     /* to be findable via fetchmethod(), and causes */
     /* overload::Overloaded("Affix::Pointer") to return true. */
-    (void)newXS_deffile("Affix::Pointer::()", Affix_Pointer_as_string);
+    //~ (void)newXS_deffile("Affix::Pointer::()", Affix_Pointer_as_string);
     (void)newXSproto_portable("Affix::Pointer::plus", Affix_Pointer_plus, __FILE__, "$$$");
     (void)newXSproto_portable("Affix::Pointer::(+", Affix_Pointer_plus, __FILE__, "$$$");
     (void)newXSproto_portable("Affix::Pointer::minus", Affix_Pointer_minus, __FILE__, "$$$");
@@ -667,6 +634,6 @@ void boot_Affix_Pointer(pTHX_ CV *cv) {
 
     set_isa("Affix::Pointer::Unmanaged", "Affix::Pointer");
 
-    set_isa("Affix::Type::Ref", "Affix::Type::Pointer");
+    set_isa("Affix::Types::Ref", "Affix::Types::Pointer");
     set_isa("Affix::Ref", "Affix::Pointer");
 }

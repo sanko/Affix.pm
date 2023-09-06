@@ -114,48 +114,47 @@ static const char *dlerror(void) {
 #endif
 
 /* Native argument types */
-#define AFFIX_TYPE_VOID 'v'
-#define AFFIX_TYPE_BOOL 'b'
-#define AFFIX_TYPE_SCHAR 'a'
-#define AFFIX_TYPE_CHAR 'c'
-#define AFFIX_TYPE_UCHAR 'h'
-#define AFFIX_TYPE_SHORT 's'
-#define AFFIX_TYPE_USHORT 't'
-#define AFFIX_TYPE_INT 'i'
-#define AFFIX_TYPE_UINT 'j'
-#define AFFIX_TYPE_LONG 'l'
-#define AFFIX_TYPE_ULONG 'm'
-#define AFFIX_TYPE_LONGLONG 'x'
-#define AFFIX_TYPE_ULONGLONG 'y'
-#define AFFIX_TYPE_FLOAT 'f'
-#define AFFIX_TYPE_DOUBLE 'd'
-#define AFFIX_TYPE_ASCIISTR 28
-#define AFFIX_TYPE_UTF8STR 30
-#define AFFIX_TYPE_UTF16STR 32
-#define AFFIX_TYPE_CSTRUCT 34
-#define AFFIX_TYPE_CPPSTRUCT 35
-#define AFFIX_TYPE_CARRAY 36
-#define AFFIX_TYPE_CALLBACK 38
-#define AFFIX_TYPE_CPOINTER 'P'
-#define AFFIX_TYPE_CUNION 42
+#define VOID_FLAG 'v'
+#define BOOL_FLAG 'b'
+#define SCHAR_FLAG 'a'
+#define CHAR_FLAG 'c'
+#define UCHAR_FLAG 'h'
+#define WCHAR_FLAG 'w'
+#define SHORT_FLAG 's'
+#define USHORT_FLAG 't'
+#define INT_FLAG 'i'
+#define UINT_FLAG 'j'
+#define LONG_FLAG 'l'
+#define ULONG_FLAG 'm'
+#define LONGLONG_FLAG 'x'
+#define ULONGLONG_FLAG 'y'
 #if Size_t_size == INTSIZE
-#define AFFIX_TYPE_SSIZE_T AFFIX_TYPE_INT
-#define AFFIX_TYPE_SIZE_T AFFIX_TYPE_UINT
+#define SSIZE_T_FLAG AFFIX_TYPE_INT
+#define SIZE_T_FLAG AFFIX_TYPE_UINT
 #elif Size_t_size == LONGSIZE
-#define AFFIX_TYPE_SSIZE_T AFFIX_TYPE_LONG
-#define AFFIX_TYPE_SIZE_T AFFIX_TYPE_ULONG
+#define SSIZE_T_FLAG LONG_FLAG
+#define SIZE_T_FLAG ULONG_FLAG
 #elif Size_t_size == LONGLONGSIZE
-#define AFFIX_TYPE_SSIZE_T AFFIX_TYPE_LONGLONG
-#define AFFIX_TYPE_SIZE_T AFFIX_TYPE_ULONGLONG
+#define SSIZE_T_FLAG LONGLONG_FLAG
+#define SIZE_T_FLAG ULONGLONG_FLAG
 #else // quadmath is broken
-#define AFFIX_TYPE_SSIZE_T AFFIX_TYPE_LONGLONG
-#define AFFIX_TYPE_SIZE_T AFFIX_TYPE_ULONGLONG
+#define SSIZE_T_FLAG LONGLONG_FLAG
+#define SIZE_T_FLAG ULONGLONG_FLAG
 #endif
-#define AFFIX_TYPE_WCHAR 'w'
-#define AFFIX_TYPE_SV 46
-#define AFFIX_TYPE_REF 48
-#define AFFIX_TYPE_STD_STRING 50
-#define AFFIX_TYPE_INSTANCE_OF 52
+#define FLOAT_FLAG 'f'
+#define DOUBLE_FLAG 'd'
+#define STRING_FLAG 'z'
+#define WSTRING_FLAG '<'
+#define STDSTRING_FLAG 'Y'
+#define STRUCT_FLAG 'A'
+#define CPPSTRUCT_FLAG 'B'
+#define UNION_FLAG 'u'
+#define ARRAY_FLAG '@'
+#define CODEREF_FLAG '&'
+#define POINTER_FLAG '\\'
+#define SV_FLAG '?'
+
+#define CALLING_CONVENTION_FLAG '_'
 
 /* Flag for whether we should free a string after passing it or not. */
 #define AFFIX_TYPE_NO_FREE_STR 0
@@ -173,28 +172,6 @@ static const char *dlerror(void) {
 #define AFFIX_UNMARSHAL_KIND_GENERIC -1
 #define AFFIX_UNMARSHAL_KIND_RETURN -2
 #define AFFIX_UNMARSHAL_KIND_NATIVECAST -3
-
-// MEM_ALIGNBYTES is messed up by quadmath and long doubles
-#define AFFIX_ALIGNBYTES 8
-
-/* Useful but undefined in perlapi */
-#define FLOAT_SIZE sizeof(float)
-#define BOOL_SIZE sizeof(bool)         // ha!
-#define DOUBLE_SIZE sizeof(double)     // ugh...
-#define INTPTR_T_SIZE sizeof(intptr_t) // ugh...
-#define WCHAR_T_SIZE sizeof(wchar_t)
-
-#define BOOL_ALIGN ALIGNOF(bool);
-#define INT_ALIGN ALIGNOF(int);
-#define I8ALIGN ALIGNOF(char);
-#define SHORTALIGN ALIGNOF(short);
-#define INTALIGN ALIGNOF(int);
-#define LONGALIGN ALIGNOF(long);
-#define LONGLONGALIGN ALIGNOF(long long);
-#define FLOAT_ALIGN ALIGNOF(float);
-#define DOUBLE_ALIGN ALIGNOF(double);
-#define INTPTR_T_ALIGN ALIGNOF(intptr_t);
-#define WCHAR_T_ALIGN ALIGNOF(wchar_t);
 
 // http://www.catb.org/esr/structure-packing/#_structure_alignment_and_padding
 /* Returns the amount of padding needed after `offset` to ensure that the
@@ -219,48 +196,66 @@ following address will be aligned to `alignment`. */
      (char *)0)
 #endif
 
-#define EXT_TYPE(NAME, AFFIX_CHAR, DC_CHAR)                                                        \
-    {                                                                                              \
-        set_isa("Affix::Type::" #NAME, "Affix::Type::Base");                                       \
-        /* Allow type constructors to be overridden */                                             \
-        cv = get_cv("Affix::" #NAME, 0);                                                           \
-        if (cv == NULL) {                                                                          \
-            cv = newXSproto_portable("Affix::" #NAME, Affix_Type_##NAME, __FILE__, "$");           \
-            XSANY.any_i32 = (int)AFFIX_CHAR;                                                       \
-        }                                                                                          \
-        export_function("Affix", #NAME, "types");                                                  \
-        /* Overload magic: */                                                                      \
-        sv_setsv(get_sv("Affix::Type::" #NAME "::()", TRUE), &PL_sv_yes);                          \
-        /* overload as sigchars with fallbacks */                                                  \
-        cv = newXSproto_portable("Affix::Type::" #NAME "::()", Affix_Type_asint, __FILE__, "$");   \
-        XSANY.any_i32 = (int)AFFIX_CHAR;                                                           \
-        cv = newXSproto_portable("Affix::Type::" #NAME "::({", Affix_Type_asint, __FILE__, "$");   \
-        XSANY.any_i32 = (int)AFFIX_CHAR;                                                           \
-        cv = newXSproto_portable("Affix::Type::" #NAME "::(function", Affix_Type_asint, __FILE__,  \
-                                 "$");                                                             \
-        XSANY.any_i32 = (int)AFFIX_CHAR;                                                           \
-        cv =                                                                                       \
-            newXSproto_portable("Affix::Type::" #NAME "::(\"\"", Affix_Type_asint, __FILE__, "$"); \
-        XSANY.any_i32 = (int)AFFIX_CHAR;                                                           \
-        cv = newXSproto_portable("Affix::Type::" #NAME "::(*/}", Affix_Type_asint, __FILE__, "$"); \
-        XSANY.any_i32 = (int)AFFIX_CHAR;                                                           \
-        cv = newXSproto_portable("Affix::Type::" #NAME "::(defined", Affix_Type_asint, __FILE__,   \
-                                 "$");                                                             \
-        XSANY.any_i32 = (int)AFFIX_CHAR;                                                           \
-        cv =                                                                                       \
-            newXSproto_portable("Affix::Type::" #NAME "::(here", Affix_Type_asint, __FILE__, "$"); \
-        XSANY.any_i32 = (int)AFFIX_CHAR;                                                           \
-        cv = newXSproto_portable("Affix::Type::" #NAME "::(/*", Affix_Type_asint, __FILE__, "$");  \
-        XSANY.any_i32 = (int)AFFIX_CHAR;                                                           \
-    }
+// MEM_ALIGNBYTES is messed up by quadmath and long doubles
+#define AFFIX_ALIGNBYTES 8
+
+/* Some are undefined in perlapi */
+#define BOOL_SIZE sizeof(bool) // ha!
+#define CHAR_SIZE sizeof(char)
+#define UCHAR_SIZE sizeof(unsigned char)
+#define WCHAR_SIZE sizeof(wchar_t)
+#define SHORT_SIZE sizeof(short)
+#define USHORT_SIZE sizeof(unsigned short)
+#define INT_SIZE INTSIZE
+#define UINT_SIZE sizeof(unsigned int)
+#define LONG_SIZE sizeof(long)
+#define ULONG_SIZE sizeof(unsigned long)
+#define LONGLONG_SIZE sizeof(long long)
+#define ULONGLONG_SIZE sizeof(unsigned long long)
+#define FLOAT_SIZE sizeof(float)
+#define DOUBLE_SIZE sizeof(double) // ugh...
+#if Size_t_size == INTSIZE
+#define SIZE_T_SIZE INT_SIZE
+#define SSIZE_T_SIZE UINT_SIZE
+#elif Size_t_size == LONGSIZE
+#define SIZE_T_SIZE LONGLONG_SIZE
+#define SSIZE_T_SIZE ULONG_SIZE
+#elif Size_t_size == LONGLONGSIZE
+#define SIZE_T_SIZE ULONGLONG_SIZE
+#define SSIZE_T_SIZE LONGLONG_SIZE
+#else // quadmath is broken
+#define SIZE_T_SIZE ULONGLONG_SIZE
+#define SSIZE_T_SIZE LONGLONG_SIZE
+#endif
+#define INTPTR_T_SIZE sizeof(intptr_t) // ugh...
+
+#define BOOL_ALIGN ALIGNOF(bool)
+#define CHAR_ALIGN ALIGNOF(char)
+#define UCHAR_ALIGN ALIGNOF(unsigned char)
+#define WCHAR_ALIGN ALIGNOF(wchar_t)
+#define SHORT_ALIGN ALIGNOF(short)
+#define USHORT_ALIGN ALIGNOF(unsigned short)
+#define INT_ALIGN ALIGNOF(int)
+#define UINT_ALIGN ALIGNOF(unsigned int)
+#define LONG_ALIGN ALIGNOF(long)
+#define ULONG_ALIGN ALIGNOF(unsigned long)
+#define LONGLONG_ALIGN ALIGNOF(long long)
+#define ULONGLONG_ALIGN ALIGNOF(unsigned long long)
+#define FLOAT_ALIGN ALIGNOF(float)
+#define DOUBLE_ALIGN ALIGNOF(double)
+#define INTPTR_T_ALIGN ALIGNOF(intptr_t)
+#define SIZE_T_ALIGN ALIGNOF(size_t)
+#define SSIZE_T_ALIGN ALIGNOF(signed size_t)
+
+// [ text, id, size, align, offset, subtype, length, aggregate ]
+#define AFFIX_SIZEOF(t) SvIV(*av_fetch(MUTABLE_AV(t), 2, 0))
+#define AFFIX_ALIGN(t) SvIV(*av_fetch(MUTABLE_AV(t), 3, 0))
+#define AFFIX_OFFSEST(t) SvIV(*av_fetch(MUTABLE_AV(t), 4, 0))
 
 // marshal.cxx
 size_t padding_needed_for(size_t offset, size_t alignment);
 SV *ptr2sv(pTHX_ DCpointer ptr, SV *type_sv);
 DCpointer sv2ptr(pTHX_ SV *type_sv, SV *data, bool packed);
-size_t _alignof(pTHX_ SV *type);
-size_t _sizeof(pTHX_ SV *type);
-size_t _offsetof(pTHX_ SV *type);
 
 // wchar_t.cxx
 SV *wchar2utf(pTHX_ wchar_t *src, int len);
@@ -299,12 +294,16 @@ struct Affix {
     char *lib_name;
     DLLib *lib_handle;
     void *entry_point;
-    AV *arg_info;
+    void **arg_info;
+    DCaggr **aggregates;
     SV *ret_info;
+    DCaggr *ret_aggregate;
     bool _cpp_constructor;
     bool _cpp_const;    // const member function in CPPStruct[]
     bool _cpp_struct;   // CPPStruct[] as this
     SV *_cpp_this_info; // typedef
+    void **temp_ptrs;
+    void *ret_ptr; // in case we need it
 };
 
 // Callback system
@@ -325,20 +324,10 @@ typedef struct {
 
 char cbHandler(DCCallback *cb, DCArgs *args, DCValue *result, DCpointer userdata);
 
-// Type system
-__attribute__unused__ XS_INTERNAL(Affix_Type_asint) {
-    dXSARGS;
-    PERL_UNUSED_VAR(items);
-    XSRETURN_IV(XSANY.any_i32);
-}
-
 // XS Boot
 void boot_Affix_pin(pTHX_ CV *);
 void boot_Affix_Pointer(pTHX_ CV *);
-void boot_Affix_Type_InstanceOf(pTHX_ CV *);
 void boot_Affix_Lib(pTHX_ CV *);
-void boot_Affix_Type(pTHX_ CV *);
-void boot_Affix_Type_InstanceOf(pTHX_ CV *);
 void boot_Affix_Aggregate(pTHX_ CV *);
 void boot_Affix_Platform(pTHX_ CV *);
 

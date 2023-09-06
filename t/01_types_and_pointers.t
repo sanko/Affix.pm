@@ -1,6 +1,5 @@
 use strict;
 use Test::More 0.98;
-use Test::Warnings qw[warning :no_end_test];
 BEGIN { chdir '../' if !-d 't'; }
 use lib '../lib', 'lib', '../blib/arch', '../blib/lib', 'blib/arch', 'blib/lib', '../../', '.';
 use Affix;
@@ -20,14 +19,13 @@ my $lib = compile_test_lib('01_types_and_pointers');
 #~ warn `nm -D $lib`;
 #
 subtest types => sub {
-    isa_ok $_, 'Affix::Type::Base'
+    isa_ok $_, 'Affix::Type'
         for Void, Bool, Char, UChar, WChar, Short, UShort, Int, UInt, Long, ULong, LongLong,
         ULongLong, SSize_t, Size_t, Float, Double, Str,
         #
         WStr, Pointer [Int], Pointer [SV],
         CodeRef [ [ Pointer [Void], Double, Str, Array [ Str, 10 ], Pointer [WStr] ] => Str ],
-        Struct [ i => Str, j => Long ], Union [ u => Int, x => Double ], Array [ Int, 10 ],
-        InstanceOf ['Test::Class'];
+        Struct [ i => Str, j => Long ], Union [ u => Int, x => Double ], Array [ Int, 10 ];
 };
 subtest 'bool test(bool)' => sub {
     isa_ok my $code = wrap( $lib, 'test', [Bool] => Bool ), 'Affix', 'wrap ..., [Bool] => Bool';
@@ -701,6 +699,7 @@ subtest 'double ** Ret_DoublePtrPtr()' => sub {
 };
 
 # Str
+#~ warn `nm -D $lib`;
 diag 'I can reuse the char* tests here';
 subtest 'int test(char *, char **) as [ [ Str, Array [Str] ] => Int ]' => sub {
     isa_ok my $code = wrap( $lib, 'test', [ Str, Array [Str] ], Int ), 'Affix',
@@ -729,13 +728,12 @@ subtest 'char*** Ret_ArrayStr()' => sub {
 
 # WChar
 subtest 'wchar_t * reverse(wchar_t * str)' => sub {
-    isa_ok my $code = wrap( $lib, 'reverse', [WStr] => WStr ), 'Affix',
-        'reverse ..., [ WStr ] => WStr';
+    isa_ok my $code = wrap( $lib, 'reverse', [WStr] => WStr ), 'Affix', 'reverse [ WStr ] => WStr';
     is $code->('虚空'), '空虚', '虚空 => 空虚';
 };
 subtest 'wchar_t ** Ret_WStrPtr()' => sub {
     isa_ok my $code = wrap( $lib, 'Ret_WStrPtr', [] => Array [ WStr, 5 ] ), 'Affix',
-        'Ret_WStrPtr ..., [ WStr ] => Pointer[WStr]';
+        'wrap Ret_WStrPtr => [ WStr ] => Pointer[WStr]';
     is_deeply $code->(),
         [
         "안녕하세요", "감사합니다",
@@ -788,7 +786,8 @@ END
     }
 };
 
-# StdStr
+# TODO: StdStr
+####
 # Union/Struct
 isa_ok my $type = typedef( A => Union [ x => Int, y => Array [ Int, 4 ] ] ), 'Affix::Type::Union',
     'Union[...] A';
@@ -815,7 +814,7 @@ TODO: {
             'union is fancy!';
     }
     isa_ok $code = wrap( $lib, 'Update_UnionPtr', [ Pointer [$C] ] => Void ), 'Affix',
-        'Update_Union ..., [ Pointer[C] ] => Void';
+        'Update_Union [ Pointer[C] ] => Void';
     $code->($union);
     is $union->{k}, 100, 'union updated...';
 };
@@ -825,7 +824,7 @@ isa_ok my $C2 = typedef( C2 => Union [ i => Int, j => Float ] ), 'Affix::Type::U
     'Union[...] C2';
 subtest 'void test(int, C2**)' => sub {
     isa_ok my $code = wrap( $lib, 'test', [ Int, Pointer [$C2] ] => Int ), 'Affix',
-        'test ..., [ Int, Pointer [ C2 ] ] => Void';
+        'wrap test => [ Int, Pointer [ C2 ] ] => Void';
     is $code->(
         5,
         [   { i => 10 },
@@ -846,13 +845,97 @@ subtest 'void test(int, C2**)' => sub {
 };
 subtest 'C2* Ret_UnionPtr(int)' => sub {
     isa_ok my $code = wrap( $lib, 'Ret_UnionPtr', [Int] => Array [ $C2, 5 ] ), 'Affix',
-        'Return_UnionPtr ..., [ Int ] => Pointer [ C2 ]';
+        'wrap Return_UnionPtr => [ Int ] => Pointer [ C2 ]';
     my @unions = $code->(5);
     is $unions[0][3]{i}, 10, '$code->(5)';
 };
 
 # Array
-# Enum
+isa_ok my $A1 = typedef( A1 => Array [Int] ), 'Affix::Type::Array', 'Array[ Int ] A1';
+isa_ok my $A2 = typedef( A2 => Array [ Int, 5 ] ), 'Affix::Type::Array', 'Array[ Int, 5 ] A2';
+isa_ok my $A3 = typedef( A3 => Array [ Array [ Int, 5 ], 10 ] ), 'Affix::Type::Array',
+    'Array[Array[ Int, 5 ], 10] A3';
+#
+subtest 'int test(A1, int)' => sub {
+    isa_ok my $code = wrap( $lib, 'test', [ $A1, Int ] => Int ), 'Affix',
+        'wrap test => [ A1, Int ] => Int';
+    is $code->( [ 25, 68, 30, -23 ], 4 ), 100, '$code->([ 25, 68, 30, -23 ], 4)';
+    is $code->( [ 25, 68, 30, -23, 40 ], 4 ), 100, '$code->([ 25, 68, 30, -23, 40 ], 4);';
+};
+subtest 'int test(A2)' => sub {
+    isa_ok my $code = wrap( $lib, 'test', [$A2] => Int ), 'Affix', 'wrap test => [ A2 ] => Int';
+    eval {
+        local $SIG{__DIE__};
+        $code->( [ 25, 68, 30, -23 ] );
+    };
+    like(
+        $@,
+        qr/Expected .+ 5 elements/,
+        '$code->([25, 68, 30, -23 ]) does not pass enough elements'
+    );
+    is $code->( [ 25, 68, 30, -23, 40 ] ), 140, '$code->([ 25, 68, 30, -23, 40 ]);';
+};
+
+#~ warn `nm -D $lib`;
+subtest 'int test(A3)' => sub {
+    isa_ok my $code = wrap(
+        $lib,
+        '_Z4testPA10_i',
+        [   Pointer [ Pointer [Int] ]
+
+            #~ $A3
+        ] => Int
+        ),
+        'Affix', 'wrap test => [ A3 ] => Int';
+    is $code->(
+        [   [ 2 .. 4, 55, 55 ],
+            [ 5 .. 9 ],
+            [ 10 .. 14 ],
+            [ 15 .. 19 ],
+            [ 20 .. 24 ],
+            [ 25 .. 29 ],
+            [ 30 .. 34 ],
+            [ 35 .. 39 ],
+            [ 40 .. 44 ],
+            [ 45 .. 49 ]
+        ]
+        ),
+        1334, '$code->([ ... ]);';
+};
+done_testing;
+exit;
+subtest 'A1 Ret_A1()' => sub {
+    eval {
+        local $SIG{__WARN__} = sub {
+            like shift, qr[undefined behavior],
+                'returning array of unknown size is undefined behavior';
+        };
+        wrap( $lib, 'Ret_A1', [] => $A1 );
+    }
+};
+subtest 'A2 Ret_A2()' => sub {
+    isa_ok my $code = wrap( $lib, 'Ret_A2', [] => $A2 ), 'Affix', 'wrap Ret_A2 => [ ] => A2';
+    is_deeply $code->(), [ 0 .. 4 ], '$code->() returns [0..4]';
+};
+subtest 'A3 Ret_A3()' => sub {
+    isa_ok my $code = wrap( $lib, 'Ret_A3', [] => $A3 ), 'Affix', 'wrap Ret_A3 => [ ] => A3';
+    is_deeply $code->(),
+        [
+        [ 0 .. 4 ],
+        [ 5 .. 9 ],
+        [ 10 .. 14 ],
+        [ 15 .. 19 ],
+        [ 20 .. 24 ],
+        [ 25 .. 29 ],
+        [ 30 .. 34 ],
+        [ 35 .. 39 ],
+        [ 40 .. 44 ],
+        [ 45 .. 49 ],
+        ],
+        '$code->() returns [[0..4], ... [45..49]]';
+};
+
+# TODO: Enum
 # CPPStruct / Class
 isa_ok my $S1 = typedef( S1 => Struct [ i => Int ] ), 'Affix::Type::Struct', 'Struct[...] S1';
 subtest 'int test(S1)' => sub {
@@ -896,7 +979,7 @@ subtest 'S1 ** Ret_StructPtrPtr(int)' => sub {
 done_testing;
 exit;
 
-# CodeRef
+# TODO: CodeRef
 {
     my $type = Pointer [ Array [ CodeRef [ [Str] => Str ], 3 ] ];
     my $ptr  = $type->marshal(
@@ -912,8 +995,8 @@ exit;
     is $cv->[2]->('three'), 'Three', 'proper return value from 3rd';
 };
 
-# Pointer[Void]
-# Pointer[SV]
+# TODO: Pointer[Void]
+# TODO: Pointer[SV]
 done_testing;
 __END__
 subtest 'Pointer[WChar]' => sub {

@@ -1100,6 +1100,84 @@ union C2 *Ret_UnionPtr(int n) {
     return unions;
 }
 
+typedef int A1[];
+typedef int A2[5];
+
+DLLEXPORT
+int test(A1 a, int size) {
+    int ret = 0;
+    for (int i = 0; i < size; i++)
+        ret += a[i];
+    return ret;
+}
+
+DLLEXPORT
+int test(A2 a) {
+    int ret = 0;
+    for (int i = 0; i < 5; i++)
+        ret += a[i];
+    return ret;
+}
+
+//~ _Z4testPA10_i
+DLLEXPORT
+int test(int numbers[5][10]) {
+    int ret = 0;
+    int rows = 10;
+    int cols = 5;
+    warn("HERE");
+    DumpHex(numbers, sizeof(int **));
+
+    for (int i = 0; i < rows; i++) {
+        for (int j = 0; j < cols; j++) {
+            warn("[i: %d, j: %d]", i, j);
+
+            warn("# numbers[%d][%d] == %d", i, j, numbers[i][j]);
+
+            ret += numbers[i][j];
+        }
+    }
+    warn("RET: %d", ret);
+    return ret;
+}
+
+DLLEXPORT
+int *Ret_A1() {
+    int size = 100;
+    int *ret = (int *)malloc(sizeof(int) * size);
+    for (int i = 0; i < size; i++) {
+        ret[i] = i;
+        //~ warn("# ret[%d] == %d", i, ret[i]);
+    }
+    return ret;
+}
+
+DLLEXPORT
+int *Ret_A2() {
+    int size = 5;
+    int *ret = (int *)malloc(sizeof(int) * size);
+    for (int i = 0; i < size; i++) {
+        ret[i] = i;
+        //~ warn("# ret[%d] == %d", i, ret[i]);
+    }
+    return ret;
+}
+
+DLLEXPORT
+int **Ret_A3() {
+    int rows = 10;
+    int cols = 5;
+    int **ret = (int **)malloc(sizeof(int *) * rows);
+    for (int i = 0; i < rows; i++) {
+        ret[i] = (int *)malloc(sizeof(int) * cols);
+        for (int j = 0; j < cols; j++) {
+            ret[i][j] = i * cols + j;
+            //~ warn("# ret[%d, %d] == %d", i, j, ret[i][j]);
+        }
+    }
+    return ret;
+}
+
 struct S1 {
     int i;
 };

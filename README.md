@@ -359,7 +359,7 @@ checking is done at compile or runtime.
     <td>size_t</td>         <td>size_t</td>      <td></td> <td></td> <td></td>
     </tr>       <tr> <td>Str</td> <td>char *</td> <td></td> <td></td> <td></td>
     <td></td> </tr>       <tr> <td>WStr</td> <td>wchar_t</td> <td></td> <td></td>  
-      <td></td>      </tr> </tbody> </table>
+    <td></td>      </tr> </tbody> </table>
 </div>
 
 Given sizes are minimums measured in bits

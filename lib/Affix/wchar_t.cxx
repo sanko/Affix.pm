@@ -9,7 +9,7 @@ SV *wchar2utf(pTHX_ wchar_t *src, int len) {
     safefree((DCpointer)r);
 #else
     SV *RETVAL = newSV(0);
-    U8 *dst = (U8 *)safecalloc(len + 1, WCHAR_T_SIZE);
+    U8 *dst = (U8 *)safecalloc(len + 1, WCHAR_SIZE);
     U8 *d = dst;
     while (*src)
         d = uvchr_to_utf8(d, *src++);
@@ -21,7 +21,7 @@ SV *wchar2utf(pTHX_ wchar_t *src, int len) {
 }
 
 wchar_t *utf2wchar(pTHX_ SV *src, int len) {
-    wchar_t *RETVAL = (wchar_t *)safemalloc((len + 1) * WCHAR_T_SIZE);
+    wchar_t *RETVAL = (wchar_t *)safemalloc((len + 1) * WCHAR_SIZE);
 #ifdef _WIN32
     MultiByteToWideChar(CP_UTF8, MB_PRECOMPOSED, SvPV_nolen(src), -1, RETVAL, len + 1);
 #else
@@ -30,7 +30,7 @@ wchar_t *utf2wchar(pTHX_ SV *src, int len) {
     if (SvUTF8(src)) {
         STRLEN len;
         while (*raw) {
-            *p++ = utf8_to_uvchr_buf(raw, raw + WCHAR_T_SIZE, &len);
+            *p++ = utf8_to_uvchr_buf(raw, raw + WCHAR_SIZE, &len);
             raw += len;
         }
     }
