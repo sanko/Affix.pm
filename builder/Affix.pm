@@ -353,7 +353,7 @@ sub process_cxx {
     my @dirs;
 
     for my $source (@$sources) {
-        my $file_base = basename( $source, '.cxx' );
+        my $file_base = basename( $source, '.cxx', '.c' );
         my $tempdir   = 'lib';
         mkpath( $tempdir, $opt{verbose}, oct '755' );
         my $version = $opt{meta}->version;
@@ -364,7 +364,7 @@ sub process_cxx {
                 ( stat($source)->mtime > stat($obj)->mtime ) ||
                 ( stat(__FILE__)->mtime > stat($obj)->mtime ) ) ?
             $builder->compile(
-            'C++'        => ( $source =~ /\.cxx$/ ),
+            'C++'        => ( $source =~ /\.cxx$/ ? 1 : 0 ),
             source       => $source,
             defines      => { VERSION => qq/"$version"/, XS_VERSION => qq/"$version"/ },
             include_dirs =>
@@ -428,7 +428,7 @@ my %actions;
         make_executable($_) for values %scripts;
         mkpath( catdir(qw/blib arch/), $opt{verbose} );
         alien(%opt);
-        process_cxx( [ find( qr/.cxx$/, 'lib' ) ], %opt );
+        process_cxx( [ find( qr/\.c(?:xx)?$/, 'lib' ) ], %opt );
         if ( $opt{install_paths}->install_destination('bindoc') &&
             $opt{install_paths}->is_default_installable('bindoc') ) {
             manify(
