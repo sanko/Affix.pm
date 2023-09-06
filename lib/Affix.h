@@ -247,10 +247,21 @@ following address will be aligned to `alignment`. */
 #define SIZE_T_ALIGN ALIGNOF(size_t)
 #define SSIZE_T_ALIGN ALIGNOF(signed size_t)
 
-// [ text, id, size, align, offset, subtype, length, aggregate ]
-#define AFFIX_SIZEOF(t) SvIV(*av_fetch(MUTABLE_AV(t), 2, 0))
-#define AFFIX_ALIGN(t) SvIV(*av_fetch(MUTABLE_AV(t), 3, 0))
-#define AFFIX_OFFSEST(t) SvIV(*av_fetch(MUTABLE_AV(t), 4, 0))
+// [ text, id, size, align, offset, subtype, length, aggregate, typedef ]
+#define SLOT_STRINGIFY 0
+#define SLOT_NUMERICAL 1
+#define SLOT_SIZEOF 2
+#define SLOT_ALIGNMENT 3
+#define SLOT_OFFSET 4
+#define SLOT_SUBTYPE 5
+#define SLOT_ARRAYLEN 6
+#define SLOT_AGGREGATE 7
+#define SLOT_TYPEDEF 8
+
+#define AXT_SIZEOF(t) SvIV(*av_fetch(MUTABLE_AV(t), SLOT_SIZEOF, 0))
+#define AXT_ALIGN(t) SvIV(*av_fetch(MUTABLE_AV(t), SLOT_ALIGNMENT, 0))
+#define AXT_OFFSET(t) SvIV(*av_fetch(MUTABLE_AV(t), SLOT_OFFSET, 0))
+#define AXT_TYPEDEF(t) SvIV(*av_fetch(MUTABLE_AV(t), SLOT_TYPEDEF, 0))
 
 // marshal.cxx
 size_t padding_needed_for(size_t offset, size_t alignment);

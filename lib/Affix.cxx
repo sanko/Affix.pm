@@ -297,7 +297,7 @@ extern "C" void Affix_trigger(pTHX_ CV *cv) {
     case STRUCT_FLAG:
     case CPPSTRUCT_FLAG:
     case UNION_FLAG:
-        if (affix->ret_ptr == NULL) affix->ret_ptr = safemalloc(AFFIX_SIZEOF(affix->ret_info));
+        if (affix->ret_ptr == NULL) affix->ret_ptr = safemalloc(AXT_SIZEOF(affix->ret_info));
 #if DEBUG
         warn("  DCpointer p [%p] = safemalloc(%ld);", p, _sizeof(aTHX_ affix->ret_info));
         warn("  dcCallAggr(%p, %p, %p, %p);", (void *)MY_CXT.cvm, (void *)affix->entry_point,
@@ -1418,6 +1418,17 @@ XS_EXTERNAL(boot_Affix) {
     export_constant_char("Affix", "SV_FLAG", "flags", SV_FLAG);
 
     export_constant_char("Affix", "CALLING_CONVENTION_FLAG", "flags", CALLING_CONVENTION_FLAG);
+
+    // Type object slots
+    export_constant("Affix", "SLOT_STRINGIFY", "flags", SLOT_STRINGIFY);
+    export_constant("Affix", "SLOT_NUMERICAL", "flags", SLOT_NUMERICAL);
+    export_constant("Affix", "SLOT_SIZEOF", "flags", SLOT_SIZEOF);
+    export_constant("Affix", "SLOT_ALIGNMENT", "flags", SLOT_ALIGNMENT);
+    export_constant("Affix", "SLOT_OFFSET", "flags", SLOT_OFFSET);
+    export_constant("Affix", "SLOT_SUBTYPE", "flags", SLOT_SUBTYPE);
+    export_constant("Affix", "SLOT_ARRAYLEN", "flags", SLOT_ARRAYLEN);
+    export_constant("Affix", "SLOT_AGGREGATE", "flags", SLOT_AGGREGATE);
+    export_constant("Affix", "SLOT_TYPEDEF", "flags", SLOT_TYPEDEF);
 
     //
     boot_Affix_Aggregate(aTHX_ cv);

@@ -5,7 +5,7 @@ DCaggr *_aggregate(pTHX_ SV *type) {
     warn("_aggregate(...)");
 #endif
     int t = SvIV(type);
-    size_t size = AFFIX_SIZEOF(type);
+    size_t size = AXT_SIZEOF(type);
     size_t array_len;
     switch (t) {
     case ARRAY_FLAG: {
@@ -45,7 +45,7 @@ DCaggr *_aggregate(pTHX_ SV *type) {
                 SV **field_ptr = av_fetch(idk_arr, i, 0);
                 AV *field = MUTABLE_AV(SvRV(*field_ptr));
                 SV **subtype = av_fetch(field, 1, 0);
-                size_t offset = AFFIX_OFFSEST(*subtype);
+                size_t offset = AXT_OFFSET(*subtype);
                 int _t = SvIV(*subtype);
                 switch (_t) {
                 case STRUCT_FLAG:
@@ -115,7 +115,7 @@ XS_INTERNAL(Affix_Aggregate_FETCH) {
         SV **name = av_fetch(MUTABLE_AV(SvRV(*elm)), 0, 0);
         if (strcmp(key, SvPV(*name, PL_na)) == 0) {
             SV *_type = *av_fetch(MUTABLE_AV(SvRV(*elm)), 1, 0);
-            size_t offset = AFFIX_OFFSEST(_type); // meaningless for union
+            size_t offset = AXT_OFFSET(_type); // meaningless for union
             sv_setsv(RETVAL, sv_2mortal(ptr2sv(aTHX_ INT2PTR(DCpointer, tmp + offset), _type)));
             break;
         }
