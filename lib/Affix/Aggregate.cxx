@@ -87,7 +87,7 @@ DCaggr *_aggregate(pTHX_ SV *type) {
         }
     } break;
     default: {
-        croak("Unsupported aggregate: %s at %s line %d", type_as_str(t), __FILE__, __LINE__);
+        croak("Unsupported aggregate: %s at %s line %d", AXT_STRINGIFY(type), __FILE__, __LINE__);
         break;
     }
     }

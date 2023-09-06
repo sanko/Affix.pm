@@ -394,7 +394,7 @@ extern "C" void Affix_trigger2(pTHX_ CV *cv) {
 			++arg_pos, ++info_pos) {
 #if DEBUG
 		warn("arg_pos: %d, num_args: %d, info_pos: %d", arg_pos, num_args, info_pos);
-		warn("   type: %d, as_str: %s", arg_types[info_pos], type_as_str(arg_types[info_pos]));
+		warn("   type: %d, as_str: %s", arg_types[info_pos], AXT_STRINGIFY(arg_types[info_pos]));
 #if DEBUG > 1
 		DD(ST(arg_pos));
 #endif
@@ -653,7 +653,7 @@ extern "C" void Affix_trigger2(pTHX_ CV *cv) {
 #if DEBUG
 				warn("AFFIX_TYPE_CPOINTER [%d, %ld/%s]", arg_pos,
 				     SvIV(*av_fetch(affix->arg_info, info_pos, 0)),
-				     type_as_str(SvIV(*av_fetch(affix->arg_info, info_pos, 0))));
+				     AXT_STRINGIFY(affix->arg_info));
 #if DEBUG > 1
 				DD(MUTABLE_SV(affix->arg_info));
 				DD(*av_fetch(affix->arg_info, info_pos, 0));
@@ -688,8 +688,7 @@ extern "C" void Affix_trigger2(pTHX_ CV *cv) {
 			}
 			break;
 		default:
-			croak("Unhandled arg type %s (%d) at %s line %d", type_as_str(arg_types[info_pos]),
-			      (arg_types[info_pos]), __FILE__, __LINE__);
+			croak("Unhandled arg type %s at %s line %d", AXT_STRINGIFY(arg_types[info_pos]),			      __FILE__, __LINE__);
 			break;
 		}
 	}
@@ -709,7 +708,7 @@ extern "C" void Affix_trigger2(pTHX_ CV *cv) {
 	} else {
 #if DEBUG
 		warn("Return type %d (%s) / %p at %s line %d", affix->ret_type,
-		     type_as_str(affix->ret_type), affix->entry_point, __FILE__, __LINE__);
+		     AXT_STRINGIFY(affix->ret_type), affix->entry_point, __FILE__, __LINE__);
 #endif
 		switch (affix->ret_type) {
 		case AFFIX_TYPE_VOID:
@@ -868,7 +867,7 @@ extern "C" void Affix_trigger2(pTHX_ CV *cv) {
 			//~ sv_dump(affix->ret_info);
 			DD(affix->ret_info);
 			PING;
-			croak("Unknown return type: %s (%d)", type_as_str(affix->ret_type), affix->ret_type);
+			croak("Unknown return type: %s (%d)", AXT_STRINGIFY(affix->ret_type), affix->ret_type);
 			break;
 		}
 	}

@@ -2,8 +2,7 @@
 
 SV *ptr2av(pTHX_ DCpointer ptr, SV *type_sv) {
 #if DEBUG
-    warn("ptr2av(%p, %s (%d)) at %s line %d", ptr, type_as_str((int)SvIV(type_sv)),
-         (int)SvIV(type_sv), __FILE__, __LINE__);
+    warn("ptr2av(%p, %s)) at %s line %d", ptr, AXT_STRINGIFY(type_sv), __FILE__, __LINE__);
 #endif
     PING;
 
@@ -29,25 +28,19 @@ SV *ptr2av(pTHX_ DCpointer ptr, SV *type_sv) {
         if (sv_derived_from(subtype, "Affix::Types::Array")) {
             void **_ptr = (void **)ptr;
             for (size_t i = 0; i < size; ++i) {
-                //~ warn("%s[%d] of %d", type_as_str(SvIV(subtype)), i, size);
                 av_push(RETVAL_, ptr2sv(aTHX_ _ptr[i], subtype));
             }
         }
         else {
             for (size_t i = 0; i < size; ++i) {
-                //~ warn("%s[%d] of %d", type_as_str(SvIV(subtype)), i, size - 1);
-                //~ warn("Putting index %d into %p plus %d [%p]", i, ptr, pos,
-                //~ INT2PTR(DCpointer, PTR2IV(ptr) + pos));
                 av_push(RETVAL_, ptr2sv(aTHX_ INT2PTR(DCpointer, PTR2IV(ptr) + pos), subtype));
                 pos += el_len;
-                //~ warn("i: %d, pos == %d, %p", i, pos, INT2PTR(DCpointer, PTR2IV(ptr) + pos));
             }
         }
         retval = newRV(MUTABLE_SV(RETVAL_));
     }
 #if DEBUG
-    warn("/ptr2sv(%p, %s (%d)) at %s line %d", ptr, type_as_str((int)SvIV(type_sv)),
-         (int)SvIV(type_sv), __FILE__, __LINE__);
+    warn("/ptr2sv(%p, %s (%d)) at %s line %d", ptr, AXT_STRINGIFY(type_sv), __FILE__, __LINE__);
     DD(retval);
 #endif
     return retval;
@@ -55,8 +48,7 @@ SV *ptr2av(pTHX_ DCpointer ptr, SV *type_sv) {
 SV *ptr2sv(pTHX_ DCpointer ptr, SV *type_sv) {
     PING;
 #if DEBUG
-    warn("ptr2sv(%p, %s (%d)) at %s line %d", ptr, type_as_str((int)SvIV(type_sv)),
-         (int)SvIV(type_sv), __FILE__, __LINE__);
+    warn("ptr2sv(%p, %s (%d)) at %s line %d", ptr, AXT_STRINGIFY(type_sv), __FILE__, __LINE__);
 #endif
     PING;
     SV *retval = NULL;
@@ -179,7 +171,6 @@ SV *ptr2sv(pTHX_ DCpointer ptr, SV *type_sv) {
         case POINTER_FLAG: {
             SV *subtype_sv = *hv_fetch(MUTABLE_HV(SvRV(type_sv)), "type", 4, 0);
             int subtype = SvIV(subtype_sv);
-            //~ warn("subtype: %s", type_as_str(subtype));
             switch (subtype) {
             case CHAR_FLAG:
             case SCHAR_FLAG:
@@ -246,7 +237,7 @@ SV *ptr2sv(pTHX_ DCpointer ptr, SV *type_sv) {
                         #define AFFIX_TYPE_INSTANCE_OF 52
                         */
         default:
-            croak("Unhandled type: %s [%d]", type_as_str((int)SvIV(type_sv)), (int)SvIV(type_sv));
+            croak("Unhandled type: %s", AXT_STRINGIFY(type_sv));
         }
     }
     PING;
@@ -273,8 +264,7 @@ SV *ptr2sv(pTHX_ DCpointer ptr, SV *type_sv) {
     }
     PING;
 #if DEBUG
-    warn("/ptr2sv(%p, %s (%d)) at %s line %d", ptr, type_as_str((int)SvIV(type_sv)),
-         (int)SvIV(type_sv), __FILE__, __LINE__);
+    warn("/ptr2sv(%p, %s) at %s line %d", ptr, type_sv, __FILE__, __LINE__);
     // DD(retval);
 #endif
     return retval;
@@ -289,16 +279,14 @@ void *av2ptr(pTHX_ SV *type, AV *av_data, bool packed) {
     SV *subtype = *hv_fetchs(hv_type, "type", 0);
     int16_t i_type = SvIV(type);
 #if DEBUG
-    warn("av2ptr(%s (%d), ..., %s) at %s line %d", type_as_str(i_type), i_type,
-         (packed ? "true" : "false"), __FILE__, __LINE__);
+    warn("av2ptr(%s, ..., %s) at %s line %d", AXT_STRINGIFY(type), (packed ? "true" : "false"),
+         __FILE__, __LINE__);
 #if DEBUG > 1
     DD(type);
     DD(MUTABLE_SV(av_data));
 //~ sv_dump(av_data);
 #endif
 #endif
-
-    warn("sizeof(...) == %d", AXT_SIZEOF(type));
 
     SV **size_ptr = hv_fetchs(hv_type, "size", 0);
     size_t size = size_ptr != NULL && SvOK(*size_ptr) ? SvIV(*size_ptr) : av_count(av_data);
@@ -318,7 +306,6 @@ void *av2ptr(pTHX_ SV *type, AV *av_data, bool packed) {
             DCpointer block = sv2ptr(aTHX_ subtype, *(av_fetch(av_data, i, 0)), packed);
             Move(&block, INT2PTR(DCpointer, PTR2IV(ret) + pos), AXT_SIZEOF(subtype), char);
             pos += el_len;
-            warn("posX: %d", pos);
         }
     }
     else {
@@ -327,13 +314,11 @@ void *av2ptr(pTHX_ SV *type, AV *av_data, bool packed) {
             Move(block, INT2PTR(DCpointer, PTR2IV(ret) + pos), AXT_SIZEOF(subtype), char);
             //~ safefree(block);
             pos += el_len;
-            warn("posY: %d", pos);
-
             PING;
         }
     }
 #if DEBUG
-    warn("/av2ptr(%s (%d), ..., %s) => %p at %s line %d", type_as_str(i_type), i_type,
+    warn("/av2ptr(%s, ..., %s) => %p at %s line %d", AXT_STRINGIFY(type),
          (packed ? "true" : "false"), ret, __FILE__, __LINE__);
 #endif
     return ret;
@@ -343,24 +328,13 @@ void *sv2ptr(pTHX_ SV *type_sv, SV *data, bool packed) {
     DCpointer ret = NULL;
     int16_t type = SvIV(type_sv);
 #if DEBUG
-    warn("sv2ptr(%s (%d), ..., %s) at %s line %d", type_as_str(type), type,
-         (packed ? "true" : "false"), __FILE__, __LINE__);
+    warn("sv2ptr(%s, ..., %s) at %s line %d", AXT_STRINGIFY(type_sv), (packed ? "true" : "false"),
+         __FILE__, __LINE__);
 #if DEBUG > 1
     DD(data);
     DD(type_sv);
 #endif
 #endif
-    //~ warn("sv2ptr(%s (%d), ..., %s) at %s line %d", type_as_str(type), type,
-    //~ (packed ? "true" : "false"), __FILE__, __LINE__);
-    //~ warn("sv2ptr(..., ..., ..., ...) at %s line %d",
-    //~ __FILE__, __LINE__);
-    //~ warn("...");
-    //~ warn("sv2ptr(%s ..., ..., ...) at %s line %d", type_as_str(type),
-    //~ __FILE__, __LINE__);
-
-    //~ warn("sv2ptr(%s (%d), ..., ...) at %s line %d", type_as_str(type), type,
-    //~ __FILE__, __LINE__);
-
     switch (type) {
     case VOID_FLAG: {
         if (!SvOK(data)) {
@@ -650,11 +624,11 @@ void *sv2ptr(pTHX_ SV *type_sv, SV *data, bool packed) {
         }
     } break;
     default: {
-        croak("%s (%d) is not a known type in sv2ptr(...)", type_as_str(type), type);
+        croak("%s is not a known type in sv2ptr(...)", AXT_STRINGIFY(type_sv));
     }
     }
 #if DEBUG
-    warn("/sv2ptr(%s (%d), ..., %s) => %p at %s line %d", type_as_str(type), type,
+    warn("/sv2ptr(%s, ..., %s) => %p at %s line %d", AXT_STRINGIFY(type_sv),
          (packed ? "true" : "false"), ret, __FILE__, __LINE__);
 #endif
     return ret;

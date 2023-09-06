@@ -1,6 +1,7 @@
 package Affix::ABI::Itanium 1.0 {
     use strict;
     use warnings;
+    use lib '../../lib', '../../blib/arch', '../../blib/lib';
     use Affix qw[:types :flags];
     use Data::Dump;
     #
@@ -147,12 +148,12 @@ use Affix qw[:all];
 use Test::More;
 use Data::Dump;
 $|++;
-ddx Affix::typedef bar => [Int];
+ddx Affix::typedef bar => Int;
 #
 is Affix::ABI::Itanium::mangle( 'f', []     => Void ), '_Z1fv', 'Ret? f()';
 is Affix::ABI::Itanium::mangle( 'f', [Void] => Void ), '_Z1fv', 'Ret? f(void)';
 is Affix::ABI::Itanium::mangle( 'f', [Int]  => Void ), '_Z1fi', 'Ret? f(int)';
-is Affix::ABI::Itanium::mangle( 'f', [ Affix::typedef bar => [Int] ] => Void ), '_Z3foo3bar',
+is Affix::ABI::Itanium::mangle( 'f', [ Affix::typedef bar => Int ] => Void ), '_Z3foo3bar',
     'Ret? foo(bar)';
 #
 is Affix::ABI::Itanium::mangle('N::f'), '_ZN1N1fE', 'Type? N::f';

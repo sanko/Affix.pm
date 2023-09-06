@@ -19,14 +19,16 @@ package Affix 0.12 {    # 'FFI' is my middle name!
     #
     use parent 'Exporter';
     $EXPORT_TAGS{types} = [
+        'typedef',
+        #
         'Void', 'SV',
 
         # Aggregates
         'Struct', 'Array', 'Union',
 
         # Numerics
-        'Bool',     'Char', 'UChar', 'WChar', 'Short', 'UShort', 'Int', 'UInt', 'Long', 'ULong',
-        'LongLong', 'ULongLong', 'Float', 'Double', 'Size_t', 'SSize_t',
+        'Bool',  'Char',     'SChar', 'UChar', 'WChar', 'Short', 'UShort', 'Int', 'UInt', 'Long',
+        'ULong', 'LongLong', 'ULongLong', 'Float', 'Double', 'Size_t', 'SSize_t',
 
         # Enumerations
         'Enum', 'IntEnum', 'UIntEnum', 'CharEnum',
@@ -205,15 +207,50 @@ package Affix 0.12 {    # 'FFI' is my middle name!
         }
         #
         sub typedef {
-            my ( $new, $original ) = @_;
-            no strict 'refs';
-            no warnings 'once';
-
-            #~ use diagnostics;
-            *{$new} = sub {$original};
-            @{ 'Affix::Type::' . $new . '::ISA' } = 'Affix::Type::' . $original;
-            push @{ $EXPORT_TAGS{types} }, $new;
+            my ( $name, $type ) = @_;
+            if ( !$type->isa('Affix::Type') ) {
+                require Carp;
+                Carp::croak( 'Unknown type: ' . $type );
+            }
+            my $fqn = $name =~ /::/ ? $name : [caller]->[0] . '::' . $name;
+            {
+                no strict 'refs';
+                no warnings 'redefine';
+                *{$fqn} = sub { CORE::state $s //= $type };
+                @{ $fqn . '::ISA' } = ref $type;
+            }
+            bless $type, $fqn;
+            $type->[ SLOT_TYPEDEF() ]   = $name;
+            $type->[ SLOT_STRINGIFY() ] = sprintf q[typedef %s => %s],
+                $name =~ /::/ ? "'$name'" : $name, $type->[ SLOT_STRINGIFY() ];
+            $type;
         }
+        @Affix::Type::Void::ISA = @Affix::Type::SV::ISA
+
+            # Aggregates
+            = @Affix::Type::Struct::ISA = @Affix::Type::Array::ISA = @Affix::Type::Union::ISA
+
+            # Numerics
+            = @Affix::Type::Bool::ISA      = @Affix::Type::Char::ISA  = @Affix::Type::SChar::ISA
+            = @Affix::Type::UChar::ISA     = @Affix::Type::WChar::ISA = @Affix::Type::Short::ISA
+            = @Affix::Type::UShort::ISA    = @Affix::Type::Int::ISA   = @Affix::Type::UInt::ISA
+            = @Affix::Type::Long::ISA      = @Affix::Type::ULong::ISA = @Affix::Type::LongLong::ISA
+            = @Affix::Type::ULongLong::ISA = @Affix::Type::Float::ISA = @Affix::Type::Double::ISA
+            = @Affix::Type::Size_t::ISA
+            = @Affix::Type::SSize_t::ISA
+
+            # Enumerations
+            = @Affix::Type::Enum::ISA = @Affix::Type::IntEnum::ISA = @Affix::Type::UIntEnum::ISA
+            = @Affix::Type::CharEnum::ISA
+
+            # Pointers
+            = @Affix::Type::String::ISA = @Affix::Type::WString::ISA = @Affix::Type::StdString::ISA
+            = @Affix::Type::Pointer::ISA = @Affix::Type::CodeRef::ISA
+
+            # Typedef'd aliases
+            = @Affix::Type::Str::ISA
+            #
+            = 'Affix::Type';
 
         sub Void() {    # could use state var if we didn't use the objects to store offset, etc.
             bless( [ 'Void', VOID_FLAG(), 0, 0, undef ], 'Affix::Type::Void' );
@@ -525,32 +562,6 @@ package Affix 0.12 {    # 'FFI' is my middle name!
         typedef u64 => ULongLong;
         #
         typedef wchar_t => WChar;
-        #
-        @Affix::Type::Void::ISA = @Affix::Type::SV::ISA
-
-            # Aggregates
-            = @Affix::Type::Struct::ISA = @Affix::Type::Array::ISA = @Affix::Type::Union::ISA
-
-            # Numerics
-            = @Affix::Type::Bool::ISA  = @Affix::Type::Char::ISA     = @Affix::Type::UChar::ISA
-            = @Affix::Type::WChar::ISA = @Affix::Type::Short::ISA    = @Affix::Type::UShort::ISA
-            = @Affix::Type::Int::ISA   = @Affix::Type::UInt::ISA     = @Affix::Type::Long::ISA
-            = @Affix::Type::ULong::ISA = @Affix::Type::LongLong::ISA = @Affix::Type::ULongLong::ISA
-            = @Affix::Type::Float::ISA = @Affix::Type::Double::ISA   = @Affix::Type::Size_t::ISA
-            = @Affix::Type::SSize_t::ISA
-
-            # Enumerations
-            = @Affix::Type::Enum::ISA = @Affix::Type::IntEnum::ISA = @Affix::Type::UIntEnum::ISA
-            = @Affix::Type::CharEnum::ISA
-
-            # Pointers
-            = @Affix::Type::String::ISA = @Affix::Type::WString::ISA = @Affix::Type::StdString::ISA
-            = @Affix::Type::Pointer::ISA = @Affix::Type::CodeRef::ISA
-
-            # Typedef'd aliases
-            = @Affix::Type::Str::ISA
-            #
-            = 'Affix::Type';
     }
     {
         #~ ✅ https://gcc.gnu.org/git?p=gcc.git;a=blob_plain;f=gcc/cp/mangle.cc;hb=HEAD

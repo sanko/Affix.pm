@@ -245,7 +245,7 @@ following address will be aligned to `alignment`. */
 #define DOUBLE_ALIGN ALIGNOF(double)
 #define INTPTR_T_ALIGN ALIGNOF(intptr_t)
 #define SIZE_T_ALIGN ALIGNOF(size_t)
-#define SSIZE_T_ALIGN ALIGNOF(signed size_t)
+#define SSIZE_T_ALIGN ALIGNOF(ssize_t)
 
 // [ text, id, size, align, offset, subtype, length, aggregate, typedef ]
 #define SLOT_STRINGIFY 0
@@ -258,6 +258,7 @@ following address will be aligned to `alignment`. */
 #define SLOT_AGGREGATE 7
 #define SLOT_TYPEDEF 8
 
+#define AXT_STRINGIFY(t) SvPV_nolen(*av_fetch(MUTABLE_AV(t), SLOT_STRINGIFY, 0))
 #define AXT_SIZEOF(t) SvIV(*av_fetch(MUTABLE_AV(t), SLOT_SIZEOF, 0))
 #define AXT_ALIGN(t) SvIV(*av_fetch(MUTABLE_AV(t), SLOT_ALIGNMENT, 0))
 #define AXT_OFFSET(t) SvIV(*av_fetch(MUTABLE_AV(t), SLOT_OFFSET, 0))
@@ -289,7 +290,6 @@ void _DumpHex(pTHX_ const void *addr, size_t len, const char *file, int line);
 #define DD(scalar) _DD(aTHX_ scalar, __FILE__, __LINE__)
 void _DD(pTHX_ SV *scalar, const char *file, int line);
 
-const char *type_as_str(int type);
 int type_as_dc(int type);
 
 // Affix/Lib.cxx
