@@ -1156,8 +1156,12 @@ XS_INTERNAL(Affix_affix) {
                                                   mangle(aTHX_ "Itanium", RETVAL, sym_name, ST(2)));
             }
             if (affix->entry_point == NULL) {
-                affix->entry_point = dlFindSymbol(
-                    affix->lib_handle, mangle(aTHX_ "Rust_legacy", RETVAL, sym_name, ST(2)));
+                affix->entry_point =
+                    dlFindSymbol(affix->lib_handle, mangle(aTHX_ "Rust", RETVAL, sym_name, ST(2)));
+            }
+            if (affix->entry_point == NULL) {
+                affix->entry_point = dlFindSymbol(affix->lib_handle,
+                                                  mangle(aTHX_ "Fortran", RETVAL, sym_name, ST(2)));
             }
             // TODO: D and Swift
             if (affix->entry_point == NULL) { croak("Failed to find symbol named %s", sym_name); }

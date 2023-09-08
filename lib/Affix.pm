@@ -223,6 +223,8 @@ package Affix 0.12 {    # 'FFI' is my middle name!
             $type->[ SLOT_TYPEDEF() ]   = $name;
             $type->[ SLOT_STRINGIFY() ] = sprintf q[typedef %s => %s],
                 $name =~ /::/ ? "'$name'" : $name, $type->[ SLOT_STRINGIFY() ];
+            push @{ $EXPORT_TAGS{types} }, $name
+                if $fqn eq 'Affix::' . $name;    # only great when triggered by/before import
             $type;
         }
         @Affix::Type::Void::ISA = @Affix::Type::SV::ISA
@@ -885,7 +887,7 @@ package Affix 0.12 {    # 'FFI' is my middle name!
 
         package Affix::Cache::Libs { };
 
-        package Affix::Type { };
+        package Affix::Types { };
 
         package Affix::Lib { };
 
@@ -893,7 +895,7 @@ package Affix 0.12 {    # 'FFI' is my middle name!
 
         package Affix::Type { };
 
-        package Affix::Type::Base { };
+        package Affix::Types { };
 
         package Affix::Type::Bool { };
 
@@ -901,13 +903,13 @@ package Affix 0.12 {    # 'FFI' is my middle name!
 
         package Affix::Type::Array { };
 
-        package Affix::Type::Base { };
-
         package Affix::Type::Bool { };
 
         package Affix::Type::CC { };
 
         package Affix::Type::Char { };
+
+        package Affix::Type::SChar { };
 
         package Affix::Type::CharEnum { };
 
@@ -941,6 +943,8 @@ package Affix 0.12 {    # 'FFI' is my middle name!
 
         package Affix::Type::StdStr { };
 
+        package Affix::Type::String { };
+
         package Affix::Type::Str { };
 
         package Affix::Type::Struct { };
@@ -962,6 +966,8 @@ package Affix 0.12 {    # 'FFI' is my middle name!
         package Affix::Type::Void { };
 
         package Affix::Type::WChar { };
+
+        package Affix::Type::WString { };
 
         package Affix::Type::WStr { };
     }

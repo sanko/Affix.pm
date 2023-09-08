@@ -17,25 +17,25 @@ package Affix::ABI::Itanium 1.0 {
         for my $type (@$types) {
             my $type_id = int $type;
             CORE::state $builtin_types //= {
-                int Void()      => 'v',
-                int WChar()     => 'w',
-                int Bool()      => 'b',
-                int Char()      => 'c',
-                int SChar()     => 'a',
-                int UChar()     => 'h',
-                int Short()     => 's',
-                int UShort()    => 't',
-                int Int()       => 'i',
-                int UInt()      => 'j',
-                int Long()      => 'l',
-                int ULong()     => 'm',
-                int LongLong()  => 'x',
-                int ULongLong() => 'y',
+                ord VOID_FLAG()      => 'v',
+                ord WCHAR_FLAG()     => 'w',
+                ord BOOL_FLAG()      => 'b',
+                ord CHAR_FLAG()      => 'c',
+                ord SCHAR_FLAG()     => 'a',
+                ord UCHAR_FLAG()     => 'h',
+                ord SHORT_FLAG()     => 's',
+                ord USHORT_FLAG()    => 't',
+                ord INT_FLAG()       => 'i',
+                ord UINT_FLAG()      => 'j',
+                ord LONG_FLAG()      => 'l',
+                ord ULONG_FLAG()     => 'm',
+                ord LONGLONG_FLAG()  => 'x',
+                ord ULONGLONG_FLAG() => 'y',
 
                 # int i128 => 'n', # Unsupported by dyncall
                 # int u128 => 'o', # Unsupported by dyncall
-                int Float()  => 'f',
-                int Double() => 'd',
+                ord FLOAT_FLAG()  => 'f',
+                ord DOUBLE_FLAG() => 'd',
 
 # int LongDouble() => 'e', # Unsupported by dyncall
 # int float128 => 'g',  # Unsupported by dyncall
@@ -60,27 +60,27 @@ package Affix::ABI::Itanium 1.0 {
 #~ ::= Dn # std::nullptr_t (i.e., decltype(nullptr))
 #~ ::= u <source-name> [<template-args>] # vendor extended type
             };
-            if ( defined $builtin_types->{$type_id} ) {
+            if ( exists $builtin_types->{$type_id} ) {
                 push @ret, $builtin_types->{$type_id};
             }
             else {
                 use Data::Dump;
+                ddx $builtin_types;
+                ddx $builtin_types->{$type_id};
                 ddx $type;
-                die;
             }
         }
         return join '', @ret;
     }
 
-    sub nested_name ($) {
+    sub nested_name (@) {
 
       #~ https://itanium-cxx-abi.github.io/cxx-abi/abi.html#mangle.nested-name
       #~ <nested-name> ::= N [<CV-qualifiers>] [<ref-qualifier>] <prefix> <unqualified-name> E
       #~               ::= N [<CV-qualifiers>] [<ref-qualifier>] <template-prefix> <template-args> E
       #~ https://itanium-cxx-abi.github.io/cxx-abi/abi.html#mangle.CV-qualifiers
       #~ <CV-qualifiers>      ::= [r] [V] [K] 	  # restrict (C99), volatile, const
-        my ($name) = @_;
-        my @scope  = split /::/, $name;
+        my @scope = @_;
         join '', 'N', ( map { length($_) . $_ } @scope ), 'E';
     }
 
@@ -113,7 +113,8 @@ package Affix::ABI::Itanium 1.0 {
         #~                  ::= D1			# complete object destructor
         #~                  ::= D2			# base object destructor
         my ($name) = @_;
-        $name =~ /::/ ? nested_name($name) : length($name) . $name;
+        my @name   = split /::/, $name;
+        scalar @name > 1 ? nested_name(@name) : length($name) . $name;
     }
 
     sub encoding($$) {
@@ -129,7 +130,8 @@ package Affix::ABI::Itanium 1.0 {
         # TODO: special name https://itanium-cxx-abi.github.io/cxx-abi/abi.html#mangle.special-name
     }
 
-    sub mangle ($;$$) {
+    sub mangle ($;$$$) {
+        my $affix = shift if ref $_[0];
 
         #~ https://itanium-cxx-abi.github.io/cxx-abi/abi.html#mangling-structure
         #~ <mangled-name> ::= _Z <encoding>

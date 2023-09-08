@@ -3,10 +3,12 @@ package Affix::ABI::Fortran 1.0 {
     use warnings;
     use Affix qw[:types :flags];
 
-    sub mangle {
-        my ( $name, $args ) = @_;
-        $args = [Void] unless @$args;
-        ...;
+    sub mangle ($;$$$) {
+        my $affix = shift if ref $_[0];
+        my ( $name, $args, $ret ) = @_;
+        my @scope = split /::/, $name;
+        return $name . '_' unless scalar @scope > 1;
+        return sprintf '__%s_MOD_%s', shift @scope, shift @scope if @scope == 2;
     }
 }
 1;

@@ -39,6 +39,7 @@ char *locate_lib(pTHX_ SV *_lib, SV *_ver) {
 
 char *mangle(pTHX_ const char *abi, SV *affix, const char *symbol, SV *args) {
     char *retval;
+    load_module(PERL_LOADMOD_NOIMPORT, newSVpvf("Affix::ABI::%s", abi), NULL, NULL);
     {
         dSP;
         SV *err_tmp;
@@ -49,11 +50,12 @@ char *mangle(pTHX_ const char *abi, SV *affix, const char *symbol, SV *args) {
         mXPUSHp(symbol, strlen(symbol));
         XPUSHs(args);
         PUTBACK;
-        (void)call_pv(form("Affix::%s_mangle", abi), G_SCALAR | G_EVAL | G_KEEPERR);
+        (void)call_pv(form("Affix::ABI::%s::mangle", abi), G_SCALAR | G_EVAL | G_KEEPERR);
         SPAGAIN;
         err_tmp = ERRSV;
         if (SvTRUE(err_tmp)) {
-            croak("Malformed call to %s_mangle( ... ): %s\n", abi, SvPV_nolen(err_tmp));
+            croak("Malformed call to Affix::ABI::%s::mangle( ... ): %s\n", abi,
+                  SvPV_nolen(err_tmp));
             (void)POPs;
         }
         else {
