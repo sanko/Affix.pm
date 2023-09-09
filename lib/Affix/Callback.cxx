@@ -85,7 +85,9 @@ char cbHandler(DCCallback *cb, DCArgs *args, DCValue *result, DCpointer userdata
                 } break;
                 }
             }
-            else { mPUSHs(newSV(0)); }
+            else {
+                mPUSHs(newSV(0));
+            }
         } break;
         case DC_SIGCHAR_STRING: {
             DCpointer ptr = dcbArgPointer(args);
@@ -150,7 +152,9 @@ char cbHandler(DCCallback *cb, DCArgs *args, DCValue *result, DCpointer userdata
                 (void)SvPVx(ret, len);
                 result->L = utf2wchar(aTHX_ ret, len)[0];
             }
-            else { result->L = 0; }
+            else {
+                result->L = 0;
+            }
         } break;
         case DC_SIGCHAR_SHORT:
             result->s = SvIOK(ret) ? SvIVx(ret) : 0;

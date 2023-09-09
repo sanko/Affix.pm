@@ -1,5 +1,5 @@
 ﻿#ifndef AFFIX_H_SEEN
-#define AFFIX_H_SEEN 1
+#define AFFIX_H_SEEN
 
 // Settings
 #define TIE_MAGIC 0 // If true, aggregate values are tied and magical
@@ -113,7 +113,7 @@ static const char *dlerror(void) {
 #define PING ;
 #endif
 
-/* Native argument types */
+/* Native argument types (core types match Itanium mangling) */
 #define VOID_FLAG 'v'
 #define BOOL_FLAG 'b'
 #define SCHAR_FLAG 'a'
@@ -154,7 +154,20 @@ static const char *dlerror(void) {
 #define POINTER_FLAG '\\'
 #define SV_FLAG '?'
 
-#define CALLING_CONVENTION_FLAG '_'
+// Calling conventions
+#define RESET_FLAG '>' // DC_SIGCHAR_CC_DEFAULT
+#define THIS_FLAG '*'
+#define ELLIPSIS_FLAG 'e'
+#define VARARGS_FLAG '.'
+#define DCECL_FLAG 'D'
+#define STDCALL_FLAG 'T'
+#define MSFASTCALL_FLAG '='
+#define GNUFASTCALL_FLAG '3'
+#define MSTHIS_FLAG '+'
+#define GNUTHIS_FLAG '#'
+#define ARM_FLAG 'r'
+#define THUMB_FLAG 'g'
+#define SYSCALL_FLAG 'H'
 
 /* Flag for whether we should free a string after passing it or not. */
 #define AFFIX_TYPE_NO_FREE_STR 0
@@ -249,7 +262,7 @@ following address will be aligned to `alignment`. */
 
 // [ text, id, size, align, offset, subtype, length, aggregate, typedef ]
 #define SLOT_STRINGIFY 0
-#define SLOT_NUMERICAL 1
+#define SLOT_NUMERIC 1
 #define SLOT_SIZEOF 2
 #define SLOT_ALIGNMENT 3
 #define SLOT_OFFSET 4
@@ -257,17 +270,22 @@ following address will be aligned to `alignment`. */
 #define SLOT_ARRAYLEN 6
 #define SLOT_AGGREGATE 7
 #define SLOT_TYPEDEF 8
+#define SLOT_CAST 9
 
-#define AXT_STRINGIFY(t) SvPV_nolen(*av_fetch(MUTABLE_AV(t), SLOT_STRINGIFY, 0))
-#define AXT_SIZEOF(t) SvIV(*av_fetch(MUTABLE_AV(t), SLOT_SIZEOF, 0))
-#define AXT_ALIGN(t) SvIV(*av_fetch(MUTABLE_AV(t), SLOT_ALIGNMENT, 0))
-#define AXT_OFFSET(t) SvIV(*av_fetch(MUTABLE_AV(t), SLOT_OFFSET, 0))
-#define AXT_TYPEDEF(t) SvIV(*av_fetch(MUTABLE_AV(t), SLOT_TYPEDEF, 0))
-
+#define AXT_STRINGIFY(t) SvPV_nolen(*av_fetch(MUTABLE_AV(SvRV(t)), SLOT_STRINGIFY, 0))
+#define AXT_NUMERIC(t) (char)SvIV(*av_fetch(MUTABLE_AV(SvRV(t)), SLOT_NUMERIC, 0))
+#define AXT_SIZEOF(t) SvIV(*av_fetch(MUTABLE_AV(SvRV(t)), SLOT_SIZEOF, 0))
+#define AXT_ALIGN(t) SvIV(*av_fetch(MUTABLE_AV(SvRV(t)), SLOT_ALIGNMENT, 0))
+#define AXT_OFFSET(t) SvIV(*av_fetch(MUTABLE_AV(SvRV(t)), SLOT_OFFSET, 0))
+#define AXT_SUBTYPE(t) *av_fetch(MUTABLE_AV(SvRV(t)), SLOT_SUBTYPE, 0)
+#define AXT_ARRAYLEN(t) SvIV(*av_fetch(MUTABLE_AV(SvRV(t)), SLOT_ARRAYLEN, 0))
+#define AXT_AGGREGATE(t) av_fetch(MUTABLE_AV(SvRV(t)), SLOT_AGGREGATE, 0)
+#define AXT_TYPEDEF(t) av_fetch(MUTABLE_AV(SvRV(t)), SLOT_TYPEDEF, 0)
+#define AXT_CAST(t) av_fetch(MUTABLE_AV(SvRV(t)), SLOT_CAST, 0)
 // marshal.cxx
 size_t padding_needed_for(size_t offset, size_t alignment);
 SV *ptr2sv(pTHX_ DCpointer ptr, SV *type_sv);
-DCpointer sv2ptr(pTHX_ SV *type_sv, SV *data, bool packed);
+DCpointer sv2ptr(pTHX_ SV *type_sv, SV *data);
 
 // wchar_t.cxx
 SV *wchar2utf(pTHX_ wchar_t *src, int len);
@@ -290,7 +308,7 @@ void _DumpHex(pTHX_ const void *addr, size_t len, const char *file, int line);
 #define DD(scalar) _DD(aTHX_ scalar, __FILE__, __LINE__)
 void _DD(pTHX_ SV *scalar, const char *file, int line);
 
-int type_as_dc(int type);
+int type_as_dc(int type); // TODO: Find a better place for this
 
 // Affix/Lib.cxx
 char *locate_lib(pTHX_ SV *_lib, SV *_ver);
@@ -309,6 +327,7 @@ struct Affix {
     DCaggr **aggregates;
     SV *ret_info;
     DCaggr *ret_aggregate;
+    bool ellipsis; // varargs or ellipsis
     bool _cpp_constructor;
     bool _cpp_const;    // const member function in CPPStruct[]
     bool _cpp_struct;   // CPPStruct[] as this
@@ -348,4 +367,4 @@ void boot_Affix_Platform(pTHX_ CV *);
 
 #include <string>
 
-#endif
+#endif // AFFIX_H_SEEN

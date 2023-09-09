@@ -2,27 +2,26 @@
 
 DCaggr *_aggregate(pTHX_ SV *type) {
 #if DEBUG
-    warn("_aggregate(...)");
+    warn("_aggregate(%s)", AXT_STRINGIFY(type));
 #endif
-    int t = SvIV(type);
-    size_t size = AXT_SIZEOF(type);
-    size_t array_len;
-    switch (t) {
+    DCaggr *retval = NULL;
+    size_t size, array_len;
+    switch (AXT_NUMERIC(type)) {
     case ARRAY_FLAG: {
-        array_len = SvIV(*av_fetch(MUTABLE_AV(type), 6, 0));
+        array_len = AXT_ARRAYLEN(type);
         if (!array_len) return NULL;
     }
     // fall-through
     case STRUCT_FLAG:
     case CPPSTRUCT_FLAG:
     case UNION_FLAG: {
-        HV *hv_type = MUTABLE_HV(SvRV(type));
-        SV **agg_sv_ptr = hv_fetch(hv_type, "aggregate", 9, 0);
-        if (agg_sv_ptr != NULL) {
+        size = AXT_SIZEOF(type);
+        SV **agg_sv_ptr = AXT_AGGREGATE(type);
+        if (agg_sv_ptr != NULL && SvOK(*agg_sv_ptr)) {
             PING;
-            SV *agg_sv = *agg_sv_ptr;
-            if (sv_derived_from(agg_sv, "Affix::Aggregate")) {
-                IV tmp = SvIV((SV *)SvRV(agg_sv));
+            sv_dump(*agg_sv_ptr);
+            if (sv_derived_from(*agg_sv_ptr, "Affix::Pointer")) {
+                IV tmp = SvIV((SV *)SvRV(*agg_sv_ptr));
                 return INT2PTR(DCaggr *, tmp);
             }
             else
@@ -30,16 +29,18 @@ DCaggr *_aggregate(pTHX_ SV *type) {
         }
         else {
             PING;
-            SV **idk_wtf = hv_fetchs(MUTABLE_HV(SvRV(type)), "fields", 0);
+            SV *fields = AXT_SUBTYPE(type);
+            sv_dump(fields);
+            /*
 
             //~ if (t == STRUCT_FLAG) {
             //~ SV **sv_packed = hv_fetchs(MUTABLE_HV(SvRV(type)), "packed", 0);
             //~ }
             AV *idk_arr = MUTABLE_AV(SvRV(*idk_wtf));
             size_t field_count = av_count(idk_arr);
-            DCaggr *agg = dcNewAggr(field_count, size);
+            retval = dcNewAggr(field_count, size);
 #if DEBUG
-            warn("DCaggr *agg [%p] = dcNewAggr(%ld, %ld);", (void *)agg, field_count, size);
+            warn("*retval [%p] = dcNewAggr(%ld, %ld);", (DCpointer)retval, field_count, size);
 #endif
             for (size_t i = 0; i < field_count; ++i) {
                 SV **field_ptr = av_fetch(idk_arr, i, 0);
@@ -53,37 +54,32 @@ DCaggr *_aggregate(pTHX_ SV *type) {
                 case UNION_FLAG: {
                     DCaggr *child = _aggregate(aTHX_ * subtype);
 #if DEBUG
-                    warn("  dcAggrField(%p, DC_SIGCHAR_AGGREGATE, %ld, 1, child);", (void *)agg,
-                         offset);
-#endif
-                    dcAggrField(agg, DC_SIGCHAR_AGGREGATE, offset, 1, child);
-                } break;
-                case ARRAY_FLAG: {
-#if DEBUG
-                    warn("  dcAggrField(%p, '%c', %ld, %d);", (void *)agg, type_as_dc(_t), offset,
-                         array_len);
-#endif
-                    dcAggrField(agg, type_as_dc(_t), offset, array_len);
+                    warn("  dcAggrField(%p, DC_SIGCHAR_AGGREGATE, %ld, 1, child);",
+(DCpointer)retval, offset); #endif dcAggrField(retval, DC_SIGCHAR_AGGREGATE, offset, 1, child); }
+break; case ARRAY_FLAG: { #if DEBUG warn("  dcAggrField(%p, '%c', %ld, %d);", (DCpointer)retval,
+type_as_dc(_t), offset, array_len); #endif dcAggrField(retval, type_as_dc(_t), offset, array_len);
                 } break;
                 default: {
 #if DEBUG
-                    warn("  dcAggrField(%p, %c, %ld, 1);", (void *)agg, type_as_dc(_t), offset);
+                    warn("  dcAggrField(%p, %c, %ld, 1);", (void *)retval, type_as_dc(_t), offset);
 #endif
-                    dcAggrField(agg, type_as_dc(_t), offset, 1);
+                    dcAggrField(retval, type_as_dc(_t), offset, 1);
                 } break;
                 }
             }
 #ifdef DEBUG
-            warn("dcCloseAggr(%p);", (void *)agg);
+            warn("dcCloseAggr(%p);", (DCpointer)retval);
 #endif
-            dcCloseAggr(agg);
+            dcCloseAggr(retval);
             {
                 SV *RETVALSV;
                 RETVALSV = newSV(1);
-                sv_setref_pv(RETVALSV, "Affix::Aggregate", (DCpointer)agg);
+                sv_setref_pv(RETVALSV, "Affix::Pointer", (DCpointer)retval);
                 av_store(MUTABLE_AV(SvRV(type)), 7, newSVsv(RETVALSV));
-            }
-            return agg;
+            }*/
+#if DEBUG
+            warn("/_aggregate(%s)", AXT_STRINGIFY(type));
+#endif
         }
     } break;
     default: {
@@ -91,7 +87,10 @@ DCaggr *_aggregate(pTHX_ SV *type) {
         break;
     }
     }
-    return NULL;
+#if DEBUG
+    warn("/_aggregate(%s) == NULL", AXT_STRINGIFY(type));
+#endif
+    return retval;
 }
 
 XS_INTERNAL(Affix_Aggregate_FETCH) {

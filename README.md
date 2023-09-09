@@ -358,14 +358,14 @@ checking is done at compile or runtime.
     <td></td> <td></td>       <td></td>     </tr> <tr> <td>Size_t</td>
     <td>size_t</td>         <td>size_t</td>      <td></td> <td></td> <td></td>
     </tr>       <tr> <td>Str</td> <td>char *</td> <td></td> <td></td> <td></td>
-    <td></td> </tr>       <tr> <td>WStr</td> <td>wchar_t</td> <td></td> <td></td>  
+    <td></td> </tr>       <tr> <td>WStr</td> <td>wchar_t</td> <td></td> <td></td>
     <td></td>      </tr> </tbody> </table>
 </div>
 
 Given sizes are minimums measured in bits
 
 Other types are also defined according to the system's platform. See
-[Affix::Types](https://metacpan.org/pod/Affix%3A%3ATypes).
+[Affix::Type](https://metacpan.org/pod/Affix%3A%3AType).
 
 ## Calling Conventions
 

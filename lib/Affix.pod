@@ -383,7 +383,7 @@ long</td> <td>i128</td>   <td>q</td> <td>longlong</td>         <td></td> </tr>
 <td></td> <td></td>       <td></td>     </tr> <tr> <td>Size_t</td>
 <td>size_t</td>         <td>size_t</td>      <td></td> <td></td> <td></td>
 </tr>       <tr> <td>Str</td> <td>char *</td> <td></td> <td></td> <td></td>
-<td></td> </tr>       <tr> <td>WStr</td> <td>wchar_t</td> <td></td> <td></td>  
+<td></td> </tr>       <tr> <td>WStr</td> <td>wchar_t</td> <td></td> <td></td>
 <td></td>      </tr> </tbody> </table>
 
 =end html
@@ -391,7 +391,7 @@ long</td> <td>i128</td>   <td>q</td> <td>longlong</td>         <td></td> </tr>
 Given sizes are minimums measured in bits
 
 Other types are also defined according to the system's platform. See
-L<Affix::Types>.
+L<Affix::Type>.
 
 =head2 Calling Conventions
 
@@ -406,37 +406,49 @@ After than, feel free to use or misuse any of the current options:
 
 =over
 
-=item C<CC_DEFAULT>
+=item C<This>
 
-=item C<CC_THISCALL>
+Platform native C++ this calls
 
-=item C<CC_ELLIPSIS>
+=item C<Ellipsis>
 
-=item C<CC_ELLIPSIS_VARARGS>
+=item C<Varargs>
 
-=item C<CC_CDECL>
+=item C<CDecl>
 
-=item C<CC_STDCALL>
+x86 specific
 
-=item C<CC_FASTCALL_MS>
+=item C<STDCall>
 
-=item C<CC_FASTCALL_GNU>
+x86 specific
 
-=item C<CC_THISCALL_MS>
+=item C<MSFastcall>
 
-=item C<CC_THISCALL_GNU>
+x86 specific
 
-=item C<CC_ARM_ARM>
+=item C<GNUFastcall>
 
-=item C<CC_ARM_THUMB>
+x86 specific
 
-=item C<CC_SYSCALL>
+=item C<MSThis>
+
+x86 specific, MS C++ this calls
+
+=item C<GNUThis>
+
+x86 specific, GNU C++ C<this> calls are C<cdecl>, but this is defined for
+clarity
+
+=item C<Arm>
+
+=item C<Thumb>
+
+=item C<Syscall>
 
 =back
 
 When used in L<signatures/Signatures>, most of these cause the internal
-argument stack to be reset. The exceptions are C<CC_ELLIPSIS> and
-C<CC_ELLIPSIS_VARARGS>.
+argument stack to be reset. The exceptions are C<Ellipsis> and C<Varargs>.
 
 =head1 Calling into the Standard Library
 

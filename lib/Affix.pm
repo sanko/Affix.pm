@@ -36,6 +36,10 @@ package Affix 0.12 {    # 'FFI' is my middle name!
         # Pointers
         'String', 'WString', 'StdString', 'Pointer', 'CodeRef'
     ];
+    $EXPORT_TAGS{cc} = [    # calling conventions
+        'Reset',  'This',    'Ellipsis', 'Varargs', 'CDecl', 'STDCall', 'MSFastcall', 'GNUFastcall',
+        'MSThis', 'GNUThis', 'Arm',      'Thumb',   'Syscall'
+    ];
 
     #~ use Data::Dump;
     #~ ddx \@EXPORT_OK;
@@ -117,7 +121,7 @@ package Affix 0.12 {    # 'FFI' is my middle name!
             0 ?
                 sub {    # This is rather slow...
                 warn $File::Find::name;
-                return if $store{ basename $File::Find::name};
+                return if $store{ basename $File::Find::name };
 
                 #~ return if $_seen{basename $File::Find::name}++;
                 return if !-e $File::Find::name;
@@ -131,7 +135,7 @@ package Affix 0.12 {    # 'FFI' is my middle name!
                 warn;
                 my $lib_ver;
                 $lib_ver = version->parse( $+{version} ) if defined $+{version};
-                $store{ canonpath $File::Find::name} = {
+                $store{ canonpath $File::Find::name } = {
                     %+,
                     path => $File::Find::name,
                     ( defined $lib_ver ? ( version => $lib_ver ) : () )
@@ -154,7 +158,7 @@ package Affix 0.12 {    # 'FFI' is my middle name!
                 #~ use Data::Dump;
                 #~ warn $File::Find::name;
                 #~ ddx %+;
-                $store{ canonpath $File::Find::name} //= {
+                $store{ canonpath $File::Find::name } //= {
                     %+,
                     path => $File::Find::name,
                     ( defined $lib_ver ? ( version => $lib_ver ) : () )
@@ -251,9 +255,59 @@ package Affix 0.12 {    # 'FFI' is my middle name!
 
             # Typedef'd aliases
             = @Affix::Type::Str::ISA
+
+            # Calling conventions
+            = @Affix::CC::ISA
             #
             = 'Affix::Type';
+        @Affix::CC::Reset::ISA = @Affix::CC::This::ISA = @Affix::CC::Ellipsis::ISA
+            = @Affix::CC::Varargs::ISA    = @Affix::CC::CDecl::ISA       = @Affix::CC::STDcall::ISA
+            = @Affix::CC::MSFastcall::ISA = @Affix::CC::GNUFastcall::ISA = @Affix::CC::MSThis::ISA
+            = @Affix::CC::GNUThis::ISA    = @Affix::CC::Arm::ISA         = @Affix::CC::Thumb::ISA
+            = @Affix::CC::Syscall::ISA    = 'Affix::CC';
 
+        # Calling Conventions
+        sub Reset() { bless( [ 'This', RESET_FLAG(), undef, undef, undef ], 'Affix::CC::Reset' ); }
+        sub This()  { bless( [ 'This', THIS_FLAG(),  undef, undef, undef ], 'Affix::CC::This' ); }
+
+        sub Ellipsis() {
+            bless( [ 'Ellipsis', ELLIPSIS_FLAG(), undef, undef, undef ], 'Affix::CC::Ellipsis' );
+        }
+
+        sub Varargs() {
+            bless( [ 'Varargs', VARARGS_FLAG(), undef, undef, undef ], 'Affix::CC::Varargs' );
+        }
+        sub CDecl() { bless( [ 'CDecl', CDECL_FLAG(), undef, undef, undef ], 'Affix::CC::CDecl' ); }
+
+        sub STDcall() {
+            bless( [ 'STDcall', STDCALL_FLAG(), undef, undef, undef ], 'Affix::CC::STDcall' );
+        }
+
+        sub MSFastcall() {
+            bless( [ 'MSFastcall', MSFASTCALL_FLAG(), undef, undef, undef ],
+                'Affix::CC::MSFastcall' );
+        }
+
+        sub GNUFastcall() {
+            bless( [ 'GNUFastcall', GNUFASTCALL_FLAG(), undef, undef, undef ],
+                'Affix::CC::GNUFastcall' );
+        }
+
+        sub MSThis() {
+            bless( [ 'MSThis', MSTHIS_FLAG(), undef, undef, undef ], 'Affix::CC::MSThis' );
+        }
+
+        sub GNUThis() {
+            bless( [ 'GNUThis', GNUTHIS_FLAG(), undef, undef, undef ], 'Affix::CC::GNUThis' );
+        }
+        sub Arm()   { bless( [ 'Arm',   ARM_FLAG(),   undef, undef, undef ], 'Affix::CC::Arm' ); }
+        sub Thumb() { bless( [ 'Thumb', THUMB_FLAG(), undef, undef, undef ], 'Affix::CC::Thumb' ); }
+
+        sub Syscall() {
+            bless( [ 'Syscall', SYSCALL_FLAG(), undef, undef, undef ], 'Affix::CC::Syscall' );
+        }
+
+        # Types
         sub Void() {    # could use state var if we didn't use the objects to store offset, etc.
             bless( [ 'Void', VOID_FLAG(), 0, 0, undef ], 'Affix::Type::Void' );
         }
@@ -887,15 +941,11 @@ package Affix 0.12 {    # 'FFI' is my middle name!
 
         package Affix::Cache::Libs { };
 
-        package Affix::Types { };
-
         package Affix::Lib { };
 
         package Affix::Platform { };
 
         package Affix::Type { };
-
-        package Affix::Types { };
 
         package Affix::Type::Bool { };
 

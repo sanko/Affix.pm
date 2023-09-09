@@ -143,27 +143,27 @@ package Affix::ABI::Itanium 1.0 {
 }
 1;
 
-package main;
-use strict;
-use warnings;
-use Affix qw[:all];
-use Test::More;
-use Data::Dump;
-$|++;
-ddx Affix::typedef bar => Int;
-#
-is Affix::ABI::Itanium::mangle( 'f', []     => Void ), '_Z1fv', 'Ret? f()';
-is Affix::ABI::Itanium::mangle( 'f', [Void] => Void ), '_Z1fv', 'Ret? f(void)';
-is Affix::ABI::Itanium::mangle( 'f', [Int]  => Void ), '_Z1fi', 'Ret? f(int)';
-is Affix::ABI::Itanium::mangle( 'f', [ Affix::typedef bar => Int ] => Void ), '_Z3foo3bar',
-    'Ret? foo(bar)';
-#
-is Affix::ABI::Itanium::mangle('N::f'), '_ZN1N1fE', 'Type? N::f';
-is Affix::ABI::Itanium::mangle( 'System::Sound::beep', [] => Void ), '_ZN6System5Sound4beepEv',
-    'Ret? System::Sound::beep()';
-is Affix::ABI::Itanium::mangle('Arena::level'), '_ZN5Arena5levelE', 'Type? Arena::level';
-#
-done_testing;
+#~ package main;
+#~ use strict;
+#~ use warnings;
+#~ use Affix qw[:all];
+#~ use Test::More;
+#~ use Data::Dump;
+#~ $|++;
+#~ ddx Affix::typedef bar => Int;
+#~ #
+#~ is Affix::ABI::Itanium::mangle( 'f', []     => Void ), '_Z1fv', 'Ret? f()';
+#~ is Affix::ABI::Itanium::mangle( 'f', [Void] => Void ), '_Z1fv', 'Ret? f(void)';
+#~ is Affix::ABI::Itanium::mangle( 'f', [Int]  => Void ), '_Z1fi', 'Ret? f(int)';
+#~ is Affix::ABI::Itanium::mangle( 'f', [ Affix::typedef bar => Int ] => Void ), '_Z3foo3bar',
+#~ 'Ret? foo(bar)';
+#~ #
+#~ is Affix::ABI::Itanium::mangle('N::f'), '_ZN1N1fE', 'Type? N::f';
+#~ is Affix::ABI::Itanium::mangle( 'System::Sound::beep', [] => Void ), '_ZN6System5Sound4beepEv',
+#~ 'Ret? System::Sound::beep()';
+#~ is Affix::ABI::Itanium::mangle('Arena::level'), '_ZN5Arena5levelE', 'Type? Arena::level';
+#~ #
+#~ done_testing;
 __END__
 =encoding utf-8
 

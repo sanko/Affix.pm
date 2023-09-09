@@ -14,13 +14,11 @@ our $libfile;
 
 BEGIN {
     $libfile
-        = $^O eq 'MSWin32' ? 'ntdll.dll' :
-        $^O eq 'darwin'    ? '/usr/lib/libm.dylib' :
-        $^O eq 'bsd'       ? '/usr/lib/libm.so' :
-        $Config{archname} =~ /64/ ?
-        -e '/lib64/libm.so.6' ?
-        '/lib64/libm.so.6' :
-            '/lib/x86_64-linux-gnu/libm.so.6' :
+        = $^O eq 'MSWin32'        ? 'ntdll.dll' :
+        $^O eq 'darwin'           ? '/usr/lib/libm.dylib' :
+        $^O eq 'bsd'              ? '/usr/lib/libm.so' :
+        $Config{archname} =~ /64/ ? -e '/lib64/libm.so.6' ? '/lib64/libm.so.6' :
+            '/lib/' . $Config{archname} . '-gnu/libm.so.6' :
         '/lib/libm.so.6';
 }
 
@@ -152,7 +150,7 @@ package DynFFI {
                     dirname( File::Spec->rel2abs($^X) ),          # 0. exe dir
                     File::Spec->rel2abs( File::Spec->curdir ),    # 0. cwd
                     File::Spec->path(),                           # 0. $ENV{PATH}
-                    map      { File::Spec->rel2abs($_) }
+                    map { File::Spec->rel2abs($_) }
                         grep { -d $_ } qw[~/lib /usr/local/lib /usr/lib],
                     map { $ENV{$_} // () }
                         qw[LD_LIBRARY_PATH DYLD_LIBRARY_PATH DYLD_FALLBACK_LIBRARY_PATH]
@@ -189,7 +187,7 @@ package DynFFI {
                     dirname( File::Spec->rel2abs($^X) ),          # 0. exe dir
                     File::Spec->rel2abs( File::Spec->curdir ),    # 0. cwd
                     File::Spec->path(),                           # 0. $ENV{PATH}
-                    map      { File::Spec->rel2abs($_) }
+                    map { File::Spec->rel2abs($_) }
                         grep { -d $_ } qw[~/lib /usr/local/lib /usr/lib],
                     map { $ENV{$_} // () }
                         qw[LD_LIBRARY_PATH DYLD_LIBRARY_PATH DYLD_FALLBACK_LIBRARY_PATH]

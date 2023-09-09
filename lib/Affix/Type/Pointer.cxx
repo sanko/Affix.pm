@@ -1,16 +1,13 @@
 #include "../../Affix.h"
 
-XS_INTERNAL(Affix_Type_Pointer_marshal) {
+XS_INTERNAL(Affix_Type_marshal) {
     dVAR;
     dXSARGS;
     PING;
     if (items != 2) croak_xs_usage(cv, "type, data");
-    if (UNLIKELY(!sv_derived_from(ST(0), "Affix::Types::Base")))
-        croak("type is not of type Affix::Type");
-    SV *data = ST(1);
-    PING;
-    DCpointer RETVAL = sv2ptr(aTHX_ ST(0), data, false);
-    PING;
+    if (UNLIKELY(!sv_derived_from(ST(0), "Affix::Type"))) croak("type is not of type Affix::Type");
+    sv_dump(ST(0));
+    DCpointer RETVAL = sv2ptr(aTHX_ ST(0), ST(1));
     // DumpHex(RETVAL, _sizeof(aTHX_ ST(0)));
     PING;
     {
@@ -19,6 +16,22 @@ XS_INTERNAL(Affix_Type_Pointer_marshal) {
         sv_setref_pv(RETVALSV, "Affix::Pointer::Unmanaged", RETVAL);
         ST(0) = RETVALSV;
     }
+    XSRETURN(1);
+}
+
+XS_INTERNAL(Affix_Type_unmarshal) {
+    dVAR;
+    dXSARGS;
+    PING;
+
+    if (UNLIKELY(items != 2)) croak_xs_usage(cv, "type, ptr");
+    DCpointer ptr;
+    if (UNLIKELY(!sv_derived_from(ST(0), "Affix::Type"))) croak("type is not of type Affix::Type");
+    if (UNLIKELY(!sv_derived_from(ST(1), "Affix::Pointer")))
+        croak("ptr is not of type Affix::Pointer");
+    IV tmp = SvIV((SV *)SvRV(ST(1)));
+    ptr = INT2PTR(DCpointer, PTR2IV(tmp));
+    ST(0) = ptr2sv(aTHX_ ptr, ST(0));
     XSRETURN(1);
 }
 
@@ -228,7 +241,9 @@ XS_INTERNAL(Affix_memcmp) {
                 IV tmp = SvIV((SV *)(ST(1)));
                 rhs = INT2PTR(DCpointer, tmp);
             }
-            else if (SvPOK(ST(1))) { rhs = (DCpointer)(U8 *)SvPV_nolen(ST(1)); }
+            else if (SvPOK(ST(1))) {
+                rhs = (DCpointer)(U8 *)SvPV_nolen(ST(1));
+            }
             else
                 croak("dest is not of type Affix::Pointer");
             RETVAL = memcmp(lhs, rhs, count);
@@ -296,7 +311,9 @@ XS_INTERNAL(Affix_memcpy) {
         IV tmp = SvIV((SV *)(ST(1)));
         src = INT2PTR(DCpointer, tmp);
     }
-    else if (SvPOK(ST(1))) { src = (DCpointer)(U8 *)SvPV_nolen(ST(1)); }
+    else if (SvPOK(ST(1))) {
+        src = (DCpointer)(U8 *)SvPV_nolen(ST(1));
+    }
     else
         croak("dest is not of type Affix::Pointer");
     RETVAL = CopyD(src, dest, nitems, char);
@@ -337,7 +354,9 @@ XS_INTERNAL(Affix_memmove) {
         IV tmp = SvIV((SV *)(ST(1)));
         src = INT2PTR(DCpointer, tmp);
     }
-    else if (SvPOK(ST(1))) { src = (DCpointer)(U8 *)SvPV_nolen(ST(1)); }
+    else if (SvPOK(ST(1))) {
+        src = (DCpointer)(U8 *)SvPV_nolen(ST(1));
+    }
     else
         croak("dest is not of type Affix::Pointer");
 
@@ -480,7 +499,9 @@ XS_INTERNAL(Affix_Pointer_raw) {
 
         if (items < 3)
             utf8 = false;
-        else { utf8 = (bool)SvTRUE(ST(2)); }
+        else {
+            utf8 = (bool)SvTRUE(ST(2));
+        }
         {
             DCpointer ptr;
             if (sv_derived_from(ST(0), "Affix::Pointer")) {
@@ -542,37 +563,6 @@ XS_INTERNAL(Affix_Pointer_DESTROY) {
     XSRETURN_EMPTY;
 }
 
-XS_INTERNAL(Affix_Type_Ref) {
-    dXSARGS;
-    PING;
-
-    PERL_UNUSED_VAR(items);
-    HV *RETVAL_HV = newHV();
-    AV *fields = MUTABLE_AV(SvRV(ST(0)));
-    SV *rw_ref = NULL;
-    switch (av_count(fields)) {
-    case 2: {
-        rw_ref = *av_fetch(fields, 1, 0);
-    } // fall through
-    case 1: {
-        SV **type_ref = av_fetch(fields, 0, 0);
-        SV *type = *type_ref;
-        if (!(sv_isobject(type) && sv_derived_from(type, "Affix::Types::Base")))
-            croak("Pointer[...] expects a subclass of Affix::Types::Base");
-        hv_stores(RETVAL_HV, "type", SvREFCNT_inc(type));
-        hv_stores(RETVAL_HV, "class", SvREFCNT_inc(newSVpv("Affix::Ref", 0)));
-        hv_stores(RETVAL_HV, "rw", SvREFCNT_inc(rw_ref == NULL ? newSV_false() : rw_ref));
-    } break;
-    default:
-        croak("Ref[...] expects a single type. e.g. Ref[Int]");
-    };
-    PING;
-    ST(0) = sv_2mortal(
-        sv_bless(newRV_inc(MUTABLE_SV(RETVAL_HV)), gv_stashpv("Affix::Types::Ref", GV_ADD)));
-    PING;
-    XSRETURN(1);
-}
-
 void boot_Affix_Pointer(pTHX_ CV *cv) {
     PERL_UNUSED_VAR(cv);
     {
@@ -598,10 +588,10 @@ void boot_Affix_Pointer(pTHX_ CV *cv) {
         export_function("Affix", "strdup", "memory");
     }
 
-    (void)newXSproto_portable("Affix::Types::Pointer::marshal", Affix_Type_Pointer_marshal,
-                              __FILE__, "$$");
+    (void)newXSproto_portable("Affix::Type::marshal", Affix_Type_marshal, __FILE__, "$$");
+    (void)newXSproto_portable("Affix::Type::unmarshal", Affix_Type_unmarshal, __FILE__, "$$");
 
-    //(void)newXSproto_portable("Affix::Types::Pointer::(|", Affix_Type_Pointer, __FILE__, "");
+    //(void)newXSproto_portable("Affix::Type::Pointer::(|", Affix_Type_Pointer, __FILE__, "");
     /* The magic for overload gets a GV* via gv_fetchmeth as */
     /* mentioned above, and looks in the SV* slot of it for */
     /* the "fallback" status. */
@@ -620,11 +610,11 @@ void boot_Affix_Pointer(pTHX_ CV *cv) {
     (void)newXSproto_portable("Affix::Pointer::as_double", Affix_Pointer_as_double, __FILE__,
                               "$;@");
     (void)newXSproto_portable("Affix::Pointer::as_int", Affix_Pointer_as_int, __FILE__, "$;@");
+
     (void)newXSproto_portable("Affix::Pointer::(0+", Affix_Pointer_as_int, __FILE__, "$;@");
     (void)newXSproto_portable("Affix::Pointer::(${}", Affix_Pointer_deref_scalar, __FILE__, "$;@");
     (void)newXSproto_portable("Affix::Pointer::deref_scalar", Affix_Pointer_deref_scalar, __FILE__,
                               "$;@");
-
     (void)newXSproto_portable("Affix::Pointer::raw", Affix_Pointer_raw, __FILE__, "$$;$");
     (void)newXSproto_portable("Affix::Pointer::dump", Affix_Pointer_DumpHex, __FILE__, "$$");
     (void)newXSproto_portable("Affix::DumpHex", Affix_Pointer_DumpHex, __FILE__, "$$");
@@ -634,6 +624,6 @@ void boot_Affix_Pointer(pTHX_ CV *cv) {
 
     set_isa("Affix::Pointer::Unmanaged", "Affix::Pointer");
 
-    set_isa("Affix::Types::Ref", "Affix::Types::Pointer");
+    set_isa("Affix::Type::Ref", "Affix::Type::Pointer");
     set_isa("Affix::Ref", "Affix::Pointer");
 }
