@@ -76,6 +76,7 @@ SKIP: {
         is sprintf( '%1.2f', tester() ),    '0.00', 'tester() == 0.00';
         is sprintf( '%1.2f', tester(1.0) ), '1.00', 'tester(1.0) == 1.00';
         is sprintf( '%1.2f', tester() ),    '0.00', 'tester() == 0.00';
+        is sprintf( '%1.2f', tester() ),    '0.00', 'tester() == 0.00';
         use Data::Dump;
         ddx( ( Pointer [Float] )->cast(5) );
         tester( ( Pointer [Float] )->cast(5) );

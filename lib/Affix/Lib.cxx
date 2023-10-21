@@ -65,6 +65,7 @@ char *mangle(pTHX_ const char *abi, SV *affix, const char *symbol, SV *args) {
         // FREETMPS;
         LEAVE;
     }
+    warn("! mangled: %s", retval);
     return retval;
 }
 

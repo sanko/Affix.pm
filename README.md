@@ -378,23 +378,43 @@ university's Comp Sci department for a deeper explanation.
 
 After than, feel free to use or misuse any of the current options:
 
-- `CC_DEFAULT`
-- `CC_THISCALL`
-- `CC_ELLIPSIS`
-- `CC_ELLIPSIS_VARARGS`
-- `CC_CDECL`
-- `CC_STDCALL`
-- `CC_FASTCALL_MS`
-- `CC_FASTCALL_GNU`
-- `CC_THISCALL_MS`
-- `CC_THISCALL_GNU`
-- `CC_ARM_ARM`
-- `CC_ARM_THUMB`
-- `CC_SYSCALL`
+- `This`
+
+    Platform native C++ this calls
+
+- `Ellipsis`
+- `Varargs`
+- `CDecl`
+
+    x86 specific
+
+- `STDCall`
+
+    x86 specific
+
+- `MSFastcall`
+
+    x86 specific
+
+- `GNUFastcall`
+
+    x86 specific
+
+- `MSThis`
+
+    x86 specific, MS C++ this calls
+
+- `GNUThis`
+
+    x86 specific, GNU C++ `this` calls are `cdecl`, but this is defined for
+    clarity
+
+- `Arm`
+- `Thumb`
+- `Syscall`
 
 When used in ["Signatures" in signatures](https://metacpan.org/pod/signatures#Signatures), most of these cause the internal
-argument stack to be reset. The exceptions are `CC_ELLIPSIS` and
-`CC_ELLIPSIS_VARARGS`.
+argument stack to be reset. The exceptions are `Ellipsis` and `Varargs`.
 
 # Calling into the Standard Library
 

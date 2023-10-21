@@ -9,10 +9,6 @@ typedef struct {
 
 START_MY_CXT
 
-inline void Affix_insert_arg(pTHX_ const int16_t type, DCCallVM *cvm,  SV *type_info, SV *arg) {
-    if (SvIOK(arg)) { dcArgChar(cvm, (U8)SvIV(arg)); }
-}
-
 extern "C" void Affix_trigger(pTHX_ CV *cv) {
     dSP;
     dAXMARK;
@@ -52,6 +48,7 @@ extern "C" void Affix_trigger(pTHX_ CV *cv) {
 
     for (; st_pos < num_args; ++st_pos, ++arg_pos) {
         PING;
+        warn("!!! affix->arg_types[arg_pos] == %d", affix->arg_types[arg_pos]);
         switch (affix->arg_types[arg_pos]) {
         // calling conventions first
         case RESET_FLAG: {
@@ -280,22 +277,32 @@ extern "C" void Affix_trigger(pTHX_ CV *cv) {
             }
         } break;
         case ARRAY_FLAG: {
+                        warn("A");
+
             PING;
             SV *arg = ST(st_pos);
             if (!SvOK(arg) && SvREADONLY(arg)) { // explicit undef
+                        warn("B");
+
                 PING;
                 dcArgPointer(cvm, NULL);
             }
             else if (SvOK(arg) && sv_derived_from(arg, "Affix::Pointer")) {
+                            warn("C");
+
                 PING;
                 IV tmp = SvIV(SvRV(arg));
                 dcArgPointer(cvm, INT2PTR(DCpointer, tmp));
             }
             else if (!LIKELY(SvROK(arg) && SvTYPE(SvRV(arg)) == SVt_PVAV)) {
+                            warn("D");
+
                 PING;
                 croak("Arg %d must be an array reference", st_pos + 1);
             }
             else if (affix->aggregates[st_pos] != NULL) { // Null for dynamic length arrays
+                        warn("E");
+
                 PING;
                 if (affix->temp_ptrs == NULL) Newxz(affix->temp_ptrs, num_args, DCpointer);
                 if (!SvROK(arg) || SvTYPE(SvRV(arg)) != SVt_PVAV)
@@ -305,6 +312,8 @@ extern "C" void Affix_trigger(pTHX_ CV *cv) {
                 dcArgAggr(cvm, affix->aggregates[st_pos], affix->temp_ptrs[st_pos]);
             }
             else {
+                            warn("F");
+
                 PING;
                 affix->temp_ptrs[st_pos] = sv2ptr(aTHX_ MUTABLE_SV(affix->arg_info[arg_pos]), arg);
                 dcArgPointer(cvm, affix->temp_ptrs[st_pos]);
@@ -326,24 +335,40 @@ extern "C" void Affix_trigger(pTHX_ CV *cv) {
         } break;
         case POINTER_FLAG: {
             PING;
-            SV *arg = ST(st_pos);
+warn("POINTER!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!") ;
+           SV *arg = ST(st_pos);
             if (UNLIKELY(!SvOK(arg) && SvREADONLY(arg))) { // explicit undef
+            warn("ASEEEA");
                 PING;
                 dcArgPointer(cvm, NULL);
                 break;
             }
             if (SvROK(arg)) { // Might be a reference which we will handle as an lvalue on return
                 PING;
+                            warn("EADFEA");
+
                 arg = MUTABLE_SV(SvRV(arg));
                 if (UNLIKELY(!SvOK(arg) && SvREADONLY(arg))) { // explicit undef
                     dcArgPointer(cvm, NULL);
                     break;
                 }
+                else {
+
+                if (affix->temp_ptrs == NULL) Newxz(affix->temp_ptrs, num_args, DCpointer);
+
+                affix->temp_ptrs[st_pos] =
+                sv2ptr(aTHX_ MUTABLE_SV(affix->arg_info[arg_pos]), ST(st_pos));
+                    //safemalloc(AXT_SIZEOF(AXT_SUBTYPE(MUTABLE_SV(affix->arg_info[arg_pos]))));
+                dcArgPointer(cvm, affix->temp_ptrs[st_pos]);
+                }
             }
-            if (SvOK(arg)) {
+            else if (SvOK(arg)) {
                 PING;
+                            warn("FDSA");
+
                 if (sv_derived_from(arg, "Affix::Pointer")) {
                     PING;
+
                     // pass pointers directly through
                     IV tmp = SvIV(SvRV(arg));
                     dcArgPointer(cvm, INT2PTR(DCpointer, tmp));
@@ -369,7 +394,10 @@ extern "C" void Affix_trigger(pTHX_ CV *cv) {
                 }
             }
             else {
+                            warn("D");
+
                 PING;
+                if (affix->temp_ptrs == NULL) Newxz(affix->temp_ptrs, num_args, DCpointer);
                 affix->temp_ptrs[st_pos] =
                     safemalloc(AXT_SIZEOF(AXT_SUBTYPE(MUTABLE_SV(affix->arg_info[arg_pos]))));
                 dcArgPointer(cvm, affix->temp_ptrs[st_pos]);
@@ -531,15 +559,17 @@ extern "C" void Affix_trigger(pTHX_ CV *cv) {
         PING;
         for (st_pos = 0, arg_pos = 0; st_pos < num_args; ++st_pos, ++arg_pos) {
             PING;
+
             //~ sv_dump(ST(st_pos));
-            if (affix->temp_ptrs[st_pos] != NULL && SvROK(ST(st_pos))) {
+            if (affix->temp_ptrs[st_pos] != NULL && !SvREADONLY(ST(st_pos))) {
                 PING;
 #if DEBUG
                 DumpHex(affix->temp_ptrs[st_pos], AXT_SIZEOF(MUTABLE_SV(affix->arg_info[st_pos])));
 #endif
-                //~ warn("st_pos: %d", st_pos);
-                sv_setsv_mg(SvRV(ST(st_pos)), ptr2sv(aTHX_ affix->temp_ptrs[st_pos],
-                                                     MUTABLE_SV(affix->arg_info[st_pos])));
+                warn("st_pos: %d", st_pos);
+
+                sv_setsv_mg(ST(st_pos), ptr2sv(aTHX_ affix->temp_ptrs[st_pos],
+                                               MUTABLE_SV(affix->arg_info[st_pos])));
                 SvSETMAGIC(ST(st_pos));
                 //~ DD(ST(st_pos));
             }
@@ -1237,9 +1267,7 @@ XS_INTERNAL(Affix_affix) {
             if (!SvPOK(symbol)) { croak("Undefined symbol name"); }
             perl_name = SvPV_nolen(*av_fetch(tmp, 1, false));
         }
-        else if (UNLIKELY(!SvPOK(ST(1)))) {
-            croak("Undefined symbol name");
-        }
+        else if (UNLIKELY(!SvPOK(ST(1)))) { croak("Undefined symbol name"); }
         else {
             symbol = ST(1);
             perl_name = SvPV_nolen(symbol);
@@ -1359,14 +1387,10 @@ XS_INTERNAL(Affix_affix) {
                             }
                             affix->arg_info[arg_pos] = newSVsv(type);
                         }
-                        else {
-                            croak("Unexpected arg type in slot %ld", arg_pos + 1);
-                        }
+                        else { croak("Unexpected arg type in slot %ld", arg_pos + 1); }
                     }
                 }
-                else {
-                    croak("Expected a list of argument types as an array ref");
-                }
+                else { croak("Expected a list of argument types as an array ref"); }
             }
             STMT_END;
         }
@@ -1416,9 +1440,7 @@ XS_INTERNAL(Affix_affix) {
             affix->ret_info = newSVsv(ST(3));
             affix->ret_type = AXT_NUMERIC(ST(3));
         }
-        else {
-            croak("Unknown return type");
-        }
+        else { croak("Unknown return type"); }
     }
 
     if (affix->_cpp_constructor) { ++affix->num_args; } // Expect Class->new(...)

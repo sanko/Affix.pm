@@ -56,8 +56,8 @@ SV *ptr2av(pTHX_ DCpointer ptr, SV *type) {
         PING;
     }
 #if DEBUG
-    warn("/ptr2av(%p, %s) at %s line %d", ptr, AXT_STRINGIFY(type), __FILE__, __LINE__);
-    DD(retval);
+    // warn("/ptr2av(%p, %s) at %s line %d", ptr, AXT_STRINGIFY(type), __FILE__, __LINE__);
+    // DD(retval);
 #endif
     return retval;
 }
@@ -142,9 +142,7 @@ SV *ptr2sv(pTHX_ DCpointer ptr, SV *type) {
             if (ptr && wcslen((wchar_t *)ptr)) {
                 retval = wchar2utf(aTHX_ * (wchar_t **)ptr, wcslen(*(wchar_t **)ptr));
             }
-            else {
-                retval = &PL_sv_undef;
-            }
+            else { retval = &PL_sv_undef; }
         } break;
         case STRUCT_FLAG:
         case CPPSTRUCT_FLAG: {
@@ -210,9 +208,7 @@ SV *ptr2sv(pTHX_ DCpointer ptr, SV *type) {
                     if (typedef_ptr != NULL) {
                         sv_setref_pv(retval, SvPV_nolen(*typedef_ptr), ptr);
                     }
-                    else {
-                        sv_setref_pv(retval, "Affix::Pointer::Unmanaged", ptr);
-                    }
+                    else { sv_setref_pv(retval, "Affix::Pointer::Unmanaged", ptr); }
                 }
             } break;
             //~ case POINTER_FLAG:{
@@ -282,6 +278,7 @@ SV *ptr2sv(pTHX_ DCpointer ptr, SV *type) {
 }
 
 void *av2ptr(pTHX_ SV *type, AV *av_data) {
+    warn("av2ptr(...)");
     PING;
     DD(type);
 
@@ -308,7 +305,10 @@ void *av2ptr(pTHX_ SV *type, AV *av_data) {
     PING;
 
     size_t size = AXT_ARRAYLEN(type);
-    if (size == 0) size = av_count(av_data);
+    //if (size == 0)
+    size = av_count(av_data);
+      warn("------------------ test, size == %d", size);
+
     // XXX: THIS IS INCORRECT!!!!!!!!!!!!!!
     DCpointer ret = safemalloc(AXT_SIZEOF(type) * (size + 1));
     //~ if (size != NULL && SvOK(*size_ptr)) {
@@ -322,6 +322,7 @@ void *av2ptr(pTHX_ SV *type, AV *av_data) {
     switch (AXT_NUMERIC(subtype)) {
     case POINTER_FLAG:
     case ARRAY_FLAG: {
+        warn("Here");
         PING;
         for (size_t i = 0; i < size; ++i) {
             PING;
@@ -334,8 +335,12 @@ void *av2ptr(pTHX_ SV *type, AV *av_data) {
     } break;
     default: {
         PING;
+        warn("Not a deep array. %d elements", size);
+                    DD(MUTABLE_SV(av_data));
+
         for (size_t i = 0; i < size; ++i) {
             PING;
+            DD(*(av_fetch(av_data, i, 0)));
             DCpointer block = sv2ptr(aTHX_ subtype, *(av_fetch(av_data, i, 0)));
             PING;
             Move(block, INT2PTR(DCpointer, PTR2IV(ret) + pos), AXT_SIZEOF(subtype), char);
@@ -353,6 +358,8 @@ void *av2ptr(pTHX_ SV *type, AV *av_data) {
 }
 
 void *sv2ptr(pTHX_ SV *type, SV *data) {
+    warn("sv2ptr");
+
     //~ DD(data);
     //~ DD(type);
     PING;
@@ -508,10 +515,12 @@ void *sv2ptr(pTHX_ SV *type, SV *data) {
         Copy(&value, ret, 1, double);
     } break;
     case POINTER_FLAG: {
+        warn("POINTER");
         PING;
         SV *subtype = AXT_SUBTYPE(type);
         if (!SvOK(data)) { ret = safecalloc(AXT_SIZEOF(SvRV(subtype)), 1); }
         else if (SvROK(data) && SvTYPE(SvRV(data)) == SVt_PVAV) {
+            warn("ARRAY!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!");
             ret = av2ptr(aTHX_ type, MUTABLE_AV(SvRV(data)));
         }
         else {
@@ -620,6 +629,7 @@ void *sv2ptr(pTHX_ SV *type, SV *data) {
     } break;
     case ARRAY_FLAG: {
         PING;
+        warn("ARRAY");
         ret = safemalloc(size);
         if (SvOK(data)) {
             AV *elements;
@@ -676,9 +686,7 @@ void *sv2ptr(pTHX_ SV *type, SV *data) {
             Newxz(ret, 1, CallbackWrapper);
             ((CallbackWrapper *)ret)->cb = dcbNewCallback(callback->sig, cbHandler, callback);
         }
-        else {
-            Newxz(ret, 1, intptr_t);
-        }
+        else { Newxz(ret, 1, intptr_t); }
     } break;
     case SV_FLAG: {
         PING;

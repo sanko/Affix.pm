@@ -10,6 +10,11 @@ package Affix::Type 1.0 {
     sub sizeof { shift->[ Affix::SLOT_SIZEOF() ] }
     sub align  { shift->[ Affix::SLOT_ALIGNMENT() ] }
     sub offset { shift->[ Affix::SLOT_OFFSET() ] }
-    sub cast   { $_[0]->[ Affix::SLOT_CAST() ] = $_[1]; $_[0] }
+
+    sub cast {
+        $_[0]->[ Affix::SLOT_CAST() ]    = $_[1];
+        $_[0]->[ Affix::SLOT_NUMERIC() ] = -1;
+        $_[0];
+    }
 }
 1;

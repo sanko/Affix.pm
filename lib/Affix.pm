@@ -516,6 +516,10 @@ package Affix 0.12 {    # 'FFI' is my middle name!
                 'Affix::Type::Pointer'
             );
         }
+        package    # hide
+            Affix::Type::Pointer {
+            sub subtype($) { return shift->[ Affix::SLOT_SUBTYPE() ]; }
+        }
 
         sub SV () {    # Should only be used inside of a Pointer[]
             bless( [ 'SV', SV_FLAG(), 0, 0, undef ], 'Affix::Type::SV' );

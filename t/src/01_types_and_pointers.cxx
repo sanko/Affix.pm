@@ -9,6 +9,8 @@ bool test(bool value) {
 
 DLLEXPORT
 bool test(int pos, bool *ptr) {
+    warn("bool test(int pos, bool *ptr)->(%d, [%d, %d, %d, %d])", pos,
+    ptr[0]?1:0, ptr[1]?1:0, ptr[2]?1:0, ptr[3]?1:0 );
     if (ptr[pos]) return true;
     return false;
 }

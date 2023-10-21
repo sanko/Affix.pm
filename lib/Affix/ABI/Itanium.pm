@@ -17,25 +17,25 @@ package Affix::ABI::Itanium 1.0 {
         for my $type (@$types) {
             my $type_id = int $type;
             CORE::state $builtin_types //= {
-                ord VOID_FLAG()      => 'v',
-                ord WCHAR_FLAG()     => 'w',
-                ord BOOL_FLAG()      => 'b',
-                ord CHAR_FLAG()      => 'c',
-                ord SCHAR_FLAG()     => 'a',
-                ord UCHAR_FLAG()     => 'h',
-                ord SHORT_FLAG()     => 's',
-                ord USHORT_FLAG()    => 't',
-                ord INT_FLAG()       => 'i',
-                ord UINT_FLAG()      => 'j',
-                ord LONG_FLAG()      => 'l',
-                ord ULONG_FLAG()     => 'm',
-                ord LONGLONG_FLAG()  => 'x',
-                ord ULONGLONG_FLAG() => 'y',
+                VOID_FLAG()      => 'v',
+                WCHAR_FLAG()     => 'w',
+                BOOL_FLAG()      => 'b',
+                CHAR_FLAG()      => 'c',
+                SCHAR_FLAG()     => 'a',
+                UCHAR_FLAG()     => 'h',
+                SHORT_FLAG()     => 's',
+                USHORT_FLAG()    => 't',
+                INT_FLAG()       => 'i',
+                UINT_FLAG()      => 'j',
+                LONG_FLAG()      => 'l',
+                ULONG_FLAG()     => 'm',
+                LONGLONG_FLAG()  => 'x',
+                ULONGLONG_FLAG() => 'y',
 
                 # int i128 => 'n', # Unsupported by dyncall
                 # int u128 => 'o', # Unsupported by dyncall
-                ord FLOAT_FLAG()  => 'f',
-                ord DOUBLE_FLAG() => 'd',
+                FLOAT_FLAG()  => 'f',
+                DOUBLE_FLAG() => 'd',
 
 # int LongDouble() => 'e', # Unsupported by dyncall
 # int float128 => 'g',  # Unsupported by dyncall
@@ -58,16 +58,26 @@ package Affix::ABI::Itanium 1.0 {
 #~ ::= Da # auto
 #~ ::= Dc # decltype(auto)
 #~ ::= Dn # std::nullptr_t (i.e., decltype(nullptr))
-#~ ::= u <source-name> [<template-args>] # vendor extended type
+                int Pointer() => 'P'
+
+                #~ ::= u <source-name> [<template-args>] # vendor extended type
             };
             if ( exists $builtin_types->{$type_id} ) {
                 push @ret, $builtin_types->{$type_id};
+                if ( $type->isa('Affix::Type::Pointer') ) {
+
+                    #use Data::Dump;
+                    #ddx $type;
+                    #ddx $type->subtype();
+                    push @ret, bare_function_type( [ $type->subtype ] );
+                }
             }
             else {
-                use Data::Dump;
-                ddx $builtin_types;
-                ddx $builtin_types->{$type_id};
-                ddx $type;
+                #use Data::Dump;
+                #ddx $builtin_types;
+                #ddx $builtin_types->{$type_id};
+                #ddx $type;
+                die 'Unknown type for mangler: ' . $type_id;
             }
         }
         return join '', @ret;
