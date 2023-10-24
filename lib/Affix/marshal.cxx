@@ -1,9 +1,9 @@
 #include "../Affix.h"
 
 SV *ptr2av(pTHX_ DCpointer ptr, SV *type) {
-#if DEBUG
+//#if DEBUG
     warn("ptr2av(%p, %s)) at %s line %d", ptr, AXT_STRINGIFY(type), __FILE__, __LINE__);
-#endif
+//#endif
     PING;
 
     SV *retval = NULL;
@@ -30,13 +30,16 @@ SV *ptr2av(pTHX_ DCpointer ptr, SV *type) {
         PING;
 
         size_t pos = 0; // override
+        warn("fyvyuudtivsryryustgjmdtgjjhmdctgdjchgh");
         switch (AXT_NUMERIC(subtype)) {
         case ARRAY_FLAG: {
             PING;
 
             void **_ptr = (void **)ptr;
             for (size_t i = 0; i < size; ++i) {
-                av_push(RETVAL_, ptr2sv(aTHX_ _ptr[i], subtype));
+                av_push(RETVAL_,
+                newRV(
+                ptr2sv(aTHX_ _ptr[i], subtype)));
             }
         } break;
         default: {
@@ -63,9 +66,9 @@ SV *ptr2av(pTHX_ DCpointer ptr, SV *type) {
 }
 SV *ptr2sv(pTHX_ DCpointer ptr, SV *type) {
     PING;
-#if DEBUG
+//#if DEBUG
     warn("ptr2sv(%p, %s) at %s line %d", ptr, AXT_STRINGIFY(type), __FILE__, __LINE__);
-#endif
+//#endif
     PING;
     SV *retval = NULL;
     if (ptr == NULL) {
@@ -80,6 +83,7 @@ SV *ptr2sv(pTHX_ DCpointer ptr, SV *type) {
 #endif
         switch (AXT_NUMERIC(type)) {
         case BOOL_FLAG: {
+            warn ("????? bool pointer");
             retval = newSV(0);
             sv_setbool_mg(retval, (bool)*(bool *)ptr);
         } break;

@@ -7,12 +7,12 @@ package Affix::ABI::Itanium 1.0 {
     #
     sub prefix () {'_Z'}
     #
-    sub bare_function_type ($) {
+    sub bare_function_type ($$) {
 
         #~ https://itanium-cxx-abi.github.io/cxx-abi/abi.html#mangle.bare-function-type
         #~ <bare-function-type> ::= <signature type>+
         #~       types are possible return type, then parameter types
-        my ($types) = @_;
+        my ($cache, $types) = @_;
         my @ret;
         for my $type (@$types) {
             my $type_id = int $type;
@@ -69,7 +69,17 @@ package Affix::ABI::Itanium 1.0 {
                     #use Data::Dump;
                     #ddx $type;
                     #ddx $type->subtype();
-                    push @ret, bare_function_type( [ $type->subtype ] );
+                    my $type =bare_function_type( $cache, [ $type->subtype ] );
+
+                    my $pos = (scalar keys %$cache);
+                                        $cache->{$type}//='S'. ($pos?$pos:'_');
+
+#~ if ($type->subtype->isa('Affix::Type::Pointer')){
+                    #~ my $s = $cache->{$type};
+                    #~ push @ret, $s;
+                #~ }
+                #~ else
+                {push @ret, $type}
                 }
             }
             else {
@@ -83,8 +93,8 @@ package Affix::ABI::Itanium 1.0 {
         return join '', @ret;
     }
 
-    sub nested_name (@) {
-
+    sub nested_name ($@) {
+my $cache = shift;
       #~ https://itanium-cxx-abi.github.io/cxx-abi/abi.html#mangle.nested-name
       #~ <nested-name> ::= N [<CV-qualifiers>] [<ref-qualifier>] <prefix> <unqualified-name> E
       #~               ::= N [<CV-qualifiers>] [<ref-qualifier>] <template-prefix> <template-args> E
@@ -94,7 +104,7 @@ package Affix::ABI::Itanium 1.0 {
         join '', 'N', ( map { length($_) . $_ } @scope ), 'E';
     }
 
-    sub name($) {
+    sub name($$) {
 
         #~ https://itanium-cxx-abi.github.io/cxx-abi/abi.html#mangle.name
         #~  <name> ::= <nested-name>
@@ -122,33 +132,37 @@ package Affix::ABI::Itanium 1.0 {
         #~                  ::= D0			# deleting destructor
         #~                  ::= D1			# complete object destructor
         #~                  ::= D2			# base object destructor
-        my ($name) = @_;
+        my ($cache,$name) = @_;
         my @name   = split /::/, $name;
-        scalar @name > 1 ? nested_name(@name) : length($name) . $name;
+        scalar @name > 1 ? nested_name($cache, @name) : length($name) . $name;
     }
 
-    sub encoding($$) {
+    sub encoding($$$) {
 
         #~ https://itanium-cxx-abi.github.io/cxx-abi/abi.html#mangle.encoding
         #~ <encoding> ::= <function name> <bare-function-type>
         #~            ::= <data name>
         #~            ::= <special-name>
-        my ( $name, $args ) = @_;
-        $args ? name($name) . bare_function_type($args) :    # function name/special name
-            name($name);                                     # type name
+        my ( $cache,$name, $args ) = @_;
+        $args ? name($cache, $name) . bare_function_type($cache, $args) :    # function name/special name
+            name($cache, $name);                                     # type name
 
         # TODO: special name https://itanium-cxx-abi.github.io/cxx-abi/abi.html#mangle.special-name
     }
 
     sub mangle ($;$$$) {
         my $affix = shift if ref $_[0];
+        my $cache={};
 
         #~ https://itanium-cxx-abi.github.io/cxx-abi/abi.html#mangling-structure
         #~ <mangled-name> ::= _Z <encoding>
         #~                ::= _Z <encoding> . <vendor-specific suffix>
         my ( $name, $args, $ret ) = @_;
         $args = [Void] if defined($args) && !@$args;
-        return prefix . encoding( $name, $args );
+        $name =prefix . encoding($cache, $name, $args );
+    use Data::Dump;
+    ddx $cache;warn $name;
+    return $name;
     }
 }
 1;

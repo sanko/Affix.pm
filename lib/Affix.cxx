@@ -548,6 +548,7 @@ warn("POINTER!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!") ;
             RETVAL = newSV(1);
             SV **package = AXT_TYPEDEF(affix->ret_info);
             if (package != NULL) { sv_setref_pv(RETVAL, SvPV_nolen(*package), ptr); }
+            else {sv_setref_pv(RETVAL, "Affix::Pointer::Unmanaged", ptr);}
         }
     } break;
     default:

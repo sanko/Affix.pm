@@ -31,7 +31,11 @@ XS_INTERNAL(Affix_Type_unmarshal) {
         croak("ptr is not of type Affix::Pointer");
     IV tmp = SvIV((SV *)SvRV(ST(1)));
     ptr = INT2PTR(DCpointer, PTR2IV(tmp));
-    ST(0) = ptr2sv(aTHX_ ptr, ST(0));
+    ST(0) =//sv_2mortal(
+    newRV(ptr2sv(aTHX_ ptr, ST(0)))
+    //)
+    ;
+    //ST(0) = ptr2sv(aTHX_ ptr, ST(0));
     XSRETURN(1);
 }
 
