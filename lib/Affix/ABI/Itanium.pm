@@ -7,12 +7,14 @@ package Affix::ABI::Itanium 1.0 {
     #
     sub prefix () {'_Z'}
     #
+    sub bare_function_type ($$);
+
     sub bare_function_type ($$) {
 
         #~ https://itanium-cxx-abi.github.io/cxx-abi/abi.html#mangle.bare-function-type
         #~ <bare-function-type> ::= <signature type>+
         #~       types are possible return type, then parameter types
-        my ($cache, $types) = @_;
+        my ( $cache, $types ) = @_;
         my @ret;
         for my $type (@$types) {
             my $type_id = int $type;
@@ -63,23 +65,20 @@ package Affix::ABI::Itanium 1.0 {
                 #~ ::= u <source-name> [<template-args>] # vendor extended type
             };
             if ( exists $builtin_types->{$type_id} ) {
-                push @ret, $builtin_types->{$type_id};
-                if ( $type->isa('Affix::Type::Pointer') ) {
-
-                    #use Data::Dump;
-                    #ddx $type;
-                    #ddx $type->subtype();
-                    my $type =bare_function_type( $cache, [ $type->subtype ] );
-
-                    my $pos = (scalar keys %$cache);
-                                        $cache->{$type}//='S'. ($pos?$pos:'_');
-
-#~ if ($type->subtype->isa('Affix::Type::Pointer')){
-                    #~ my $s = $cache->{$type};
-                    #~ push @ret, $s;
-                #~ }
-                #~ else
-                {push @ret, $type}
+                if ( $type->isa('Affix::Type::Pointer') || $type->isa('Affix::Type::Array') ) {
+                    my $t = bare_function_type( $cache, [ $type->subtype ] );
+                    if ( defined $cache->{$t} ) {
+                        push @ret, $cache->{$t};
+                    }
+                    else {
+                        my $shortcuts = scalar keys %$cache;
+                        $cache->{$t} = 'S' . ( $shortcuts ? $shortcuts : '_' );
+                        push @ret, $builtin_types->{$type_id} . $t;
+                    }
+                    ddx $cache;
+                }
+                else {
+                    push @ret, $builtin_types->{$type_id};
                 }
             }
             else {
@@ -90,11 +89,13 @@ package Affix::ABI::Itanium 1.0 {
                 die 'Unknown type for mangler: ' . $type_id;
             }
         }
+        ddx $cache;
         return join '', @ret;
     }
 
     sub nested_name ($@) {
-my $cache = shift;
+        my $cache = shift;
+
       #~ https://itanium-cxx-abi.github.io/cxx-abi/abi.html#mangle.nested-name
       #~ <nested-name> ::= N [<CV-qualifiers>] [<ref-qualifier>] <prefix> <unqualified-name> E
       #~               ::= N [<CV-qualifiers>] [<ref-qualifier>] <template-prefix> <template-args> E
@@ -132,9 +133,9 @@ my $cache = shift;
         #~                  ::= D0			# deleting destructor
         #~                  ::= D1			# complete object destructor
         #~                  ::= D2			# base object destructor
-        my ($cache,$name) = @_;
-        my @name   = split /::/, $name;
-        scalar @name > 1 ? nested_name($cache, @name) : length($name) . $name;
+        my ( $cache, $name ) = @_;
+        my @name = split /::/, $name;
+        scalar @name > 1 ? nested_name( $cache, @name ) : length($name) . $name;
     }
 
     sub encoding($$$) {
@@ -143,26 +144,29 @@ my $cache = shift;
         #~ <encoding> ::= <function name> <bare-function-type>
         #~            ::= <data name>
         #~            ::= <special-name>
-        my ( $cache,$name, $args ) = @_;
-        $args ? name($cache, $name) . bare_function_type($cache, $args) :    # function name/special name
-            name($cache, $name);                                     # type name
+        my ( $cache, $name, $args ) = @_;
+        $args ?
+            name( $cache, $name ) .
+            bare_function_type( $cache, $args ) :    # function name/special name
+            name( $cache, $name );                   # type name
 
         # TODO: special name https://itanium-cxx-abi.github.io/cxx-abi/abi.html#mangle.special-name
     }
 
     sub mangle ($;$$$) {
         my $affix = shift if ref $_[0];
-        my $cache={};
+        my $cache = {};
+        die if keys %$cache;
 
         #~ https://itanium-cxx-abi.github.io/cxx-abi/abi.html#mangling-structure
         #~ <mangled-name> ::= _Z <encoding>
         #~                ::= _Z <encoding> . <vendor-specific suffix>
         my ( $name, $args, $ret ) = @_;
         $args = [Void] if defined($args) && !@$args;
-        $name =prefix . encoding($cache, $name, $args );
-    use Data::Dump;
-    ddx $cache;warn $name;
-    return $name;
+        $name = prefix . encoding( $cache, $name, $args );
+        use Data::Dump;
+        ddx $cache;
+        return $name;
     }
 }
 1;

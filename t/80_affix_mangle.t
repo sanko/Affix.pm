@@ -13,6 +13,13 @@ package Fake::Affix {
     sub cpp_constructor { shift->{cpp_constructor} }
 }
 #
+use Affix::ABI::Itanium;
+
+#
+is Affix::ABI::Itanium::mangle( 'test', [ Pointer [Char], Pointer [ Pointer [Char] ] ] ),
+    '_Z4testPcPS_', 'int test(char*, char**)';
+is Affix::ABI::Itanium::mangle( 'test', [ Int, Int, Pointer [ Pointer [Bool] ] ] ), '_Z4testiiPPb',
+    'bool test(int, int, bool**)';
 my $Structure       = typedef 'Structure'     => Struct [];
 my $halide_buffer_t = typedef halide_buffer_t => Struct [];
 typedef 'test_namespace::test_namespace::enclosing_class::test_struct' => Struct [];

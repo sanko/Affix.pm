@@ -6,7 +6,8 @@ use Affix;
 use utf8;
 use t::lib::helper;
 $|++;
-
+#
+#
 #~ diag unpack 'C', pack 'C', -ord 'A';
 #~ diag unpack 'c', pack 'c', -ord 'A';
 #~ diag unpack 'W', '赤';
@@ -72,23 +73,18 @@ subtest 'bool* Ret_BoolPtr()' => sub {
     isa_ok my $type = Array [ Bool, 4 ], 'Affix::Type::Array', 'my $type = Array[Bool, 4]';
     warn ref $code;
     use Data::Dump;
-
     ddx $code->();
-    ddx  $type->unmarshal($code->());
-    ddx [ 1, !1, 1 , !1];
-
-    isa_ok my $ret  = $code->(),         'Affix::Pointer',     'bool *';
-    is_deeply $type->unmarshal($ret), [ 1, !1, 1 , !1], 'unmarshal bool *';
+    ddx $type->unmarshal( $code->() );
+    ddx [ 1, !1, 1, !1 ];
+    isa_ok my $ret = $code->(), 'Affix::Pointer', 'bool *';
+    is_deeply $type->unmarshal($ret), [ 1, !1, 1, !1 ], 'unmarshal bool *';
 };
-
-
 subtest 'bool** Ret_BoolPtrPtr()' => sub {
     isa_ok my $code = wrap( $lib, 'Ret_BoolPtrPtr', [] => Pointer [ Pointer [Bool] ] ), 'Affix',
         'Ret_BoolPtrPtr ..., [ ] => Pointer[Pointer[Bool]]';
     isa_ok my $type = Array [ Array [ Bool, 3 ], 3 ], 'Affix::Type::Array',
         'my $type = Array[Array[Bool, 3], 3]';
     isa_ok my $ret = $code->(), 'Affix::Pointer', 'bool **';
-
     use Data::Dump;
     ddx $type->unmarshal($ret);
     is_deeply $type->unmarshal($ret), [ [ 1, !1, !1 ], [ !1, 1, !1 ], [ !1, !1, 1 ] ],
@@ -112,7 +108,7 @@ subtest 'char test(int, char*)' => sub {
     is chr $code->( 3, [ 'a', 'b', 'c', 'd' ] ), 'd', '->(3, ["a", "b", "c", "d"]) == "d"';
     is chr $code->( 3, "Testing" ), 't', '->(3, "Testing") == "t';
 };
-subtest 'int test(char*, char**)' => sub { # _Z4testPcPS_
+subtest 'int test(char*, char**)' => sub {    # _Z4testPcPS_
     isa_ok my $code = wrap( $lib, 'test', [ Pointer [Char], Pointer [ Pointer [Char] ] ], Int ),
         'Affix', 'wrap ..., [Pointer[Char], Pointer[Pointer[Char]]] => Int';
     is $code->( "Alex", [ "John", "Bill", "Sam", "Martin", "Jose", "Alex", "Paul" ] ), 6,
