@@ -277,31 +277,31 @@ extern "C" void Affix_trigger(pTHX_ CV *cv) {
             }
         } break;
         case ARRAY_FLAG: {
-                        warn("A");
+            warn("A");
 
             PING;
             SV *arg = ST(st_pos);
             if (!SvOK(arg) && SvREADONLY(arg)) { // explicit undef
-                        warn("B");
+                warn("B");
 
                 PING;
                 dcArgPointer(cvm, NULL);
             }
             else if (SvOK(arg) && sv_derived_from(arg, "Affix::Pointer")) {
-                            warn("C");
+                warn("C");
 
                 PING;
                 IV tmp = SvIV(SvRV(arg));
                 dcArgPointer(cvm, INT2PTR(DCpointer, tmp));
             }
             else if (!LIKELY(SvROK(arg) && SvTYPE(SvRV(arg)) == SVt_PVAV)) {
-                            warn("D");
+                warn("D");
 
                 PING;
                 croak("Arg %d must be an array reference", st_pos + 1);
             }
             else if (affix->aggregates[st_pos] != NULL) { // Null for dynamic length arrays
-                        warn("E");
+                warn("E");
 
                 PING;
                 if (affix->temp_ptrs == NULL) Newxz(affix->temp_ptrs, num_args, DCpointer);
@@ -312,7 +312,7 @@ extern "C" void Affix_trigger(pTHX_ CV *cv) {
                 dcArgAggr(cvm, affix->aggregates[st_pos], affix->temp_ptrs[st_pos]);
             }
             else {
-                            warn("F");
+                warn("F");
 
                 PING;
                 affix->temp_ptrs[st_pos] = sv2ptr(aTHX_ MUTABLE_SV(affix->arg_info[arg_pos]), arg);
@@ -335,17 +335,17 @@ extern "C" void Affix_trigger(pTHX_ CV *cv) {
         } break;
         case POINTER_FLAG: {
             PING;
-warn("POINTER!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!") ;
-           SV *arg = ST(st_pos);
+            warn("POINTER!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!");
+            SV *arg = ST(st_pos);
             if (UNLIKELY(!SvOK(arg) && SvREADONLY(arg))) { // explicit undef
-            warn("ASEEEA");
+                warn("ASEEEA");
                 PING;
                 dcArgPointer(cvm, NULL);
                 break;
             }
             if (SvROK(arg)) { // Might be a reference which we will handle as an lvalue on return
                 PING;
-                            warn("EADFEA");
+                warn("EADFEA");
 
                 arg = MUTABLE_SV(SvRV(arg));
                 if (UNLIKELY(!SvOK(arg) && SvREADONLY(arg))) { // explicit undef
@@ -354,17 +354,17 @@ warn("POINTER!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!") ;
                 }
                 else {
 
-                if (affix->temp_ptrs == NULL) Newxz(affix->temp_ptrs, num_args, DCpointer);
+                    if (affix->temp_ptrs == NULL) Newxz(affix->temp_ptrs, num_args, DCpointer);
 
-                affix->temp_ptrs[st_pos] =
-                sv2ptr(aTHX_ MUTABLE_SV(affix->arg_info[arg_pos]), ST(st_pos));
-                    //safemalloc(AXT_SIZEOF(AXT_SUBTYPE(MUTABLE_SV(affix->arg_info[arg_pos]))));
-                dcArgPointer(cvm, affix->temp_ptrs[st_pos]);
+                    affix->temp_ptrs[st_pos] =
+                        sv2ptr(aTHX_ MUTABLE_SV(affix->arg_info[arg_pos]), ST(st_pos));
+                    // safemalloc(AXT_SIZEOF(AXT_SUBTYPE(MUTABLE_SV(affix->arg_info[arg_pos]))));
+                    dcArgPointer(cvm, affix->temp_ptrs[st_pos]);
                 }
             }
             else if (SvOK(arg)) {
                 PING;
-                            warn("FDSA");
+                warn("FDSA");
 
                 if (sv_derived_from(arg, "Affix::Pointer")) {
                     PING;
@@ -394,7 +394,7 @@ warn("POINTER!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!") ;
                 }
             }
             else {
-                            warn("D");
+                warn("D");
 
                 PING;
                 if (affix->temp_ptrs == NULL) Newxz(affix->temp_ptrs, num_args, DCpointer);
@@ -548,7 +548,7 @@ warn("POINTER!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!") ;
             RETVAL = newSV(1);
             SV **package = AXT_TYPEDEF(affix->ret_info);
             if (package != NULL) { sv_setref_pv(RETVAL, SvPV_nolen(*package), ptr); }
-            else {sv_setref_pv(RETVAL, "Affix::Pointer::Unmanaged", ptr);}
+            else { sv_setref_pv(RETVAL, "Affix::Pointer::Unmanaged", ptr); }
         }
     } break;
     default:

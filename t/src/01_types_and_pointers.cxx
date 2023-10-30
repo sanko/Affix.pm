@@ -1,6 +1,11 @@
 #include "std.h"
 
 DLLEXPORT
+bool EXAMPLE(int, int *, char *, bool **, char *, int *) {
+    return false;
+}
+
+DLLEXPORT
 bool test(bool value) {
     // return the opposite; makes sure we're updating ST(0)
     if (value) return false;
@@ -9,8 +14,8 @@ bool test(bool value) {
 
 DLLEXPORT
 bool test(int pos, bool *ptr) {
-    warn("bool test(int pos, bool *ptr)->(%d, [%d, %d, %d, %d])", pos,
-    ptr[0]?1:0, ptr[1]?1:0, ptr[2]?1:0, ptr[3]?1:0 );
+    warn("bool test(int pos, bool *ptr)->(%d, [%d, %d, %d, %d])", pos, ptr[0] ? 1 : 0,
+         ptr[1] ? 1 : 0, ptr[2] ? 1 : 0, ptr[3] ? 1 : 0);
     if (ptr[pos]) return true;
     return false;
 }

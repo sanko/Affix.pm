@@ -93,7 +93,7 @@ sub alien {
                     }
                     last;
                 }
-                warn($_) && system($_ ) for $configure, $make;
+                warn($_) && system($_) for $configure, $make;
                 my %libs = (
                     dyncall => [
                         qw[dyncall_version.h dyncall_macros.h dyncall_config.h
@@ -132,7 +132,7 @@ sub alien {
             }
             else {
                 $make = $opt{config}->get('make');
-                system($_ ) for $configure, $make, $make . ' install';
+                system($_) for $configure, $make, $make . ' install';
             }
         }
         else {    # Future, maybe...

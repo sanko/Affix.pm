@@ -17,6 +17,7 @@ $|++;
 binmode $_, "encoding(UTF-8)" for Test::More->builder->output, Test::More->builder->failure_output;
 my $lib = compile_test_lib('01_types_and_pointers');
 warn `nm -D $lib`;
+die;
 #
 subtest types => sub {
     isa_ok $_, 'Affix::Type'

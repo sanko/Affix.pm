@@ -72,7 +72,7 @@ package Affix::ABI::Itanium 1.0 {
                     }
                     else {
                         my $shortcuts = scalar keys %$cache;
-                        $cache->{$t} = 'S' . ( $shortcuts ? $shortcuts : '_' );
+                        $cache->{$t} = 'S' . ( $shortcuts ? $shortcuts - 1 : '' ) . '_';
                         push @ret, $builtin_types->{$type_id} . $t;
                     }
                     ddx $cache;
@@ -82,10 +82,11 @@ package Affix::ABI::Itanium 1.0 {
                 }
             }
             else {
-                #use Data::Dump;
+                use Data::Dump;
+
                 #ddx $builtin_types;
                 #ddx $builtin_types->{$type_id};
-                #ddx $type;
+                ddx $type;
                 die 'Unknown type for mangler: ' . $type_id;
             }
         }
