@@ -1679,6 +1679,9 @@ XS_EXTERNAL(boot_Affix) {
     export_constant("Affix", "POINTER_FLAG", "flags", POINTER_FLAG);
     export_constant("Affix", "SV_FLAG", "flags", SV_FLAG);
 
+    // Qualifiers
+    export_constant("Affix", "CONST_FLAG", "all", CONST_FLAG);
+
     // calling conventions
     export_constant("Affix", "RESET_FLAG", "flags", RESET_FLAG);
     export_constant("Affix", "THIS_FLAG", "flags", THIS_FLAG);

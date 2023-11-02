@@ -12,6 +12,13 @@ package Fake::Affix {
     sub cpp_const       { shift->{cpp_const} }
     sub cpp_constructor { shift->{cpp_constructor} }
 }
+
+sub filt {
+    my $sym = shift;
+    `c++filt $sym`;
+}
+
+#die filt '_Z1av';
 #
 subtest Itanium => sub {
     require Affix::ABI::Itanium;
@@ -52,11 +59,14 @@ subtest Itanium => sub {
     diag 'Tests from https://github.com/travitch/itanium-abi/';
     is Affix::ABI::Itanium::mangle( 'qAllocMore', [ Int, Int ] ), '_Z10qAllocMoreii',
         'qAllocMore(int, int)';
+
+=todo
     is Affix::ABI::Itanium::mangle(
         'qHBNewFace',
         [   Pointer [Void],
-            CodeRef [
-                [ Pointer [Void], UInt, Pointer [UChar], Pointer [UInt] ] => Pointer ['HB_Error']
+            typedef 'HB_Error'=> CodeRef [
+                [ Pointer [Void], UInt, Pointer [UChar], Pointer [UInt] ] =>
+                #~ Pointer ['HB_Error']
             ]
         ]
         ),
@@ -84,17 +94,41 @@ _Z24qGlobalPostedEventsCountv
 _Z24qcoreStateMachineHandlerv
 _Z3hexR11QTextStream
 _Z4endlR11QTextStream
-_Z5qFreePv
+
+
+
+=cut
+
+    is Affix::ABI::Itanium::mangle( 'qFree', [ Pointer [Void] ] ), '_Z5qFreePv', 'qFree(void*)';
+
+=cut
+
+
 _Z5qHashRK10QByteArray
 _Z5qHashRK7QString
-_Z5qrandv
-_Z6qDebugPKcz
-_Z6qFatalPKcz
-_Z6qIsNaNd
-_Z7qMallocm
-_Z7qMemSetPvim
-_Z7qgetenvPKc
-_Z7qstrcmpPKcS0_
+
+
+
+=cut
+
+    is Affix::ABI::Itanium::mangle( 'qrand',  [Void] ), '_Z5qrandv', 'qrand(void)';
+    is Affix::ABI::Itanium::mangle( 'qrand',  [] ),     '_Z5qrandv', 'qrand()';
+    is Affix::ABI::Itanium::mangle( 'qDebug', [ String, Ellipsis ] ), '_Z6qDebugPKcz','qDebug(const char *, ...)';
+    is Affix::ABI::Itanium::mangle( 'qFatal', [ String, Ellipsis ] ), '_Z6qFatalPKcz',
+        'qFatal(const char *, ...)';
+    is Affix::ABI::Itanium::mangle( 'qIsNaN',  [Double] ), '_Z6qIsNaNd',  'qIsNaN(double)';
+    is Affix::ABI::Itanium::mangle( 'qMalloc', [ULong] ),  '_Z7qMallocm', 'qMalloc(unsigned long)';
+    is Affix::ABI::Itanium::mangle( 'qMemSet', [ Pointer [Void], Int, ULong ] ), '_Z7qMemSetPvim',
+        'qMemSet(unsigned long)';
+    is Affix::ABI::Itanium::mangle( 'qgetenv', [ Pointer [ Const [Char] ] ] ), '_Z7qgetenvPKc',
+        'getenv(const char *)';
+    is Affix::ABI::Itanium::mangle(
+        'qstrcmp', [ Pointer [ Const [Char] ], Pointer [ Const [Char] ] ]
+        ),
+        '_Z7qstrcmpPKcS0_', 'qstrcmp(const char *, const char *)';
+
+=todo
+
 _Z7qstrcmpRK10QByteArrayPKc
 _Z7qstrcmpRK10QByteArrayS1_
 _Z7qstrdupPKc

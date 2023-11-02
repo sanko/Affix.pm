@@ -34,7 +34,13 @@ package Affix 0.12 {    # 'FFI' is my middle name!
         'Enum', 'IntEnum', 'UIntEnum', 'CharEnum',
 
         # Pointers
-        'String', 'WString', 'StdString', 'Pointer', 'CodeRef'
+        'String', 'WString', 'StdString', 'Pointer', 'CodeRef',
+
+        # Varargs
+        'Ellipsis', 'Varargs',
+
+        # Qualifiers
+        'Const'
     ];
     $EXPORT_TAGS{cc} = [    # calling conventions
         'Reset',  'This',    'Ellipsis', 'Varargs', 'CDecl', 'STDCall', 'MSFastcall', 'GNUFastcall',
@@ -231,10 +237,16 @@ package Affix 0.12 {    # 'FFI' is my middle name!
                 if $fqn eq 'Affix::' . $name;    # only great when triggered by/before import
             $type;
         }
+        package                                  # hide
+            Affix::Type {
+            sub parameterized {0}
+        }
+        package                                  # hide
+            Affix::Type::Parameterized {
+            sub parameterized {1}
+            sub subtype($)    { return shift->[ Affix::SLOT_SUBTYPE() ]; }
+        }
         @Affix::Type::Void::ISA = @Affix::Type::SV::ISA
-
-            # Aggregates
-            = @Affix::Type::Struct::ISA = @Affix::Type::Array::ISA = @Affix::Type::Union::ISA
 
             # Numerics
             = @Affix::Type::Bool::ISA      = @Affix::Type::Char::ISA  = @Affix::Type::SChar::ISA
@@ -251,7 +263,6 @@ package Affix 0.12 {    # 'FFI' is my middle name!
 
             # Pointers
             = @Affix::Type::String::ISA = @Affix::Type::WString::ISA = @Affix::Type::StdString::ISA
-            = @Affix::Type::Pointer::ISA = @Affix::Type::CodeRef::ISA
 
             # Typedef'd aliases
             = @Affix::Type::Str::ISA
@@ -259,12 +270,52 @@ package Affix 0.12 {    # 'FFI' is my middle name!
             # Calling conventions
             = @Affix::CC::ISA
             #
-            = 'Affix::Type';
+            = @Affix::Type::Parameterized::ISA = 'Affix::Type';
+
+        # Aggregates
+        @Affix::Type::Struct::ISA = @Affix::Type::Array::ISA = @Affix::Type::Union::ISA
+
+            # Qualifiers
+            = @Affix::Flag::Const::ISA
+            #
+            = @Affix::Type::Pointer::ISA = @Affix::Type::CodeRef::ISA
+            = 'Affix::Type::Parameterized';
         @Affix::CC::Reset::ISA = @Affix::CC::This::ISA = @Affix::CC::Ellipsis::ISA
             = @Affix::CC::Varargs::ISA    = @Affix::CC::CDecl::ISA       = @Affix::CC::STDcall::ISA
             = @Affix::CC::MSFastcall::ISA = @Affix::CC::GNUFastcall::ISA = @Affix::CC::MSThis::ISA
             = @Affix::CC::GNUThis::ISA    = @Affix::CC::Arm::ISA         = @Affix::CC::Thumb::ISA
             = @Affix::CC::Syscall::ISA    = 'Affix::CC';
+
+        # Qualifier flags
+        sub Const (;$) {    # [ text, id, size, align, offset, subtype, sizeof, package ]
+            use Data::Dump;
+            ddx \@_;
+            my $sizeof  = 0;
+            my $packed  = 0;
+            my $subtype = undef;
+            if (@_) {
+                ($subtype) = @{ +shift };
+                ddx $subtype;
+                my $__sizeof = $subtype->sizeof;
+                my $__align  = $subtype->align;
+                $sizeof += $packed ? 0 :
+                    padding_needed_for( $sizeof, $__align > $__sizeof ? $__sizeof : $__align );
+                $sizeof += $__sizeof;
+            }
+            else {
+                warn scalar caller;
+                Carp::croak 'Const requires a type' unless scalar caller =~ /^Affix(::.+)?$/;
+                $subtype = Void();    # Defaults to Pointer[Void]
+            }
+            bless(
+                [   'Const[ ' . $subtype . ' ]', CONST_FLAG(),
+                    $subtype->sizeof(),          $subtype->align(),
+                    undef,                       $subtype,
+                    $sizeof,                     undef
+                ],
+                'Affix::Flag::Const'
+            );
+        }
 
         # Calling Conventions
         sub Reset() { bless( [ 'This', RESET_FLAG(), undef, undef, undef ], 'Affix::CC::Reset' ); }
@@ -392,9 +443,13 @@ package Affix 0.12 {    # 'FFI' is my middle name!
                 'Affix::Type::SSize_t' );
         }
 
-        sub String () {
-            bless( [ 'String', STRING_FLAG(), INTPTR_T_SIZE(), INTPTR_T_ALIGN(), undef ],
-                'Affix::Type::String' );
+        #~ sub String () {
+        #~ bless( [ 'String', STRING_FLAG(), INTPTR_T_SIZE(), INTPTR_T_ALIGN(), undef ],
+        #~ 'Affix::Type::String' );
+        #~ }
+        sub String() {
+            CORE::state $type //= Pointer( [ Const( [ Char() ] ) ] );
+            $type;
         }
 
         sub WString () {
@@ -485,6 +540,7 @@ package Affix 0.12 {    # 'FFI' is my middle name!
         sub CodeRef($) {
             my (@elements) = @{ +shift };
             my ( $args, $ret ) = @elements;
+            $ret //= Void;
             bless(
                 [   sprintf( 'CodeRef[ [ %s ] => %s ]', join( ', ', @$args ), $ret ),
                     CODEREF_FLAG(), INTPTR_T_SIZE(), INTPTR_T_ALIGN(), $args, $ret
@@ -515,10 +571,6 @@ package Affix 0.12 {    # 'FFI' is my middle name!
                 ],
                 'Affix::Type::Pointer'
             );
-        }
-        package    # hide
-            Affix::Type::Pointer {
-            sub subtype($) { return shift->[ Affix::SLOT_SUBTYPE() ]; }
         }
 
         sub SV () {    # Should only be used inside of a Pointer[]

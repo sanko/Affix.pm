@@ -169,6 +169,8 @@ static const char *dlerror(void) {
 #define THUMB_FLAG 'g'
 #define SYSCALL_FLAG 'H'
 
+#define CONST_FLAG 'K'
+
 /* Flag for whether we should free a string after passing it or not. */
 #define AFFIX_TYPE_NO_FREE_STR 0
 #define AFFIX_TYPE_FREE_STR 1

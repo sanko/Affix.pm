@@ -60,12 +60,14 @@ package Affix::ABI::Itanium 1.0 {
 #~ ::= Da # auto
 #~ ::= Dc # decltype(auto)
 #~ ::= Dn # std::nullptr_t (i.e., decltype(nullptr))
-                int Pointer() => 'P'
+                int Pointer()           => 'P',
+                int Ellipsis()          => 'z',
+                int Const( [ Void() ] ) => 'K',
 
                 #~ ::= u <source-name> [<template-args>] # vendor extended type
             };
             if ( exists $builtin_types->{$type_id} ) {
-                if ( $type->isa('Affix::Type::Pointer') || $type->isa('Affix::Type::Array') ) {
+                if ( $type->parameterized('Affix::Type::Pointer') ) {
                     my $t = bare_function_type( $cache, [ $type->subtype ] );
                     if ( defined $cache->{$t} ) {
                         push @ret, $cache->{$t};
@@ -75,6 +77,7 @@ package Affix::ABI::Itanium 1.0 {
                         $cache->{$t} = 'S' . ( $shortcuts ? $shortcuts - 1 : '' ) . '_';
                         push @ret, $builtin_types->{$type_id} . $t;
                     }
+                    warn $t;
                     ddx $cache;
                 }
                 else {
