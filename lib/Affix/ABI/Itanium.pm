@@ -39,27 +39,27 @@ package Affix::ABI::Itanium 1.0 {
                 FLOAT_FLAG()  => 'f',
                 DOUBLE_FLAG() => 'd',
 
-# int LongDouble() => 'e', # Unsupported by dyncall
-# int float128 => 'g',  # Unsupported by dyncall
-#~ int ellipsis() => 'z', # TODO: Add CC back
-# THe following are all unsupported by dyncall
-#~ ::= Dd # IEEE 754r decimal floating point (64 bits)
-#~ ::= De # IEEE 754r decimal floating point (128 bits)
-#~ ::= Df # IEEE 754r decimal floating point (32 bits)
-#~ ::= Dh # IEEE 754r half-precision floating point (16 bits)
-#~ ::= DF <number> _ # ISO/IEC TS 18661 binary floating point type _FloatN (N bits), C++23 std::floatN_t
-#~ ::= DF <number> x # IEEE extended precision formats, C23 _FloatNx (N bits)
-#~ ::= DF16b # C++23 std::bfloat16_t
-#~ ::= DB <number> _        # C23 signed _BitInt(N)
-#~ ::= DB <instantiation-dependent expression> _ # C23 signed _BitInt(N)
-#~ ::= DU <number> _        # C23 unsigned _BitInt(N)
-#~ ::= DU <instantiation-dependent expression> _ # C23 unsigned _BitInt(N)
-#~ ::= Di # char32_t
-#~ ::= Ds # char16_t
-#~ ::= Du # char8_t
-#~ ::= Da # auto
-#~ ::= Dc # decltype(auto)
-#~ ::= Dn # std::nullptr_t (i.e., decltype(nullptr))
+                # int LongDouble() => 'e', # Unsupported by dyncall
+                # int float128 => 'g',  # Unsupported by dyncall
+                #~ int ellipsis() => 'z', # TODO: Add CC back
+                # THe following are all unsupported by dyncall
+                #~ ::= Dd # IEEE 754r decimal floating point (64 bits)
+                #~ ::= De # IEEE 754r decimal floating point (128 bits)
+                #~ ::= Df # IEEE 754r decimal floating point (32 bits)
+                #~ ::= Dh # IEEE 754r half-precision floating point (16 bits)
+                #~ ::= DF <number> _ # ISO/IEC TS 18661 binary floating point type _FloatN (N bits), C++23 std::floatN_t
+                #~ ::= DF <number> x # IEEE extended precision formats, C23 _FloatNx (N bits)
+                #~ ::= DF16b # C++23 std::bfloat16_t
+                #~ ::= DB <number> _        # C23 signed _BitInt(N)
+                #~ ::= DB <instantiation-dependent expression> _ # C23 signed _BitInt(N)
+                #~ ::= DU <number> _        # C23 unsigned _BitInt(N)
+                #~ ::= DU <instantiation-dependent expression> _ # C23 unsigned _BitInt(N)
+                #~ ::= Di # char32_t
+                #~ ::= Ds # char16_t
+                #~ ::= Du # char8_t
+                #~ ::= Da # auto
+                #~ ::= Dc # decltype(auto)
+                #~ ::= Dn # std::nullptr_t (i.e., decltype(nullptr))
                 int Pointer()           => 'P',
                 int Ellipsis()          => 'z',
                 int Const( [ Void() ] ) => 'K',
@@ -67,17 +67,20 @@ package Affix::ABI::Itanium 1.0 {
                 #~ ::= u <source-name> [<template-args>] # vendor extended type
             };
             if ( exists $builtin_types->{$type_id} ) {
-                if ( $type->parameterized('Affix::Type::Pointer') ) {
+                if ( $type->parameterized() ) {
+
+                    #~ push chars onto a stack
                     my $t = bare_function_type( $cache, [ $type->subtype ] );
+                    warn $t;
                     if ( defined $cache->{$t} ) {
+                        warn 'Cache hit: ' . $t;
                         push @ret, $cache->{$t};
                     }
                     else {
                         my $shortcuts = scalar keys %$cache;
                         $cache->{$t} = 'S' . ( $shortcuts ? $shortcuts - 1 : '' ) . '_';
-                        push @ret, $builtin_types->{$type_id} . $t;
+                        push @ret, $builtin_types->{$type_id}, $t;
                     }
-                    warn $t;
                     ddx $cache;
                 }
                 else {
@@ -100,11 +103,11 @@ package Affix::ABI::Itanium 1.0 {
     sub nested_name ($@) {
         my $cache = shift;
 
-      #~ https://itanium-cxx-abi.github.io/cxx-abi/abi.html#mangle.nested-name
-      #~ <nested-name> ::= N [<CV-qualifiers>] [<ref-qualifier>] <prefix> <unqualified-name> E
-      #~               ::= N [<CV-qualifiers>] [<ref-qualifier>] <template-prefix> <template-args> E
-      #~ https://itanium-cxx-abi.github.io/cxx-abi/abi.html#mangle.CV-qualifiers
-      #~ <CV-qualifiers>      ::= [r] [V] [K] 	  # restrict (C99), volatile, const
+        #~ https://itanium-cxx-abi.github.io/cxx-abi/abi.html#mangle.nested-name
+        #~ <nested-name> ::= N [<CV-qualifiers>] [<ref-qualifier>] <prefix> <unqualified-name> E
+        #~               ::= N [<CV-qualifiers>] [<ref-qualifier>] <template-prefix> <template-args> E
+        #~ https://itanium-cxx-abi.github.io/cxx-abi/abi.html#mangle.CV-qualifiers
+        #~ <CV-qualifiers>      ::= [r] [V] [K] 	  # restrict (C99), volatile, const
         my @scope = @_;
         join '', 'N', ( map { length($_) . $_ } @scope ), 'E';
     }
@@ -149,10 +152,8 @@ package Affix::ABI::Itanium 1.0 {
         #~            ::= <data name>
         #~            ::= <special-name>
         my ( $cache, $name, $args ) = @_;
-        $args ?
-            name( $cache, $name ) .
-            bare_function_type( $cache, $args ) :    # function name/special name
-            name( $cache, $name );                   # type name
+        $args ? name( $cache, $name ) . bare_function_type( $cache, $args ) :    # function name/special name
+            name( $cache, $name );                                               # type name
 
         # TODO: special name https://itanium-cxx-abi.github.io/cxx-abi/abi.html#mangle.special-name
     }
@@ -171,6 +172,10 @@ package Affix::ABI::Itanium 1.0 {
         use Data::Dump;
         ddx $cache;
         return $name;
+    }
+
+    sub demangle($) {
+        my $mangled = shift;
     }
 }
 1;

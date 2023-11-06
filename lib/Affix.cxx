@@ -1,5 +1,11 @@
 #include "Affix.h"
-
+/*
+G|-------------------0----------------|--0---4----------------------------||
+D|.----------0---3-------0---3---0----|----------3---0-------0---3---0---.||
+A|.------2----------------------------|----------------------------------.||
+E|---3--------------------------------|------------------3----------------||
+     1 . + . 2 . + . 3 . + . 4 . + .     1 . + . 2 . + . 3 . + . 4 . + .
+*/
 /* globals */
 #define MY_CXT_KEY "Affix::_guts" XS_VERSION
 
@@ -1681,6 +1687,9 @@ XS_EXTERNAL(boot_Affix) {
 
     // Qualifiers
     export_constant("Affix", "CONST_FLAG", "all", CONST_FLAG);
+    export_constant("Affix", "VOLATILE_FLAG", "all", VOLATILE_FLAG);
+    export_constant("Affix", "RESTRICT_FLAG", "all", RESTRICT_FLAG);
+    export_constant("Affix", "REFERENCE_FLAG", "all", REFERENCE_FLAG);
 
     // calling conventions
     export_constant("Affix", "RESET_FLAG", "flags", RESET_FLAG);
@@ -1708,6 +1717,7 @@ XS_EXTERNAL(boot_Affix) {
     export_constant("Affix", "SLOT_AGGREGATE", "flags", SLOT_AGGREGATE);
     export_constant("Affix", "SLOT_TYPEDEF", "flags", SLOT_TYPEDEF);
     export_constant("Affix", "SLOT_CAST", "flags", SLOT_CAST);
+    export_constant("Affix", "SLOT_CODEREF_ARGS", "flags", SLOT_CODEREF_ARGS);
 
     //
     boot_Affix_Aggregate(aTHX_ cv);

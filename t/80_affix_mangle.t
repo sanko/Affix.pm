@@ -17,48 +17,190 @@ sub filt {
     my $sym = shift;
     `c++filt $sym`;
 }
+use Data::Dump;
+{
+    sub prefix() {'_Z'}
+
+    sub seq_id {
+
+        #~ https://itanium-cxx-abi.github.io/cxx-abi/abi.html#mangle.seq-id
+        my $index = shift;
+        $index--;
+        return '' unless $index--;
+        my $result = '';
+        while ($index) {
+            my $remainder = $index % 36;
+            $result .= $remainder <= 9 ? $remainder : chr( 55 + $remainder );
+            $index = int $index / 36;
+        }
+        reverse $result || '0';
+    }
+
+    sub name {
+        my ( $cache, $name ) = @_;
+        if ( $name =~ /^(.+?)::/ ) {
+            $cache->{$1} = 'S' . seq_id( scalar keys %$cache ) . '_';
+            return join '', 'N', ( map { name( $cache, $_ ) } split /::/, $name ), 'E';
+        }
+        return length($name) . $name;
+    }
+
+    sub mangle {
+        my ( $name, $args, $ret ) = @_;
+        my $cache  = {};
+        my $symbol = name( $cache, $name );
+        my @ret    = map { [ type( $cache, $_ ) ] } @{$args};
+        ddx $cache;
+        $_[3] = $cache if scalar @_ > 2;    # debugging
+        join '', prefix(), $symbol, flatten(@ret);
+    }
+
+    sub type {
+        my ( $cache, $t, $parent ) = @_;
+        if ( $t->parameterized && !$t->subtype->parameterized ) {
+            if ( $t->isa('Affix::Type::CodeRef') ) {
+                my $ret = ['F'];
+                push @$ret, type( $cache, $t->rettype, $t );
+            ddx \@$ret;
+                for my $arg ( @{ $t->argtypes } ) {
+                    push @$ret, type( $cache, $arg, $t );
+                }
+                push @$ret, 'E';
+                $cache->{ join '', flatten($ret) } //= 'S' . seq_id( scalar keys %$cache ) . '_';
+                unshift @$ret, ( defined $parent && $parent->isa('Affix::Flag::Reference') ? () : 'P' );
+                $cache->{ join '', flatten($ret) } //= 'S' . seq_id( scalar keys %$cache ) . '_';
+                return $ret;
+            }
+            elsif ( $t->isa('Affix::Flag::Const') && !defined $parent ) {
+                return type( $cache, $t->subtype, $t );
+            }
+            my $substitution = chr( int $t ) . chr int $t->subtype;
+            if ( defined $cache->{$substitution} ) {
+                return $cache->{$substitution};
+            }
+
+            #~ $cache->{$substitution} //= 'S' . seq_id( scalar keys %$cache ) . '_';
+            #~ $cache->{$substitution} =
+            #~ 'S'  .seq_id(scalar keys %$cache) . '_';
+        }
+        my $ret = [ chr($t), ( $t->parameterized ? type( $cache, $t->subtype, $t ) : () ) ];
+        warn scalar $t;
+
+        #~ $cache->{join '', flatten ($ret)} = # xxxxx this stores the wrong key
+        #~ 'S'  .seq_id(scalar keys %$cache) . '_';
+        warn join '', flatten($ret);
+        $cache->{ join '', flatten($ret) } //= 'S' . seq_id( scalar keys %$cache ) . '_' if $t->parameterized;
+        $ret;
+    }
+
+    sub flatten {
+        map { ref $_ eq 'ARRAY' ? flatten(@$_) : $_ } @_;
+    }
+    {
+        my $c = {};
+        for ( 0 .. 5 ) {
+            my $sid = seq_id( scalar keys %$c );
+            $c->{ 'S' . $sid . '_' } = $_;
+        }
+        ddx $c;
+    }
+    warn chr int Pointer [ Const [Char] ];
+    warn chr int Const [Char];
+    my $mangle = [ [qw[P K c]] ];
+    warn flatten $mangle;
+    ddx mangle 'a', [Char];
+    ddx mangle 'a', [ Pointer [Char] ];
+    warn filt '_Z1aiPKclPcPKc';
+    warn filt '_Z1aPcS_';
+
+    #~ die;
+    warn filt mangle 'a', [ Int, Pointer [ Const [Char] ], Long, Pointer [Char], Pointer [ Const [Char] ] ];
+    warn mangle 'test::ing', [ Pointer [ Const [Char] ], Pointer [Int], Pointer [Char], Const [Char], Pointer [Char] ];
+    subtest 'gchatelet' => sub {    # https://github.com/gchatelet/gcc_cpp_mangling_documentation
+        is '_Z3fooi', mangle( 'foo', [Int] ),           'void foo(int)';
+        is '_Z3fooi', mangle( 'foo', [ Const [Int] ] ), 'void foo(const int)';
+        my $subs;                   # substituiton cache
+        is '_Z3fooPKi', mangle( 'foo', [ Pointer [ Const [Int] ] ], undef, $subs ), 'void foo(const int*)';
+        is_deeply [$subs], [ { Ki => 'S_', PKi => 'S0_' } ], ' ...substituiton cache is correct';
+        is '_Z3fooRKi', mangle( 'foo', [ Reference [ Const [Int] ] ], undef, $subs ), 'void foo(const int&)';
+        is_deeply [$subs], [ { Ki => 'S_', RKi => 'S0_' } ], ' ...substituiton cache is correct';
+        is '_Z3fooPKPKi', mangle( 'foo', [ Pointer [ Const [ Pointer [ Const [Int] ] ] ] ], undef, $subs ), 'void foo(const int* const*)';
+        is_deeply [$subs], [ { Ki => 'S_', KPKi => 'S1_', PKi => 'S0_', PKPKi => 'S2_' } ], ' ...substituiton cache is correct';
+        is '_Z3fooRPi', mangle( 'foo', [ Reference [ Pointer [Int] ] ], undef, $subs ), 'void foo(int*&)';
+        is_deeply [$subs], [ { Pi => 'S_', RPi => 'S0_' } ], ' ...substituiton cache is correct';
+
+        # function encoding
+        is '_Z3fooPFviE', mangle( 'foo', [ CodeRef [ [Int] => Void ] ], undef, $subs ), 'void foo(void(*)(int))';
+        is_deeply [$subs], [ { FviE => 'S_', PFviE => 'S0_' } ], ' ...substituiton cache is correct';
+
+
+#~ void foo(
+    #~ void*(*) (void*),
+    #~ void*(*) (const void*),
+    #~ const void*(*) (void*)
+#~ )
+
+
+        #~ is '_Z3fooPFPvS_EPFS_PKvEPFS3_S_E',
+my $try =  mangle( 'foo', [
+        #_Z3fooPFPvS_EPFS_PKvEPFS3_S_E
+        #~ _Z3foo
+        #~     PFPvS_EPFS_PKvEPFS3_S_E
+
+        CodeRef [ [Pointer[Void]] => Void ],
+        CodeRef [ [Pointer[Const[Void]]] => Void ],
+        Const[CodeRef [ [Pointer[Void]] => Const[Void] ]]
+
+        ], undef, $subs );
+        ddx $subs;
+        #~ , 'void foo(void*(*)(void*),void*(*)(const void*),const void*(*)(void*))';
+        #~ is_deeply [$subs], [ { FviE => 'S_', PFviE => 'S0_' } ], ' ...substituiton cache is correct';
+        warn filt '_Z3fooPFPvS_EPFS_PKvEPFS3_S_E';
+        warn filt $try;
+        #~ foo(void* (*)(void*), void* (*)(void const*), void const* (*)(void*))
+
+    };
+    die;
+
+    #~ warn filt '_ZN4test3ingEPKcPiPcS0_S3_S_S0_S1_S2_';
+    warn filt '_ZN4test3ingEPKcPiPcS0_S3_';
+    warn mangle 'ptr_order_subs',
+        [
+        Pointer [ Restrict [ Volatile [ Pointer [ Const [Int] ] ] ] ],
+        Pointer [Int],
+        Pointer [ Volatile [ Pointer [ Const [Int] ] ] ],
+        Pointer [ Restrict [ Volatile [ Pointer [ Const [Int] ] ] ] ]
+        ];
+    warn '_Z14ptr_order_subsPrVPKiPiPVS0_S2_';
+    warn filt '_Z14ptr_order_subsPrVPKiPiPVS0_S2_';
+    die;
+}
+die filt '_Z1aPKcS_';
+{
+    use Affix;
+    use Affix::ABI::Itanium;
+    use Data::Dump;
+    ddx Affix::ABI::Itanium::demangle('_Z1av');
+}
+die;
 
 #die filt '_Z1av';
 #
 subtest Itanium => sub {
     require Affix::ABI::Itanium;
     #
-    is Affix::ABI::Itanium::mangle( 'test', [ Pointer [Char], Pointer [ Pointer [Char] ] ] ),
-        '_Z4testPcPS_', 'int test(char*, char**)';
-    is Affix::ABI::Itanium::mangle(
-        'test', [ Pointer [Char], Pointer [ Pointer [Char] ], Pointer [Char] ]
-        ),
-        '_Z4testPcPS_S_', 'int test(char*, char**, char*)';
-    is Affix::ABI::Itanium::mangle( 'test', [ Int, Int, Pointer [ Pointer [Bool] ] ] ),
-        '_Z4testiiPPb', 'bool test(int, int, bool**)';
-    is Affix::ABI::Itanium::mangle( 'test', [ Int, Int, Pointer [ Pointer [Bool] ], Int ] ),
-        '_Z4testiiPPbi', 'bool test(int, int, bool**, int)';
-    is Affix::ABI::Itanium::mangle(
-        'test',
-        [   Int,
-            Pointer [Int],
-            Pointer [Char],
-            Pointer [ Pointer [Bool] ],
-            Pointer [Char],
-            Pointer [Int]
-        ]
-        ),
+    is Affix::ABI::Itanium::mangle( 'test', [ Pointer [Char], Pointer [ Pointer [Char] ] ] ), '_Z4testPcPS_', 'int test(char*, char**)';
+    is Affix::ABI::Itanium::mangle( 'test', [ Pointer [Char], Pointer [ Pointer [Char] ], Pointer [Char] ] ), '_Z4testPcPS_S_',
+        'int test(char*, char**, char*)';
+    is Affix::ABI::Itanium::mangle( 'test', [ Int, Int, Pointer [ Pointer [Bool] ] ] ), '_Z4testiiPPb', 'bool test(int, int, bool**)';
+    is Affix::ABI::Itanium::mangle( 'test', [ Int, Int, Pointer [ Pointer [Bool] ], Int ] ), '_Z4testiiPPbi', 'bool test(int, int, bool**, int)';
+    is Affix::ABI::Itanium::mangle( 'test', [ Int, Pointer [Int], Pointer [Char], Pointer [ Pointer [Bool] ], Pointer [Char], Pointer [Int] ] ),
         '_Z4testiPiPcPPbS0_S_', 'bool test(int, int*, char*, bool**, char*, int*)';
-    is Affix::ABI::Itanium::mangle(
-        'test',
-        [   Int,
-            Pointer [Int],
-            Pointer [Char],
-            Pointer [ Pointer [Bool] ],
-            Pointer [Char],
-            Pointer [Int]
-        ]
-        ),
+    is Affix::ABI::Itanium::mangle( 'test', [ Int, Pointer [Int], Pointer [Char], Pointer [ Pointer [Bool] ], Pointer [Char], Pointer [Int] ] ),
         '_Z4testiPiPcPPbS0_S_', 'bool test(int, int*, char*, bool**, char*, int*)';
     is Affix::ABI::Itanium::mangle( '_Z', undef ), '_Z2_Z', '_Z()';
     diag 'Tests from https://github.com/travitch/itanium-abi/';
-    is Affix::ABI::Itanium::mangle( 'qAllocMore', [ Int, Int ] ), '_Z10qAllocMoreii',
-        'qAllocMore(int, int)';
+    is Affix::ABI::Itanium::mangle( 'qAllocMore', [ Int, Int ] ), '_Z10qAllocMoreii', 'qAllocMore(int, int)';
 
 =todo
     is Affix::ABI::Itanium::mangle(
@@ -101,7 +243,7 @@ _Z4endlR11QTextStream
 
     is Affix::ABI::Itanium::mangle( 'qFree', [ Pointer [Void] ] ), '_Z5qFreePv', 'qFree(void*)';
 
-=cut
+=pod
 
 
 _Z5qHashRK10QByteArray
@@ -111,21 +253,18 @@ _Z5qHashRK7QString
 
 =cut
 
-    is Affix::ABI::Itanium::mangle( 'qrand',  [Void] ), '_Z5qrandv', 'qrand(void)';
-    is Affix::ABI::Itanium::mangle( 'qrand',  [] ),     '_Z5qrandv', 'qrand()';
-    is Affix::ABI::Itanium::mangle( 'qDebug', [ String, Ellipsis ] ), '_Z6qDebugPKcz','qDebug(const char *, ...)';
-    is Affix::ABI::Itanium::mangle( 'qFatal', [ String, Ellipsis ] ), '_Z6qFatalPKcz',
-        'qFatal(const char *, ...)';
-    is Affix::ABI::Itanium::mangle( 'qIsNaN',  [Double] ), '_Z6qIsNaNd',  'qIsNaN(double)';
-    is Affix::ABI::Itanium::mangle( 'qMalloc', [ULong] ),  '_Z7qMallocm', 'qMalloc(unsigned long)';
-    is Affix::ABI::Itanium::mangle( 'qMemSet', [ Pointer [Void], Int, ULong ] ), '_Z7qMemSetPvim',
-        'qMemSet(unsigned long)';
-    is Affix::ABI::Itanium::mangle( 'qgetenv', [ Pointer [ Const [Char] ] ] ), '_Z7qgetenvPKc',
-        'getenv(const char *)';
-    is Affix::ABI::Itanium::mangle(
-        'qstrcmp', [ Pointer [ Const [Char] ], Pointer [ Const [Char] ] ]
-        ),
-        '_Z7qstrcmpPKcS0_', 'qstrcmp(const char *, const char *)';
+    is Affix::ABI::Itanium::mangle( 'qrand',   [Void] ),                         '_Z5qrandv',      'qrand(void)';
+    is Affix::ABI::Itanium::mangle( 'qrand',   [] ),                             '_Z5qrandv',      'qrand()';
+    is Affix::ABI::Itanium::mangle( 'qDebug',  [ String, Ellipsis ] ),           '_Z6qDebugPKcz',  'qDebug(const char *, ...)';
+    is Affix::ABI::Itanium::mangle( 'qFatal',  [ String, Ellipsis ] ),           '_Z6qFatalPKcz',  'qFatal(const char *, ...)';
+    is Affix::ABI::Itanium::mangle( 'qIsNaN',  [Double] ),                       '_Z6qIsNaNd',     'qIsNaN(double)';
+    is Affix::ABI::Itanium::mangle( 'qMalloc', [ULong] ),                        '_Z7qMallocm',    'qMalloc(unsigned long)';
+    is Affix::ABI::Itanium::mangle( 'qMemSet', [ Pointer [Void], Int, ULong ] ), '_Z7qMemSetPvim', 'qMemSet(unsigned long)';
+    is Affix::ABI::Itanium::mangle( 'qgetenv', [ Pointer [ Const [Char] ] ] ),   '_Z7qgetenvPKc',  'getenv(const char *)';
+    is Affix::ABI::Itanium::mangle( 'qstrcmp', [ Pointer [ Const [Char] ], Pointer [ Const [Char] ] ] ), '_Z7qstrcmpPKcS0_',
+        'qstrcmp(const char *, const char *)';
+    diag filt '_Z7qstrcmpPKcS0_';
+    diag filt '_Z7qstrcmpPKcS0_';
 
 =todo
 
@@ -9662,70 +9801,44 @@ my $Structure       = typedef 'Structure'     => Struct [];
 my $halide_buffer_t = typedef halide_buffer_t => Struct [];
 typedef 'test_namespace::test_namespace::enclosing_class::test_struct' => Struct [];
 #
-is Affix::Itanium_mangle( $fake_affix, 'test_function', [] ), '_Z13test_functionv',
-    '_Z13test_functionv';
-is Affix::Itanium_mangle(
-    $fake_affix,
-    'test_function',
-    [   Bool, Char, UChar, Short, UShort, Int, UInt, Long, ULong, LongLong, ULongLong, Float,
-        Double,
-        Pointer [Void],
-        Pointer [Void]
-    ]
-    ),
+is Affix::Itanium_mangle( $fake_affix, 'test_function', [] ), '_Z13test_functionv', '_Z13test_functionv';
+is Affix::Itanium_mangle( $fake_affix, 'test_function',
+    [ Bool, Char, UChar, Short, UShort, Int, UInt, Long, ULong, LongLong, ULongLong, Float, Double, Pointer [Void], Pointer [Void] ] ),
     '_Z13test_functionbchstijlmxyfdPvS_', '_Z13test_functionbchstijlmxyfdPvS_';
 is Affix::Itanium_mangle(
     $fake_affix,
     'test_function',
-    [   Bool,           Char,
-        UChar,          Short,
-        UShort,         Int,
-        UInt,           Long,
-        ULong,          LongLong,
-        ULongLong,      Float,
-        Double,         Pointer [Void],
-        $Structure,     Pointer [$Structure],
-        Pointer [Void], Pointer [Void],
+    [   Bool, Char, UChar, Short, UShort, Int, UInt, Long, ULong, LongLong, ULongLong, Float, Double, Pointer [Void],
+        $Structure,
+        Pointer [$Structure],
+        Pointer [Void],
+        Pointer [Void],
         Pointer [ Pointer [Void] ]
     ]
     ),
-    '_Z13test_functionbchstijlmxyfdPv9StructurePS0_S_S_PS_',
-    '_Z13test_functionbchstijlmxyfdPv9StructurePS0_S_S_PS_';
+    '_Z13test_functionbchstijlmxyfdPv9StructurePS0_S_S_PS_', '_Z13test_functionbchstijlmxyfdPv9StructurePS0_S_S_PS_';
 is Affix::Itanium_mangle(
     $fake_affix,
     'test_function',
-    [   Bool,                       Char,
-        UChar,                      Short,
-        UShort,                     Int,
-        UInt,                       Long,
-        ULong,                      LongLong,
-        ULongLong,                  Float,
-        Double,                     Pointer [Void],
-        $Structure,                 Pointer [$Structure],
-        Pointer [Void],             Pointer [Void],
+    [   Bool, Char, UChar, Short, UShort, Int, UInt, Long, ULong, LongLong, ULongLong, Float, Double, Pointer [Void],
+        $Structure,
+        Pointer [$Structure],
+        Pointer [Void],
+        Pointer [Void],
         Pointer [ Pointer [Void] ], $Structure
     ]
     ),
-    '_Z13test_functionbchstijlmxyfdPv9StructurePS0_S_S_PS_S0_',
-    '_Z13test_functionbchstijlmxyfdPv9StructurePS0_S_S_PS_S0_';
-is Affix::Itanium_mangle( $fake_affix, 'foo::test_function', [] ), '_ZN3foo13test_functionEv',
-    '_ZN3foo13test_functionEv';
-is Affix::Itanium_mangle( $fake_affix, 'foo::bar::test_function', [] ),
-    '_ZN3foo3bar13test_functionEv', '_ZN3foo3bar13test_functionEv';
-is Affix::Itanium_mangle( $fake_affix, 'foo::bar::test_function', [Int] ),
-    '_ZN3foo3bar13test_functionEi', '_ZN3foo3bar13test_functionEi';
-is Affix::Itanium_mangle( $fake_affix, 'foo::bar::test_function',
-    [ Int, Pointer [$halide_buffer_t] ] ),
-    '_ZN3foo3bar13test_functionEiP15halide_buffer_t',
-    '_ZN3foo3bar13test_functionEiP15halide_buffer_t';
-is Affix::Itanium_mangle( $fake_affix, 'testBoolPointerPointer',
-    [ Bool, Pointer [ Pointer [Bool] ] ] ),
-    '_Z22testBoolPointerPointerbPPb', '_Z22testBoolPointerPointerbPPb';
-is Affix::Itanium_mangle( $fake_affix, 'xxxtest', [ Pointer [Char], Pointer [ Pointer [Char] ] ] ),
-    '_Z7xxxtestPcPS_', '_Z7xxxtestPcPS_';
-is Affix::Itanium_mangle( $fake_affix, 'xxxtest',
-    [ Pointer [Char], Pointer [ Pointer [Char] ], Pointer [Char] ] ),
-    '_Z7xxxtestPcPS_S_', '_Z7xxxtestPcPS_S_';
+    '_Z13test_functionbchstijlmxyfdPv9StructurePS0_S_S_PS_S0_', '_Z13test_functionbchstijlmxyfdPv9StructurePS0_S_S_PS_S0_';
+is Affix::Itanium_mangle( $fake_affix, 'foo::test_function',      [] ),    '_ZN3foo13test_functionEv',     '_ZN3foo13test_functionEv';
+is Affix::Itanium_mangle( $fake_affix, 'foo::bar::test_function', [] ),    '_ZN3foo3bar13test_functionEv', '_ZN3foo3bar13test_functionEv';
+is Affix::Itanium_mangle( $fake_affix, 'foo::bar::test_function', [Int] ), '_ZN3foo3bar13test_functionEi', '_ZN3foo3bar13test_functionEi';
+is Affix::Itanium_mangle( $fake_affix, 'foo::bar::test_function', [ Int, Pointer [$halide_buffer_t] ] ),
+    '_ZN3foo3bar13test_functionEiP15halide_buffer_t', '_ZN3foo3bar13test_functionEiP15halide_buffer_t';
+is Affix::Itanium_mangle( $fake_affix, 'testBoolPointerPointer', [ Bool, Pointer [ Pointer [Bool] ] ] ), '_Z22testBoolPointerPointerbPPb',
+    '_Z22testBoolPointerPointerbPPb';
+is Affix::Itanium_mangle( $fake_affix, 'xxxtest', [ Pointer [Char], Pointer [ Pointer [Char] ] ] ), '_Z7xxxtestPcPS_', '_Z7xxxtestPcPS_';
+is Affix::Itanium_mangle( $fake_affix, 'xxxtest', [ Pointer [Char], Pointer [ Pointer [Char] ], Pointer [Char] ] ), '_Z7xxxtestPcPS_S_',
+    '_Z7xxxtestPcPS_S_';
 
 #~ [   'test_namespace::test_namespace::test_function',
 #~ CodeRef [ [ test_namespace::test_namespace::enclosing_class::test_struct() ] => Int ],

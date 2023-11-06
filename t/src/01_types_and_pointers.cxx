@@ -1,10 +1,23 @@
 #include "std.h"
 
 DLLEXPORT
-bool EXAMPLE(int, int *, char *, bool **, char *, int *) {
+bool EXAMPLE(const int) {
+    return false;
+}
+DLLEXPORT
+bool EXAMPLE(const char) {
     return false;
 }
 
+void foo(
+    void*(*) (void*),
+    void*(*) (const void*),
+    const void*(*) (void*)
+)
+{;}
+
+
+#if 0
 DLLEXPORT
 bool test(bool value) {
     // return the opposite; makes sure we're updating ST(0)
@@ -1248,3 +1261,4 @@ int main() {
     return 0;
 }
 */
+#endif

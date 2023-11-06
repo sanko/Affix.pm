@@ -151,7 +151,7 @@ static const char *dlerror(void) {
 #define UNION_FLAG 'u'
 #define ARRAY_FLAG '@'
 #define CODEREF_FLAG '&'
-#define POINTER_FLAG '\\'
+#define POINTER_FLAG 'P'
 #define SV_FLAG '?'
 
 // Calling conventions
@@ -170,6 +170,9 @@ static const char *dlerror(void) {
 #define SYSCALL_FLAG 'H'
 
 #define CONST_FLAG 'K'
+#define VOLATILE_FLAG 'V'
+#define RESTRICT_FLAG 'r'
+#define REFERENCE_FLAG 'R'
 
 /* Flag for whether we should free a string after passing it or not. */
 #define AFFIX_TYPE_NO_FREE_STR 0
@@ -273,6 +276,7 @@ following address will be aligned to `alignment`. */
 #define SLOT_AGGREGATE 7
 #define SLOT_TYPEDEF 8
 #define SLOT_CAST 9
+#define SLOT_CODEREF_ARGS 10
 
 #define AXT_STRINGIFY(t) SvPV_nolen(*av_fetch(MUTABLE_AV(SvRV(t)), SLOT_STRINGIFY, 0))
 #define AXT_NUMERIC(t) (char)SvIV(*av_fetch(MUTABLE_AV(SvRV(t)), SLOT_NUMERIC, 0))
