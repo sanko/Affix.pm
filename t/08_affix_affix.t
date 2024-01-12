@@ -12,26 +12,19 @@ $|++;
 my $lib = compile_test_lib('08_affix_affix');
 #
 subtest 'Bad args' => sub {
-    like exception { affix $lib, 'Nothing', Int, Void }, qr[Expected a list of argument types ],
-        q[affix ..., ..., Int, ... throws exception];
-    like exception { affix $lib, 'Nothing', undef, Void }, qr[Expected a list of argument types ],
-        q[affix ..., ..., undef, ... throws exception];
-    like exception { affix $lib, 'Nothing', 100, Void }, qr[Expected a list of argument types ],
-        q[affix ..., ..., 100, ... throws exception];
-    like exception { affix $lib, 'Nothing', 'Int', Void }, qr[Expected a list of argument types ],
-        q[affix ..., ..., 'Int', ... throws exception];
+    like exception { affix $lib, 'Nothing', Int, Void }, qr[Expected a list of argument types ], q[affix ..., ..., Int, ... throws exception];
+    like exception { affix $lib, 'Nothing', undef, Void }, qr[Expected a list of argument types ], q[affix ..., ..., undef, ... throws exception];
+    like exception { affix $lib, 'Nothing', 100,   Void }, qr[Expected a list of argument types ], q[affix ..., ..., 100, ... throws exception];
+    like exception { affix $lib, 'Nothing', 'Int', Void }, qr[Expected a list of argument types ], q[affix ..., ..., 'Int', ... throws exception];
 };
 subtest 'Bad name' => sub {
-    like exception { wrap $lib, [ 'Nothing', 'Something' ], [Int], Void },
-        qr[isn't expecting a name], q[wrap ..., ['Nothing', 'Something'] ..., ... throws exception];
-    like exception { wrap $lib, undef, [Int], Void }, qr[symbol name],
-        q[wrap ..., undef ..., ... throws exception];
-    like exception { wrap $lib, 'Missing', [Int], Void }, qr[Failed to find symbol named Missing],
-        q[wrap ..., 'Missing' ..., ... throws exception];
+    like exception { wrap $lib, [ 'Nothing', 'Something' ], [Int], Void }, qr[isn't expecting a name],
+        q[wrap ..., ['Nothing', 'Something'] ..., ... throws exception];
+    like exception { wrap $lib, undef,     [Int], Void }, qr[symbol name],                         q[wrap ..., undef ..., ... throws exception];
+    like exception { wrap $lib, 'Missing', [Int], Void }, qr[Failed to find symbol named Missing], q[wrap ..., 'Missing' ..., ... throws exception];
 };
 subtest 'Good stuff' => sub {
-    ok affix( $lib, [ 'Nothing', 'Nope' ], [], Int ),
-        qq[affix '$lib', ['Nothing', 'Nope'], [], Int];
+    ok affix( $lib, [ 'Nothing', 'Nope' ], [], Int ), qq[affix '$lib', ['Nothing', 'Nope'], [], Int];
     is Nope(), 99, 'Nope()';
     ok affix( $lib, 'Nothing_I', [Int], Int ), qq[affix '$lib', 'Nothing_I', [Int], Int];
     is Nothing_I(50), 150, 'Nothing_I(50)';

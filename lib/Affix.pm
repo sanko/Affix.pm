@@ -227,7 +227,7 @@ package Affix 0.12 {    # 'FFI' is my middle name!
             Affix::Type::CodeRef {
             sub parameterized {1}
             sub rettype($)    { return shift->[ Affix::SLOT_SUBTYPE() ]; }
-            sub argtypes($)    { return shift->[ Affix::SLOT_CODEREF_ARGS() ]; }
+            sub argtypes($)   { return shift->[ Affix::SLOT_CODEREF_ARGS() ]; }
         }
         @Affix::Type::Void::ISA = @Affix::Type::SV::ISA
 

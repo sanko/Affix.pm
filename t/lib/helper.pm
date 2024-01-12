@@ -53,8 +53,7 @@ package t::lib::helper {
                 diag 'failed to execute: ' . $!;
             }
             elsif ( $? & 127 ) {
-                diag sprintf "child died with signal %d, %s coredump\n", ( $? & 127 ),
-                    ( $? & 128 ) ? 'with' : 'without';
+                diag sprintf "child died with signal %d, %s coredump\n", ( $? & 127 ), ( $? & 128 ) ? 'with' : 'without';
             }
             else {
                 # diag 'child exited with value ' . ( $? >> 8 );

@@ -647,18 +647,11 @@ subtest 'wchar_t * reverse(wchar_t * str)' => sub {
 };
 subtest 'wchar_t ** Ret_WStrPtr()' => sub {
     isa_ok my $code = wrap( $lib, 'Ret_WStrPtr', [] => Array [ WStr, 5 ] ), 'Affix', 'wrap Ret_WStrPtr => [ WStr ] => Pointer[WStr]';
-    is_deeply $code->(), [ "안녕하세요", "감사합니다", "미안합니다", "잘 부탁합니다", "안녕히 계세요" ],
-        '5 korean phrases returned';
+    is_deeply $code->(), [ "안녕하세요", "감사합니다", "미안합니다", "잘 부탁합니다", "안녕히 계세요" ], '5 korean phrases returned';
 };
 subtest 'WStr marshaling' => sub {
     my $type = Pointer [WStr];
-    for my $str (
-        '赤', '時空', 'こんにちは、世界',
-        'Привет, мир!',
-        '안녕하세요, 세계!',
-        'مرحبا بالعالم!',
-        'नमस्ते दुनिया! ',
-        '', undef, <<'END') {
+    for my $str ( '赤', '時空', 'こんにちは、世界', 'Привет, мир!', '안녕하세요, 세계!', 'مرحبا بالعالم!', 'नमस्ते दुनिया! ', '', undef, <<'END') {
 気付かれないでトドメを刺す
 どの時代も生き延びてきた
 嘘みたいな空の下

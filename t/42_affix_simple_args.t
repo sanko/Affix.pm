@@ -12,12 +12,10 @@ $|++;
 my $lib = compile_test_lib('42_affix_simple_args');
 #
 subtest 'Int' => sub {
-    is wrap( $lib, 'TakeInt',       [Int]  => Int )->(-42), 1, '[Int] => Int';
-    is wrap( $lib, 'TakeUInt',      [UInt] => Int )->(42),  1, '[UInt] => Int';
-    is wrap( $lib, 'TakeTwoShorts', [ Short, Short ] => Long )->( 10, 20 ), 2,
-        '[Short, Short] => Long';
-    is wrap( $lib, 'AssortedIntArgs', [ Long, Short, Char ] => Long )->( 101, 102, chr 103 ), 3,
-        '[Long, Short, Char] => Long';
+    is wrap( $lib, 'TakeInt', [Int] => Int )->(-42),                                          1, '[Int] => Int';
+    is wrap( $lib, 'TakeUInt', [UInt] => Int )->(42),                                         1, '[UInt] => Int';
+    is wrap( $lib, 'TakeTwoShorts', [ Short, Short ] => Long )->( 10, 20 ),                   2, '[Short, Short] => Long';
+    is wrap( $lib, 'AssortedIntArgs', [ Long, Short, Char ] => Long )->( 101, 102, chr 103 ), 3, '[Long, Short, Char] => Long';
 };
 subtest 'Float' => sub {
     is wrap( $lib, 'TakeADouble',    [Double] => Int )->(-6.9e0), 4, '[Double] => Int';
@@ -31,8 +29,7 @@ subtest 'Str' => sub {
     affix $lib, 'TakeAStringThenNull', [ Long, Str ] => Int;
 
     # Loop is important to test the dispatcher!
-    is TakeAStringThenNull( 0, $_ ), 6, 'defined/undefined works on the same callsite'
-        for undef, 'ok 6 - passed a string';
+    is TakeAStringThenNull( 0, $_ ), 6, 'defined/undefined works on the same callsite' for undef, 'ok 6 - passed a string';
     #
     affix( $lib, 'SetString',   [Str] => Int );
     affix( $lib, 'CheckString', []    => Int );

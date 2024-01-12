@@ -24,8 +24,7 @@ compile_test_lib('55_affix_enum');
 {
     my $ab = Affix::Enum [ 'alpha', [ 'beta' => 5 ], 'gamma' ];
     isa_ok $ab, 'Affix::Type::Enum';
-    is_deeply $ab->{values}, [ 'alpha', 'beta', 'gamma' ],
-        qq![ 'alpha', [ 'beta' => 5 ], 'gamma' ] values!;
+    is_deeply $ab->{values}, [ 'alpha', 'beta', 'gamma' ], qq![ 'alpha', [ 'beta' => 5 ], 'gamma' ] values!;
     is int $ab->{values}[0], 0, 'alpha == 0';
     is int $ab->{values}[1], 5, 'beta == 5';
     is int $ab->{values}[2], 6, 'gamma == 6';
@@ -33,8 +32,7 @@ compile_test_lib('55_affix_enum');
 {
     my $ab = Affix::Enum [ 'alpha', [ 'beta' => 5 ], [ 'gamma' => 'alpha' ] ];
     isa_ok $ab, 'Affix::Type::Enum';
-    is_deeply $ab->{values}, [ 'alpha', 'beta', 'gamma' ],
-        qq![ 'alpha', [ 'beta' => 5 ], [ 'gamma' => 'alpha' ] ] values!;
+    is_deeply $ab->{values}, [ 'alpha', 'beta', 'gamma' ], qq![ 'alpha', [ 'beta' => 5 ], [ 'gamma' => 'alpha' ] ] values!;
     is int $ab->{values}[0], 0, 'alpha == 0';
     is int $ab->{values}[1], 5, 'beta == 5';
     is int $ab->{values}[2], 0, 'gamma == 0';
@@ -42,8 +40,7 @@ compile_test_lib('55_affix_enum');
 {
     my $ab = Affix::Enum [ 'alpha', [ 'beta' => 5 ], [ 'gamma' => 'alpha - beta' ] ];
     isa_ok $ab, 'Affix::Type::Enum';
-    is_deeply $ab->{values}, [ 'alpha', 'beta', 'gamma' ],
-        qq![ 'alpha', [ 'beta' => 5 ], [ 'gamma' => 'alpha - beta' ] ] values!;
+    is_deeply $ab->{values}, [ 'alpha', 'beta', 'gamma' ], qq![ 'alpha', [ 'beta' => 5 ], [ 'gamma' => 'alpha - beta' ] ] values!;
     is int $ab->{values}[0], 0,  'alpha == 0';
     is int $ab->{values}[1], 5,  'beta == 5';
     is int $ab->{values}[2], -5, 'gamma == -5';
@@ -51,23 +48,14 @@ compile_test_lib('55_affix_enum');
 {
     my $ab = Affix::Enum [ 'alpha', [ 'beta' => 5 ], [ 'gamma' => 'beta*beta' ] ];
     isa_ok $ab, 'Affix::Type::Enum';
-    is_deeply $ab->{values}, [ 'alpha', 'beta', 'gamma' ],
-        qq![ 'alpha', [ 'beta' => 5 ], [ 'gamma' => 'beta * beta' ] ] values!;
+    is_deeply $ab->{values}, [ 'alpha', 'beta', 'gamma' ], qq![ 'alpha', [ 'beta' => 5 ], [ 'gamma' => 'beta * beta' ] ] values!;
     is int $ab->{values}[0], 0,  'alpha == 0';
     is int $ab->{values}[1], 5,  'beta == 5';
     is int $ab->{values}[2], 25, 'gamma == 25';
 }
 subtest 'typedef' => sub {
-    typedef TV => Enum [
-        [ FOX   => 11 ],
-        [ CNN   => 25 ],
-        [ ESPN  => 15 ],
-        [ HBO   => 22 ],
-        [ MAX   => 30 ],
-        [ NBC   => 32 ],
-        [ MSN   => 45 ],
-        [ MSNBC => 'MSN + NBC' ]
-    ];
+    typedef TV =>
+        Enum [ [ FOX => 11 ], [ CNN => 25 ], [ ESPN => 15 ], [ HBO => 22 ], [ MAX => 30 ], [ NBC => 32 ], [ MSN => 45 ], [ MSNBC => 'MSN + NBC' ] ];
     isa_ok TV(), 'Affix::Type::Enum', 'TV';
     is TV::FOX(),     'FOX', 'typedef makes dualvar constants of enum values [str]';
     is int TV::FOX(), 11,    'typedef makes dualvar constants of enum values [num]';

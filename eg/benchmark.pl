@@ -14,10 +14,12 @@ our $libfile;
 
 BEGIN {
     $libfile
-        = $^O eq 'MSWin32'        ? 'ntdll.dll' :
-        $^O eq 'darwin'           ? '/usr/lib/libm.dylib' :
-        $^O eq 'bsd'              ? '/usr/lib/libm.so' :
-        $Config{archname} =~ /64/ ? -e '/lib64/libm.so.6' ? '/lib64/libm.so.6' :
+        = $^O eq 'MSWin32' ? 'ntdll.dll' :
+        $^O eq 'darwin'    ? '/usr/lib/libm.dylib' :
+        $^O eq 'bsd'       ? '/usr/lib/libm.so' :
+        $Config{archname} =~ /64/ ?
+        -e '/lib64/libm.so.6' ?
+            '/lib64/libm.so.6' :
             '/lib/' . $Config{archname} . '-gnu/libm.so.6' :
         '/lib/libm.so.6';
 }
@@ -112,11 +114,10 @@ package DynFFI {
                 $name =~ s[\.dll$][];
 
                 #return $name . '.dll'     if -f $name . '.dll';
-                return File::Spec->canonpath( File::Spec->rel2abs( $name . '.dll' ) )
-                    if -e $name . '.dll';
+                return File::Spec->canonpath( File::Spec->rel2abs( $name . '.dll' ) ) if -e $name . '.dll';
                 require Win32;
 
-# https://docs.microsoft.com/en-us/windows/win32/dlls/dynamic-link-library-search-order#search-order-for-desktop-applications
+                # https://docs.microsoft.com/en-us/windows/win32/dlls/dynamic-link-library-search-order#search-order-for-desktop-applications
                 my @dirs = grep {-d} (
                     dirname( File::Spec->rel2abs($^X) ),               # 1. exe dir
                     Win32::GetFolderPath( Win32::CSIDL_SYSTEM() ),     # 2. sys dir
@@ -129,8 +130,7 @@ package DynFFI {
                 warn $_ for sort { lc $a cmp lc $b } @dirs;
                 find(
                     {   wanted => sub {
-                            $File::Find::prune = 1
-                                if !grep { $_ eq $File::Find::name } @dirs;    # no depth
+                            $File::Find::prune = 1 if !grep { $_ eq $File::Find::name } @dirs;    # no depth
                             push @retval, $_ if m{[/\\]${name}(-${version})?\.dll$}i;
                         },
                         no_chdir => 1
@@ -145,15 +145,13 @@ package DynFFI {
                 return $name             if $name =~ /\.so$/;
                 return $name;    # Let 'em work it out
 
-# https://developer.apple.com/library/archive/documentation/DeveloperTools/Conceptual/DynamicLibraries/100-Articles/UsingDynamicLibraries.html
+        # https://developer.apple.com/library/archive/documentation/DeveloperTools/Conceptual/DynamicLibraries/100-Articles/UsingDynamicLibraries.html
                 my @dirs = (
                     dirname( File::Spec->rel2abs($^X) ),          # 0. exe dir
                     File::Spec->rel2abs( File::Spec->curdir ),    # 0. cwd
                     File::Spec->path(),                           # 0. $ENV{PATH}
-                    map { File::Spec->rel2abs($_) }
-                        grep { -d $_ } qw[~/lib /usr/local/lib /usr/lib],
-                    map { $ENV{$_} // () }
-                        qw[LD_LIBRARY_PATH DYLD_LIBRARY_PATH DYLD_FALLBACK_LIBRARY_PATH]
+                    map { File::Spec->rel2abs($_) } grep { -d $_ } qw[~/lib /usr/local/lib /usr/lib],
+                    map { $ENV{$_} // () } qw[LD_LIBRARY_PATH DYLD_LIBRARY_PATH DYLD_FALLBACK_LIBRARY_PATH]
                 );
 
                 #use Test::More;
@@ -161,8 +159,7 @@ package DynFFI {
                 #warn;
                 find(
                     {   wanted => sub {
-                            $File::Find::prune = 1
-                                if !grep { $_ eq $File::Find::name } @dirs;    # no depth
+                            $File::Find::prune = 1 if !grep { $_ eq $File::Find::name } @dirs;    # no depth
                             push @retval, $_ if /\b(?:lib)?${name}${version}\.(so|bundle|dylib)$/;
                         },
                         no_chdir => 1
@@ -178,27 +175,24 @@ package DynFFI {
                 my $ext = $Config{so};
                 my @libs;
 
-               # warn $name . '.' . $ext . $version;
-               #\b(?:lib)?${name}(?:-[\d\.]+)?\.${ext}${version}
-               #my @lines = map { [/^\t(.+)\s\((.+)\)\s+=>\s+(.+)$/] }
-               #    grep {/\b(?:lib)?${name}(?:-[\d\.]+)?\.${ext}(?:\.${version})?$/} `ldconfig -p`;
-               #push @retval, map { $_->[2] } grep { -f $_->[2] } @lines;
+                # warn $name . '.' . $ext . $version;
+                #\b(?:lib)?${name}(?:-[\d\.]+)?\.${ext}${version}
+                #my @lines = map { [/^\t(.+)\s\((.+)\)\s+=>\s+(.+)$/] }
+                #    grep {/\b(?:lib)?${name}(?:-[\d\.]+)?\.${ext}(?:\.${version})?$/} `ldconfig -p`;
+                #push @retval, map { $_->[2] } grep { -f $_->[2] } @lines;
                 my @dirs = (
                     dirname( File::Spec->rel2abs($^X) ),          # 0. exe dir
                     File::Spec->rel2abs( File::Spec->curdir ),    # 0. cwd
                     File::Spec->path(),                           # 0. $ENV{PATH}
-                    map { File::Spec->rel2abs($_) }
-                        grep { -d $_ } qw[~/lib /usr/local/lib /usr/lib],
-                    map { $ENV{$_} // () }
-                        qw[LD_LIBRARY_PATH DYLD_LIBRARY_PATH DYLD_FALLBACK_LIBRARY_PATH]
+                    map { File::Spec->rel2abs($_) } grep { -d $_ } qw[~/lib /usr/local/lib /usr/lib],
+                    map { $ENV{$_} // () } qw[LD_LIBRARY_PATH DYLD_LIBRARY_PATH DYLD_FALLBACK_LIBRARY_PATH]
                 );
 
                 #use Data::Dump;
                 #ddx \@dirs;
                 find(
                     {   wanted => sub {
-                            $File::Find::prune = 1
-                                if !grep { $_ eq $File::Find::name } @dirs;    # no depth
+                            $File::Find::prune = 1 if !grep { $_ eq $File::Find::name } @dirs;    # no depth
                             push @retval, $_ if /\b(?:lib)?${name}(?:-[\d\.]+)?\.${ext}${version}$/;
                             push @retval, $_ if /\b(?:lib)?${name}(?:-[\d\.]+)?\.${ext}$/;
                         },
@@ -211,8 +205,7 @@ package DynFFI {
         }
 
         # TODO: Make a test with a bad lib name
-        $_lib_cache->{ $name . chr(0) . ( $version // '' ) }
-            // Carp::croak( 'Cannot locate symbol: ' . $name );
+        $_lib_cache->{ $name . chr(0) . ( $version // '' ) } // Carp::croak( 'Cannot locate symbol: ' . $name );
     }
 }
 my $hand_rolled = DynFFI->obj( DynFFI::func( DynFFI::load($libfile), 'sin' ), 'd)d' );

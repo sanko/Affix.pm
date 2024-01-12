@@ -37,8 +37,8 @@ Affix::ABI::Rust supports the following features right out of the box:
 
 =head1 Examples
 
-Very short examples might find their way into the L<Affix::Cookbook>. The best
-example of use might be L<LibUI>. Brief examples will be found in C<eg/>.
+Very short examples might find their way into the L<Affix::Cookbook>. The best example of use might be L<LibUI>. Brief
+examples will be found in C<eg/>.
 
 =head1 See Also
 
@@ -48,9 +48,8 @@ TODO
 
 Copyright (C) Sanko Robinson.
 
-This library is free software; you can redistribute it and/or modify it under
-the terms found in the Artistic License 2. Other copyrights, terms, and
-conditions may apply to data transmitted through this module.
+This library is free software; you can redistribute it and/or modify it under the terms found in the Artistic License
+2. Other copyrights, terms, and conditions may apply to data transmitted through this module.
 
 =head1 AUTHOR
 

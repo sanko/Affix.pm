@@ -35,10 +35,7 @@ package Affix::Native 0.12 {
             #use Data::Dump;
             #ddx $_delay{$sub};
             #~ ddx locate_lib( $_delay{$sub}[1], $_delay{$sub}[2] );
-            my $lib
-                = defined $_delay{$sub}[1] ?
-                scalar Affix::locate_lib( $_delay{$sub}[1], $_delay{$sub}[2] ) :
-                undef;
+            my $lib = defined $_delay{$sub}[1] ? scalar Affix::locate_lib( $_delay{$sub}[1], $_delay{$sub}[2] ) : undef;
 
             #~ use Data::Dump;
             #~ ddx [
@@ -48,13 +45,8 @@ package Affix::Native 0.12 {
             #~ ),
             #~ $sig, $ret
             #~ ];
-            my $cv = Affix::affix(
-                $lib, (
-                    $_delay{$sub}[3] eq $_delay{$sub}[6] ? $_delay{$sub}[3] :
-                        [ $_delay{$sub}[3], $_delay{$sub}[6] ]
-                ),
-                $sig, $ret
-            );
+            my $cv = Affix::affix( $lib, ( $_delay{$sub}[3] eq $_delay{$sub}[6] ? $_delay{$sub}[3] : [ $_delay{$sub}[3], $_delay{$sub}[6] ] ), $sig,
+                $ret );
             Carp::croak 'Undefined subroutine &' . $_delay{$sub}[6] unless $cv;
             delete $_delay{$sub} if defined $_delay{$sub};
             return &$cv;
@@ -108,7 +100,7 @@ package Affix::Native 0.12 {
                 $symbol = $2;
             }
 
-           #elsif ( $attribute =~ m[^Signature\s*?\(\s*(.+?)?(?:\s*=>\s*(\w+)?)?\s*\)$] ) { # pretty
+            #elsif ( $attribute =~ m[^Signature\s*?\(\s*(.+?)?(?:\s*=>\s*(\w+)?)?\s*\)$] ) { # pretty
             elsif ( $attribute =~ m[^Signature\(\s*(\[.*\])\s*=>\s*(.*)\)$] ) {    # pretty
                 $signature = $1;
                 $return    = $2;
@@ -139,9 +131,7 @@ package Affix::Native 0.12 {
                     $signature, $return
                 );
             }
-            $_delay{$full_name}
-                = [ $package, $library, $library_version, $symbol, $signature, $return,
-                $full_name ];
+            $_delay{$full_name} = [ $package, $library, $library_version, $symbol, $signature, $return, $full_name ];
         }
         return;
     }
@@ -166,8 +156,8 @@ Affix::Native - Syntactic Sugar for Affix
 
 =head1 DESCRIPTION
 
-Affix is nice. But let's add a little Raku flavored sugar. This API is inspired
-by L<Raku's C<native>trait|https://docs.raku.org/language/nativecall>.
+Affix is nice. But let's add a little Raku flavored sugar. This API is inspired by L<Raku's
+C<native>trait|https://docs.raku.org/language/nativecall>.
 
 A simple example would look like this under Affix:
 
@@ -177,16 +167,13 @@ A simple example would look like this under Affix:
 
 =head1 C<:Native> CODE attribute
 
-We use the C<:Native> attribute in order to specify that the sub is actually
-defined in a native library.
+We use the C<:Native> attribute in order to specify that the sub is actually defined in a native library.
 
-The first time you call "some_argless_function", the "libsomething" will be
-loaded and the "some_argless_function" will be located in it. A call will then
-be made. Subsequent calls will be faster, since the symbol handle is retained.
+The first time you call "some_argless_function", the "libsomething" will be loaded and the "some_argless_function" will
+be located in it. A call will then be made. Subsequent calls will be faster, since the symbol handle is retained.
 
-Of course, most functions take arguments or return values--but everything else
-that you can do is just adding to this simple pattern of declaring a Perl sub,
-naming it after the symbol you want to call and marking it with the
+Of course, most functions take arguments or return values--but everything else that you can do is just adding to this
+simple pattern of declaring a Perl sub, naming it after the symbol you want to call and marking it with the
 C<:Native>-related attributes.
 
 To include a version number, your code should look like this:
@@ -195,25 +182,21 @@ To include a version number, your code should look like this:
 
 =head1 C<:Symbol>
 
-Affix provides the C<:Symbol> attribute for you to specify the name of the
-native routine in your library that may be different from your Perl subroutine
-name.
+Affix provides the C<:Symbol> attribute for you to specify the name of the native routine in your library that may be
+different from your Perl subroutine name.
 
     package Foo;
     sub init :Native('foo') :Symbol('FOO_INIT');
 
-Inside of C<libfoo> there is a routine called C<FOO_INIT> but, since we're
-creating a module called C<Foo> and we'd rather call the routine as
-C<Foo::init> (instead of C<Foo::FOO_INIT>), we use the symbol trait to specify
-the name of the symbol in C<libfoo> and call the subroutine whatever we want
-(C<init> in this case).
+Inside of C<libfoo> there is a routine called C<FOO_INIT> but, since we're creating a module called C<Foo> and we'd
+rather call the routine as C<Foo::init> (instead of C<Foo::FOO_INIT>), we use the symbol trait to specify the name of
+the symbol in C<libfoo> and call the subroutine whatever we want (C<init> in this case).
 
 =head1 C<:Signature>
 
     sub add :Native("calculator") :Signature([Int, Int] => Int);
 
-Here, we have declared that the function takes two 32-bit integers and returns
-a 32-bit integer.
+Here, we have declared that the function takes two 32-bit integers and returns a 32-bit integer.
 
 =head1 See Also
 
@@ -223,9 +206,8 @@ L<Raku's C<native>trait|https://docs.raku.org/language/nativecall>
 
 Copyright (C) Sanko Robinson.
 
-This library is free software; you can redistribute it and/or modify it under
-the terms found in the Artistic License 2. Other copyrights, terms, and
-conditions may apply to data transmitted through this module.
+This library is free software; you can redistribute it and/or modify it under the terms found in the Artistic License
+2. Other copyrights, terms, and conditions may apply to data transmitted through this module.
 
 =head1 AUTHOR
 

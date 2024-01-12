@@ -17,6 +17,10 @@ sub filt {
     my $sym = shift;
     `c++filt $sym`;
 }
+
+sub f {
+}
+__END__
 use Data::Dump;
 {
     sub prefix() {'_Z'}
@@ -68,13 +72,20 @@ use Data::Dump;
                 push @$ret, 'E';
                 $cache->{ join '', flatten($ret) } //= 'S' . seq_id( scalar keys %$cache ) . '_';
                 unshift @$ret, ( defined $parent && $parent->isa('Affix::Flag::Reference') ? () : 'P' );
-                $cache->{ join '', flatten($ret) } //= 'S' . seq_id( scalar keys %$cache ) . '_';
+                $cache->{join '', flatten($ret) } //= 'S' . seq_id( scalar keys %$cache ) . '_';
                 return $ret;
             }
             elsif ( $t->isa('Affix::Flag::Const') && !defined $parent ) {
                 return type( $cache, $t->subtype, $t );
             }
-            my $substitution = chr( int $t ) . chr int $t->subtype;
+            my $substitution =
+
+            (
+            $t->isa('Affix::Type::CodeRef') ? 'P':
+            chr( int $t )
+            )
+
+            . flatten( type($cache, $t->subtype, $t));
             if ( defined $cache->{$substitution} ) {
                 return $cache->{$substitution};
             }
@@ -83,7 +94,10 @@ use Data::Dump;
             #~ $cache->{$substitution} =
             #~ 'S'  .seq_id(scalar keys %$cache) . '_';
         }
-        my $ret = [ chr($t), ( $t->parameterized ? type( $cache, $t->subtype, $t ) : () ) ];
+        my $ret = [  (
+            $t->isa('Affix::Type::CodeRef') ? 'P':
+            chr( int $t )
+            ), ( $t->parameterized ? type( $cache, $t->subtype, $t ) : () ) ];
         warn scalar $t;
 
         #~ $cache->{join '', flatten ($ret)} = # xxxxx this stores the wrong key
@@ -147,14 +161,20 @@ my $try =  mangle( 'foo', [
         #~ _Z3foo
         #~     PFPvS_EPFS_PKvEPFS3_S_E
 
-        CodeRef [ [Pointer[Void]] => Void ],
-        CodeRef [ [Pointer[Const[Void]]] => Void ],
-        Const[CodeRef [ [Pointer[Void]] => Const[Void] ]]
+        CodeRef [ [Pointer[Void]] => Pointer[Void]],
+        #~ CodeRef [ [Const[Pointer[Void]]] => Pointer[Void] ],
+        #~ Const[CodeRef [ [Pointer[Void]] => Const[Void] ]]
 
         ], undef, $subs );
         ddx $subs;
         #~ , 'void foo(void*(*)(void*),void*(*)(const void*),const void*(*)(void*))';
         #~ is_deeply [$subs], [ { FviE => 'S_', PFviE => 'S0_' } ], ' ...substituiton cache is correct';
+        warn $try;
+        warn filt '_Z3fooPFPvS_E';
+        die;
+        warn filt '_Z3fooPFPvS_EPFS_PKvEPFS3_S_E';
+        warn filt '_Z3fooPFPvS_EPFS_PKvEPFS3_S_E';
+        warn filt '_Z3fooPFPvS_EPFS_PKvEPFS3_S_E';
         warn filt '_Z3fooPFPvS_EPFS_PKvEPFS3_S_E';
         warn filt $try;
         #~ foo(void* (*)(void*), void* (*)(void const*), void const* (*)(void*))

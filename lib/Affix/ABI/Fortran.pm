@@ -23,8 +23,8 @@ Affix::ABI::Fortran - Affix Support for Fortran
 
 Fortran. Computing's true survivor.
 
-If you're interested in using code written in Fortran from Perl, you're in the
-right place. See the following sections for a rundown.
+If you're interested in using code written in Fortran from Perl, you're in the right place. See the following sections
+for a rundown.
 
 =head1 Features
 
@@ -44,16 +44,14 @@ Affix::ABI::Fortran supports the following features right out of the box:
 
 =head1 Building a Shared Library in Fortran
 
-If you're building with the GNU Fortran compiler, you'd toss something like
-this into a terminal:
+If you're building with the GNU Fortran compiler, you'd toss something like this into a terminal:
 
     gfortran -shared -fPIC -o ./project/out/vehicle.so ./project/compiled/truck.f90
 
 Simply change the C<.so> extention for your platform and you're set.
 
-To build a shared lib with Intel's Fortran compiler, you must specify the
-C<-shared> option on Unix, C<-dynamiclib> on macOS, and C</libs:dll> on
-Windows.
+To build a shared lib with Intel's Fortran compiler, you must specify the C<-shared> option on Unix, C<-dynamiclib> on
+macOS, and C</libs:dll> on Windows.
 
     ifort -shared -fpic ./project/compiled/truck.f90 (Linux)
     ifort -dynamiclib   ./project/compiled/truck.f90 (macOS)
@@ -65,9 +63,8 @@ for more.
 
 =head1 Functions
 
-In Fortran, C<function>s must return a single value mut may return an array of
-values. The following calls a function to compute the sum of the square and the
-cube of an integer.
+In Fortran, C<function>s must return a single value mut may return an array of values. The following calls a function
+to compute the sum of the square and the cube of an integer.
 
     ! fortran
     function func(i) result(j)
@@ -86,8 +83,7 @@ cube of an integer.
 =head2 Calling recursive functions
 
 Fortran 90 brought with it L<recursive functions and
-subroutines|https://sites.esm.psu.edu/~ajm138/fortranexamples.html>. Here's a
-quick example on their use:
+subroutines|https://sites.esm.psu.edu/~ajm138/fortranexamples.html>. Here's a quick example on their use:
 
     ! fortran
     recursive function fact(i) result(j)
@@ -107,9 +103,8 @@ quick example on their use:
 
 =head2 Passing Arguments by Value vs. by Reference
 
-By default, Fortran expects args to be passed by reference (as pointers) rather
-than by value. There are several ways to change this but I'll present the one
-that involves the least amount of typing: the C<value> attribute. Be sure your
+By default, Fortran expects args to be passed by reference (as pointers) rather than by value. There are several ways
+to change this but I'll present the one that involves the least amount of typing: the C<value> attribute. Be sure your
 code correctly advises Affix which is correct.
 
     ! fortran with by-value parameters
@@ -142,8 +137,8 @@ Note the default by-reference expectations without C<value>:
 
 =head2 Different function result definitions
 
-Functions can define the data type of their result in different forms: either
-as a separate variable or by the function name.
+Functions can define the data type of their result in different forms: either as a separate variable or by the function
+name.
 
     ! four forms for Fortran functions
     function f1(i) result (j)
@@ -186,13 +181,12 @@ as a separate variable or by the function name.
     warn 'f3(0) == ' . f3(0);    # 3
     warn 'f4(0) == ' . f4(0);    # 4
 
-Nothing changes on the Perl side. Just showing off how flexible Fortran is
-which is kinda neat.
+Nothing changes on the Perl side. Just showing off how flexible Fortran is which is kinda neat.
 
 =head2 Optional arguments
 
-Arguments can be set C<optional>. The intrinsic function C<present> can be used
-to check if a specific parameter is set.
+Arguments can be set C<optional>. The intrinsic function C<present> can be used to check if a specific parameter is
+set.
 
     ! fortran
     real function tester(a)
@@ -209,9 +203,8 @@ to check if a specific parameter is set.
 
 =head1 Subroutines
 
-In Fortran, unlike a C<function>, a C<subroutine> B<does not> return a value
-but can modify many values and expects them all to be passed by reference
-(pointers).
+In Fortran, unlike a C<function>, a C<subroutine> B<does not> return a value but can modify many values and expects
+them all to be passed by reference (pointers).
 
     ! fortran
     subroutine square_cube(i, isquare, icube)
@@ -236,9 +229,8 @@ https://gcc.gnu.org/fortran/
 
 Copyright (C) Sanko Robinson.
 
-This library is free software; you can redistribute it and/or modify it under
-the terms found in the Artistic License 2. Other copyrights, terms, and
-conditions may apply to data transmitted through this module.
+This library is free software; you can redistribute it and/or modify it under the terms found in the Artistic License
+2. Other copyrights, terms, and conditions may apply to data transmitted through this module.
 
 =head1 AUTHOR
 

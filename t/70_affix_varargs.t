@@ -23,10 +23,8 @@ subtest 'calling conventions' => sub {
         CC_SYSCALL];
 };
 subtest 'ellipsis varargs' => sub {
-    is Affix::wrap( $lib, 'average', [ Int, CC_ELLIPSIS_VARARGS, Int, Int ], Int )->( 2, 3, 4 ), 3,
-        'average( 2, 3, 4 )';
-    is Affix::wrap( $lib, 'average', [ Int, CC_ELLIPSIS, Int, Int, Int ], Int )->( 3, 5, 10, 15 ),
-        10, 'average( 3, 5, 10, 15 )';
+    is Affix::wrap( $lib, 'average', [ Int, CC_ELLIPSIS_VARARGS, Int, Int ], Int )->( 2, 3, 4 ), 3, 'average( 2, 3, 4 )';
+    is Affix::wrap( $lib, 'average', [ Int, CC_ELLIPSIS, Int, Int, Int ], Int )->( 3, 5, 10, 15 ), 10, 'average( 3, 5, 10, 15 )';
 };
 #
 done_testing;

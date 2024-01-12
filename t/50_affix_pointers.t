@@ -11,9 +11,8 @@ $|++;
 #
 my $lib = compile_test_lib('50_affix_pointers');
 #
-affix $lib, pointer_test =>
-    [ Pointer [Double], Array [ Int, 5 ], Int, CodeRef [ [ Int, Int ] => Double ] ] => Double;
-affix $lib, dbl_ptr => [ Pointer [Double] ] => Str;
+affix $lib, pointer_test => [ Pointer [Double], Array [ Int, 5 ], Int, CodeRef [ [ Int, Int ] => Double ] ] => Double;
+affix $lib, dbl_ptr      => [ Pointer [Double] ]                                                            => Str;
 #
 diag __LINE__;
 subtest 'marshalled pointer' => sub {
@@ -76,9 +75,7 @@ subtest 'ref Affix::Pointer with a double (should croak)' => sub {
     diag __LINE__;
     is dbl_ptr($ptr), 'nine', 'dbl_ptr($ptr) where $ptr == malloc(...)';
     is unpack( 'd', $ptr->raw(16) ),
-        ( $Config{usequadmath} ? 9876.54299999999966530594974756241 :
-            $Config{uselongdouble} ? 9876.54299999999967 :
-            9876.543 ), '$ptr is still 9';
+        ( $Config{usequadmath} ? 9876.54299999999966530594974756241 : $Config{uselongdouble} ? 9876.54299999999967 : 9876.543 ), '$ptr is still 9';
     diag __LINE__;
     Affix::DumpHex( $ptr, 16 );
     diag __LINE__;
@@ -142,13 +139,10 @@ diag __LINE__;
             50.25;
         }
         ),
-        ( $Config{usequadmath} ? 18.3382499999999986073362379102036 :
-            $Config{uselongdouble} ? 18.3382499999999986 :
-            18.33825 ), 'making call with Affix::Pointer object with packed data';
-    is unpack( 'd', $ptr ),
-        ( $Config{usequadmath} ? 3.49299999999999988276044859958347 :
-            $Config{uselongdouble} ? 3.49299999999999988 :
-            3.493 ), 'Affix::Pointer updated';
+        ( $Config{usequadmath} ? 18.3382499999999986073362379102036 : $Config{uselongdouble} ? 18.3382499999999986 : 18.33825 ),
+        'making call with Affix::Pointer object with packed data';
+    is unpack( 'd', $ptr ), ( $Config{usequadmath} ? 3.49299999999999988276044859958347 : $Config{uselongdouble} ? 3.49299999999999988 : 3.493 ),
+        'Affix::Pointer updated';
     diag __LINE__;
     free $ptr;
     diag __LINE__;

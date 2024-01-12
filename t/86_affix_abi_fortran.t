@@ -19,15 +19,9 @@ SKIP: {
     my $gnu      = !!$compiler;
     $compiler = can_run('ifort') unless $compiler;    # intel
     skip 'test requires GNUFortran', 6 unless $compiler;
-    my $lib
-        = './t/src/86_affix_abi_fortran/' .
-        ( $^O eq 'MSWin32' ? '' : 'lib' ) .
-        'affix_fortran.' .
-        $Config{so};
+    my $lib  = './t/src/86_affix_abi_fortran/' . ( $^O eq 'MSWin32' ? '' : 'lib' ) . 'affix_fortran.' . $Config{so};
     my $line = sprintf '%s t/src/86_affix_abi_fortran/hello.f90 -fPIC %s -o %s', $compiler,
-        ( $gnu ? '-shared' :
-            ( $^O eq 'MSWin32' ? '/libs:dll' : $^O eq 'darwin' ? '-dynamiclib' : '-shared' ) ),
-        $lib;
+        ( $gnu ? '-shared' : ( $^O eq 'MSWin32' ? '/libs:dll' : $^O eq 'darwin' ? '-dynamiclib' : '-shared' ) ), $lib;
     diag $line;
     diag `$line`;
     subtest 'function func(i) result(j)' => sub {
@@ -45,8 +39,7 @@ SKIP: {
     };
     subtest 'function sum_r( x, y ) result(z)' => sub {
         diag 'by reference args test';
-        ok affix( $lib, 'sum_r', [ Pointer [Int], Pointer [Int] ], Int ),
-            'affix ..., "sum_r", [Pointer[Int], Pointer[Int]], Int';
+        ok affix( $lib, 'sum_r', [ Pointer [Int], Pointer [Int] ], Int ), 'affix ..., "sum_r", [Pointer[Int], Pointer[Int]], Int';
         is sum_r( 5, 10 ), 15, 'sum_r( 5, 10 ) == 15';
     };
     subtest 'subroutine square_cube(i, isquare, icube)' => sub {
@@ -71,8 +64,7 @@ SKIP: {
         is f4(0), 4, 'f4(0)';
     };
     subtest 'optional arguments' => sub {
-        ok affix( $lib, 'tester', [ Varargs, Pointer [Float] ], Float ),
-            'affix ..., "tester", [ Varargs, Pointer[Float] ], Float';
+        ok affix( $lib, 'tester', [ Varargs, Pointer [Float] ], Float ), 'affix ..., "tester", [ Varargs, Pointer[Float] ], Float';
         is sprintf( '%1.2f', tester() ),    '0.00', 'tester() == 0.00';
         is sprintf( '%1.2f', tester(1.0) ), '1.00', 'tester(1.0) == 1.00';
         is sprintf( '%1.2f', tester() ),    '0.00', 'tester() == 0.00';
@@ -115,14 +107,11 @@ SKIP: {
     diag `nm -D $lib`;
     ok affix( $lib, 'fstringlen', [String] => Int ), 'bound fortran function `fstringlen`';
     is fstringlen('Hello, World!'), 13, 'fstringlen("Hello, World!") == 13';
-    ok affix( $lib, 'math::add', [ Int, Int ], Int ),
-        'bound fortran function `math::add` (module as namespace)';
+    ok affix( $lib, 'math::add', [ Int, Int ], Int ), 'bound fortran function `math::add` (module as namespace)';
     is math::add( 5, 4 ), 9, 'math::add(5, 4) == 9';
-    ok affix( $lib, 'add', [ Int, Int ] => Int ),
-        'bound fortran function `add` (top level namespace)';
+    ok affix( $lib, 'add', [ Int, Int ] => Int ), 'bound fortran function `add` (top level namespace)';
     is add( 5, 4 ), 9, 'add(5, 4) == 9';
-    ok affix( $lib, 'sum_arr', [ Array [ Int, 3 ], Int ] => Int ),
-        'bound fortran function `sum_arr`';
+    ok affix( $lib, 'sum_arr', [ Array [ Int, 3 ], Int ] => Int ), 'bound fortran function `sum_arr`';
     my $type = Array [ Int, 3 ];
     warn ref $type;
     my $array = $type->marshal( [ 1 .. 3 ] );
@@ -133,14 +122,12 @@ SKIP: {
     $array->dump(16);
     diag sum_arr( $array, 3 );
     {
-        ok affix( $lib, 'addc', [ Pointer [Int], Pointer [Int], Pointer [Int] ] => Void ),
-            'bound fortran subroutine `addc` (top level namespace)';
+        ok affix( $lib, 'addc', [ Pointer [Int], Pointer [Int], Pointer [Int] ] => Void ), 'bound fortran subroutine `addc` (top level namespace)';
         my $var;
         is addc( $var, 5, 4 ), 9, 'add(5, 4) == 9';
         warn $var;
     }
-    diag 'might fail to clean up on Win32 because we have not released the lib yet... this is fine'
-        if $^O eq 'MSWin32';
+    diag 'might fail to clean up on Win32 because we have not released the lib yet... this is fine' if $^O eq 'MSWin32';
     unlink $lib;
 }
 #

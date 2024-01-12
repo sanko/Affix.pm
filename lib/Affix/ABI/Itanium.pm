@@ -210,12 +210,10 @@ Affix::ABI::Itanium - ABI Support for C++
 
 =head1 DESCRIPTION
 
-The Itanium ABI specification standardizes (most) of the interfaces between
-different user-provided C++ program fragments and between those fragments and
-the implementation-provided runtime and libraries. The C++ standard itself does
-not attempt to create a single mangling scheme but most popular compilers (GCC
-3+, Clang 1+, Intel C++ 8+) use Itanium. Microsoft uses its own unique design
-so check out L<Affix::ABI::Microsoft>.
+The Itanium ABI specification standardizes (most) of the interfaces between different user-provided C++ program
+fragments and between those fragments and the implementation-provided runtime and libraries. The C++ standard itself
+does not attempt to create a single mangling scheme but most popular compilers (GCC 3+, Clang 1+, Intel C++ 8+) use
+Itanium. Microsoft uses its own unique design so check out L<Affix::ABI::Microsoft>.
 
 =head2 Features
 
@@ -229,8 +227,7 @@ Affix::ABI::Itanium supports the following features right out of the box:
 
 =head1 Unsupported
 
-Itanium is large and this is still under development. For now, this is what I
-know is unsupported:
+Itanium is large and this is still under development. For now, this is what I know is unsupported:
 
 =over
 
@@ -270,8 +267,8 @@ know is unsupported:
 
 =head1 Examples
 
-Very short examples might find their way into the L<Affix::Cookbook>. The best
-example of use might be L<LibUI>. Brief examples will be found in C<eg/>.
+Very short examples might find their way into the L<Affix::Cookbook>. The best example of use might be L<LibUI>. Brief
+examples will be found in C<eg/>.
 
 =head1 See Also
 
@@ -281,9 +278,8 @@ https://www.agner.org/optimize/calling_conventions.pdf
 
 Copyright (C) Sanko Robinson.
 
-This library is free software; you can redistribute it and/or modify it under
-the terms found in the Artistic License 2. Other copyrights, terms, and
-conditions may apply to data transmitted through this module.
+This library is free software; you can redistribute it and/or modify it under the terms found in the Artistic License
+2. Other copyrights, terms, and conditions may apply to data transmitted through this module.
 
 =head1 AUTHOR
 
