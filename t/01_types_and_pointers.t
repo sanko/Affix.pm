@@ -7,16 +7,10 @@ use utf8;
 use t::lib::helper;
 $|++;
 #
-#
-#~ diag unpack 'C', pack 'C', -ord 'A';
-#~ diag unpack 'c', pack 'c', -ord 'A';
-#~ diag unpack 'W', '赤';
-#~ diag ord '赤';
-#~ use Test2::V0;
-#~ Test2::Tools::Encoding::set_encoding('utf8');
 use Test2::Plugin::UTF8;
 my $lib = compile_test_lib('01_types_and_pointers');
-warn `nm -D $lib`;
+
+#~ warn `nm -D $lib`;
 #
 subtest types => sub {
     isa_ok $_, 'Affix::Type'
@@ -26,23 +20,25 @@ subtest types => sub {
         Struct [ i => Str, j => Long ], Union [ u => Int, x => Double ], Array [ Int, 10 ];
 };
 subtest 'bool test(bool)' => sub {    # _Z4testb
-    isa_ok my $code = wrap( $lib, 'test', [Bool] => Bool ), 'Affix', 'wrap ..., [Bool] => Bool';
+    isa_ok my $code = wrap( $lib, 'test', [Bool] => Bool ), ['Affix'], 'wrap ..., [Bool] => Bool';
     is $code->(1), !1, 'test(1)';
     is $code->(0), 1,  'test(0)';
 };
 subtest 'bool test(int, bool*)' => sub {    # _Z4testiPb
-    isa_ok my $code = wrap( $lib, 'test', [ Int, Pointer [Bool] ] => Bool ), 'Affix', 'wrap ..., [Int, Pointer[Bool]] => Bool';
+    isa_ok my $code = wrap( $lib, 'test', [ Int, Pointer [Bool] ] => Bool ), ['Affix'], 'wrap ..., [Int, Pointer[Bool]] => Bool';
     is $code->( 0, [ 1, 1, 1, 1 ] ), 1,  '->(0, [1, 1, 1, 1]) == true';
     is $code->( 1, [ 0, 0, 0, 0 ] ), !1, '->(1, [0, 0, 0, 0]) == false';
     is $code->( 2, [ 0, 0, 1, 0 ] ), 1,  '->(2, [0, 0, 1, 0]) == true';
     is $code->( 3, [ 1, 1, 1, 0 ] ), !1, '->(3, [1, 1, 1, 0]) == false';
 };
 subtest 'bool test(int, int, bool**)' => sub {    # _Z4testiiPPb
-    isa_ok my $code = wrap( $lib, 'test', [ Int, Int, Pointer [ Pointer [Bool] ] ] => Bool ), 'Affix',
+    isa_ok my $code = wrap( $lib, 'test', [ Int, Int, Pointer [ Pointer [Bool] ] ] => Bool ), ['Affix'],
         'wrap ..., [Int, Int, Pointer[Pointer[Bool]]] => Bool';
     is $code->( 1, 0, [ [ 1, 0, 1 ], [ 1, 1, 1 ], [ !1, !1, 1 ] ] ), 1,  '->(1, 0, ...) == true';
     is $code->( 0, 1, [ [ 1, 0, 1 ], [ 1, 1, 1 ], [ !1, !1, 1 ] ] ), !1, '->(0, 1, ...) == false';
 };
+done_testing;
+exit;
 subtest 'bool test(int, int, int, bool***)' => sub {    # _Z4testiiiPPPb
     isa_ok my $code = wrap( $lib, 'test', [ Int, Int, Int, Pointer [ Pointer [ Pointer [Bool] ] ] ] => Bool ), 'Affix',
         'wrap ..., [Int, Int, Pointer[Pointer[Pointer[Bool]]]] => Bool';

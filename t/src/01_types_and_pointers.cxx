@@ -1,24 +1,6 @@
 #include "std.h"
 
 DLLEXPORT
-bool EXAMPLE(const int) {
-    return false;
-}
-DLLEXPORT
-bool EXAMPLE(const char) {
-    return false;
-}
-
-void foo(
-    void*(*) (void*),
-    void*(*) (const void*),
-    const void*(*) (void*)
-)
-{;}
-
-
-#if 0
-DLLEXPORT
 bool test(bool value) {
     // return the opposite; makes sure we're updating ST(0)
     if (value) return false;
@@ -46,6 +28,26 @@ bool test(int x, int y, bool **ptr) {
     if (ptr[x][y]) return true;
     return false;
 }
+
+#if 0
+DLLEXPORT
+bool EXAMPLE(const int) {
+    return false;
+}
+DLLEXPORT
+bool EXAMPLE(const char) {
+    return false;
+}
+
+void foo(
+    void*(*) (void*),
+    void*(*) (const void*),
+    const void*(*) (void*)
+)
+{;}
+
+
+
 
 DLLEXPORT
 bool test(int x, int y, int z, bool ***ptr) {
