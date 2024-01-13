@@ -18,8 +18,8 @@ int get_pin(pTHX_ SV *sv, MAGIC *mg) {
 int set_pin(pTHX_ SV *sv, MAGIC *mg) {
     var_ptr *ptr = (var_ptr *)mg->mg_ptr;
     if (SvOK(sv)) {
-        DCpointer block = sv2ptr(aTHX_ ptr->type_sv, sv, false);
-        Move(block, ptr->ptr, /* cache this? */ _sizeof(aTHX_ ptr->type_sv), char);
+        DCpointer block = sv2ptr(aTHX_ ptr->type_sv, sv);
+        Move(block, ptr->ptr, /* cache this? */ AXT_SIZEOF(ptr->type_sv), char);
         safefree(block);
     }
     return 0;

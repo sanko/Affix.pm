@@ -1,7 +1,6 @@
-use strict;
 no warnings 'portable';
-use Test::More 0.98;
-use Test::Fatal qw[exception];
+use Test2::V0;
+use Test2::Tools::Exception qw[dies];
 BEGIN { chdir '../' if !-d 't'; }
 use lib '../lib', 'lib', '../blib/arch', '../blib/lib', 'blib/arch', 'blib/lib', '../../', '.';
 use Affix qw[:memory :default :types :cc];
@@ -14,11 +13,10 @@ my $lib = compile_test_lib('53_affix_cpp_class');
 #
 #~ use Data::Dump;
 #~ warn `nm -D $lib`;
-isa_ok my $Box = typedef( Box => CPPStruct [ w => Int, l => Int, h => Int ] ),
-    'Affix::Type::CPPStruct', 'typedef ...';
-isa_ok affix( $lib, 'Box::new' => [ CC_THISCALL, Int, Int, Int ] => $Box ), 'Affix', 'Box::new';
-isa_ok affix( $lib, [ 'Box::Volume' => 'Box::volume' ] => []     => Int ),  'Affix', 'Box::volume';
-isa_ok my $box = Box->new( 1, 2, 3 ), 'Box', '$box = Box->new(1, 2, 3)';
+isa_ok my $Box = typedef( Box => CPPStruct [ w => Int, l => Int, h => Int ] ), 'Affix::Type::CPPStruct', 'typedef ...';
+isa_ok affix( $lib, 'Box::new' => [ CC_THISCALL, Int, Int, Int ] => $Box ),    'Affix',                  'Box::new';
+isa_ok affix( $lib, [ 'Box::Volume' => 'Box::volume' ] => [] => Int ),         'Affix',                  'Box::volume';
+isa_ok my $box = Box->new( 1, 2, 3 ),                                          'Box',                    '$box = Box->new(1, 2, 3)';
 is $box->volume, 6, '$box->volume == 6';
 #
 done_testing;

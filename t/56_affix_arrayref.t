@@ -1,5 +1,4 @@
-use strict;
-use Test::More 0.98;
+use Test2::V0;
 BEGIN { chdir '../' if !-d 't'; }
 use lib '../lib', 'lib', '../blib/arch', '../blib/lib', 'blib/arch', 'blib/lib', '../../', '.';
 use Affix;
@@ -22,14 +21,12 @@ subtest 'Array[Int]' => sub {
     {
         my @a = ( 1 .. 20 );
         is array_reverse( \@a, 20 ), 210, 'array_reverse( \@a, 20 )';
-        is_deeply \@a, [ 20, 19, 18, 17, 16, 15, 14, 13, 12, 11, 10, 9, 8, 7, 6, 5, 4, 3, 2, 1 ],
-            'contents reversed';
+        is_deeply \@a, [ 20, 19, 18, 17, 16, 15, 14, 13, 12, 11, 10, 9, 8, 7, 6, 5, 4, 3, 2, 1 ], 'contents reversed';
     }
     {
         my $a = [ 1 .. 20 ];
         is array_reverse( $a, 20 ), 210, 'array_reverse( $a, 20 )';
-        is_deeply $a, [ 20, 19, 18, 17, 16, 15, 14, 13, 12, 11, 10, 9, 8, 7, 6, 5, 4, 3, 2, 1 ],
-            'contents reversed';
+        is_deeply $a, [ 20, 19, 18, 17, 16, 15, 14, 13, 12, 11, 10, 9, 8, 7, 6, 5, 4, 3, 2, 1 ], 'contents reversed';
     }
 };
 subtest 'array_sum' => sub {

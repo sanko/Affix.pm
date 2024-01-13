@@ -1,0 +1,345 @@
+=encoding utf-8
+
+=head1 NAME
+
+Affix::Type - A Revew of the Affix 'Type' System
+
+=head1 Fundamental Types
+
+=begin text
+
+    Type        Description
+    ----------------------------------------------------------------------------
+    Void        Generally only used as a return value.
+    Bool
+    Char
+    UChar
+    Int8        TODO
+    UInt8       TODO
+    Short
+    UShort
+    Int16       TODO
+    UInt16      TODO
+    Int
+    UInt
+    Int32       TODO: aka Long
+    UInt32      TODO: aka ULong
+    Long
+    ULong
+    Int64       TODO: aka LongLong
+    UInt64      TODO: aka ULongLong
+    LongLong
+    ULongLong
+    Float       32bit floating point number
+    Double      64bit floating point number
+    Pointer     Parameterized type such as Pointer[Void] or Pointer[Int]
+    Str         Essentially const char *
+    Enum        Parameterized type such as Enum[ 'up', 'down', 'left', 'right' ]
+    Struct      Parameterized type
+    Array       Parameterized type
+
+=end text
+
+=begin html
+
+<table>     <thead>       <tr>         <th>Affix</th> <th>C99</th> <th>Rust</th> <th>C#</th> <th>pack()</th>
+<th>Raku</th>       </tr> </thead> <tbody>       <tr>         <td>Void</td> <td>void</td> <td>-&gt;()</td>
+<td>void/NULL</td> <td>-</td> <td></td>       </tr>       <tr> <td>Bool</td> <td>_Bool</td> <td>bool</td> <td>bool</td>
+<td>-</td> <td>bool</td>       </tr>       <tr>         <td>Char</td> <td>int8_t</td>    <td>i8</td> <td>sbyte</td>    
+ <td>c</td>       <td>int8</td>    </tr>       <tr>   <td>UChar</td> <td>uint8_t</td>         <td>u8</td>        
+<td>byte</td>     <td>C</td> <td>byte, uint8</td>       </tr>       <tr> <td>Short</td>  <td>int16_t</td> <td>i16</td> 
+<td>short</td> <td>s</td>         <td>int16</td>       </tr> <tr> <td>UShort</td>  <td>uint16_t</td>        
+<td>u16</td> <td>ushort</td>     <td>S</td>   <td>uint16</td>       </tr> <tr> <td>Int</td> <td>int32_t</td>        
+<td>i32</td> <td>int</td> <td>i</td> <td>int32</td>    </tr>       <tr>       <td>UInt</td> <td>uint32_t</td>    
+<td>u32</td> <td>uint</td> <td>I</td> <td>uint32</td>       </tr>     <tr> <td>Long</td> <td>int64_t</td>   
+<td>i64</td> <td>long</td> <td>l</td> <td>int64, long</td> </tr> <tr> <td>ULong</td> <td>uint64_t</td>     <td>u64</td>
+<td>ulong</td> <td>L</td> <td>uint64, ulong</td> </tr>       <tr> <td>LongLong</td>     <td>-/long long</td>
+<td>i128</td>   <td>q</td> <td>longlong</td>         <td></td> </tr>       <tr> <td>ULongLong</td> <td>-/unsigned long
+long</td> <td>u128</td> <td>Q</td> <td>ulonglong</td>       <td></td>       </tr> <tr> <td>Float</td> <td>float</td>   
+     <td>f32</td> <td>f</td> <td>num32</td> <td></td>       </tr>       <tr>  <td>Double</td> <td>double</td>
+<td>f64</td> <td>d</td>  <td>num64</td>        <td></td> </tr>    <tr> <td>SSize_t</td> <td>SSize_t</td>        
+<td>SSize_t</td> <td></td> <td></td>       <td></td>     </tr>       <tr> <td>Size_t</td> <td>size_t</td>        
+<td>size_t</td>      <td></td>   <td></td> <td></td>       </tr>       <tr> <td>Str</td> <td>char *</td>      
+<td></td> <td></td>         <td></td> <td></td> </tr>       <tr> <td>WStr</td> <td>wchar_t</td> <td></td>   <td></td>  
+      <td></td>      </tr> </tbody> </table>
+
+=end html
+
+Given sizes are minimums measured in bits
+
+Other types are also defined according to the system's platform. See L<Affix::Type>.
+
+=head2 C<Void>
+
+The C<Void> type corresponds to the C C<void> type. It is generally found in typed pointers representing the equivalent
+to the C<void *> pointer in C.
+
+    affix undef, 'malloc', [Size_t] => Pointer[Void];
+    my $data = malloc( 32 );
+
+As the example above shows, it's represented by a parameterized C<Pointer[ ... ]> type, using as parameter whatever the
+original pointer is pointing to (in this case, C<void>). This role represents native pointers, and can be used wherever
+they need to be represented in a Perl script.
+
+In addition, you may place a C<Void> in your signature to skip a passed argument.
+
+=head2 C<Bool>
+
+Boolean type may only have room for one of two values: C<true> or C<false>.
+
+=head2 C<Char>
+
+Signed character. It's guaranteed to have a width of at least 8 bits.
+
+Pointers (C<Pointer[Char]>) might be better expressed with a C<Str>.
+
+=head2 C<UChar>
+
+Unsigned character. It's guaranteed to have a width of at least 8 bits.
+
+=head2 C<Short>
+
+Signed short integer. It's guaranteed to have a width of at least 16 bits.
+
+=head2 C<UShort>
+
+Unsigned short integer. It's guaranteed to have a width of at least 16 bits.
+
+=head2 C<Int>
+
+Basic signed integer type.
+
+It's guaranteed to have a width of at least 16 bits. However, on 32/64 bit systems it is almost exclusively guaranteed
+to have width of at least 32 bits.
+
+=head2 C<UInt>
+
+Basic unsigned integer type.
+
+It's guaranteed to have a width of at least 16 bits. However, on 32/64 bit systems it is almost exclusively guaranteed
+to have width of at least 32 bits.
+
+=head2 C<Long>
+
+Signed long integer type. It's guaranteed to have a width of at least 32 bits.
+
+=head2 C<ULong>
+
+Unsigned long integer type. It's guaranteed to have a width of at least 32 bits.
+
+=head2 C<LongLong>
+
+Signed long long integer type. It's guaranteed to have a width of at least 64 bits.
+
+=head2 C<ULongLong>
+
+Unsigned long long integer type. It's guaranteed to have a width of at least 64 bits.
+
+=head2 C<Float>
+
+L<Single precision floating-point type|https://en.wikipedia.org/wiki/Single-precision_floating-point_format>.
+
+=head2 C<Double>
+
+L<Double precision floating-point type|https://en.wikipedia.org/wiki/Double-precision_floating-point_format>.
+
+=head2 C<SSize_t>
+
+Signed integer type.
+
+=head2 C<Size_t>
+
+Unsigned integer type often expected as the result of C<sizeof> or C<offsetof> but can be found elsewhere.
+
+=head2 C<Str>
+
+Automatically handle null terminated character pointers with this rather than trying using C<Pointer[Char]> and doing
+it yourself.
+
+You'll learn a bit more about C<Pointer[...]> and other parameterized types in the next section.
+
+=head2 C<WStr>
+
+A null-terminated wide string is a sequence of valid wide characters, ending with a null character.
+
+=head2 Parameterized Types
+
+Some types must be provided with more context data.
+
+=head2 C<Pointer[ ... ]>
+
+    Pointer[Int]  ~~ int *
+    Pointer[Void] ~~ void *
+
+Create pointers to (almost) all other defined types including C<Struct> and C<Void>.
+
+To handle a pointer to an object, see L<InstanceOf>.
+
+Void pointers (C<Pointer[Void]>) might be created with C<malloc> and other memory related functions.
+
+=begin future
+
+=head2 C<Aggregate>
+
+This is currently undefined and reserved for possible future use.
+
+=end future
+
+=head2 C<Struct[ ... ]>
+
+    Struct[                    struct {
+        dob => Struct[              struct {
+            year  => Int,               int year;
+            month => Int,   ~~          int month;
+            day   => Int                int day;
+        ],                          } dob;
+        name => Str              char *name;
+        wId  => Long                long wId;
+    ];                          };
+
+A struct consists of a sequence of members with storage allocated in an ordered sequence (as opposed to C<Union>, which
+is a type consisting of a sequence of members where storage overlaps).
+
+A C struct that looks like this:
+
+    struct {
+        char *make;
+        char *model;
+        int   year;
+    };
+
+...would be defined this way:
+
+    Struct[
+        make  => Str,
+        model => Str,
+        year  => Int
+    ];
+
+All fundamental and aggregate types may be found inside of a C<Struct>.
+
+=head2 C<Array[ ... ]>
+
+The elements of the array must pass the additional size constraint.
+
+An array length must be given:
+
+    Array[Int, 5];   # int arr[5]
+    Array[Char, 5];  # char arr[5]
+    Array[Str, 10];  # char *arr[10]
+
+=head2 C<Union[ ... ]>
+
+A union is a type consisting of a sequence of members with overlapping storage (as opposed to C<Struct>, which is a
+type consisting of a sequence of members whose storage is allocated in an ordered sequence).
+
+The value of at most one of the members can be stored in a union at any one time and the union is only as big as
+necessary to hold its largest member (additional unnamed trailing padding may also be added). The other members are
+allocated in the same bytes as part of that largest member.
+
+A C union that looks like this:
+
+    union {
+        char  c[5];
+        float f;
+    };
+
+...would be defined this way:
+
+    Union[
+        c => Array[Char, 5],
+        f => Float
+    ];
+
+=head2 C<CodeRef[ ... ]>
+
+A value where C<ref($value)> equals C<CODE>. This would be how callbacks are defined.
+
+The argument list and return value must be defined. For example, C<CodeRef[[Int, Int]=>Int]> ~~ C<typedef int
+(*fuc)(int a, int b);>; that is to say our function accepts two integers and returns an integer.
+
+    CodeRef[[] => Void];                   # typedef void (*function)();
+    CodeRef[[Pointer[Int]] => Int];        # typedef Int (*function)(int * a);
+    CodeRef[[Str, Int] => Struct[...]]; # typedef struct Person (*function)(chat * name, int age);
+
+=head2 C<InstanceOf[ ... ]>
+
+    InstanceOf['Some::Class']
+
+A blessed object of a certain type. When used as an lvalue, the result is properly blessed. As an rvalue, the reference
+is checked to be a subclass of the given package.
+
+Note: This "type" is in a state of development flux and might be made complete with L<issue
+#32|https://github.com/sanko/Affix.pm/issues/32>
+
+=head2 C<Any>
+
+Anything you dump here will be passed along unmodified. We hand off a pointer to the C<SV*> perl gives us without
+copying it.
+
+=head2 C<Enum[ ... ]>
+
+The value of an C<Enum> is defined by its underlying type which includes C<Int>, C<Char>, etc.
+
+This type is declared with an list of strings.
+
+    Enum[ 'ALPHA', 'BETA' ];
+    # ALPHA = 0
+    # BETA  = 1
+
+Unless an enumeration constant is defined in an array reference, its value is the value one greater than the value of
+the previous enumerator in the same enumeration. The value of the first enumerator (if it is not defined) is zero.
+
+    Enum[ 'A', 'B', [C => 10], 'D', [E => 1], 'F', [G => 'F + C'] ];
+    # A = 0
+    # B = 1
+    # C = 10
+    # D = 11
+    # E = 1
+    # F = 2
+    # G = 12
+
+    Enum[ [ one => 'a' ], 'two', [ 'three' => 'one' ] ]
+    # one   = a
+    # two   = b
+    # three = a
+
+As you can see, enum values may allude to earlier defined values and even basic arithmetic is supported.
+
+Additionally, if you C<typedef> the enum into a given namespace, you may refer to elements by name. They are defined as
+dualvars so that works:
+
+    typedef color => Enum[ 'RED', 'GREEN', 'BLUE' ];
+    print color::RED();     # RED
+    print int color::RED(); # 0
+
+=head2 C<IntEnum[ ... ]>
+
+Same as C<Enum>.
+
+=head2 C<UIntEnum[ ... ]>
+
+C<Enum> but with unsigned integers.
+
+=head2 C<CharEnum[ ... ]>
+
+C<Enum> but with signed chars.
+
+=head1 LICENSE
+
+Copyright (C) Sanko Robinson.
+
+This library is free software; you can redistribute it and/or modify it under the terms found in the Artistic License
+2. Other copyrights, terms, and conditions may apply to data transmitted through this module.
+
+=head1 AUTHOR
+
+Sanko Robinson E<lt>sanko@cpan.orgE<gt>
+
+=begin stopwords
+
+dyncall
+
+=end stopwords
+
+=cut

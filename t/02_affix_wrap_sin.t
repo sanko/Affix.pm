@@ -1,13 +1,10 @@
-use strict;
-use warnings;
 use lib '../lib', '../blib/arch', '../blib/lib', 'blib/arch', 'blib/lib';
 use Affix;
-use Test::More;
+use Test2::V0;
 use Config;
 $|++;
 #
-my $libfile = $^O eq 'darwin' ? '/usr/lib/libSystem.dylib' :
-    Affix::locate_lib( $^O eq 'MSWin32' ? 'ntdll' : 'm' );
+my $libfile = $^O eq 'darwin' ? '/usr/lib/libSystem.dylib' : Affix::locate_lib( $^O eq 'MSWin32' ? 'ntdll' : 'm' );
 SKIP: {
     #~ skip 'I known nothing about MacOS',       2 if $^O eq 'darwin';
     $libfile // skip 'Cannot find math lib: ' . $libfile, 2;

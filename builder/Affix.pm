@@ -5,8 +5,7 @@ use Exporter 5.57 'import';
 our @EXPORT = qw/Build Build_PL/;
 use CPAN::Meta;
 use ExtUtils::Config 0.003;
-use ExtUtils::Helpers 0.020
-    qw/make_executable split_like_shell man1_pagename man3_pagename detildefy/;
+use ExtUtils::Helpers 0.020 qw/make_executable split_like_shell man1_pagename man3_pagename detildefy/;
 use ExtUtils::Install qw/pm_to_blib install/;
 use ExtUtils::InstallPaths 0.002;
 use File::Basename        qw/basename dirname/;
@@ -93,7 +92,7 @@ sub alien {
                     }
                     last;
                 }
-                warn($_) && system($_ ) for $configure, $make;
+                warn($_) && system($_) for $configure, $make;
                 my %libs = (
                     dyncall => [
                         qw[dyncall_version.h dyncall_macros.h dyncall_config.h
@@ -119,8 +118,7 @@ sub alien {
 
                     #chdir $kid->child($lib)->absolute;
                     #warn $kid->child( $lib, 'lib' . $lib . '_s' . $opt{config}->get('_a') );
-                    $kid->child( $lib, 'lib' . $lib . '_s' . $opt{config}->get('_a') )
-                        ->copy( $pre->child('lib')->absolute );
+                    $kid->child( $lib, 'lib' . $lib . '_s' . $opt{config}->get('_a') )->copy( $pre->child('lib')->absolute );
                     for ( @{ $libs{$lib} } ) {
 
                         #warn sprintf '%s => %s', $kid->child( $lib, $_ ),
@@ -132,7 +130,7 @@ sub alien {
             }
             else {
                 $make = $opt{config}->get('make');
-                system($_ ) for $configure, $make, $make . ' install';
+                system($_) for $configure, $make, $make . ' install';
             }
         }
         else {    # Future, maybe...
@@ -180,11 +178,8 @@ sub alien {
                     my $ob_file = $builder->compile(
                         source => $c,
 
-                       #defines      => { VERSION => qq/"$version"/, XS_VERSION => qq/"$version"/ },
-                        include_dirs => [
-                            curdir, $kid->child('dyncall')->stringify,
-                            $pre->child('include')->stringify,
-                        ],
+                        #defines      => { VERSION => qq/"$version"/, XS_VERSION => qq/"$version"/ },
+                        include_dirs => [ curdir, $kid->child('dyncall')->stringify, $pre->child('include')->stringify, ],
 
                         #extra_compiler_flags => (
                         #    '-fPIC ' . ( $opt{config}->get('osname') =~ /bsd/ ? '' : $CFLAGS ) .
@@ -195,18 +190,16 @@ sub alien {
                 }
                 $builder->link(
 
-             #extra_linker_flags => (
-             #    ( $opt{config}->get('osname') =~ /bsd/ ? '' : $LDFLAGS ) . ' -L' .
-             #        dirname($source) . ' -L' . $pre->child( $opt{meta}->name, 'lib' )->stringify .
-             #        ' -ldyncall_s -ldyncallback_s -ldynload_s'
-             #),
+                    #extra_linker_flags => (
+                    #    ( $opt{config}->get('osname') =~ /bsd/ ? '' : $LDFLAGS ) . ' -L' .
+                    #        dirname($source) . ' -L' . $pre->child( $opt{meta}->name, 'lib' )->stringify .
+                    #        ' -ldyncall_s -ldyncallback_s -ldynload_s'
+                    #),
                     objects  => [@objs],
-                    lib_file => $pre->child( 'lib', 'lib' . $lib . '_s' . $opt{config}->get('_a') )
-                        ->stringify
+                    lib_file => $pre->child( 'lib', 'lib' . $lib . '_s' . $opt{config}->get('_a') )->stringify
                 );
                 for ( @{ $libs{$lib}{h} } ) {
-                    warn sprintf '%s => %s', $kid->child( $lib, $_ ),
-                        $pre->child( 'include', $_ )->absolute;
+                    warn sprintf '%s => %s', $kid->child( $lib, $_ ), $pre->child( 'include', $_ )->absolute;
                     warn $kid->child( $lib, $_ )->copy( $pre->child( 'include', $_ )->absolute );
                 }
             }
@@ -217,8 +210,7 @@ sub alien {
     else {
         my $http     = HTTP::Tiny->new;
         my $response = $http->get('https://dyncall.org/download');
-        die sprintf "Failed to download %s: %s!", $response->{url}, $response->{content}
-            unless $response->{success};
+        die sprintf "Failed to download %s: %s!", $response->{url}, $response->{content} unless $response->{success};
 
         #print "$response->{status} $response->{reason}\n";
         #while ( my ( $k, $v ) = each %{ $response->{headers} } ) {
@@ -235,15 +227,14 @@ sub alien {
             my $plat = $x64 ? '64' : '86';
             my %versions;
             for my $url ( map { 'https://dyncall.org/' . $_ }
-                $response->{content}
-                =~ m[href="(.+/dyncall-\d\.\d+\-windows-xp-x${plat}(?:-r)?\.zip)"]g ) {
+                $response->{content} =~ m[href="(.+/dyncall-\d\.\d+\-windows-xp-x${plat}(?:-r)?\.zip)"]g ) {
                 my ($version) = $url =~ m[-(\d+\.\d+)-windows];
                 $versions{$version} = $url;
             }
             for my $version ( reverse sort keys %versions ) {
                 $libver //= $version;
 
-             #printf "%s %s => %s\n", ($pick eq $version ? '*': ' '), $version, $versions{$version};
+                #printf "%s %s => %s\n", ($pick eq $version ? '*': ' '), $version, $versions{$version};
             }
 
             #ddx \@src;
@@ -272,21 +263,19 @@ sub alien {
                 }
             }
             else {
-                die sprintf 'Failed to download %s: %s!', $response->{url}, $response->{content}
-                    unless $response->{success};
+                die sprintf 'Failed to download %s: %s!', $response->{url}, $response->{content} unless $response->{success};
             }
         }
         else {    # Build from source on all other platforms
             my %versions;
-            for my $url ( map { 'https://dyncall.org/' . $_ }
-                $response->{content} =~ m[href="(.+/dyncall-\d\.\d+\.tar\.gz)"]g ) {
+            for my $url ( map { 'https://dyncall.org/' . $_ } $response->{content} =~ m[href="(.+/dyncall-\d\.\d+\.tar\.gz)"]g ) {
                 my ($version) = $url =~ m[/r(\d\.\d+)/];
                 $versions{$version} = $url;
             }
             for my $version ( reverse sort keys %versions ) {
                 $libver //= $version;
 
-             #printf "%s %s => %s\n", ($pick eq $version ? '*': ' '), $version, $versions{$version};
+                #printf "%s %s => %s\n", ($pick eq $version ? '*': ' '), $version, $versions{$version};
             }
             my $filename = Path::Tiny->new( $versions{$libver} )->basename;
             my $dest     = Path::Tiny::tempdir( { realpath => 1 } );
@@ -306,20 +295,19 @@ sub alien {
                 $tar->extract;
                 return alien(@_);
 
-              #~ my ($kid) = $extract->children;
-              #~ #die;
-              #~ my $cwd = Path::Tiny->cwd->absolute;
-              #~ my $pre = Path::Tiny->cwd->child( qw[blib arch auto], $opt{meta}->name )->absolute;
-              #~ chdir $kid->absolute->stringify;
-              #~ warn($_) && system($_ )
-              #~ for 'sh ./configure --prefix=' .
-              #~ $pre->absolute .
-              #~ ' CFLAGS="-Ofast" LDFLAGS="-Ofast" ', 'make', 'make install';
-              #~ chdir $cwd->stringify;
+                #~ my ($kid) = $extract->children;
+                #~ #die;
+                #~ my $cwd = Path::Tiny->cwd->absolute;
+                #~ my $pre = Path::Tiny->cwd->child( qw[blib arch auto], $opt{meta}->name )->absolute;
+                #~ chdir $kid->absolute->stringify;
+                #~ warn($_) && system($_ )
+                #~ for 'sh ./configure --prefix=' .
+                #~ $pre->absolute .
+                #~ ' CFLAGS="-Ofast" LDFLAGS="-Ofast" ', 'make', 'make install';
+                #~ chdir $cwd->stringify;
             }
             else {
-                die sprintf 'Failed to download %s: %s!', $response->{url}, $response->{content}
-                    unless $response->{success};
+                die sprintf 'Failed to download %s: %s!', $response->{url}, $response->{content} unless $response->{success};
             }
         }
     }
@@ -344,36 +332,29 @@ sub process_cxx {
     my $pre = Path::Tiny->cwd->child(qw[blib arch auto])->absolute;
     my $source;
     require DynaLoader;
-    my $mod2fname
-        = defined &DynaLoader::mod2fname ? \&DynaLoader::mod2fname : sub { return $_[0][-1] };
-    my @parts   = ('Affix');
-    my $archdir = catdir( qw/blib arch auto/, @parts );
+    my $mod2fname = defined &DynaLoader::mod2fname ? \&DynaLoader::mod2fname : sub { return $_[0][-1] };
+    my @parts     = ('Affix');
+    my $archdir   = catdir( qw/blib arch auto/, @parts );
     mkpath( $archdir, $opt{verbose}, oct '755' ) unless -d $archdir;
     my $lib_file = catfile( $archdir, $mod2fname->( \@parts ) . '.' . $opt{config}->get('dlext') );
     my @dirs;
 
     for my $source (@$sources) {
-        my $file_base = basename( $source, '.cxx' );
+        my $file_base = basename( $source, '.cxx', '.c' );
         my $tempdir   = 'lib';
         mkpath( $tempdir, $opt{verbose}, oct '755' );
         my $version = $opt{meta}->version;
         my $obj     = $builder->object_file($source);
         push @dirs, rel2abs dirname($source);
         push @objs,    # misses headers but that's okay
-            ( ( !-f $obj ) ||
-                ( stat($source)->mtime > stat($obj)->mtime ) ||
-                ( stat(__FILE__)->mtime > stat($obj)->mtime ) ) ?
+            ( ( !-f $obj ) || ( stat($source)->mtime > stat($obj)->mtime ) || ( stat(__FILE__)->mtime > stat($obj)->mtime ) ) ?
             $builder->compile(
-            'C++'        => ( $source =~ /\.cxx$/ ),
-            source       => $source,
-            defines      => { VERSION => qq/"$version"/, XS_VERSION => qq/"$version"/ },
-            include_dirs =>
-                [ curdir, dirname($source), $pre->child( $opt{meta}->name, 'include' )->stringify ],
-            extra_compiler_flags => (
-                '-fPIC ' .
-                    ( $opt{config}->get('osname') =~ /bsd/ ? ''     : $CFLAGS ) .
-                    ( $DEBUG ? ' -ggdb3 -g -Wall -Wextra -pedantic' : '' )
-            )
+            'C++'                => ( $source =~ /\.cxx$/ ? 1 : 0 ),
+            source               => $source,
+            defines              => { VERSION => qq/"$version"/, XS_VERSION => qq/"$version"/ },
+            include_dirs         => [ curdir, dirname($source), $pre->child( $opt{meta}->name, 'include' )->stringify ],
+            extra_compiler_flags =>
+                ( '-fPIC ' . ( $opt{config}->get('osname') =~ /bsd/ ? '' : $CFLAGS ) . ( $DEBUG ? ' -ggdb3 -g -Wall -Wextra -pedantic' : '' ) )
             ) :
             $obj;
 
@@ -421,29 +402,18 @@ my %actions;
         }
         my %modules = map { $_ => catfile( 'blib', $_ ) } find( qr/\.p(?:m|od)$/, 'lib' );
         my %scripts = map { $_ => catfile( 'blib', $_ ) } find( qr//,             'script' );
-        my %shared  = map {
-            $_ => catfile( qw/blib lib auto share dist/, $opt{meta}->name, abs2rel( $_, 'share' ) )
-        } find( qr//, 'share' );
+        my %shared  = map { $_ => catfile( qw/blib lib auto share dist/, $opt{meta}->name, abs2rel( $_, 'share' ) ) } find( qr//, 'share' );
         pm_to_blib( { %modules, %scripts, %shared }, catdir(qw/blib lib auto/) );
         make_executable($_) for values %scripts;
         mkpath( catdir(qw/blib arch/), $opt{verbose} );
         alien(%opt);
-        process_cxx( [ find( qr/.cxx$/, 'lib' ) ], %opt );
-        if ( $opt{install_paths}->install_destination('bindoc') &&
-            $opt{install_paths}->is_default_installable('bindoc') ) {
-            manify(
-                $_,
-                catfile( 'blib', 'bindoc', man1_pagename($_) ),
-                $opt{config}->get('man1ext'), \%opt
-            ) for keys %scripts;
+        process_cxx( [ find( qr/\.c(?:xx)?$/, 'lib' ) ], %opt );
+
+        if ( $opt{install_paths}->install_destination('bindoc') && $opt{install_paths}->is_default_installable('bindoc') ) {
+            manify( $_, catfile( 'blib', 'bindoc', man1_pagename($_) ), $opt{config}->get('man1ext'), \%opt ) for keys %scripts;
         }
-        if ( $opt{install_paths}->install_destination('libdoc') &&
-            $opt{install_paths}->is_default_installable('libdoc') ) {
-            manify(
-                $_,
-                catfile( 'blib', 'libdoc', man3_pagename($_) ),
-                $opt{config}->get('man3ext'), \%opt
-            ) for keys %modules;
+        if ( $opt{install_paths}->install_destination('libdoc') && $opt{install_paths}->is_default_installable('libdoc') ) {
+            manify( $_, catfile( 'blib', 'libdoc', man3_pagename($_) ), $opt{config}->get('man3ext'), \%opt ) for keys %modules;
         }
         return 0;
     },
@@ -492,12 +462,9 @@ sub Build {
     GetOptionsFromArray( $_, \%opt,
         qw/install_base=s install_path=s% installdirs=s destdir=s prefix=s config=s% uninst:1 verbose:1 dry_run:1 pureperl-only:1 create_packlist=i jobs=i/
     ) for ( $env, $bargv, \@ARGV );
-    $_ = detildefy($_)
-        for grep {defined} @opt{qw/install_base destdir prefix/}, values %{ $opt{install_path} };
+    $_ = detildefy($_) for grep {defined} @opt{qw/install_base destdir prefix/}, values %{ $opt{install_path} };
     @opt{ 'config', 'meta' } = ( ExtUtils::Config->new( $opt{config} ), get_meta() );
-    exit $actions{$action}->(
-        %opt, install_paths => ExtUtils::InstallPaths->new( %opt, dist_name => $opt{meta}->name )
-    );
+    exit $actions{$action}->( %opt, install_paths => ExtUtils::InstallPaths->new( %opt, dist_name => $opt{meta}->name ) );
 }
 
 sub Build_PL {
@@ -522,11 +489,9 @@ sub unzip {
 
         #ddx $header;
         my $destfile = $dest->child( $header->{Name} );
-        next if $header->{Name} =~ m[/$];    # Directory
+        next if $header->{Name} =~ m[/$];                                                                # Directory
         next if $destfile->is_dir;
-        next
-            if $destfile->is_file &&
-            stat( $destfile->absolute->stringify )->mtime < $header->{Time};
+        next if $destfile->is_file && stat( $destfile->absolute->stringify )->mtime < $header->{Time};
         warn $destfile;
         $destfile->parent->mkpath;
         my $raw = '';

@@ -5,7 +5,7 @@
       "Sanko Robinson <sanko@cpan.org>"
    ],
    "dynamic_config" : 0,
-   "generated_by" : "Minilla/v3.1.21, CPAN::Meta::Converter version 2.150010",
+   "generated_by" : "Minilla/v3.1.23, CPAN::Meta::Converter version 2.150010",
    "license" : [
       "artistic_2"
    ],
@@ -83,9 +83,9 @@
             "Data::Dumper" : "0",
             "Devel::CheckBin" : "0",
             "Math::BigInt" : "0",
-            "Test::Fatal" : "0",
-            "Test::More" : "0.98",
-            "Test::Warnings" : "0"
+            "Test2::Plugin::UTF8" : "0",
+            "Test2::Tools::Compare" : "0",
+            "Test2::V0" : "0"
          }
       }
    },

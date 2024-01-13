@@ -13,8 +13,8 @@ Affix::Platform - Platform and Feature Support Information
 
 =head1 DESCRIPTION
 
-Affix works a lot of places but some features require certain combinations of
-OS, ABI, etc. For those complex situations, various flags have been exposed.
+Affix works a lot of places but some features require certain combinations of OS, ABI, etc. For those complex
+situations, various flags have been exposed.
 
 =head1 Platform flags
 
@@ -34,13 +34,11 @@ Returns dyncall's minor version number.
 
 =head2 C<Affix::Platform::DC_Patch()>
 
-Returns dyncall's patch level. dyncall refers to this as their 'teeny' version
-number which is usually C<0> and unused.
+Returns dyncall's patch level. dyncall refers to this as their 'teeny' version number which is usually C<0> and unused.
 
 =head2 C<Affix::Platform::DC_Stage()>
 
-Returns "current" if dyncall's source is taken from the repo or "release" for
-stable, archived versions.
+Returns "current" if dyncall's source is taken from the repo or "release" for stable, archived versions.
 
 =begin clutter
 
@@ -52,8 +50,7 @@ Returns the raw value of dyncall's version number.
 
 =head2 C<Affix::Platform::OS()>
 
-Returns one of the following values indicating what platform the dyncall
-library was built on:
+Returns one of the following values indicating what platform the dyncall library was built on:
 
 =over
 
@@ -61,8 +58,8 @@ library was built on:
 
 =item "Win32"
 
-If dyncall was built on a 32bit version of Windows, 64bit integers are
-unsupported even if your perl is built to handle them.
+If dyncall was built on a 32bit version of Windows, 64bit integers are unsupported even if your perl is built to handle
+them.
 
 =item "macOS"
 
@@ -160,59 +157,51 @@ https://en.wikipedia.org/wiki/SuperH
 
 =head2 C<Affix::Platform::MS_Cygwin()>
 
-Returns a true value if Affix was built on Windows with the
-L<Cygwin|https://www.cygwin.com/> version of the compiler.
+Returns a true value if Affix was built on Windows with the L<Cygwin|https://www.cygwin.com/> version of the compiler.
 
 =head2 C<Affix::Platform::MS_MinGW()>
 
-Returns a true value if Affix was built on Windows with the
-L<MinGW|http://mingw.osdn.io/index.html> version of the compiler.
+Returns a true value if Affix was built on Windows with the L<MinGW|http://mingw.osdn.io/index.html> version of the
+compiler.
 
 =head2 C<Affix::Platform::MS_CRT()>
 
-Returns a true value if dyncall was built Windows with the Microsoft Visual
-C/C++ Runtime.
+Returns a true value if dyncall was built Windows with the Microsoft Visual C/C++ Runtime.
 
 =head2 C<Affix::Platform::ARM_Thumb()>
 
-Returns a true value if dyncall was built on an ARM platform which included the
-16bit instructions found in ARMv4T and later.
+Returns a true value if dyncall was built on an ARM platform which included the 16bit instructions found in ARMv4T and
+later.
 
 =head2 C<Affix::Platform::ARM_EABI()>
 
-Returns a true value if dyncall was built on ARM with support for the more
-efficient EABI calling conventions.
+Returns a true value if dyncall was built on ARM with support for the more efficient EABI calling conventions.
 
 =head2 C<Affix::Platform::ARM_OABI()>
 
-Returns a true value if dyncall was built on an ARM platform with OABI calling
-conventions support.
+Returns a true value if dyncall was built on an ARM platform with OABI calling conventions support.
 
 =head2 C<Affix::Platform::MIPS_O32()>
 
-Returns a true value if dyncall was built on MIPS with O32 (only 32bit) calling
-conventions support.
+Returns a true value if dyncall was built on MIPS with O32 (only 32bit) calling conventions support.
 
 =head2 C<Affix::Platform::MIPS_N64()>
 
-Returns a true value if dyncall was built on MIPS with N64 (native 64bit)
-calling conventions support.
+Returns a true value if dyncall was built on MIPS with N64 (native 64bit) calling conventions support.
 
 =head2 C<Affix::Platform::MIPS_N32()>
 
-Returns a true value if dyncall was built on MIPS with N32 (native 32bit)
-calling conventions support.
+Returns a true value if dyncall was built on MIPS with N32 (native 32bit) calling conventions support.
 
 =head2 C<Affix::Platform::MIPS_EABI()>
 
-Returns a true value if dyncall was built on MIPS with L<EABI calling
-conventions
+Returns a true value if dyncall was built on MIPS with L<EABI calling conventions
 support|https://sourceware.org/legacy-ml/binutils/2003-06/msg00436.html>.
 
 =head2 C<Affix::Platform::HardFloat()>
 
-Returns a true value if 1) the system is running on an ARM or MIPS platform and
-2) floating point math is done on hardware.
+Returns a true value if 1) the system is running on an ARM or MIPS platform and 2) floating point math is done on
+hardware.
 
 =head2 C<Affix::Platform::Syscall()>
 
@@ -226,9 +215,8 @@ Returns true if aggregates (structs, arrays, etc.) can be passed by value.
 
 Copyright (C) Sanko Robinson.
 
-This library is free software; you can redistribute it and/or modify it under
-the terms found in the Artistic License 2. Other copyrights, terms, and
-conditions may apply to data transmitted through this module.
+This library is free software; you can redistribute it and/or modify it under the terms found in the Artistic License
+2. Other copyrights, terms, and conditions may apply to data transmitted through this module.
 
 =head1 AUTHOR
 

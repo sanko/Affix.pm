@@ -1,5 +1,5 @@
 use strict;
-use Test::More 0.98;
+use Test2::V0;
 BEGIN { chdir '../' if !-d 't'; }
 use lib '../lib', 'lib', '../blib/arch', '../blib/lib', 'blib/arch', 'blib/lib', '../../', '.';
 use Config;
@@ -8,9 +8,8 @@ $|++;
 #
 use t::lib::helper;
 #
-plan skip_all => 'Only run valgrind tests locally' unless -e 't/' . __FILE__;
-plan skip_all => 'Test::Valgrind is required to test your distribution with valgrind'
-    unless require Test::Valgrind;
+plan skip_all => 'Only run valgrind tests locally'                                    unless -e 't/' . __FILE__;
+plan skip_all => 'Test::Valgrind is required to test your distribution with valgrind' unless eval { require Test::Valgrind };
 #
 my $lib = compile_test_lib('99_valgrind');
 #

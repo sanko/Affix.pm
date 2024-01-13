@@ -1,5 +1,4 @@
-use strict;
-use Test::More 0.98;
+use Test2::V0;
 BEGIN { chdir '../' if !-d 't'; }
 use lib '../lib', '../blib/arch', '../blib/lib', 'blib/arch', 'blib/lib', '../../', '.';
 use Affix::Native;
@@ -12,13 +11,10 @@ sub Nothing : Native('t/src/41_affix_argless');
 sub Argless : Native('t/src/41_affix_argless') : Signature([]=>Int);
 sub ArglessChar : Native('t/src/41_affix_argless') : Signature([]=>Char);
 sub ArglessLongLong : Native('t/src/41_affix_argless') : Signature([]=>LongLong);
-sub ArglessIntPointer : Native('t/src/41_affix_argless') : Signature([]=>Pointer[Int]) :
-    Symbol('ArglessPointer');    # Pointer[int32]
-sub ArglessVoidPointer : Native('t/src/41_affix_argless') : Signature([]=>Pointer[Void]) :
-    Symbol('ArglessPointer');    # Pointer[int32]
+sub ArglessIntPointer : Native('t/src/41_affix_argless') : Signature([]=>Pointer[Int]) : Symbol('ArglessPointer');      # Pointer[int32]
+sub ArglessVoidPointer : Native('t/src/41_affix_argless') : Signature([]=>Pointer[Void]) : Symbol('ArglessPointer');    # Pointer[int32]
 sub ArglessUTF8String : Native('t/src/41_affix_argless') : Signature([]=>Str);
-sub short : Native('t/src/41_affix_argless') : Signature([]=>Short) :
-    Symbol('long_and_complicated_name');
+sub short : Native('t/src/41_affix_argless') : Signature([]=>Short) : Symbol('long_and_complicated_name');
 #
 Nothing();
 pass 'survived the call';

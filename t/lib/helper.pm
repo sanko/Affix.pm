@@ -1,7 +1,7 @@
 package t::lib::helper {
     use strict;
     use warnings;
-    use Test::More;
+    use Test2::V0;
     use experimental 'signatures';
     use Path::Tiny;
     use Exporter 'import';
@@ -53,8 +53,7 @@ package t::lib::helper {
                 diag 'failed to execute: ' . $!;
             }
             elsif ( $? & 127 ) {
-                diag sprintf "child died with signal %d, %s coredump\n", ( $? & 127 ),
-                    ( $? & 128 ) ? 'with' : 'without';
+                diag sprintf "child died with signal %d, %s coredump\n", ( $? & 127 ), ( $? & 128 ) ? 'with' : 'without';
             }
             else {
                 # diag 'child exited with value ' . ( $? >> 8 );

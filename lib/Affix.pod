@@ -21,9 +21,8 @@ Affix - A Foreign Function Interface eXtension
 
 =head1 DESCRIPTION
 
-Affix is an L<FFI|https://en.wikipedia.org/wiki/Foreign_function_interface> to
-wrap libraries developed in other languages (C, C++, Rust, etc.) without having
-to write or maintain XS.
+Affix is an L<FFI|https://en.wikipedia.org/wiki/Foreign_function_interface> to wrap libraries developed in other
+languages (C, C++, Rust, etc.) without having to write or maintain XS.
 
 =head2 Features
 
@@ -57,8 +56,8 @@ Affix supports the following features right out of the box:
 
 =head1 Basics
 
-Affix's basic API is rather simple but not lacking in power. Let's start at the
-beginning with the eponymous C<affix( ... )> function.
+Affix's basic API is rather simple but not lacking in power. Let's start at the beginning with the eponymous C<affix(
+... )> function.
 
 =head2 C<affix( ... )>
 
@@ -85,18 +84,17 @@ Expected parameters include:
 
 =item C<lib>
 
-File path or name of the library to load symbols from. Pass an explicit
-C<undef> to pull functions from the main executable.
+File path or name of the library to load symbols from. Pass an explicit C<undef> to pull functions from the main
+executable.
 
-Optionally, you may provide an array reference with the library and a version
-number if the library was built with such a value as part of its filename.
+Optionally, you may provide an array reference with the library and a version number if the library was built with such
+a value as part of its filename.
 
 =item C<symbol_name>
 
 Name of the symbol to wrap.
 
-Optionally, you may provide an array reference with the symbol's name and the
-name of the wrapping subroutine.
+Optionally, you may provide an array reference with the symbol's name and the name of the wrapping subroutine.
 
 =item C<parameters>
 
@@ -108,8 +106,8 @@ A single return type for the function.
 
 =back
 
-On success, C<affix( ... )> returns the generated code reference which may be
-called directly but you'll likely use the name you provided.
+On success, C<affix( ... )> returns the generated code reference which may be called directly but you'll likely use the
+name you provided.
 
 =head2 C<wrap( ... )>
 
@@ -124,11 +122,11 @@ Parameters include:
 
 =item C<lib>
 
-File path or name of the library to load symbols from. Pass an explicit
-C<undef> to pull functions from the main executable.
+File path or name of the library to load symbols from. Pass an explicit C<undef> to pull functions from the main
+executable.
 
-Optionally, you may provide an array reference with the library and a version
-number if the library was built with such a value as part of its filename.
+Optionally, you may provide an array reference with the library and a version number if the library was built with such
+a value as part of its filename.
 
 =item C<symbol_name>
 
@@ -144,8 +142,8 @@ A single return type for the function.
 
 =back
 
-C<wrap( ... )> behaves exactly like C<affix( ... )> but returns an anonymous
-subroutine and does not pollute the namespace.
+C<wrap( ... )> behaves exactly like C<affix( ... )> but returns an anonymous subroutine and does not pollute the
+namespace.
 
 =head2 C<pin( ... )>
 
@@ -154,10 +152,9 @@ subroutine and does not pollute the namespace.
     print $errno;
     $errno = 0;
 
-Variables exported by a library - also referred to as "global" or "extern"
-variables - can be accessed using C<pin( ... )>. The above example code applies
-magic to C<$error> that binds it to the integer variable named "errno" as
-exported by the L<libc> library.
+Variables exported by a library - also referred to as "global" or "extern" variables - can be accessed using C<pin( ...
+)>. The above example code applies magic to C<$error> that binds it to the integer variable named "errno" as exported
+by the L<libc> library.
 
 Expected parameters include:
 
@@ -169,11 +166,11 @@ Perl scalar that will be bound to the exported variable.
 
 =item C<lib>
 
-File path or name of the library to load symbols from. Pass an explicit
-C<undef> to pull functions from the main executable.
+File path or name of the library to load symbols from. Pass an explicit C<undef> to pull functions from the main
+executable.
 
-Optionally, you may provide an array reference with the library and a version
-number if the library was built with such a value as part of its filename.
+Optionally, you may provide an array reference with the library and a version number if the library was built with such
+a value as part of its filename.
 
 =item C<symbol_name>
 
@@ -189,9 +186,8 @@ This is likely broken on BSD but patches are welcome.
 
 =head1 Memory Functions
 
-To help toss raw data around, some standard memory related functions are
-exposed here. You may import them by name or with the C<:memory> or C<:all>
-tags.
+To help toss raw data around, some standard memory related functions are exposed here. You may import them by name or
+with the C<:memory> or C<:all> tags.
 
 =head2 C<malloc( ... )>
 
@@ -203,59 +199,54 @@ Allocates C<$size> bytes of uninitialized storage.
 
     my $ptr = calloc( $num, $size );
 
-Allocates memory for an array of C<$num> objects of C<$size> and initializes
-all bytes in the allocated storage to zero.
+Allocates memory for an array of C<$num> objects of C<$size> and initializes all bytes in the allocated storage to
+zero.
 
 =head2 C<realloc( ... )>
 
     $ptr = realloc( $ptr, $new_size );
 
-Reallocates the given area of memory. It must be previously allocated by
-C<malloc( ... )>, C<calloc( ... )>, or C<realloc( ... )> and not yet freed with
-a call to C<free( ... )> or C<realloc( ... )>. Otherwise, the results are
+Reallocates the given area of memory. It must be previously allocated by C<malloc( ... )>, C<calloc( ... )>, or
+C<realloc( ... )> and not yet freed with a call to C<free( ... )> or C<realloc( ... )>. Otherwise, the results are
 undefined.
 
 =head2 C<free( ... )>
 
     free( $ptr );
 
-Deallocates the space previously allocated by C<malloc( ... )>, C<calloc( ...
-)>, or C<realloc( ... )>.
+Deallocates the space previously allocated by C<malloc( ... )>, C<calloc( ... )>, or C<realloc( ... )>.
 
 =head2 C<memchr( ... )>
 
     memchr( $ptr, $ch, $count );
 
-Finds the first occurrence of C<$ch> in the initial C<$count> bytes (each
-interpreted as unsigned char) of the object pointed to by C<$ptr>.
+Finds the first occurrence of C<$ch> in the initial C<$count> bytes (each interpreted as unsigned char) of the object
+pointed to by C<$ptr>.
 
 =head2 C<memcmp( ... )>
 
     my $cmp = memcmp( $lhs, $rhs, $count );
 
-Compares the first C<$count> bytes of the objects pointed to by C<$lhs> and
-C<$rhs>. The comparison is done lexicographically.
+Compares the first C<$count> bytes of the objects pointed to by C<$lhs> and C<$rhs>. The comparison is done
+lexicographically.
 
 =head2 C<memset( ... )>
 
     memset( $dest, $ch, $count );
 
-Copies the value C<$ch> into each of the first C<$count> characters of the
-object pointed to by C<$dest>.
+Copies the value C<$ch> into each of the first C<$count> characters of the object pointed to by C<$dest>.
 
 =head2 C<memcpy( ... )>
 
     memcpy( $dest, $src, $count );
 
-Copies C<$count> characters from the object pointed to by C<$src> to the object
-pointed to by C<$dest>.
+Copies C<$count> characters from the object pointed to by C<$src> to the object pointed to by C<$dest>.
 
 =head2 C<memmove( ... )>
 
     memmove( $dest, $src, $count );
 
-Copies C<$count> characters from the object pointed to by C<$src> to the object
-pointed to by C<$dest>.
+Copies C<$count> characters from the object pointed to by C<$src> to the object pointed to by C<$dest>.
 
 =head2 C<sizeof( ... )>
 
@@ -269,15 +260,13 @@ Returns the size, in bytes, of the L<type|/Types> passed to it.
     my $struct = Struct[ name => Str, age => Int ];
     my $offset = offsetof( $struct, 'age' );
 
-Returns the offset, in bytes, from the beginning of a structure including
-padding, if any.
+Returns the offset, in bytes, from the beginning of a structure including padding, if any.
 
 =head1 Utilities
 
 Here's some thin cushions for the rougher edges of wrapping libraries.
 
-They may be imported by name for now but might be renamed, removed, or changed
-in the future.
+They may be imported by name for now but might be renamed, removed, or changed in the future.
 
 =head2 C<DumpHex( ... )>
 
@@ -285,13 +274,12 @@ in the future.
 
 Dumps C<$length> bytes of raw data from a given point in memory.
 
-This is a debugging function that probably shouldn't find its way into your
-code and might not be public in the future.
+This is a debugging function that probably shouldn't find its way into your code and might not be public in the future.
 
 =head1 Signatures
 
-You must provide Affix with a signature which may include types and calling
-conventions. Let's start with an example in C:
+You must provide Affix with a signature which may include types and calling conventions. Let's start with an example in
+C:
 
     bool report( const char * name, int grades[5] );
 
@@ -307,15 +295,13 @@ To call the function, your Perl would look like this:
 
     my $promote = report( 'Alex Smithe', [ 90, 82, 70, 76, 98 ] );
 
-See the subsections entitled L<Types|/Types> for more on the possible types and
-L<Calling Conventions/Calling Conventions> for advanced flags that may also be
-defined as part of your signature.
+See the subsections entitled L<Types|/Types> for more on the possible types and L<Calling Conventions/Calling
+Conventions> for advanced flags that may also be defined as part of your signature.
 
 =head2 Types
 
-Affix supports the fundamental types (void, int, etc.) as well as aggregates
-(struct, array, union). Please note that types given are advisory only! No type
-checking is done at compile or runtime.
+Affix supports the fundamental types (void, int, etc.) as well as aggregates (struct, array, union). Please note that
+types given are advisory only! No type checking is done at compile or runtime.
 
 =head2 Fundamental Types
 
@@ -356,96 +342,94 @@ checking is done at compile or runtime.
 
 =begin html
 
-<table>     <thead>       <tr>         <th>Affix</th> <th>C99</th>
-<th>Rust</th> <th>C#</th> <th>pack()</th> <th>Raku</th>       </tr> </thead>
-<tbody>       <tr>         <td>Void</td> <td>void</td> <td>-&gt;()</td>
-<td>void/NULL</td> <td>-</td> <td></td>       </tr>       <tr> <td>Bool</td>
-<td>_Bool</td> <td>bool</td> <td>bool</td> <td>-</td> <td>bool</td>       </tr>
-      <tr>         <td>Char</td> <td>int8_t</td>    <td>i8</td> <td>sbyte</td>
-<td>c</td>       <td>int8</td>    </tr>       <tr>   <td>UChar</td>
-<td>uint8_t</td>         <td>u8</td>         <td>byte</td>     <td>C</td>
-<td>byte, uint8</td>       </tr>       <tr> <td>Short</td>  <td>int16_t</td>
-<td>i16</td>  <td>short</td> <td>s</td>         <td>int16</td>       </tr> <tr>
-<td>UShort</td>  <td>uint16_t</td>         <td>u16</td> <td>ushort</td>
-<td>S</td>   <td>uint16</td>       </tr> <tr> <td>Int</td> <td>int32_t</td>
-<td>i32</td> <td>int</td> <td>i</td> <td>int32</td>    </tr>       <tr>
-<td>UInt</td> <td>uint32_t</td>     <td>u32</td> <td>uint</td> <td>I</td>
-<td>uint32</td>       </tr>     <tr> <td>Long</td> <td>int64_t</td>
-<td>i64</td> <td>long</td> <td>l</td> <td>int64, long</td> </tr> <tr>
-<td>ULong</td> <td>uint64_t</td>     <td>u64</td> <td>ulong</td> <td>L</td>
-<td>uint64, ulong</td> </tr>       <tr> <td>LongLong</td>     <td>-/long
-long</td> <td>i128</td>   <td>q</td> <td>longlong</td>         <td></td> </tr>
-<tr> <td>ULongLong</td> <td>-/unsigned long long</td> <td>u128</td> <td>Q</td>
-<td>ulonglong</td>       <td></td>       </tr> <tr> <td>Float</td>
-<td>float</td>         <td>f32</td> <td>f</td> <td>num32</td> <td></td> </tr>
-<tr>  <td>Double</td> <td>double</td> <td>f64</td> <td>d</td> <td>num64</td>
-<td></td> </tr>    <tr> <td>SSize_t</td> <td>SSize_t</td> <td>SSize_t</td>
-<td></td> <td></td>       <td></td>     </tr> <tr> <td>Size_t</td>
-<td>size_t</td>         <td>size_t</td>      <td></td> <td></td> <td></td>
-</tr>       <tr> <td>Str</td> <td>char *</td> <td></td> <td></td> <td></td>
-<td></td> </tr>       <tr> <td>WStr</td> <td>wchar_t</td> <td></td> <td></td>  
-  <td></td>      </tr> </tbody> </table>
+<table>     <thead>       <tr>         <th>Affix</th> <th>C99</th> <th>Rust</th> <th>C#</th> <th>pack()</th>
+<th>Raku</th>       </tr> </thead> <tbody>       <tr>         <td>Void</td> <td>void</td> <td>-&gt;()</td>
+<td>void/NULL</td> <td>-</td> <td></td>       </tr>       <tr> <td>Bool</td> <td>_Bool</td> <td>bool</td> <td>bool</td>
+<td>-</td> <td>bool</td>       </tr>       <tr>         <td>Char</td> <td>int8_t</td>    <td>i8</td> <td>sbyte</td>
+<td>c</td>       <td>int8</td>    </tr>       <tr>   <td>UChar</td> <td>uint8_t</td>         <td>u8</td>        
+<td>byte</td>     <td>C</td> <td>byte, uint8</td>       </tr>       <tr> <td>Short</td>  <td>int16_t</td> <td>i16</td> 
+<td>short</td> <td>s</td>         <td>int16</td>       </tr> <tr> <td>UShort</td>  <td>uint16_t</td>        
+<td>u16</td> <td>ushort</td> <td>S</td>   <td>uint16</td>       </tr> <tr> <td>Int</td> <td>int32_t</td> <td>i32</td>
+<td>int</td> <td>i</td> <td>int32</td>    </tr>       <tr> <td>UInt</td> <td>uint32_t</td>     <td>u32</td>
+<td>uint</td> <td>I</td> <td>uint32</td>       </tr>     <tr> <td>Long</td> <td>int64_t</td> <td>i64</td> <td>long</td>
+<td>l</td> <td>int64, long</td> </tr> <tr> <td>ULong</td> <td>uint64_t</td>     <td>u64</td> <td>ulong</td> <td>L</td>
+<td>uint64, ulong</td> </tr>       <tr> <td>LongLong</td>     <td>-/long long</td> <td>i128</td>   <td>q</td>
+<td>longlong</td>         <td></td> </tr> <tr> <td>ULongLong</td> <td>-/unsigned long long</td> <td>u128</td>
+<td>Q</td> <td>ulonglong</td>       <td></td>       </tr> <tr> <td>Float</td> <td>float</td>         <td>f32</td>
+<td>f</td> <td>num32</td> <td></td> </tr> <tr>  <td>Double</td> <td>double</td> <td>f64</td> <td>d</td> <td>num64</td>
+<td></td> </tr>    <tr> <td>SSize_t</td> <td>SSize_t</td> <td>SSize_t</td> <td></td> <td></td>       <td></td>    
+</tr> <tr> <td>Size_t</td> <td>size_t</td>         <td>size_t</td>      <td></td> <td></td> <td></td> </tr>       <tr>
+<td>Str</td> <td>char *</td> <td></td> <td></td> <td></td> <td></td> </tr>       <tr> <td>WStr</td> <td>wchar_t</td>
+<td></td> <td></td> <td></td>      </tr> </tbody> </table>
 
 =end html
 
 Given sizes are minimums measured in bits
 
-Other types are also defined according to the system's platform. See
-L<Affix::Types>.
+Other types are also defined according to the system's platform. See L<Affix::Type>.
 
 =head2 Calling Conventions
 
 Handle with care! Using these without understanding them can break your code!
 
 Refer to L<the dyncall manual|https://dyncall.org/docs/manual/manualse11.html>,
-L<http://www.angelcode.com/dev/callconv/callconv.html>,
-L<https://en.wikipedia.org/wiki/Calling_convention>, and your local
-university's Comp Sci department for a deeper explanation.
+L<http://www.angelcode.com/dev/callconv/callconv.html>, L<https://en.wikipedia.org/wiki/Calling_convention>, and your
+local university's Comp Sci department for a deeper explanation.
 
 After than, feel free to use or misuse any of the current options:
 
 =over
 
-=item C<CC_DEFAULT>
+=item C<This>
 
-=item C<CC_THISCALL>
+Platform native C++ this calls
 
-=item C<CC_ELLIPSIS>
+=item C<Ellipsis>
 
-=item C<CC_ELLIPSIS_VARARGS>
+=item C<Varargs>
 
-=item C<CC_CDECL>
+=item C<CDecl>
 
-=item C<CC_STDCALL>
+x86 specific
 
-=item C<CC_FASTCALL_MS>
+=item C<STDCall>
 
-=item C<CC_FASTCALL_GNU>
+x86 specific
 
-=item C<CC_THISCALL_MS>
+=item C<MSFastcall>
 
-=item C<CC_THISCALL_GNU>
+x86 specific
 
-=item C<CC_ARM_ARM>
+=item C<GNUFastcall>
 
-=item C<CC_ARM_THUMB>
+x86 specific
 
-=item C<CC_SYSCALL>
+=item C<MSThis>
+
+x86 specific, MS C++ this calls
+
+=item C<GNUThis>
+
+x86 specific, GNU C++ C<this> calls are C<cdecl>, but this is defined for clarity
+
+=item C<Arm>
+
+=item C<Thumb>
+
+=item C<Syscall>
 
 =back
 
-When used in L<signatures/Signatures>, most of these cause the internal
-argument stack to be reset. The exceptions are C<CC_ELLIPSIS> and
-C<CC_ELLIPSIS_VARARGS>.
+When used in L<signatures/Signatures>, most of these cause the internal argument stack to be reset. The exceptions are
+C<Ellipsis> and C<Varargs>.
 
 =head1 Calling into the Standard Library
 
-If you want to call a function that's already loaded, either from the standard
-library or from your own program, you can omit the library value or pass and
-explicit C<undef>.
+If you want to call a function that's already loaded, either from the standard library or from your own program, you
+can omit the library value or pass and explicit C<undef>.
 
-For example, on Unix, you could use the following code to gather the home
-directory and other info about the current user:
+For example, on Unix, you could use the following code to gather the home directory and other info about the current
+user:
 
     use Affix;
     use Data::Printer;
@@ -464,17 +448,15 @@ directory and other info about the current user:
 
 =head1 ABI/API versions
 
-If you ask Affix to load symbols from 'foo', we'll will look for C<libfoo.so>
-under Unix, (C<libfoo.dynlib> on macOS, and C<foo.dll> on Windows.
+If you ask Affix to load symbols from 'foo', we'll will look for C<libfoo.so> under Unix, (C<libfoo.dynlib> on macOS,
+and C<foo.dll> on Windows.
 
-Most modern system require you or the user of your module to install the
-development package because it's recommended to always provide an API/ABI
-version to a shared library, so C<libfoo.so> ends often being a symbolic link
-provided only by a development package.
+Most modern system require you or the user of your module to install the development package because it's recommended
+to always provide an API/ABI version to a shared library, so C<libfoo.so> ends often being a symbolic link provided
+only by a development package.
 
-To avoid that, the Affix allows you to specify the API/ABI version. It can be a
-full version or just a part of it. (Try to stick to Major version, some BSD
-code does not care for Minor.)
+To avoid that, the Affix allows you to specify the API/ABI version. It can be a full version or just a part of it. (Try
+to stick to Major version, some BSD code does not care for Minor.)
 
     use Affix;
     affix ['foo', v1], ...;       # Will try to load libfoo.so.1 on Unix
@@ -482,9 +464,8 @@ code does not care for Minor.)
 
 =head1 Stack Size
 
-You may control the max size of the internal stack that will be allocated and
-used to bind the arguments to by setting the C<$VMSize> variable before using
-Affix.
+You may control the max size of the internal stack that will be allocated and used to bind the arguments to by setting
+the C<$VMSize> variable before using Affix.
 
     BEGIN{ $Affix::VMSize = 2 ** 16; }
 
@@ -492,8 +473,8 @@ This value is C<4096> by default and probably should not be changed.
 
 =head1 Examples
 
-Very short examples might find their way into the L<Affix::Cookbook>. The best
-example of use might be L<LibUI>. Brief examples will be found in C<eg/>.
+Very short examples might find their way into the L<Affix::Cookbook>. The best example of use might be L<LibUI>. Brief
+examples will be found in C<eg/>.
 
 =head1 See Also
 
@@ -509,9 +490,8 @@ L<Types::Standard> for the inspiration of the advisory types system
 
 Copyright (C) Sanko Robinson.
 
-This library is free software; you can redistribute it and/or modify it under
-the terms found in the Artistic License 2. Other copyrights, terms, and
-conditions may apply to data transmitted through this module.
+This library is free software; you can redistribute it and/or modify it under the terms found in the Artistic License
+2. Other copyrights, terms, and conditions may apply to data transmitted through this module.
 
 =head1 AUTHOR
 
@@ -519,9 +499,8 @@ Sanko Robinson E<lt>sanko@cpan.orgE<gt>
 
 =begin stopwords
 
-dyncall OpenBSD FreeBSD macOS DragonFlyBSD NetBSD iOS ReactOS mips mips64 ppc32
-ppc64 sparc sparc64 co-existing varargs variadic struct enum structs enums
-eXtension rvalue dualvars libsomething versioned errno syscall
+dyncall OpenBSD FreeBSD macOS DragonFlyBSD NetBSD iOS ReactOS mips mips64 ppc32 ppc64 sparc sparc64 co-existing varargs
+variadic struct enum structs enums eXtension rvalue dualvars libsomething versioned errno syscall
 
 =end stopwords
 

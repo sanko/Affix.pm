@@ -3,8 +3,7 @@ use Affix;
 affix './xor_cipher.so', 'string_crypt_free', [ Pointer [Void] ], Void;
 
 sub string_crypt {
-    CORE::state $string_crypt //= wrap './xor_cipher.so', 'string_crypt', [ Str, Int, Str ],
-        Pointer [Char];
+    CORE::state $string_crypt //= wrap './xor_cipher.so', 'string_crypt', [ Str, Int, Str ], Pointer [Char];
     my ( $input, $key ) = @_;
     my $ptr = $string_crypt->( $input, length($input), $key );
     my $out = $ptr->raw( length $input );

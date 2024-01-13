@@ -1,5 +1,4 @@
-use strict;
-use Test::More 0.98;
+use Test2::V0;
 BEGIN { chdir '../' if !-d 't'; }
 use lib '../lib', 'lib', '../blib/arch', '../blib/lib', 'blib/arch', 'blib/lib', '../../', '.';
 use Affix;
@@ -13,22 +12,21 @@ subtest 'fundamental types' => sub {
 
     #diag sizeof(Double);
     #die;
-    is sizeof(Bool),     Affix::wrap( $lib, 's_bool',     [], Size_t )->(),  'sizeof(Bool)';
-    is sizeof(Char),     Affix::wrap( $lib, 's_char',     [], Size_t )->(),  'sizeof(Char)';
-    is sizeof(Short),    Affix::wrap( $lib, 's_short',    [], Size_t )->(),  'sizeof(Short)';
-    is sizeof(Int),      Affix::wrap( $lib, 's_int',      [], Size_t )->(),  'sizeof(Int)';
-    is sizeof(Long),     Affix::wrap( $lib, 's_long',     [], Size_t )->(),  'sizeof(Long)';
-    is sizeof(LongLong), Affix::wrap( $lib, 's_longlong', [], Size_t )->(),  'sizeof(LongLong)';
-    is sizeof(Float),    Affix::wrap( $lib, 's_float',    [], Size_t )->(),  'sizeof(Float)';
-    is sizeof(Double),   Affix::wrap( $lib, 's_double',   [], Size_t )->(),  'sizeof(Double)';
-    is sizeof(SSize_t),  Affix::wrap( $lib, 's_ssize_t',  [], SSize_t )->(), 'sizeof(SSize_t)';
-    is sizeof(Size_t),   Affix::wrap( $lib, 's_size_t',   [], Size_t )->(),  'sizeof(Size_t)';
-    is sizeof( Pointer [Void] ), Affix::wrap( $lib, 's_pointer', [], Size_t )->(),
-        'sizeof(Pointer[Void])';
-    is sizeof( Struct [ i => Int, f => Float, a => Array [ Int, 7 ], c => Char, z => Str ] ),
-        Affix::wrap( $lib, 's_struct', [], Size_t )->(), 'sizeof(Struct[...])';
-    is sizeof( Union [ i => Int, f => Float, a => Array [ Int, 7 ], c => Char, z => Str ] ),
-        Affix::wrap( $lib, 's_union', [], Size_t )->(), 'sizeof(Union[...])';
+    is sizeof(Bool),             Affix::wrap( $lib, 's_bool',     [], Size_t )->(),  'sizeof(Bool)';
+    is sizeof(Char),             Affix::wrap( $lib, 's_char',     [], Size_t )->(),  'sizeof(Char)';
+    is sizeof(Short),            Affix::wrap( $lib, 's_short',    [], Size_t )->(),  'sizeof(Short)';
+    is sizeof(Int),              Affix::wrap( $lib, 's_int',      [], Size_t )->(),  'sizeof(Int)';
+    is sizeof(Long),             Affix::wrap( $lib, 's_long',     [], Size_t )->(),  'sizeof(Long)';
+    is sizeof(LongLong),         Affix::wrap( $lib, 's_longlong', [], Size_t )->(),  'sizeof(LongLong)';
+    is sizeof(Float),            Affix::wrap( $lib, 's_float',    [], Size_t )->(),  'sizeof(Float)';
+    is sizeof(Double),           Affix::wrap( $lib, 's_double',   [], Size_t )->(),  'sizeof(Double)';
+    is sizeof(SSize_t),          Affix::wrap( $lib, 's_ssize_t',  [], SSize_t )->(), 'sizeof(SSize_t)';
+    is sizeof(Size_t),           Affix::wrap( $lib, 's_size_t',   [], Size_t )->(),  'sizeof(Size_t)';
+    is sizeof( Pointer [Void] ), Affix::wrap( $lib, 's_pointer',  [], Size_t )->(),  'sizeof(Pointer[Void])';
+    is sizeof( Struct [ i => Int, f => Float, a => Array [ Int, 7 ], c => Char, z => Str ] ), Affix::wrap( $lib, 's_struct', [], Size_t )->(),
+        'sizeof(Struct[...])';
+    is sizeof( Union [ i => Int, f => Float, a => Array [ Int, 7 ], c => Char, z => Str ] ), Affix::wrap( $lib, 's_union', [], Size_t )->(),
+        'sizeof(Union[...])';
 };
 
 #exit;
@@ -56,18 +54,15 @@ my $massive = Affix::typedef massive => Struct [
 #diag Dumper massive();
 subtest 'array' => sub {
     is sizeof( Array [ Char, 3 ] ), 3, 'sizeof(Array [ Char, 3 ])';
-    is sizeof( Array [ Pointer [Void], 1 ] ),
-        Affix::wrap( $lib, 's_pointer_array', [], Size_t )->(),
-        'sizeof(Array [ Pointer[Void], 1 ])';
-    is sizeof( Array [ Str, 3 ] ), Affix::wrap( $lib, 's_string_array', [], Size_t )->(),
-        'sizeof(Array [ Str, 3 ])';
+    is sizeof( Array [ Pointer [Void], 1 ] ), Affix::wrap( $lib, 's_pointer_array', [], Size_t )->(), 'sizeof(Array [ Pointer[Void], 1 ])';
+    is sizeof( Array [ Str, 3 ] ), Affix::wrap( $lib, 's_string_array', [], Size_t )->(), 'sizeof(Array [ Str, 3 ])';
 };
 subtest 'aggregates' => sub {
     is sizeof( Struct [] ), 0, 'empty struct is 0 bytes';
     my $struct1 = Struct [ c => Array [ Char, 3 ] ];
     my $struct2 = Struct [ c => Array [ Int,  3 ] ];
     my $struct3 = Struct [ d => Double, c => Array [ Int, 3 ] ];
-    my $struct4 = Struct [ y => $struct3 ];    # Make sure we are padding cached size data
+    my $struct4 = Struct [ y => $struct3 ];                                        # Make sure we are padding cached size data
     my $struct5 = Struct [ y => Struct [ d => Double, c => Array [ Int, 3 ] ] ];
     my $struct6 = Struct [ y => $struct3, s => $struct4, c => Char ];
     my $struct7 = Struct [ i => Int,    Z => Str ];
@@ -84,10 +79,8 @@ subtest 'aggregates' => sub {
     SKIP: {
             #skip 'perl defined bad var sizes with -Duselongdouble before 5.36.x', 2
             #    if ( $Config{uselongdouble} || $Config{usequadmath} ) && $^V lt v5.36.1;
-            is sizeof($struct6), Affix::wrap( $lib, 's_struct6', [], Size_t )->(),
-                'sizeof(struct6)';
-            is sizeof($massive), Affix::wrap( $lib, 's_massive', [], Size_t )->(),
-                'sizeof(massive)';
+            is sizeof($struct6), Affix::wrap( $lib, 's_struct6', [], Size_t )->(), 'sizeof(struct6)';
+            is sizeof($massive), Affix::wrap( $lib, 's_massive', [], Size_t )->(), 'sizeof(massive)';
         }
 
         #diag Dumper $struct7;
@@ -101,8 +94,7 @@ subtest 'aggregates' => sub {
             my $array1 = Array [ Struct [ d => Double, c => Array [ Int, 4 ] ], $length ];
 
             #diag Dumper $array1;
-            is sizeof($array1), Affix::wrap( $lib, 's_array1', [Int], Size_t )->($length),
-                'sizeof(array1) [' . $length . ']';
+            is sizeof($array1), Affix::wrap( $lib, 's_array1', [Int], Size_t )->($length), 'sizeof(array1) [' . $length . ']';
         }
     };
     subtest 'unions' => sub {
