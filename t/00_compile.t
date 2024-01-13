@@ -1,8 +1,7 @@
-use strict;
-use Test::More 0.98;
+use Test2::V0;
 use lib '../lib', 'lib';
 diag 'perl ' . $^V . ' @ ' . $^X;
-use_ok $_ for qw[Affix];
+use Affix;
 #
 diag 'Platform info:';
 diag '  dyncall ver: ' . Affix::Platform::DC_Version();
@@ -28,5 +27,6 @@ elsif ( Affix::Platform::Architecture() =~ m'MIPS' ) {
     diag '               Hard Float: ' . ( Affix::Platform::HardFloat() ? 'yes' : 'no' );
     diag '                     EABI: ' . ( Affix::Platform::MIPS_EABI() ? 'yes' : 'no' );
 }
+pass 'okay';
 #
 done_testing;

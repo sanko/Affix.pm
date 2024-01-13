@@ -1,7 +1,6 @@
-use strict;
 no warnings 'portable';
 use Affix qw[:memory :default :types];
-use Test::More 0.98;
+use Test2::V0;
 BEGIN { chdir '../' if !-d 't'; }
 use lib '../lib', '../blib/arch', '../blib/lib', 'blib/arch', 'blib/lib', '../../', '.';
 use File::Spec;
@@ -92,7 +91,7 @@ diag __LINE__;
         sub {
             diag __LINE__;
             pass('our coderef was called');
-            is_deeply \@_, [ 4, 8 ], '... and given correct arguments';
+            is \@_, [ 4, 8 ], '... and given correct arguments';
             diag __LINE__;
             50.25;
         }
@@ -111,7 +110,7 @@ diag __LINE__;
         sub {
             diag __LINE__;
             pass('our coderef was called');
-            is_deeply \@_, [ 4, 8 ], '... and given correct arguments';
+            is \@_, [ 4, 8 ], '... and given correct arguments';
             diag __LINE__;
             50.25;
         }
@@ -135,7 +134,7 @@ diag __LINE__;
         sub {
             diag __LINE__;
             pass('our coderef was called');
-            is_deeply \@_, [ 4, 8 ], '... and given correct arguments';
+            is \@_, [ 4, 8 ], '... and given correct arguments';
             50.25;
         }
         ),

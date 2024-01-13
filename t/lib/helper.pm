@@ -1,7 +1,7 @@
 package t::lib::helper {
     use strict;
     use warnings;
-    use Test::More;
+    use Test2::V0;
     use experimental 'signatures';
     use Path::Tiny;
     use Exporter 'import';

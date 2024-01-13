@@ -9,9 +9,9 @@ requires 'Attribute::Handlers';
 requires 'Data::Dump';
 #
 on 'test' => sub {
-    requires 'Test::More' => 0.98;
-    requires 'Test::Fatal';
-    requires 'Test::Warnings';
+    requires 'Test2::V0';
+    requires 'Test2::Tools::Compare';
+    requires 'Test2::Plugin::UTF8';
     requires 'Data::Dumper';
     requires 'Math::BigInt';
     requires 'Devel::CheckBin';

@@ -1,8 +1,6 @@
-use strict;
-use warnings;
 use lib '../lib', '../blib/arch', '../blib/lib', 'blib/arch', 'blib/lib';
 use Affix;
-use Test::More;
+use Test2::V0;
 use Config;
 $|++;
 #

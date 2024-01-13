@@ -1,7 +1,6 @@
-use strict;
 no warnings 'portable';
-use Test::More 0.98;
-use Test::Fatal qw[exception];
+use Test2::V0;
+use Test2::Tools::Exception qw[dies];
 BEGIN { chdir '../' if !-d 't'; }
 use lib '../lib', 'lib', '../blib/arch', '../blib/lib', 'blib/arch', 'blib/lib', '../../', '.';
 use Affix qw[:memory :default :types :cc];

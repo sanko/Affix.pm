@@ -1,13 +1,11 @@
-use strict;
-use utf8;
-use Test::More 0.98;
+use Test2::V0;
+use Test2::Plugin::UTF8;
 BEGIN { chdir '../' if !-d 't'; }
 use lib '../lib', '../blib/arch', '../blib/lib', 'blib/arch', 'blib/lib', '../../', '.';
 use Affix;
 use Affix::Native;
 use File::Spec;
 use t::lib::helper;
-binmode $_, "encoding(UTF-8)" for Test::More->builder->output, Test::More->builder->failure_output;
 $|++;
 
 # https://www.gnu.org/software/libunistring/manual/html_node/The-wchar_005ft-mess.html

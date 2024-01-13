@@ -1,5 +1,4 @@
-use strict;
-use Test::More 0.98;
+use Test2::V0;
 BEGIN { chdir '../' if !-d 't'; }
 use lib '../lib', 'lib', '../blib/arch', '../blib/lib', 'blib/arch', 'blib/lib', '../../', '.';
 use Affix qw[:types affix wrap typedef];
@@ -11,47 +10,47 @@ compile_test_lib('55_affix_enum');
 {
     my $ab = IntEnum [ 'alpha', 'beta' ];
     isa_ok $ab, 'Affix::Type::Enum';
-    is_deeply $ab->{values}, [ 'alpha', 'beta' ], qq![ 'alpha', 'beta' ] values!;
-    is int $ab->{values}[0], 0, 'alpha == 0';
-    is int $ab->{values}[1], 1, 'beta == 1';
+    is $ab->{values},        [ 'alpha', 'beta' ], qq![ 'alpha', 'beta' ] values!;
+    is int $ab->{values}[0], 0,                   'alpha == 0';
+    is int $ab->{values}[1], 1,                   'beta == 1';
 }
 {
     my $ab = Enum [ 'alpha', [ 'beta' => 5 ] ];
-    is_deeply $ab->{values}, [ 'alpha', 'beta' ], qq![ 'alpha', [ 'beta' => 5 ] ] values!;
-    is int $ab->{values}[0], 0, 'alpha == 0';
-    is int $ab->{values}[1], 5, 'beta == 5';
+    is $ab->{values},        [ 'alpha', 'beta' ], qq![ 'alpha', [ 'beta' => 5 ] ] values!;
+    is int $ab->{values}[0], 0,                   'alpha == 0';
+    is int $ab->{values}[1], 5,                   'beta == 5';
 }
 {
     my $ab = Affix::Enum [ 'alpha', [ 'beta' => 5 ], 'gamma' ];
     isa_ok $ab, 'Affix::Type::Enum';
-    is_deeply $ab->{values}, [ 'alpha', 'beta', 'gamma' ], qq![ 'alpha', [ 'beta' => 5 ], 'gamma' ] values!;
-    is int $ab->{values}[0], 0, 'alpha == 0';
-    is int $ab->{values}[1], 5, 'beta == 5';
-    is int $ab->{values}[2], 6, 'gamma == 6';
+    is $ab->{values},        [ 'alpha', 'beta', 'gamma' ], qq![ 'alpha', [ 'beta' => 5 ], 'gamma' ] values!;
+    is int $ab->{values}[0], 0,                            'alpha == 0';
+    is int $ab->{values}[1], 5,                            'beta == 5';
+    is int $ab->{values}[2], 6,                            'gamma == 6';
 }
 {
     my $ab = Affix::Enum [ 'alpha', [ 'beta' => 5 ], [ 'gamma' => 'alpha' ] ];
     isa_ok $ab, 'Affix::Type::Enum';
-    is_deeply $ab->{values}, [ 'alpha', 'beta', 'gamma' ], qq![ 'alpha', [ 'beta' => 5 ], [ 'gamma' => 'alpha' ] ] values!;
-    is int $ab->{values}[0], 0, 'alpha == 0';
-    is int $ab->{values}[1], 5, 'beta == 5';
-    is int $ab->{values}[2], 0, 'gamma == 0';
+    is $ab->{values},        [ 'alpha', 'beta', 'gamma' ], qq![ 'alpha', [ 'beta' => 5 ], [ 'gamma' => 'alpha' ] ] values!;
+    is int $ab->{values}[0], 0,                            'alpha == 0';
+    is int $ab->{values}[1], 5,                            'beta == 5';
+    is int $ab->{values}[2], 0,                            'gamma == 0';
 }
 {
     my $ab = Affix::Enum [ 'alpha', [ 'beta' => 5 ], [ 'gamma' => 'alpha - beta' ] ];
     isa_ok $ab, 'Affix::Type::Enum';
-    is_deeply $ab->{values}, [ 'alpha', 'beta', 'gamma' ], qq![ 'alpha', [ 'beta' => 5 ], [ 'gamma' => 'alpha - beta' ] ] values!;
-    is int $ab->{values}[0], 0,  'alpha == 0';
-    is int $ab->{values}[1], 5,  'beta == 5';
-    is int $ab->{values}[2], -5, 'gamma == -5';
+    is $ab->{values},        [ 'alpha', 'beta', 'gamma' ], qq![ 'alpha', [ 'beta' => 5 ], [ 'gamma' => 'alpha - beta' ] ] values!;
+    is int $ab->{values}[0], 0,                            'alpha == 0';
+    is int $ab->{values}[1], 5,                            'beta == 5';
+    is int $ab->{values}[2], -5,                           'gamma == -5';
 }
 {
     my $ab = Affix::Enum [ 'alpha', [ 'beta' => 5 ], [ 'gamma' => 'beta*beta' ] ];
     isa_ok $ab, 'Affix::Type::Enum';
-    is_deeply $ab->{values}, [ 'alpha', 'beta', 'gamma' ], qq![ 'alpha', [ 'beta' => 5 ], [ 'gamma' => 'beta * beta' ] ] values!;
-    is int $ab->{values}[0], 0,  'alpha == 0';
-    is int $ab->{values}[1], 5,  'beta == 5';
-    is int $ab->{values}[2], 25, 'gamma == 25';
+    is $ab->{values},        [ 'alpha', 'beta', 'gamma' ], qq![ 'alpha', [ 'beta' => 5 ], [ 'gamma' => 'beta * beta' ] ] values!;
+    is int $ab->{values}[0], 0,                            'alpha == 0';
+    is int $ab->{values}[1], 5,                            'beta == 5';
+    is int $ab->{values}[2], 25,                           'gamma == 25';
 }
 subtest 'typedef' => sub {
     typedef TV =>

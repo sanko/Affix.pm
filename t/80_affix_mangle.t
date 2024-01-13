@@ -1,9 +1,7 @@
-use strict;
-use warnings;
+use Test2::V0;
 BEGIN { chdir '../' if !-d 't'; }
 use lib '../lib', 'lib', '../blib/arch', '../blib/lib', 'blib/arch', 'blib/lib', '../../', '.';
 use Affix qw[typedef :types];
-use Test::More;
 #
 my $fake_affix = bless { cpp_struct => 0, cpp_const => 0, cpp_constructor => 0 }, 'Fake::Affix';
 
