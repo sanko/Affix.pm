@@ -1,24 +1,6 @@
 #include "std.h"
 
 DLLEXPORT
-bool EXAMPLE(const int) {
-    return false;
-}
-DLLEXPORT
-bool EXAMPLE(const char) {
-    return false;
-}
-
-void foo(
-    void*(*) (void*),
-    void*(*) (const void*),
-    const void*(*) (void*)
-)
-{;}
-
-
-#if 0
-DLLEXPORT
 bool test(bool value) {
     // return the opposite; makes sure we're updating ST(0)
     if (value) return false;
@@ -91,6 +73,7 @@ bool *Ret_BoolPtr() {
 
     return arr;
 }
+
 DLLEXPORT
 bool **Ret_BoolPtrPtr() {
     bool **board = (bool **)malloc(sizeof(bool *) * 3);
@@ -102,6 +85,26 @@ bool **Ret_BoolPtrPtr() {
     }
     return board;
 }
+
+#if 0
+DLLEXPORT
+bool EXAMPLE(const int) {
+    return false;
+}
+DLLEXPORT
+bool EXAMPLE(const char) {
+    return false;
+}
+
+void foo(
+    void*(*) (void*),
+    void*(*) (const void*),
+    const void*(*) (void*)
+)
+{;}
+
+
+
 
 DLLEXPORT
 char test(char check) {
