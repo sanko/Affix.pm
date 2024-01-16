@@ -1,7 +1,8 @@
 use Test2::V0;
-use lib '../lib', 'lib';
+use lib '../lib', 'lib', '../blib/arch/auto/Affix', '../blib/lib';
 diag 'perl ' . $^V . ' @ ' . $^X;
 use Affix;
+ok $Affix::VERSION, 'Affix v' . $Affix::VERSION;
 #
 diag 'Platform info:';
 diag '  dyncall ver: ' . Affix::Platform::DC_Version();
