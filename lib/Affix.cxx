@@ -1592,9 +1592,9 @@ XS_EXTERNAL(boot_Affix) {
     MY_CXT.cvm = dcNewCallVM(vmsize == NULL ? 8192 : SvIV(vmsize));
 
     //
-    cv = newXSproto_portable("Affix::affix", Affix_affix, __FILE__, "$$@$");
-    XSANY.any_i32 = 0;
-    export_function("Affix", "affix", "base");
+    //~ cv = newXSproto_portable("Affix::affix", Affix_affix, __FILE__, "$$@$");
+    //~ XSANY.any_i32 = 0;
+    //~ export_function("Affix", "affix", "base");
     cv = newXSproto_portable("Affix::wrap", Affix_affix, __FILE__, "$$@$");
     XSANY.any_i32 = 1;
     export_function("Affix", "wrap", "base");
