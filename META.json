@@ -75,7 +75,7 @@
             "File::Spec" : "0",
             "Sub::Util" : "0",
             "XSLoader" : "0",
-            "perl" : "5.026000"
+            "perl" : "v5.38.0"
          }
       },
       "test" : {
@@ -101,7 +101,7 @@
          "web" : "https://github.com/disOrganization/Fiction"
       }
    },
-   "version" : "0.12",
+   "version" : "0.50",
    "x_authority" : "cpan:SANKO",
    "x_serialization_backend" : "JSON::PP version 4.16",
    "x_static_install" : 0
