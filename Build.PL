@@ -10,7 +10,7 @@ use Module::Build::Tiny 0.035;
 
 use Devel::CheckBin;
 
-check_bin('$^X') if 0;
+check_bin('perl');
 use lib '.';use builder::Affix; builder::Affix::Build_PL();
 exit;('1');
 
