@@ -2,8 +2,7 @@ use Test2::V0;
 use lib '../lib', 'lib', '../blib/arch/auto/Affix', '../blib/lib';
 use Affix qw[:all];
 warn $0;
-warn
-"$^X";
+warn "$^X";
 #
 $|++;
 #

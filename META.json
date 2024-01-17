@@ -101,7 +101,7 @@
          "web" : "https://github.com/disOrganization/Fiction"
       }
    },
-   "version" : "0.50",
+   "version" : "0.12",
    "x_authority" : "cpan:SANKO",
    "x_serialization_backend" : "JSON::PP version 4.16",
    "x_static_install" : 0
