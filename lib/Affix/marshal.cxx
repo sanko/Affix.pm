@@ -1,9 +1,9 @@
 #include "../Affix.h"
 
 SV *ptr2av(pTHX_ DCpointer ptr, SV *type) {
-    //#if DEBUG
+    // #if DEBUG
     warn("ptr2av(%p, %s)) at %s line %d", ptr, AXT_STRINGIFY(type), __FILE__, __LINE__);
-    //#endif
+    // #endif
     PING;
 
     SV *retval = NULL;
@@ -64,9 +64,9 @@ SV *ptr2av(pTHX_ DCpointer ptr, SV *type) {
 }
 SV *ptr2sv(pTHX_ DCpointer ptr, SV *type) {
     PING;
-    //#if DEBUG
+    // #if DEBUG
     warn("ptr2sv(%p, %s) at %s line %d", ptr, AXT_STRINGIFY(type), __FILE__, __LINE__);
-    //#endif
+    // #endif
     PING;
     SV *retval = NULL;
     if (ptr == NULL) {
