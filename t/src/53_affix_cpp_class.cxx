@@ -17,10 +17,10 @@ class DLLEXPORT Box
     int m_height;
 };
 
-DLLEXPORT Box::Box(int i) : m_width(i), m_length(i), m_height(i){};
+DLLEXPORT Box::Box(int i) : m_width(i), m_length(i), m_height(i) {};
 
 DLLEXPORT Box::Box(int width, int length, int height)
-    : m_width(width), m_length(length), m_height(height){};
+    : m_width(width), m_length(length), m_height(height) {};
 
 DLLEXPORT int Box::Volume() {
     return m_width * m_length * m_height;
