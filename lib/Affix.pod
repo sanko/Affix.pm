@@ -1,0 +1,715 @@
+=encoding utf-8
+
+=head1 NAME
+
+Affix - A Foreign Function Interface eXtension
+
+=head1 SYNOPSIS
+
+    use Affix qw[:all];
+
+    # bind to exported function
+    affix libm, 'floor', [Double], Double;
+    warn floor(3.14159);    # 3
+    warn floor(3.99999);    # 3 
+
+    # wrap an exported function in a code reference
+    my $getpid = wrap libc, 'getpid', [], Int;   # '_getpid' on Win32  
+    warn $getpid->();                            # $$
+    warn getpid();                               # $$
+
+    # bind to an exported function with a different name
+    affix libc, ['getpid', 'get_process_id'], [], Int;
+    warn get_process_id();                       # $$
+
+    # bind an exported value to a Perl value
+    pin( my $ver, 'libfoo', 'VERSION', Int );
+    warn "Foo version: $ver";                     # Foo version: 1
+    $ver = 2;                                     # change the version
+    warn "Foo version: $ver";                     # Foo version: 2
+
+=head1 DESCRIPTION
+
+Affix is an L<FFI|https://en.wikipedia.org/wiki/Foreign_function_interface> to wrap libraries developed in other
+languages (C, C++, Rust, etc.) without having to write or maintain XS.
+
+=head2 Features
+
+Affix includes the following features right out of the box:
+
+=over
+
+=item Works on Windows, macOS, Linux, BSD, and more.
+
+=item Callbacks
+
+=item Pointers
+
+=item Typedefs
+
+=item Global/Exported variables
+
+=item Libraries developed in C, C++, and Rust (and more to come!) even those with mangled symbol names
+
+=item Aggregates such as structs, unions, and arrays
+
+=item Passing aggregates by value on many platforms
+
+=item Nested aggregates
+
+=item 'Smart' L<enums|/Enumerations> that can be used as types
+
+=item Tested to work all the way down to Perl 5.026 (which is ancient in my book)
+    
+=back
+
+=head1 The Basics
+
+Affix's API is rather simple but not lacking in power. Let's start at the very beginning, with the eponymous C<affix(
+... )> function.
+
+=head2 C<affix( ... )>
+
+Attaches a given symbol to a named perl sub.
+
+    affix libm, 'pow', [Double, Double] => Double;
+    warn pow( 3, 5 );
+
+    affix libc, 'puts', [Str], Int;
+    puts( 'Hello' );
+
+    affix './mylib.dll', ['output', 'write'], [Str], Int; # renamed function
+    write( 'Hello' );    
+
+    affix undef, [ 'rint', 'round' ], [Double], Double; # use current process
+    warn round(3.14);
+
+    affix find_library('xxhash'), [ 'XXH_versionNumber', 'xxHash::version' ], [], UInt;
+    warn xxHash::version();
+
+Expected parameters include:
+
+=over
+
+=item C<lib> - required
+
+File path or name of the library to load symbols from. Pass an explicit C<undef> to pull functions from the main
+executable.
+
+If you pass a list reference, Affix will try to load the library with the given name and version. For example,
+C<affix ['foo', v1.2.3], ...> will try to load C<libfoo.so.1.2.3> on Unix, C<libfoo.dylib> on macOS, and
+C<foo.dll> on Windows. This is useful for libraries that provide versioned symbols.
+
+If you pass a string, Affix will try to load the library with the given name. For example, C<affix 'foo', ...>
+will try to load C<libfoo.so> on Unix, C<libfoo.dylib> on macOS, and C<foo.dll> on Windows. This is useful for
+libraries that do not provide versioned symbols or when you want to load the latest version of the library.     
+
+=item C<symbol_name> - required
+
+Name of the symbol to wrap.
+
+If you pass a string, Affix will try to load the symbol with the given name. For example, C<affix libm, 'pow', ...>
+will try to load C<pow>. This is useful for libraries that provide a single symbol for a function.
+
+If you pass a list reference, Affix will try to load the first symbol in the list. If that fails, it will try the
+next symbol in the list. This is useful for libraries that provide multiple symbols for the same function or when
+you want to provide an alias for a function. For example, C<affix libm, ['pow', 'power'], ...> will try to load
+C<pow> first, and if that fails, it will try to load C<power>. This is useful for libraries that provide multiple
+symbols for the same function or when you want to provide an alias for a function.
+
+=item C<parameters> - required
+
+Provide the argument types in an array reference.
+
+This is a list of types that the function expects as arguments. For example, C<[Double, Double]> indicates that the
+function takes two double-precision floating-point numbers as arguments. The types can be any of the L<Types|/Types>
+supported by Affix, such as C<Void>, C<Bool>, C<Char>, C<Int>, C<Double>, etc. You can also use aggregates like
+C<Struct>, C<Array>, C<Union>, and C<Enum> to define more complex types.
+
+If you pass an empty array reference, C<[]> Affix will assume that the function takes no arguments. This is useful
+for functions that do not require any parameters, such as C<getpid> or C<time>.
+
+=item C<return> - required
+
+A single return type for the function.
+
+This is the type that the function returns. For example, C<Double> indicates that the function returns a
+double-precision floating-point number. The return type can be any of the L<Types|/Types> supported by Affix, such as
+C<Void>, C<Bool>, C<Char>, C<Int>, C<Double>, etc. You can also use aggregates like C<Struct>, C<Array>,
+C<Union>, and C<Enum> to define more complex return types.
+
+
+=back
+
+On success, C<affix( ... )> returns the generated code reference which may be called directly but you'll likely use the
+name you provided.
+
+=head2 C<wrap( ... )>
+
+Creates a wrapper around a given symbol in a given library.
+
+    my $pow = wrap libm, 'pow', [Double, Double] => Double;
+    warn $pow->(5, 10); # 5**10
+
+Parameters include:
+
+=over
+
+=item C<lib> - required
+
+File path or name of the library to load symbols from. Pass an explicit C<undef> to pull functions from the main
+executable.
+
+If you pass a list reference, Affix will try to load the library with the given name and version. See 
+L<affix( ... )|/affix( ... )> for more details.
+
+=item C<symbol_name> - required
+
+Name of the symbol to wrap.
+
+=item C<parameters> - required
+
+Provide the argument types in an array reference.
+
+=item C<return> - required
+
+A single return type for the function.
+
+=back
+
+C<wrap( ... )> behaves exactly like C<affix( ... )> but returns an anonymous subroutine and does not pollute the
+namespace with a named function.    
+
+=head2 C<pin( ... )>
+
+    my $errno;
+    pin $errno, libc, 'errno', Int;
+    print $errno;
+    $errno = 0;
+
+Variables exported by a library - also referred to as "global" or "extern" variables - can be accessed using C<pin( ...
+)>. The above example code applies magic to C<$error> that binds it to the integer variable named "errno" as exported
+by the L<libc> library.
+
+Expected parameters include:
+
+=over
+
+=item C<var> - required
+
+Perl scalar that will be bound to the exported variable.
+
+=item C<lib> - required
+
+File path or name of the library to load symbols from. Pass an explicit C<undef> to pull functions from the main
+executable.
+
+=item C<symbol_name> - required
+
+Name of the exported variable to wrap.
+
+=item C<$type> - required
+
+Indicate to Affix what type of data the variable contains.
+
+=back
+
+This is likely broken on BSD but patches are welcome.
+
+=head2 C<unpin( ... )>
+
+    unpin $errno;
+
+Removes the magic applied by C<pin( ... )> to a variable.
+
+=head2 C<marshal( ... )>
+
+    my $struct = Struct[ name => Str, age => Int ];
+    my $ptr = Pointer[ $struct ];
+    my $raw_data = $ptr->marshal( $struct_data );
+
+Marshals a structure or array into raw data. This is useful when you want to convert a structured format into raw
+binary data that can be passed to a function or stored in a file. The C<$struct_data> should be a Perl data structure
+that represents the data in the structure or array format, and the C<$struct> should be a structure type defined        
+using the L<Types|/Types> system. The C<marshal( ... )> method will return a string containing the raw binary data
+that represents the data in the structure or array format. This is particularly useful for passing data to C functions
+or storing data in a binary format.     
+
+=head2 C<unmarshal( ... )>
+
+    my $struct = Struct[ name => Str, age => Int ];
+    my $ptr = Pointer[ $struct ];
+    my $data = $ptr->unmarshal( $raw_data );
+
+Unmarshals raw data into a structure or array. This is useful when you have raw binary data that you want to convert
+into a structured format. The C<$raw_data> should be a string containing the raw binary data, and the C<$struct>
+should be a structure type defined using the L<Types|/Types> system. The C<unmarshal( ... )> method will return a
+Perl data structure that represents the data in the structure or array format.     
+
+=head2 C<typedef( ... )>
+
+    typedef MyType => Struct[ name => Str, age => Int ];
+    my $person = MyType->new( name => 'John Doe', age => 30 );
+
+Creates a new type alias for a structure, union, or array. This is useful for creating more readable and maintainable
+code by giving a meaningful name to a complex type. 
+
+ The C<$type_name> should be a string representing the name of the
+type, and the C<$type_definition> should be a structure, union, or array type defined using the L<Types|/Types>    
+system. The C<typedef( ... )> function will create a new type that can be used in the same way as any other type
+defined in Affix. This is particularly useful for creating custom types that represent specific data structures or
+formats, making your code more readable and easier to understand.
+
+=head1 Library Functions
+
+Locating libraries on different platforms can be a little tricky. These are utilities to help you out.
+
+They are exported by default but may be imported by name or with the C<:lib> tag.
+
+=head2 C<find_library( ... )>
+
+    my $libm = find_library( 'm' ); # /usr/lib/libm.so.6, etc.
+    my $libc = find_library( 'c' ); # /usr/lib/libc.so.6, etc.
+    my $bz2 = find_library( 'bz2' ); # /usr/lib/libbz2.so.1.0.8
+    my $ntdll = find_library( 'ntdll' ); # C:\Windows\system32\ntdll.dll
+
+Locates a library close to the way the compiler or platform-dependant runtime loader does. Where multiple versions of
+the same shared library exists, the most recent should be returned.
+
+=head2 C<load_library( ... )>
+
+=head2 C<free_library( ... )>
+
+=head2 C<list_symbols( ... )>
+
+=head2 C<find_symbol( ... )>
+
+=head2 C<free_symbol( ... )>
+
+=head2 C<dlerror( )>
+
+    my $err = dlerror( );
+    say $err if $err;
+
+Returns a human readable string describing the most recent error that occurred from C<load_library( ... )>,
+C<free_library( ... )>, etc. since the last call to C<dlerror( )>.
+
+An undefined value is returned if no errors have occurred.
+
+=head2 C<libc()>
+
+Returns the path to the platform-dependant equivalent of the standard C library.
+
+This may be something like C</usr/lib/libc.so.6> (Linux), C</lib/libc.so.7> (FreeBSD), C</usr/lib/libc.dylib> (macOS),
+C<C:\Windows\system32\msvcrt.dll> (Windows), etc.
+
+=head2 C<libm()>
+
+Returns the path to the platform-dependant equivalent of the standard C math library.
+
+This may be something like C</usr/lib/libm.so.6> (Linux), C</lib/libm.so.5> (FreeBSD), C</usr/lib/libm.dylib> (macOS),
+C<C:\Windows\system32\msvcrt.dll> (Windows), etc.
+
+=head1 Memory Functions
+
+To help toss raw data around, some standard memory related functions are exposed here. You may import them by name or
+with the C<:memory> or C<:all> tags.
+
+=head2 C<malloc( ... )>
+
+    my $ptr = malloc( $size );
+
+Allocates C<$size> bytes of uninitialized storage.
+
+The pointer returned is of type C<Pointer> and can be used to access the allocated memory. The memory is not        
+initialized, so it may contain garbage values. It is the caller's responsibility to ensure that the memory is
+initialized before use. If the allocation fails, C<malloc( ... )> will return an undefined value.
+
+=head2 C<calloc( ... )>
+
+    my $ptr = calloc( $num, $size );
+
+Allocates memory for an array of C<$num> objects of C<$size> and initializes all bytes in the allocated storage to
+zero.
+
+The pointer returned is of type C<Pointer> and can be used to access the allocated memory. The memory is initialized
+to zero, so all bytes in the allocated storage will be set to zero. If the allocation fails, C<calloc( ... )> will  
+return an undefined value.
+
+=head2 C<realloc( ... )>
+
+    $ptr = realloc( $ptr, $new_size );
+
+Reallocates the given area of memory. It must be previously allocated by C<malloc( ... )>, C<calloc( ... )>, or
+C<realloc( ... )> and not yet freed with a call to C<free( ... )> or C<realloc( ... )>. Otherwise, the results are
+undefined.
+
+=head2 C<free( ... )>
+
+    free( $ptr );
+
+Deallocates the space previously allocated by C<malloc( ... )>, C<calloc( ... )>, or C<realloc( ... )>.
+
+The pointer C<$ptr> must be a valid pointer returned by one of these functions. After calling C<free( ... )>, the
+pointer is no longer valid and should not be used. If C<$ptr> is C<undef>, C<free( ... )> does nothing.
+
+=head2 C<memchr( ... )>
+
+    memchr( $ptr, $ch, $count );
+
+Finds the first occurrence of C<$ch> in the initial C<$count> bytes (each interpreted as unsigned char) of the object
+pointed to by C<$ptr>.
+
+If C<$ch> is found, C<memchr( ... )> returns a pointer to the byte in the object pointed to by C<$ptr> that matches
+C<$ch>. If C<$ch> is not found, it returns C<undef>.
+    
+=head2 C<memcmp( ... )>
+
+    my $cmp = memcmp( $lhs, $rhs, $count );
+
+Compares the first C<$count> bytes of the objects pointed to by C<$lhs> and C<$rhs>. The comparison is done
+lexicographically.
+
+=head2 C<memset( ... )>
+
+    memset( $dest, $ch, $count );
+
+Copies the value C<$ch> into each of the first C<$count> characters of the object pointed to by C<$dest>.
+
+=head2 C<memcpy( ... )>
+
+    memcpy( $dest, $src, $count );
+
+Copies C<$count> characters from the object pointed to by C<$src> to the object pointed to by C<$dest>.
+
+=head2 C<memmove( ... )>
+
+    memmove( $dest, $src, $count );
+
+Copies C<$count> characters from the object pointed to by C<$src> to the object pointed to by C<$dest>.
+
+=head2 C<sizeof( ... )>
+
+    my $size = sizeof( Int );
+    my $size1 = sizeof( Struct[ name => Str, age => Int ] );
+
+Returns the size, in bytes, of the L<type|/Types> passed to it.
+
+=head2 C<offsetof( ... )>
+
+    my $struct = Struct[ name => Str, age => Int ];
+    my $offset = offsetof( $struct, 'age' );
+
+Returns the offset, in bytes, from the beginning of a structure including padding, if any.
+
+=head1 Utilities
+
+Here's some thin cushions for the rougher edges of wrapping libraries.
+
+They may be imported by name for now but might be renamed, removed, or changed in the future.
+
+=head2 C<DumpHex( ... )>
+
+    DumpHex( $ptr, $length );
+
+Dumps C<$length> bytes of raw data from a given point in memory.
+
+This is a debugging function that probably shouldn't find its way into your code and might not be public in the future.
+
+=head2 C<sv_dump( ... )>
+
+    sv_dump( $sv ); 
+
+Dumps the contents of a Perl scalar variable in a human-readable format.
+
+This is a debugging function that probably shouldn't find its way into your code and might not be public in the future.
+
+=head1 Signatures
+
+You must provide Affix with a signature which may include types and calling conventions. Let's start with an example in
+C:
+
+    bool report( const char * name, int grades[5] );
+
+The signature telling Affix how to call this function would look like this:
+
+    affix 'libschool', 'report', [ Str, Array[Int, 5] ] => Bool;
+
+Incoming arguments are defined in a list: C<[ Str, Array[Int, 5] ]>
+
+The return value follows: C<Bool>
+
+To call the function, your Perl would look like this:
+
+    my $promote = report( 'Alex Smithe', [ 90, 82, 70, 76, 98 ] );
+
+See the subsections entitled L<Types|/Types> for more on the possible types and L<Calling Conventions/Calling
+Conventions> for advanced flags that may also be defined as part of your signature.
+
+=head1 Types
+
+Affix supports the fundamental types (void, int, etc.) as well as aggregates (struct, array, union). Please note that
+types given are advisory only! No type checking is done at compile or runtime.
+
+These are the basic types that Affix supports. They are used to define the parameters and return values of functions.
+They may be imported by name or with the C<:types> tag.
+
+=over
+
+=item C<Void>
+
+Represents a function that does not return a value. Used as a return type or for functions that take no parameters.
+
+=item C<Bool>
+
+Represents a boolean value, typically used for functions that return true or false.
+
+=item C<Char>
+
+Represents a single character. Used for functions that take or return characters. 
+
+=item C<UChar>
+
+Represents an unsigned character. Used for functions that take or return unsigned characters.
+
+=item C<SChar>
+
+Represents a signed character. Used for functions that take or return signed characters.
+
+=item C<WChar>
+
+Represents a wide character, typically used for functions that take or return wide characters, such as those used in
+Unicode or internationalization contexts.
+
+=item C<Short>
+
+Represents a short integer. Used for functions that take or return short integers.
+
+=item C<UShort>
+
+Represents an unsigned short integer. Used for functions that take or return unsigned short integers.
+
+=item C<Int>
+
+Represents a standard integer. Used for functions that take or return integers.
+
+=item C<UInt>
+
+Represents an unsigned integer. Used for functions that take or return unsigned integers.
+
+=item C<Long>
+
+Represents a long integer. Used for functions that take or return long integers.
+
+=item C<ULong>
+
+Represents an unsigned long integer. Used for functions that take or return unsigned long integers.
+
+=item C<LongLong>       
+
+Represents a long long integer. Used for functions that take or return long long integers.
+
+=item C<ULongLong>
+
+Represents an unsigned long long integer. Used for functions that take or return unsigned long long integers.
+
+=item C<Size_t>
+
+Represents a size type, typically used for sizes of objects in memory. Used for functions that take or return sizes.
+
+=item C<SSize_t>
+
+Represents a signed size type, typically used for sizes of objects in memory. Used for functions that take or return signed sizes.
+
+=item C<Float>
+
+Represents a floating-point number. Used for functions that take or return floating-point numbers.
+
+=item C<Double>
+
+Represents a double-precision floating-point number. Used for functions that take or return double-precision numbers.   
+
+=item C<String>
+
+Represents a string of characters. Used for functions that take or return strings.
+
+=item C<WString>
+
+Represents a wide string of characters. Used for functions that take or return wide strings, typically used in
+Unicode or internationalization contexts.
+
+=item C<Pointer[Type]>
+
+Represents a pointer to a type. Used for functions that take or return pointers to other types. The type can be any
+Affix type, including aggregates like structs or arrays.
+
+=item C<Callback[Signature]>
+
+Represents a callback function. Used for functions that take or return callbacks. The signature defines the parameters
+and return type of the callback function.       
+
+=item C<Struct[Fields]>
+
+Represents a structure with named fields. Used for functions that take or return structures. The fields are defined     
+as a list of name-type pairs, where each name is a string and each type is an Affix type.
+
+=item C<Array[Type, Size]>
+
+Represents an array of a specific type and size. Used for functions that take or return arrays. The type is an Affix
+type, and the size is an integer that specifies the number of elements in the array.
+
+=item C<Union[Fields]>
+
+Represents a union with named fields. Used for functions that take or return unions. The fields are defined as a list
+of name-type pairs, where each name is a string and each type is an Affix type. Only one field can be used at a time.
+
+=item C<Enum[Values]>
+
+Represents an enumeration with named values. Used for functions that take or return enumerations. The values are
+defined as a list of name-value pairs, where each name is a string and each value is an integer. The values are     
+typically used to represent a set of named constants.
+
+=item C<Enum[Values, Type]>
+
+Represents an enumeration with named values and a specific type. Used for functions that take or return enumerations.
+The values are defined as a list of name-value pairs, where each name is a string and each value is an integer. The
+type is an Affix type that specifies the underlying type of the enumeration. This allows for more control over the
+size and representation of the enumeration values. 
+
+=back
+
+=head1 Calling Conventions
+
+Handle with care! Using these without understanding them can break your code!
+
+Refer to L<the dyncall manual|https://dyncall.org/docs/manual/manualse11.html>,
+L<http://www.angelcode.com/dev/callconv/callconv.html>, L<https://en.wikipedia.org/wiki/Calling_convention>, and your
+local university's Comp Sci department for a deeper explanation.
+
+After having done that, feel free to use or misuse any of the current options:
+
+=over
+
+=item C<This>
+
+Platform native C++ this calls
+
+=item C<Ellipsis>
+
+=item C<Varargs>
+
+=item C<CDecl>
+
+x86 specific
+
+=item C<STDCall>
+
+x86 specific
+
+=item C<MSFastcall>
+
+x86 specific
+
+=item C<GNUFastcall>
+
+x86 specific
+
+=item C<MSThis>
+
+x86 specific, MS C++ this calls
+
+=item C<GNUThis>
+
+x86 specific, GNU C++ C<this> calls are C<cdecl>, but this is defined for clarity
+
+=item C<Arm>
+
+=item C<Thumb>
+
+=item C<Syscall>
+
+=back
+
+When used in L<signatures/Signatures>, most of these cause the internal argument stack to be reset. The exceptions are
+C<Ellipsis> and C<Varargs>.
+
+=head1 Calling into the Standard Library
+
+If you want to call a function that's already loaded, either from the standard library or from your own program, you
+can omit the library value or pass and explicit C<undef>.
+
+For example, on Unix, you could use the following code to gather the home directory and other info about the current
+user:
+
+    use Affix;
+    use Data::Printer;
+    typedef PwStruct => Struct [
+        name  => String,    # username
+        pass  => String,    # hashed pass if shadow db isn't in use
+        uuid  => UInt,      # user
+        guid  => UInt,      # group
+        gecos => String,    # real name
+        dir   => String,    # ~/
+        shell => String     # bash, etc.
+    ];
+    affix undef, 'getuid',   []    => Int;
+    affix undef, 'getpwuid', [Int] => Pointer [ PwStruct() ];
+    p( ( Pointer [ PwStruct() ] )->unmarshal( main::getpwuid( getuid() ) ) );
+
+=head1 ABI/API versions
+
+If you ask Affix to load symbols from 'foo', we'll will look for C<libfoo.so> under Unix, (C<libfoo.dynlib> on macOS,
+and C<foo.dll> on Windows.
+
+Most modern system require you or the user of your module to install the development package because it's recommended
+to always provide an API/ABI version to a shared library, so C<libfoo.so> ends often being a symbolic link provided
+only by a development package.
+
+To avoid that, the Affix allows you to specify the API/ABI version. It can be a full version or just a part of it. (Try
+to stick to Major version, some BSD code does not care for Minor.)
+
+    use Affix;
+    affix ['foo', v1], ...;       # Will try to load libfoo.so.1 on Unix
+    affix ['foo', v1.2.3], ...;   # Will try to load libfoo.so.1.2.3 on Unix
+
+=head1 Stack Size
+
+You may control the max size of the internal stack that will be allocated and used to bind the arguments to by setting
+the C<$VMSize> variable before using Affix.
+
+    BEGIN{ $Affix::VMSize = 2 ** 16; }
+
+This value is C<4096> by default and probably should not be changed.
+
+=head1 See Also
+
+All the heavy lifting is done by L<dyncall|https://dyncall.org/>.
+
+Check out L<FFI::Platypus> for a more robust and mature FFI
+
+L<LibUI> for a larger demo project based on Affix
+
+L<Types::Standard> for the inspiration of the advisory types system
+
+=head1 LICENSE
+
+This software is Copyright (c) 2024 by Sanko Robinson <sanko@cpan.org>.
+
+This is free software, licensed under:
+
+  The Artistic License 2.0 (GPL Compatible)
+
+See L<http://www.perlfoundation.org/artistic_license_2_0>.
+
+=head1 AUTHOR
+
+Sanko Robinson <sanko@cpan.org>
+
+=begin stopwords
+
+dyncall macOS struct structs errno FreeBSD eXtension
+
+=end stopwords
+
+=cut
+

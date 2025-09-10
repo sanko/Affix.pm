@@ -1,0 +1,370 @@
+=encoding utf-8
+
+=head1 NAME
+
+Affix::Platform - Platform and Feature Support Information
+
+=head1 SYNOPSIS
+
+    use Affix;    # Not 'use Affix::Platform;'
+    if ( Affix::Platform::AggrByValue() ) {
+        affix 'libfoo', 'foobar', [ Struct [ x => Int ] ], Int;
+    }
+
+=head1 DESCRIPTION
+
+Affix works a lot of places but some features require certain combinations of OS, ABI, etc. For those complex
+situations, various flags have been exposed.
+
+=head1 Platform flags
+
+You might need to know a little about the system so...
+
+=head2 C<Affix::Platform::DC_Version()>
+
+Returns dyncall's version as a string such as "1.5-current".
+
+=head2 C<Affix::Platform::DC_Major()>
+
+Returns dyncall's major version number.
+
+=head2 C<Affix::Platform::DC_Minor()>
+
+Returns dyncall's minor version number.
+
+=head2 C<Affix::Platform::DC_Patch()>
+
+Returns dyncall's patch level. dyncall refers to this as their 'teeny' version number which is usually C<0> and unused.
+
+=head2 C<Affix::Platform::DC_Stage()>
+
+Returns "current" if dyncall's source is taken from the repo or "release" for stable, archived versions.
+
+=begin clutter
+
+=head2 C<Affix::Platform::DC_RawVersion()>
+
+Returns the raw value of dyncall's version number.
+
+=end clutter
+
+=head2 C<Affix::Platform::OS()>
+
+Returns one of the following values indicating what platform the dyncall library was built on:
+
+=over
+
+=item "Win64"
+
+=item "Win32"
+
+If dyncall was built on a 32bit version of Windows, 64bit integers are unsupported even if your perl is built to handle
+them.
+
+=item "macOS"
+
+=item "iOS"
+
+=item "Linux"
+
+=item "FreeBSD"
+
+=item "OpenBSD"
+
+=item "NetBSD"
+
+=item "DragonFly BSD"
+
+=item "Nintendo DS"
+
+=item "PlayStation Portable"
+
+=item "Haiku"
+
+BeOS lives!
+
+=item "Plan9"
+
+=item "VMS"
+
+=item "Minix"
+
+=item "Unknown"
+
+dyncall couldn't figure it out
+
+=back
+
+=head2 C<Affix::Platform::Compiler()>
+
+Returns one of the following:
+
+=over
+
+=item "Intel"
+
+=item "MSVC"
+
+=item "Clang"
+
+=item "GNU"
+
+=item "Watcom"
+
+=item "ppc"
+
+=item "Oracle"
+
+=item "Unknown"
+
+=back
+
+=head2 C<Affix::Platform::Architecture()>
+
+Returns one of the following:
+
+=over
+
+=item "AMD64"
+
+=item "Intelx86"
+
+=item "Itanium"
+
+=item "PPC64"
+
+=item "PPC32"
+
+=item "MIPS64"
+
+=item "MIPS"
+
+=item "ARM"
+
+=item "ARM64"
+
+=item "SuperH"
+
+https://en.wikipedia.org/wiki/SuperH
+
+=item "SPARC64"
+
+=item "SPARC"
+
+=item "Unknown"
+
+=back
+
+=head2 C<Affix::Platform::MS_Cygwin()>
+
+Returns a true value if Affix was built on Windows with the L<Cygwin|https://www.cygwin.com/> version of the compiler.
+
+=head2 C<Affix::Platform::MS_MinGW()>
+
+Returns a true value if Affix was built on Windows with the L<MinGW|http://mingw.osdn.io/index.html> version of the
+compiler.
+
+=head2 C<Affix::Platform::MS_CRT()>
+
+Returns a true value if dyncall was built Windows with the Microsoft Visual C/C++ Runtime.
+
+=head2 C<Affix::Platform::ARM_Thumb()>
+
+Returns a true value if dyncall was built on an ARM platform which included the 16bit instructions found in ARMv4T and
+later.
+
+=head2 C<Affix::Platform::ARM_EABI()>
+
+Returns a true value if dyncall was built on ARM with support for the more efficient EABI calling conventions.
+
+=head2 C<Affix::Platform::ARM_OABI()>
+
+Returns a true value if dyncall was built on an ARM platform with OABI calling conventions support.
+
+=head2 C<Affix::Platform::MIPS_O32()>
+
+Returns a true value if dyncall was built on MIPS with O32 (only 32bit) calling conventions support.
+
+=head2 C<Affix::Platform::MIPS_N64()>
+
+Returns a true value if dyncall was built on MIPS with N64 (native 64bit) calling conventions support.
+
+=head2 C<Affix::Platform::MIPS_N32()>
+
+Returns a true value if dyncall was built on MIPS with N32 (native 32bit) calling conventions support.
+
+=head2 C<Affix::Platform::MIPS_EABI()>
+
+Returns a true value if dyncall was built on MIPS with L<EABI calling conventions
+support|https://sourceware.org/legacy-ml/binutils/2003-06/msg00436.html>.
+
+=head2 C<Affix::Platform::OBJ_PE()>
+
+Returns true if the platform's executable/object type is in Microsoft's
+L<PE|https://en.wikipedia.org/wiki/Portable_Executable> format.
+
+=head2 C<Affix::Platform::OBJ_Mach()>
+
+Returns true if the platform's executable/object type is in Apple's L<Mach-O|https://en.wikipedia.org/wiki/Mach-O>
+format.
+
+=head2 C<Affix::Platform::OBJ_ELF()>
+
+Returns true if the platform's executable/object type is in the generic
+L<ELF|https://en.wikipedia.org/wiki/Executable_and_Linkable_Format> format.
+
+=head2 C<Affix::Platform::OBJ_ELF64()>
+
+Returns true if the platform's executable/object type is in a 64-bit flavor of the
+L<ELF|https://en.wikipedia.org/wiki/Executable_and_Linkable_Format> format.
+
+=head2 C<Affix::Platform::OBJ_ELF32()>
+
+Returns true if the platform's executable/object type is in a 32-bit flavor of the
+L<ELF|https://en.wikipedia.org/wiki/Executable_and_Linkable_Format> format.
+
+=head2 C<Affix::Platform::OBJ()>
+
+Returns one of the following:
+
+=over
+
+=item "PE"
+
+=item "Mach-O"
+
+=item "64-bit ELF"
+
+=item "32-bit ELF"
+
+=item "ELF"
+
+=item "Unknown"
+
+=back
+
+=head2 C<Affix::Platform::HardFloat()>
+
+Returns a true value if 1) the system is running on an ARM or MIPS platform and 2) floating point math is done on
+hardware.
+
+=head2 C<Affix::Platform::Syscall()>
+
+Returns a true value if syscall calling convention is supported.
+
+=head2 C<Affix::Platform::AggrByValue()>
+
+Returns true if aggregates (structs, arrays, etc.) can be passed by value.
+
+=head1 Memory flags
+
+If you're doing something really neat, you'll need these.
+
+=head2 Sizeof
+
+These return the size of various data types according to the C L<sizeof()|https://en.wikipedia.org/wiki/Sizeof>
+operator.
+
+=over
+
+=item C<SIZEOF_BOOL>
+
+=item C<SIZEOF_CHAR>
+
+=item C<SIZEOF_SCHAR>
+
+=item C<SIZEOF_UCHAR>
+
+=item C<SIZEOF_WCHAR>
+
+=item C<SIZEOF_SHORT>
+
+=item C<SIZEOF_USHORT>
+
+=item C<SIZEOF_INT>
+
+=item C<SIZEOF_UINT>
+
+=item C<SIZEOF_LONG>
+
+=item C<SIZEOF_ULONG>
+
+=item C<SIZEOF_LONGLONG>
+
+=item C<SIZEOF_ULONGLONG>
+
+=item C<SIZEOF_FLOAT>
+
+=item C<SIZEOF_DOUBLE>
+
+=item C<SIZEOF_SIZE_T>
+
+=item C<SIZEOF_INTPTR_T>
+
+=back
+
+=head2 Memory alignment
+
+These can be used to calculate the layout of aggregates such as L<C
+structs|https://en.wikipedia.org/wiki/Struct_(C_programming_language)>.
+
+=over
+
+=item C<BYTE_ALIGN>
+
+Platform-dependant memory alignment size. Use this to calculate offsets and padding inside structs.
+
+=item C<ALIGNOF_BOOL>
+
+=item C<ALIGNOF_CHAR>
+
+=item C<ALIGNOF_UCHAR>
+
+=item C<ALIGNOF_SCHAR>
+
+=item C<ALIGNOF_WCHAR>
+
+=item C<ALIGNOF_SHORT>
+
+=item C<ALIGNOF_USHORT>
+
+=item C<ALIGNOF_INT>
+
+=item C<ALIGNOF_UINT>
+
+=item C<ALIGNOF_LONG>
+
+=item C<ALIGNOF_ULONG>
+
+=item C<ALIGNOF_LONGLONG>
+
+=item C<ALIGNOF_ULONGLONG>
+
+=item C<ALIGNOF_FLOAT>
+
+=item C<ALIGNOF_DOUBLE>
+
+=item C<ALIGNOF_SIZE_T>
+
+=item C<ALIGNOF_INTPTR_T>
+
+=back
+
+=head1 LICENSE
+
+Copyright (C) Sanko Robinson.
+
+This library is free software; you can redistribute it and/or modify it under the terms found in the Artistic License
+2. Other copyrights, terms, and conditions may apply to data transmitted through this module.
+
+=head1 AUTHOR
+
+Sanko Robinson E<lt>sanko@cpan.orgE<gt>
+
+=begin stopwords
+
+dyncall BeOS ARMv4T SuperH ppc iOS OpenBSD NetBSD syscall
+
+=end stopwords
+
+=cut
