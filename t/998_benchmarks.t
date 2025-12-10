@@ -4,7 +4,6 @@ use lib './lib', '../lib', '../blib/arch/', 'blib/arch', '../', '.';
 use Affix               qw[wrap affix libm Double direct_wrap direct_affix];
 use Test2::Tools::Affix qw[:all];
 use Config;
-
 use Test2::Require::AuthorTesting;
 use Benchmark qw[:all];
 $|++;

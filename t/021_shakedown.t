@@ -210,13 +210,13 @@ subtest 'Deep Pointers & Memory' => sub {
     # Layer 1: The int value (int*)
     my $p_mem = malloc(8);
     my $p_val = Affix::cast( $p_mem, Pointer [Int] );
+
     # Assigning directly ($p_val = 0) would overwrite the magic scalar with a normal SV*
     $$p_val = 0;
 
     # Layer 2: Pointer to Layer 1 (int**)
     my $pp_mem = malloc(8);
     my $pp_val = Affix::cast( $pp_mem, Pointer [ Pointer [Int] ] );
-
     $$pp_val = $p_val;    # Writes address of $p_mem into $pp_mem
 
     # Layer 3: Pointer to Layer 2 (int***)
@@ -227,7 +227,7 @@ subtest 'Deep Pointers & Memory' => sub {
     $$ppp_val = $pp_val;
 
     # Call Function
-    $set_deep->($ppp_val, 12345 );
+    $set_deep->( $ppp_val, 12345 );
 
     # Verification
     is $$p_val, 12345, '***int deep write successful via Pins';

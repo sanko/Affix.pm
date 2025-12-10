@@ -36,11 +36,11 @@ class    #
             ' -Wduplicated-branches' .
             ( $Config{osname} eq 'darwin' ? '' : ' -fvar-tracking-assignments' ) :
             $Config{osname} eq 'MSWin32' ? '' :
-            ' -DNDEBUG -DBOOST_DISABLE_ASSERTS -Ofast -fPIC -ftree-vectorize -ffast-math -fno-align-functions -fno-align-loops -fno-omit-frame-pointer -flto'
+            ' -DNDEBUG -DBOOST_DISABLE_ASSERTS -Ofast -fPIC -ftree-vectorize -ffast-math -fno-align-functions -fno-align-loops -fno-omit-frame-pointer -flto=auto'
         );
-    field $ldflags = $^O =~ /bsd/ ? '' : ' -flto ';
-    field $cppver  = 'c++17';                         # https://en.wikipedia.org/wiki/C%2B%2B20#Compiler_support
-    field $cver    = 'c17';                           # https://en.wikipedia.org/wiki/C17_(C_standard_revision)
+    field $ldflags = $^O =~ /bsd/ ? '' : ' -flto=auto ';
+    field $cppver  = 'c++17';                              # https://en.wikipedia.org/wiki/C%2B%2B20#Compiler_support
+    field $cver    = 'c17';                                # https://en.wikipedia.org/wiki/C17_(C_standard_revision)
     field $make : param //= $Config{make};
     #
     field $action : param //= 'build';
@@ -49,7 +49,7 @@ class    #
     # Params to Build script
     field $install_base  : param    //= '';
     field $installdirs   : param    //= '';
-    field $uninst        : param    //= 0;            # Make more sense to have a ./Build uninstall command but...
+    field $uninst        : param    //= 0;                 # Make more sense to have a ./Build uninstall command but...
     field $install_paths : param    //= ExtUtils::InstallPaths->new( dist_name => $meta->name );
     field $verbose       : param(v) //= 0;
     field $dry_run       : param    //= 0;

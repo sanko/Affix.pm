@@ -607,9 +607,11 @@ static Affix_Opcode get_opcode_for_type(const infix_type * type) {
                 if (pointee->meta.primitive_id == INFIX_PRIMITIVE_SINT8 ||
                     pointee->meta.primitive_id == INFIX_PRIMITIVE_UINT8)
                     return OP_PUSH_PTR_CHAR;
+#if defined(INFIX_OS_WINDOWS)
                 // Note: This treats any pointer to 2-byte primitive as potential WString on Windows
                 if (infix_type_get_size(pointee) == sizeof(wchar_t))
                     return OP_PUSH_PTR_WCHAR;
+#endif
             }
             return OP_PUSH_POINTER;
         }
@@ -680,8 +682,10 @@ static Affix_Opcode get_ret_opcode_for_type(const infix_type * type) {
                 pointee->meta.primitive_id == INFIX_PRIMITIVE_UINT8) {
                 return OP_RET_PTR_CHAR;
             }
+#if defined(INFIX_OS_WINDOWS)
             if (infix_type_get_size(pointee) == sizeof(wchar_t))
                 return OP_RET_PTR_WCHAR;
+#endif
         }
     }
 
@@ -2248,9 +2252,11 @@ Affix_Pull get_pull_handler(pTHX_ const infix_type * type) {
                     pointee_type->meta.primitive_id == INFIX_PRIMITIVE_UINT8) {
                     return pull_pointer_as_string;
                 }
+#if defined(INFIX_OS_WINDOWS)
                 // Wide string return check
                 if (infix_type_get_size(pointee_type) == sizeof(wchar_t))
                     return pull_pointer_as_wstring;
+#endif
             }
             if (pointee_type->category == INFIX_TYPE_STRUCT)
                 return pull_pointer_as_pin;
