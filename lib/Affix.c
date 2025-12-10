@@ -24,7 +24,7 @@ static __int128_t sv_to_int128(pTHX_ SV * sv) {
     STRLEN len;
     const char * s = SvPV(sv, len);
     char * end;
-    // Note: We assume base 10. Future me mi might implement a
+    // Note: We assume base 10. Future me might implement a
     // custom parser here, but strtoll isn't enough either.
     __int128_t res = 0;
     int sign = 1;
@@ -3371,10 +3371,12 @@ XS_INTERNAL(Affix_cast) {
                 return_as_value = true;
                 is_string_type = true;
             }
+#if defined(INFIX_OS_WINDOWS)
             else if (infix_type_get_size(pointee) == sizeof(wchar_t)) {
                 return_as_value = true;
                 is_string_type = true;
             }
+#endif
         }
     }
 
