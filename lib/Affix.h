@@ -174,6 +174,11 @@ struct Affix {
     Affix_Pull ret_pull_handler;  ///< Cached handler for marshalling the return value.
     Affix_Opcode ret_opcode;      ///< Optimized return opcode.
     void ** c_args;
+
+    /* Reconstruction info for threading/cloning */
+    char * sig_str;
+    char * sym_name;
+    void * target_addr;
 };
 /// Represents an Affix::Pin object, a blessed Perl scalar that wraps a raw C pointer.
 typedef struct {

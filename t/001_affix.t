@@ -12,6 +12,7 @@ $|++;
 subtest import => sub {
     imported_ok qw[affix wrap pin unpin];
     imported_ok qw[libm libc];
+    imported_ok qw[sizeof alignof offsetof];
 };
 subtest types => sub {
     imported_ok qw[
@@ -66,6 +67,17 @@ subtest types => sub {
 
     #~ use Data::Dump;
     #~ ddx [ Int, Void, Pointer [Int], Int ];
+};
+subtest synopsis => sub {
+    ok my $libm = libm(),                                   'my $libm = libm()';
+    ok affix( $libm, 'pow', [ Double, Double ] => Double ), q[affix $libm, 'pow', [Double, Double] => Double];
+    is pow( 2.0, 10.0 ), 1024, 'pow(2.0, 10.0)';
+    #
+    ok typedef( xRect => Struct [ x => Int, y => Int, w => Int, h => Int ] ), 'typedef Rect => Struct[ ... ]';
+    note 'we skip `draw_rect( { x => 10, y => 10, w => 100, h => 50 } );` because we do not build libs here (yet) to affix';
+    ok my $rect_ptr = calloc( 1, xRect() ),             'my $rect_ptr = calloc(1, Rect())';
+    ok my $ptr_x    = cast( $rect_ptr, Pointer [Int] ), 'my $ptr_x = cast( $rect_ptr, Pointer[Int] )';
+    note 'we also skip the dereference stuff because, yeah, yeah... no lib is built here';
 };
 
 # This C code will be compiled into a temporary library for many of the tests.
@@ -240,7 +252,6 @@ typedef void (*kitchen_sink_cb)(
 DLLEXPORT int call_kitchen_sink(kitchen_sink_cb cb) {
     int j_val = 100;
     cb(1, 2.0, 3, 4.0, 5, 6.0, 7, 8.0, "kitchen sink", &j_val);
-    warn("# !!!!!!!!!!!!!!!!!!!!!!!!!!!!!!! %d", j_val);
     return j_val + 1;
 }
 
@@ -289,6 +300,17 @@ DLLEXPORT float sum_float_array(float* arr, int len) {
     return total;
 }
 
+#if !(defined(__FreeBSD__) && defined(__aarch64__))
+/* Long Double */
+DLLEXPORT long double add_ld(long double a, long double b) {
+    return a + b;
+}
+
+DLLEXPORT double ld_to_d(long double a) {
+    return (double)a;
+}
+#endif
+
 END_C
 
 # Compile the library once for all subtests that need it.
@@ -310,21 +332,25 @@ subtest 'Symbol Finding' => sub {
     is find_symbol( $lib, 'non_existent_symbol_12345' ), U(), 'find_symbol returns undef for a non-existent symbol';
 };
 subtest 'Pinning and Marshalling (Dereferencing)' => sub {
-    subtest 'sint32' => sub {
+    subtest SInt32 => sub {
         my $pin_int;
         isa_ok affix( $lib_path, 'get_global_counter', '()->int32' );
         isa_ok affix( $lib_path, 'set_global_counter', '(int32)->void' );
         ok pin( $pin_int, $lib_path, 'global_counter', 'int32' ), 'pin(...)';
         is $pin_int, 42, 'pinned scalar equals 42';
-        diag 'setting pinned scalar to 100';
+
+        #~ diag 'setting pinned scalar to 100';
         $pin_int = 100;
         is get_global_counter(), 100, 'checking value from inside the shared lib';
-        diag 'setting value from inside the shared lib';
+
+        #~ diag 'setting value from inside the shared lib';
         set_global_counter(200);
         is $pin_int, 200, 'checking value from perl';
-        diag 'unpinning scalar';
+
+        #~ diag 'unpinning scalar';
         ok unpin($pin_int), 'unpin() returns true';
-        diag 'setting unpinned scalar to 25';
+
+        #~ diag 'setting unpinned scalar to 25';
         $pin_int = 25;
         is get_global_counter(), 200, 'value is unchanged inside the shared lib';
         is $pin_int,             25,  'verify that value is local to perl';
@@ -426,8 +452,6 @@ subtest '"Kitchen Sink" Callback' => sub {
     is $harness->($callback_sub), 201, 'return value';
 };
 subtest 'Type Registry and Typedefs' => sub {
-
-    #~ plan 5;
     note 'Defining named types for subsequent tests.';
     subtest 'Define multiple types' => sub {
         ok typedef( Point    => Struct [ x => SInt32, y => SInt32 ] ),                                     'typedef @Point';
@@ -483,21 +507,37 @@ subtest 'Type Registry and Typedefs' => sub {
             100, 'C code correctly received a struct returned by value from a Perl callback';
     };
 };
-subtest 'sizeof Operator' => sub {
+subtest 'Type Introspection (sizeof, alignof, offsetof)' => sub {
+    my $size_of_int = sizeof('int32');
+    is $size_of_int, 4, 'sizeof(int32)';
 
     # From typedef: @Rect = { a: @Point, b: @Point }; @Point = {x:int32, y:int32}
-    my $size_of_int = sizeof('int32');
-    is( sizeof('@Rect'), $size_of_int * 4, 'sizeof works correctly on complex named types' );
+    is sizeof( Rect() ),         $size_of_int * 4, 'sizeof works correctly on complex named types';
+    is alignof(Int32),           4,                'alignof(Int32)';
+    is alignof( Point() ),       4,                'alignof(Point)';
+    is offsetof( Point(), 'x' ), 0,                'offsetof(Point, x)';
+    is offsetof( Point(), 'y' ), 4,                'offsetof(Point, y)';
+
+    # Test with Affix::Type object directly
+    my $struct = Struct [ a => SInt8, b => SInt32 ];    # { int8, pad(3), int32 } -> size 8, align 4
+    is sizeof($struct),          8, 'sizeof(Struct object) with padding';
+    is alignof($struct),         4, 'alignof(Struct object)';
+    is offsetof( $struct, 'a' ), 0, 'offsetof(object, a)';
+    is offsetof( $struct, 'b' ), 4, 'offsetof(object, b)';
+    like dies { offsetof( $struct, 'missing' ) }, qr/Member 'missing' not found/, 'offsetof missing member';
+    like dies { offsetof( Int,     'x' ) },       qr/expects a Struct or Union/,  'offsetof invalid type';
 };
 subtest 'Memory Management (malloc, calloc, free)' => sub {
     my $ptr = malloc(32);
     ok $ptr, 'malloc returns a pinned SV*';
-    use Data::Printer;
-    p $ptr;
-    diag length $ptr;
-    diag Affix::dump( $ptr, 32 );
-    ok my $array_ptr = calloc( 4, 'int' ), 'calloc returns an array';
-    diag Affix::dump( $array_ptr, 32 );
+
+    #~ use Data::Printer;
+    #~ p $ptr;
+    #~ diag length $ptr;
+    #~ diag Affix::dump( $ptr, 32 );
+    ok my $array_ptr = calloc( 4, Int ), 'calloc returns an array';
+
+    #~ diag Affix::dump( $array_ptr, 32 );
     ok $array_ptr, 'calloc returns an Affix::Pointer object';
     ok affix $lib_path, 'sum_int_array', '(*int, int)->int';
     is sum_int_array( $array_ptr, 4 ), 0, 'Memory from calloc is zero-initialized';
@@ -513,13 +553,13 @@ subtest 'Memory Management (malloc, calloc, free)' => sub {
 
         #~ ok cast( $scoped_ptr, '*int'), 'cast void pointer to int pointer';
         #substr $$scoped_ptr, 0, 1, 'a';
-        diag '[' . ($$scoped_ptr) . ']';
+        #~ diag '[' . ($$scoped_ptr) . ']';
         my $values = $$scoped_ptr;
         substr( $values, 4 ) = 'hi';
         $$scoped_ptr = $values;
-        Affix::dump( $scoped_ptr, 32 );
-        diag '[' . ($$scoped_ptr) . ']';
 
+        #~ Affix::dump( $scoped_ptr, 32 );
+        #~ diag '[' . ($$scoped_ptr) . ']';
         # When $scoped_ptr goes out of scope here, its DESTROY method is called.
     };
     pass('Managed pointer went out of scope without crashing');
@@ -554,21 +594,20 @@ subtest 'Affix::Pointer Methods (cast, realloc, deref)' => sub {
     # But $r_ptr still thinks it's [2:int]. We must cast to update the type view.
     my $arr_ptr = Affix::cast( $r_ptr, '[8:int]' );
 
-    # 1. READ the entire array from C into a Perl variable
+    # Read the entire array from C into a Perl variable
     my $array_values = $$arr_ptr;
 
-    # 2. MODIFY the Perl copy
+    # Modify perl's copy
     $array_values->[0] = 10;
     $array_values->[7] = 80;
 
-    # 3. WRITE the entire modified Perl array back to the C pointer
+    # Write the entire modified array ref back to the C pointer
     $$arr_ptr = $array_values;
 
-    # Now, the C memory has actually been updated.
-    Affix::dump( $arr_ptr, 32 );
-
+    # Visual evidence that the memory has actually been updated
+    #~ Affix::dump( $arr_ptr, 32 );
     # sum_int_array takes *int, so passing [8:int] (array ref) works as pointer
-    is( sum_int_array( $arr_ptr, 8 ), 90, 'realloc successfully resized memory' );
+    is sum_int_array( $arr_ptr, 8 ), 90, 'realloc successfully resized memory';
 };
 subtest 'Advanced Structs and Unions' => sub {
     affix $lib_path, 'sum_point_by_val', '(@Point)->int';
@@ -596,6 +635,7 @@ subtest 'These are called under valgrind in 900_leak' => sub {
         pass 'loaded';
     };
     subtest 'affix($$$$)' => sub {
+        no warnings 'redefine';
         ok affix( libm, 'pow', [ Double, Double ], Double ), 'affix pow( Double, Double )';
         is pow( 5, 2 ), 25, 'pow(5, 2)';
     };
@@ -813,7 +853,7 @@ subtest advanced => sub {
 #include <stdio.h>
 #include <stdint.h>
 
-/* --- 128-bit Integers --- */
+/* 128-bit Integers */
 #ifdef __SIZEOF_INT128__
     typedef __int128_t int128;
     typedef __uint128_t uint128;
@@ -836,7 +876,7 @@ subtest advanced => sub {
     DLLEXPORT int has_int128() { return 0; }
 #endif
 
-/* --- SIMD Vectors --- */
+/* SIMD Vectors */
 /* GCC/Clang vector extensions */
 #if defined(__GNUC__) || defined(__clang__)
     typedef float v4f __attribute__((vector_size(16)));
@@ -860,7 +900,7 @@ subtest advanced => sub {
     DLLEXPORT int has_vector() { return 0; }
 #endif
 
-/* --- Long Double --- */
+/* Long Double */
 DLLEXPORT long double add_ld(long double a, long double b) {
     return a + b;
 }
@@ -962,11 +1002,10 @@ END_C
             is $res->[3], 44, 'Int Vector Index 3';
         };
     };
-
-    # ============================================================================
-    # 4. Test: Long Double
-    # ============================================================================
     subtest 'Long Double' => sub {
+
+        # On FreeBSD/ARM64, 128-bit float runtime support might be missing in shared libs?
+        skip_all 'Skipping Long Double on FreeBSD ARM64 due to missing runtime symbols' if $^O eq 'freebsd' && $Config{archname} =~ /aarch64/;
         isa_ok my $add = wrap( $lib, 'add_ld', [ LongDouble, LongDouble ] => LongDouble ), ['Affix'];
 
         # Simple addition
@@ -983,6 +1022,33 @@ END_C
         isa_ok my $convert = wrap( $lib, 'ld_to_d', [LongDouble] => Double ), ['Affix'];
         my $val = 3.14159;
         is $convert->($val), float(3.14159), 'LongDouble -> C -> Double roundtrip';
+    };
+};
+subtest 'Pointer Arithmetic and String Utils' => sub {
+    imported_ok qw[ptr_add ptr_diff strdup strnlen is_null];
+    subtest 'ptr_add and ptr_diff' => sub {
+        my $buf = calloc( 10, Int );    # 40 bytes
+        ok !is_null($buf), 'buffer is not null';
+        my $p2 = ptr_add( $buf, 8 );    # width of 2 ints
+        is ptr_diff( $p2,  $buf ),  8, 'ptr_diff calculates 8 bytes';
+        is ptr_diff( $buf, $p2 ),  -8, 'ptr_diff calculates -8 bytes';
+        $$p2 = 999;                     # Write to offset
+
+        # Verify via original array pointer
+        my $arr = cast( $buf, Array [ Int, 10 ] );
+        is $$arr->[2], 999, 'ptr_add moved to index 2 correctly';
+        free($buf);
+    };
+    subtest 'strdup and strnlen' => sub {
+        my $str = "Hello World";
+        my $dup = strdup($str);
+        ok !is_null($dup), 'strdup returned non-null';
+        is cast( $dup, String ), $str, 'strdup content matches';
+        is strnlen( $dup, 5 ),   5,  'strnlen capped at max';
+        is strnlen( $dup, 100 ), 11, 'strnlen found true length';
+
+        # Ensure it's managed memory that we can free
+        ok free($dup), 'free(dup) worked';
     };
 };
 #

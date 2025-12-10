@@ -1,9 +1,9 @@
-package Affix 1.00 {    # 'FFI' is my middle name!
+package Affix v0.12.0 {    # 'FFI' is my middle name!
 
-    #~ G|-----------------------------------|-----------------------------------||
-    #~ D|--------------------------4---5~---|--4--------------------------------||
-    #~ A|--7~\-----4---44-/777--------------|------7/4~-------------------------||
-    #~ E|-----------------------------------|-----------------------------------||
+    #~ |-----------------------------------|-----------------------------------||
+    #~ |--------------------------4---5~---|--4--------------------------------||
+    #~ |--7~\-----4---44-/777--------------|------7/4~-------------------------||
+    #~ |-----------------------------------|-----------------------------------||
     use v5.40;
     use vars               qw[@EXPORT_OK @EXPORT %EXPORT_TAGS];
     use warnings::register qw[Type];
@@ -35,17 +35,18 @@ package Affix 1.00 {    # 'FFI' is my middle name!
         $@ && die $@;
         our @ISA = ($platform);
     }
-    $EXPORT_TAGS{pin}    = [qw[pin unpin]];
-    $EXPORT_TAGS{memory} = [
-        qw[ affix wrap pin unpin
-            cast
-            errno getwinerror
-            malloc calloc realloc free
-            memchr memcmp memset memcpy memmove
-            sizeof offsetof alignof
-            raw hexdump],
-    ];
-    $EXPORT_TAGS{lib}   = [qw[load_library find_library find_symbol dlerror libm libc]];
+
+    #~ $EXPORT_TAGS{pin}    = [qw[pin unpin]];
+    #~ $EXPORT_TAGS{memory} = [
+    #~ qw[ affix wrap pin unpin
+    #~ cast
+    #~ errno getwinerror
+    #~ malloc calloc realloc free
+    #~ memchr memcmp memset memcpy memmove
+    #~ sizeof offsetof alignof
+    #~ raw hexdump],
+    #~ ];
+    push @{ $EXPORT_TAGS{lib} }, qw[libm libc];
     $EXPORT_TAGS{types} = [
         qw[         Void Bool
             Char UChar SChar WChar
@@ -400,6 +401,7 @@ package Affix 1.00 {    # 'FFI' is my middle name!
                     no strict 'refs';
                     while ( my ( $const_name, $val ) = each %$const_map ) {
 
+                        # TODO: builtin::export_lexically
                         # Install enum values as constants: STATE_IDLE() -> 0
                         *{"${pkg}::${const_name}"} = sub () {$val};
                     }
@@ -427,16 +429,17 @@ package Affix 1.00 {    # 'FFI' is my middle name!
             }
             return 1;
         }
-
-        class Affix::Type {
-            use overload '""' => sub { shift->signature() }, fallback => 1;
+        class Affix::Type v0.12.0 {
+            use overload
+                '""' => sub { shift->signature() },
+            fallback => 1;
             method signature {...}
-        }
+        };
 
         class Affix::Type::Reference : isa(Affix::Type) {
             field $name : param;
             method signature { '@' . $name }
-        }
+        };
 
         class Affix::Type::Enum : isa(Affix::Type) {
             use Carp;
@@ -691,8 +694,8 @@ package Affix 1.00 {    # 'FFI' is my middle name!
     }
     {
         # Demo lib builder
-        class Affix::Compiler {
-            use Config     qw[%Config];
+        class Affix::Compiler v0.12.0 {
+            use Config qw[%Config];
             use Path::Tiny qw[path tempdir];
             use File::Spec;
             use ExtUtils::MakeMaker;
@@ -702,11 +705,12 @@ package Affix 1.00 {    # 'FFI' is my middle name!
             field $version   : param : reader //= ();
             field $build_dir : param : reader //= tempdir( CLEANUP => $cleanup );
             field $name      : param : reader;
-            field $libname : reader
-                = $build_dir->child( ( ( $os eq 'MSWin32' || $name =~ /^lib/ ) ? '' : 'lib' ) .
+            field $libname   : reader = $build_dir->child(
+                ( ( $os eq 'MSWin32' || $name =~ /^lib/ ) ? '' : 'lib' ) .
                     $name . '.' .
                     $Config{so} .
-                    ( $os eq 'MSWin32' || !defined $version ? '' : '.' . $version ) )->absolute;
+                    ( $os eq 'MSWin32' || !defined $version ? '' : '.' . $version )
+            )->absolute;
             field $platform : reader = ();    # ADJUST
             field $source   : param : reader;
             field $flags    : param : reader //= {
@@ -974,7 +978,7 @@ package Affix 1.00 {    # 'FFI' is my middle name!
             }
         }
 
-        class Affix::Compiler::File::Dxxx {
+        class Affix::Compiler::File::Dxxx : isa(Affix::Compiler) {
             use Config     qw[%Config];
             use IPC::Cmd   qw[can_run];
             use Path::Tiny qw[];
@@ -1021,275 +1025,6 @@ package Affix 1.00 {    # 'FFI' is my middle name!
     }
 }
 1;
-
-=encoding utf-8
-
-=head1 NAME
-
-Affix - A High-Performance Foreign Function Interface (FFI) for Perl
-
-=head1 SYNOPSIS
-
-    use Affix qw[:all];
-
-    # --- 1. Load a Library ---
-    # Affix finds the system math library automatically
-    my $libm = libm();
-
-    # --- 2. Bind Functions ---
-    # double pow(double x, double y);
-    affix $libm, 'pow', [Double, Double] => Double;
-
-    # --- 3. Call from Perl ---
-    warn pow(2.0, 3.0); # 8
-
-    # --- 4. Complex Types (Structs) ---
-    typedef Rect => Struct [
-        x => Int, y => Int,
-        w => Int, h => Int
-    ];
-
-    # void draw_rect(Rect r);
-    affix $lib, 'draw_rect', [ Rect ] => Void;
-
-    # Pass a simple HashRef - Affix marshals it automatically
-    draw_rect( { x => 10, y => 10, w => 100, h => 50 } );
-
-    # --- 5. High Performance Memory ---
-    # For hot loops, allocate once and reuse
-    my $rect_ptr = calloc(1, Rect);
-
-    # Create views into the memory for fast updates
-    my $ptr_x = cast( address($rect_ptr) + 0, 'Pointer[int]' );
-
-    while ($running) {
-        $$ptr_x++;             # Update C memory directly
-        draw_rect($rect_ptr);  # Pass the pointer
-    }
-
-=head1 DESCRIPTION
-
-B<Affix> is a modern FFI that allows Perl to call functions exported by dynamic libraries (C, C++, Rust, etc.) without
-writing XS code.
-
-It is built on top of B<infix>, a lightweight C-based JIT engine designed specifically for zero-overhead calls. Affix
-handles the complex ABI details of passing Structs, Arrays, and Callbacks by value or reference, on Windows, macOS,
-Linux, and BSD.
-
-=head2 Features
-
-=over 4
-
-=item *   **JIT Compilation:** Wrappers are compiled to machine code at runtime.
-
-=item *   **Rich Type System:** Supports recursive Structs, Unions, Arrays, Enums, and Function Pointers.
-
-=item *   **Smart Memory:** Automatic arena-based memory management prevents leaks in hot paths.
-
-=item *   **Zero-Init Safety:** Structures passed from Perl are guaranteed to be zero-initialized (crucial for APIs like Vulkan).
-
-=item *   **Raw Access:** Functions to malloc/calloc/free and perform pointer arithmetic for high-performance scenarios.
-
-=back
-
-=head1 THE BASICS
-
-=head2 Loading Libraries
-
-Affix provides cross-platform utilities to locate shared objects (`.dll`, `.so`, `.dylib`).
-
-    my $lib = load_library('user32.dll');           # Explicit path
-    my $lib = find_library('m');                    # Search system paths (libm)
-    my $lib = undef;                                # Use current executable symbols
-
-=head2 Binding Functions
-
-The C<affix> function attaches a C symbol to a Perl subroutine name.
-
-    affix $library, $symbol_name, [ @arguments ] => $return_type;
-
-    # int add(int a, int b);
-    affix $lib, 'add', [Int, Int] => Int;
-
-If C<$symbol_name> is a list reference `['real_name', 'alias']`, the function will be installed into Perl as `alias`.
-
-=head2 Wrapping Functions
-
-C<wrap> behaves exactly like C<affix> but returns a code reference instead of installing a named subroutine.
-
-    my $add = wrap $lib, 'add', [Int, Int] => Int;
-    $add->(1, 2);
-
-=head1 TYPE SYSTEM
-
-Affix uses a "Sugar" syntax to define C types legibly. You can import these with C<use Affix qw[:types]>.
-
-=head2 Primitives
-
-Standard C types are available as constants.
-
-    Void, Bool
-    Char, UChar, SChar, WChar
-    Short, UShort
-    Int, UInt
-    Long, ULong
-    Float, Double
-    Size_t, SSize_t
-
-Fixed-width integers are guaranteed across platforms:
-
-    Int8, UInt8 ... Int64, UInt64
-
-=head2 Pointers
-
-    Pointer [ Type ]
-
-Represents `Type*`. *   **Passing to C:** You can pass a Perl reference (ScalarRef, ArrayRef, HashRef) or an
-`Affix::Pointer` object. *   **Returning to Perl:** Returns an `Affix::Pointer`.
-
-    # int* get_array_ptr();
-    affix $lib, 'get_array_ptr', [] => Pointer[Int];
-
-=head2 Structs & Unions
-
-    Struct [ Name => Type, ... ]
-    Union  [ Name => Type, ... ]
-
-Defines a C Structure or Union. Affix automatically calculates correct padding and alignment for your platform.
-
-    typedef Event => Struct [
-        type      => UInt32,
-        timestamp => UInt64
-    ];
-
-**Usage:** You can pass a Perl HashRef `{ type => 1, ... }` to any function expecting a Struct. Missing fields are set
-to 0 (NULL).
-
-=head2 Arrays
-
-    Array [ Type, Count ]
-
-Represents a fixed-size C array: `int matrix[4]`.
-
-=head2 Callbacks
-
-    Callback [ [ArgTypes...] => ReturnType ]
-
-Allows you to pass a Perl subroutine to a C function.
-
-    # void register_handler( void (*cb)(int) );
-    affix $lib, 'register_handler', [ Callback[[Int]=>Void] ] => Void;
-
-    register_handler(sub ($code) { warn "Event: $code"; });
-
-=head1 MEMORY MANAGEMENT
-
-For simple API calls, Affix manages memory automatically. For high-performance graphics or physics, manual control is
-available.
-
-=head2 Allocation
-
-    my $ptr = malloc(1024);        # 1024 bytes
-    my $ptr = calloc(100, Int);    # 100 Integers (zeroed)
-    free($ptr);
-
-=head2 Casting & Dereferencing
-
-The C<cast> function transforms raw memory into usable data.
-
-    my $ptr = calloc(1, Int);
-
-    # 1. Read Value (Dereference)
-    # Casting to a Value Type returns a Perl Scalar/HashRef
-    my $val = cast($ptr, Int);
-
-    # 2. Get Writeable Pointer (Pin)
-    # Casting to a Pointer Type returns an Affix::Pointer
-    my $pin = cast($ptr, Pointer[Int]);
-
-    # Write to memory using double-sigil syntax
-    $$pin = 100;
-
-=head2 Pointer Arithmetic
-
-You can manipulate addresses using `address` and standard math.
-
-    my $base = address($ptr);
-    my $offset_ptr = cast($base + 4, Pointer[Int]);
-
-=head2 Global Variables
-
-Variables exported by libraries can be accessed using C<pin>.
-
-    pin( my $errno, libc, 'errno', Int );
-    $errno = 0; # Writes directly to C global
-
-=head1 EXPORTS
-
-No functions are exported by default.
-
-    use Affix qw[:all];     # Everything
-    use Affix qw[:types];   # Int, Float, Struct, Pointer...
-    use Affix qw[:memory];  # malloc, free, cast, sizeof...
-    use Affix qw[:lib];     # load_library, find_library...
-
-=head1 EXAMPLES
-
-=head2 High Performance Batching
-
-    # Allocate one C struct and reuse it to avoid GC overhead
-    my $rect = calloc(1, 'SDL_Rect');
-    my $x_ptr = cast(address($rect) + 0, 'Pointer[int]');
-
-    while ($running) {
-        # Update C memory directly
-        $$x_ptr++;
-        # Pass the pointer to C
-        SDL_RenderFillRect($renderer, $rect);
-    }
-
-=head2 Vectors and 128bit Math
-
-    use Affix;
-
-    # 128-bit Integers (Passed as Strings)
-    # __int128_t add128(__int128_t a, __int128_t b);
-    my $add = Affix::affix('libtest', 'add128', '(sint128, sint128) -> sint128');
-
-    # Pass strings, receive string
-    my $result = $add->("100000000000000000000", "5");
-    print $result; # "100000000000000000005"
-
-
-    # SIMD Vectors (Passed as Packed Data)
-    # m128 add_vecs(m128 a, m128 b); # Adds 4 floats
-    my $vec_add = Affix::affix('libtest', 'add_vecs', '(v[4:float], v[4:float]) -> v[4:float]');
-
-    # Pack arguments (4 floats)
-    my $v1 = pack('f4', 1.0, 2.0, 3.0, 4.0);
-    my $v2 = pack('f4', 5.0, 5.0, 5.0, 5.0);
-
-    # Pass binary strings directly (Fast Path)
-    my $res_ref = $vec_add->($v1, $v2);
-
-    # Result comes back as Array Ref by default from pull_vector
-    use Data::Dumper;
-    print Dumper($res_ref); # [6.0, 7.0, 8.0, 9.0]
-
-
-=head1 AUTHOR
-
-Sanko Robinson <sanko@cpan.org>
-
-=head1 LICENSE
-
-Copyright (c) 2025 Sanko Robinson.
-
-This library is free software; you can redistribute it and/or modify it under the terms found in the Artistic License
-2. Other copyrights, terms, and conditions may apply to data transmitted through this module.
-
-=cut
-
 __END__
 Copyright (C) Sanko Robinson.
 

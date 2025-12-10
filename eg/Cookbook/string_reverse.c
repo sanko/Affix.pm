@@ -1,13 +1,15 @@
 #include <stdlib.h>
 #include <string.h>
 
-const char *string_reverse(const char *input) {
-    static char *output = NULL;
+const char * string_reverse(const char * input) {
+    static char * output = NULL;
     int i, len;
 
-    if (output != NULL) free(output);
+    if (output != NULL)
+        free(output);
 
-    if (input == NULL) return NULL;
+    if (input == NULL)
+        return NULL;
 
     len = strlen(input);
     output = malloc(len + 1);

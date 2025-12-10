@@ -10,6 +10,4 @@ int array_reverse(int a[], int len) {
     return ret;
 }
 
-int array_reverse10(int a[10]) {
-    return array_reverse(a, 10);
-}
+int array_reverse10(int a[10]) { return array_reverse(a, 10); }

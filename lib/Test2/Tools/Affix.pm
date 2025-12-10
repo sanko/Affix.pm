@@ -1,4 +1,4 @@
-package Test2::Tools::Affix 0.09 {
+package Test2::Tools::Affix v0.12.0 {
     use v5.40;
     use blib;
     use Affix;

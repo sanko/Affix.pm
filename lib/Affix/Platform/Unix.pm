@@ -1,4 +1,4 @@
-package Affix::Platform::Unix 0.5 {
+package Affix::Platform::Unix v0.12.0 {
     use v5.40;
     use Path::Tiny qw[path];
     use Config     qw[%Config];
@@ -94,7 +94,7 @@ package Affix::Platform::Unix 0.5 {
             return unless @ret;
             for my $lib ( map { path($_)->realpath } @ret ) {
                 next unless $lib =~ /^.*?\/lib$name.*\.$so(?:\.([\d\.\-]+))?$/;
-                $version = $1 if $version eq '';
+                $version = $1 if defined $1 && $version eq '';
                 $cache->{$name}{$version} //= $lib;
             }
         }

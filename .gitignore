@@ -46,3 +46,8 @@ eg/parse_xml.pl
 *.gcov.json.gz
 *.exe
 *.kdev4
+
+MANIFEST
+
+*.html
+*.tmp

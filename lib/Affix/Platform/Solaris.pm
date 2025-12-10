@@ -1,4 +1,4 @@
-package Affix::Platform::Solaris 0.5 {
+package Affix::Platform::Solaris v0.12.0 {
     use v5.40;
     use parent 'Affix::Platform::Unix';
     use parent 'Exporter';

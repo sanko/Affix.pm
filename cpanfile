@@ -1,4 +1,6 @@
+requires 'Capture::Tiny';
 requires 'Carp';
+requires 'Path::Tiny';
 requires 'Storable';
 requires 'XSLoader';
 requires 'perl', 'v5.40.0';
