@@ -1,0 +1,7 @@
+Revision history for Perl extension Affix.pm
+
+{{$NEXT}}
+
+
+    - Affix is reborn!
+    - Based on my own JIT and introspection engine called infix (https://github.com/sanko/infix.git)

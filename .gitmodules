@@ -1,0 +1,3 @@
+[submodule "infix"]
+	path = infix
+	url = https://github.com/sanko/infix.git
