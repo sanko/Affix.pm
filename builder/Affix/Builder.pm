@@ -171,12 +171,28 @@ use %s;
         my $cwd       = cwd->absolute;
         my $build_dir = $cwd->child('infix')->absolute;
 
+        # Resolve the compiler name for infix
+        my $compiler = $Config{cc};
+        $compiler = 'gcc' if $compiler eq 'cc';
+
+        # Handle BSD quirks where 'gcc' might be installed as 'egcc'
+        if ( $^O =~ /bsd/i && $compiler eq 'gcc' ) {
+            my @path     = File::Spec->path;
+            my $has_gcc  = grep { -x catfile( $_, 'gcc' ) } @path;
+            my $has_egcc = grep { -x catfile( $_, 'egcc' ) } @path;
+
+            # Switch to egcc only if gcc is missing and egcc exists
+            if ( !$has_gcc && $has_egcc ) {
+                $compiler = 'egcc';
+            }
+        }
+
         #~ chdir $build_dir;
         #C:\Users\S\Documents\GitHub\infix\build.pl
         system $^X, 'infix/build.pl', grep {defined}
 
             #( $verbose ? '--v' : () ),
-            '--compiler', ( $Config{cc} eq 'cc' ? 'gcc' : $Config{cc} ), '--cflags', '-fPIC';
+            '--compiler', $compiler, '--cflags', '-fPIC';
 
         #, '--cflags', $cflags;
         #~ warn `$^X infix/build.pl --cflags="$cflags"`;
