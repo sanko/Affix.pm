@@ -25,11 +25,11 @@
 ,
 "openbsd-aarch64-clang": "failing"
 ,
-"openbsd-aarch64-egcc": "failing"
+"openbsd-aarch64-egcc": "passing"
 ,
-"openbsd-riscv64-clang": "failing"
+"openbsd-riscv64-clang": "passing"
 ,
-"openbsd-riscv64-egcc": "failing"
+"openbsd-riscv64-egcc": "passing"
 ,
 "openbsd-x86_64-clang": "failing"
 ,

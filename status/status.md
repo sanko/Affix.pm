@@ -14,9 +14,9 @@
 | **netbsd** | `x86_64` | `gcc` | ❌ failure |
 | **omnios** | `x86_64` | `gcc` | ❌ failure |
 | **openbsd** | `aarch64` | `clang` | ❌ failure |
-| **openbsd** | `aarch64` | `egcc` | ❌ failure |
-| **openbsd** | `riscv64` | `clang` | ❌ failure |
-| **openbsd** | `riscv64` | `egcc` | ❌ failure |
+| **openbsd** | `aarch64` | `egcc` | ✅ success |
+| **openbsd** | `riscv64` | `clang` | ✅ success |
+| **openbsd** | `riscv64` | `egcc` | ✅ success |
 | **openbsd** | `x86_64` | `clang` | ❌ failure |
 | **openbsd** | `x86_64` | `egcc` | ❌ failure |
 | **solaris** | `x86_64` | `gcc` | ❌ failure |
