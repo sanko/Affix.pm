@@ -5,7 +5,7 @@ All notable changes to Affix.pm will be documented in this file.
 The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.0.0/),
 and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0.html).
 
-## [Unreleased]
+## [v0.12.0] - 2025-12-12
 
 ### Changed
 
@@ -82,7 +82,8 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
     - Affix.pm is born
 
-[Unreleased]: https://github.com/sanko/Affix.pm/compare/0.11...HEAD
+[Unreleased]: https://github.com/sanko/Affix.pm/compare/v0.12.0...HEAD
+[v0.12.0]: https://github.com/sanko/Affix.pm/compare/0.11...v0.12.0
 [0.11]: https://github.com/sanko/Affix.pm/compare/0.10...0.11
 [0.10]: https://github.com/sanko/Affix.pm/compare/0.09...0.10
 [0.09]: https://github.com/sanko/Affix.pm/compare/0.08...0.09
