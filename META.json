@@ -102,7 +102,7 @@
    "provides" : {
       "Affix" : {
          "file" : "lib/Affix.pm",
-         "version" : "v0.12.0"
+         "version" : "v1.0.0"
       },
       "Affix::Compiler" : {
          "file" : "lib/Affix.pm",
@@ -140,7 +140,7 @@
          "version" : "v0.12.0"
       }
    },
-   "release_status" : "stable",
+   "release_status" : "testing",
    "resources" : {
       "bugtracker" : {
          "web" : "https://github.com/sanko/Affix.pm/issues"
@@ -155,7 +155,7 @@
          "web" : "https://github.com/sanko/Affix.pm"
       }
    },
-   "version" : "v0.12.0",
+   "version" : "v1.0.0",
    "x_help_wanted" : [
       "Tester",
       "Documenter"
