@@ -2155,8 +2155,7 @@ static void pull_union(pTHX_ Affix * affix, SV * sv, const infix_type * type, vo
             // Create a pin for this member (reference to magic scalar)
             SV * val_sv = newSV(0);
             _pin_sv(aTHX_ val_sv, member->type, (char *)p + member->offset, false);
-            SV * rv = newRV_noinc(val_sv);  // Create reference
-            hv_store(hv, member->name, strlen(member->name), rv, 0);
+            hv_store(hv, member->name, strlen(member->name), val_sv, 0);
         }
     }
 }
@@ -3577,7 +3576,7 @@ XS_INTERNAL(Affix_cast) {
     bool is_string_type = false;
 
     if (new_type->category == INFIX_TYPE_PRIMITIVE || new_type->category == INFIX_TYPE_ENUM ||
-        new_type->category == INFIX_TYPE_STRUCT) {
+        new_type->category == INFIX_TYPE_STRUCT || new_type->category == INFIX_TYPE_UNION) {
         return_as_value = true;
     }
     else if (new_type->category == INFIX_TYPE_POINTER) {

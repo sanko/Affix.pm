@@ -1051,5 +1051,41 @@ subtest 'Pointer Arithmetic and String Utils' => sub {
         ok free($dup), 'free(dup) worked';
     };
 };
+subtest 'unions passed to callbacks' => sub {
+
+    # compile a fresh library for this specific test case
+    my $lib = compile_ok( <<'END_C', 'union lib' );
+#include "std.h"
+//ext: .c
+typedef union {
+    int i;
+    float f;
+    char c[8];
+} MyUnion;
+
+DLLEXPORT int invoke_union_cb(void (*cb)(MyUnion*)) {
+    MyUnion u;
+    u.i = 42;
+    cb(&u);
+    return u.i;
+}
+END_C
+
+    # Wrap the function, utilizing the 'MyUnion' typedef created in the earlier subtests.
+    isa_ok my $invoke = wrap( $lib, 'invoke_union_cb', [ Callback [ [ Pointer [ MyUnion() ] ] => Void ] ] => Int ), ['Affix'];
+    my $cb = sub($pin) {
+
+        # Dereference the pin
+        my $u = $$pin;
+        is $u->{i}, 42, 'Read integer member from union pointer directly';    # magical
+
+        # IEEE 754 2.0f is 0x40000000 (1073741824 decimal)
+        $u->{f} = 2.0;
+    };
+    my $ret = $invoke->($cb);
+
+    # Verify the write inside the callback persisted to the C caller
+    is $ret, 1073741824, 'Callback modifications persisted to C (Union write-back)';
+};
 #
 done_testing;
