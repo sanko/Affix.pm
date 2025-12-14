@@ -5,6 +5,17 @@ All notable changes to Affix.pm will be documented in this file.
 The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.0.0/),
 and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0.html).
 
+## [Unreleased] - 2025-12-14
+
+### Changed
+
+    - In an attempt to debug mystery failures in SDL3.pm, Affix.pm will warn and return `undef` instead of `croak`ing.
+    - Improved error reporting: if the internal error message is empty, the numeric error code is now included in the warning.
+
+### Fixed
+
+    - Fixed memory leaks that occurred when trampoline creation failed midway (cleaning up partial arenas, strings, and backend structures).
+
 ## [v1.0.1] - 2025-12-13
 
 ### Changed
