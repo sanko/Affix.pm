@@ -5,7 +5,7 @@ All notable changes to Affix.pm will be documented in this file.
 The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.0.0/),
 and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0.html).
 
-## [Unreleased] - 2025-12-14
+## [Unreleased] - 2025-12-??
 
 ### Changed
 
@@ -14,6 +14,7 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ### Fixed
 
+    - [infix] Fixed a critical file descriptor leak on POSIX platforms (Linux/FreeBSD) where the file descriptor returned by `shm_open` was kept open for the lifetime of the trampoline, eventually hitting the process file descriptor limit (EMFILE). The descriptor is now closed immediately after mapping, as intended.
     - Fixed memory leaks that occurred when trampoline creation failed midway (cleaning up partial arenas, strings, and backend structures).
 
 ## [v1.0.1] - 2025-12-13
@@ -119,3 +120,4 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 [0.06]: https://github.com/sanko/Affix.pm/compare/0.05...0.06
 [0.05]: https://github.com/sanko/Affix.pm/compare/0.04...0.05
 [0.04]: https://github.com/sanko/Affix.pm/releases/tag/0.04
+[infix]: https://github.com/sanko/infix
