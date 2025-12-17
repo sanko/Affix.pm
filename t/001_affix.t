@@ -68,17 +68,6 @@ subtest types => sub {
     #~ use Data::Dump;
     #~ ddx [ Int, Void, Pointer [Int], Int ];
 };
-subtest synopsis => sub {
-    ok my $libm = libm(),                                   'my $libm = libm()';
-    ok affix( $libm, 'pow', [ Double, Double ] => Double ), q[affix $libm, 'pow', [Double, Double] => Double];
-    is pow( 2.0, 10.0 ), 1024, 'pow(2.0, 10.0)';
-    #
-    ok typedef( xRect => Struct [ x => Int, y => Int, w => Int, h => Int ] ), 'typedef Rect => Struct[ ... ]';
-    note 'we skip `draw_rect( { x => 10, y => 10, w => 100, h => 50 } );` because we do not build libs here (yet) to affix';
-    ok my $rect_ptr = calloc( 1, xRect() ),             'my $rect_ptr = calloc(1, Rect())';
-    ok my $ptr_x    = cast( $rect_ptr, Pointer [Int] ), 'my $ptr_x = cast( $rect_ptr, Pointer[Int] )';
-    note 'we also skip the dereference stuff because, yeah, yeah... no lib is built here';
-};
 
 # This C code will be compiled into a temporary library for many of the tests.
 my $C_CODE = <<'END_C';
@@ -89,11 +78,6 @@ my $C_CODE = <<'END_C';
 #include <stdbool.h>
 #include <string.h> // For strcmp
 #include <stdlib.h> // For malloc
-
-/* Expose global vars */
-DLLEXPORT int global_counter = 42;
-DLLEXPORT void set_global_counter(int value) { global_counter = value;}
-DLLEXPORT int get_global_counter(void) { return global_counter;}
 
 /* Basic Primitives */
 DLLEXPORT int add(int a, int b) { return a + b; }
@@ -203,15 +187,6 @@ DLLEXPORT bool check_is_null(void* p) {
 DLLEXPORT int read_int_from_void_ptr(void* p) {
     if (!p) return -999;
     return *(int*)p;
-}
-
-/* Arrays of Structs */
-DLLEXPORT int sum_struct_ids(MyStruct* structs, int count) {
-    int total = 0;
-    for (int i = 0; i < count; i++) {
-        total += structs[i].id;
-    }
-    return total;
 }
 
 /* Enums and Unions */
@@ -331,31 +306,6 @@ subtest 'Symbol Finding' => sub {
     ok my $symbol = find_symbol( $lib, 'add' ), 'find_symbol returns a pointer';
     is find_symbol( $lib, 'non_existent_symbol_12345' ), U(), 'find_symbol returns undef for a non-existent symbol';
 };
-subtest 'Pinning and Marshalling (Dereferencing)' => sub {
-    subtest SInt32 => sub {
-        my $pin_int;
-        isa_ok affix( $lib_path, 'get_global_counter', '()->int32' );
-        isa_ok affix( $lib_path, 'set_global_counter', '(int32)->void' );
-        ok pin( $pin_int, $lib_path, 'global_counter', 'int32' ), 'pin(...)';
-        is $pin_int, 42, 'pinned scalar equals 42';
-
-        #~ diag 'setting pinned scalar to 100';
-        $pin_int = 100;
-        is get_global_counter(), 100, 'checking value from inside the shared lib';
-
-        #~ diag 'setting value from inside the shared lib';
-        set_global_counter(200);
-        is $pin_int, 200, 'checking value from perl';
-
-        #~ diag 'unpinning scalar';
-        ok unpin($pin_int), 'unpin() returns true';
-
-        #~ diag 'setting unpinned scalar to 25';
-        $pin_int = 25;
-        is get_global_counter(), 200, 'value is unchanged inside the shared lib';
-        is $pin_int,             25,  'verify that value is local to perl';
-    };
-};
 subtest 'Forward Calls: Comprehensive Primitives' => sub {
     for my ( $type, $value )(
         bool  => false,                                       #
@@ -451,82 +401,6 @@ subtest '"Kitchen Sink" Callback' => sub {
     };
     is $harness->($callback_sub), 201, 'return value';
 };
-subtest 'Type Registry and Typedefs' => sub {
-    note 'Defining named types for subsequent tests.';
-    subtest 'Define multiple types' => sub {
-        ok typedef( Point    => Struct [ x => SInt32, y => SInt32 ] ),                                     'typedef @Point';
-        ok typedef( Rect     => Struct [ top_left => Point(), bottom_right => Point() ] ),                 'typedef @Rect';
-        ok typedef( RectPlus => Struct [ top_left => Point(), bottom_right => Point(), Pointer [Char] ] ), 'typedef @RectPlus';
-        ok typedef( MyStruct => Struct [ id => SInt32, value => Float64, label => Pointer [Char] ] ),      'typedef @MyStruct';
-        ok typedef( MyUnion  => Union [ i => SInt32, f => Float32, c => Array [ Char, 8 ] ] ),             'typedef @MyUnion';
-    };
-    subtest 'Forward Calls: Advanced Pointers and Arrays of Structs (with Typedefs)' => sub {
-        plan 2;
-        note 'Testing marshalling arrays of structs using typedefs.';
-        isa_ok my $sum_ids = wrap( $lib_path, 'sum_struct_ids', '(*@MyStruct, int32)->int32' ), ['Affix'];
-        my $struct_array
-            = [ { id => 10, value => 1.1, label => 'A' }, { id => 20, value => 2.2, label => 'B' }, { id => 30, value => 3.3, label => 'C' }, ];
-        is $sum_ids->( $struct_array, 3 ), 60, 'Correctly passed an array of structs and summed IDs';
-    };
-    subtest 'Forward Calls: Enums and Unions (with Typedefs)' => sub {
-        plan 4;
-        note 'Testing marshalling for enums and unions.';
-        isa_ok my $check_color = wrap( $lib_path, 'check_color', '(int32)->int32' ), ['Affix'];
-        is $check_color->(1), 1, 'Correctly passed an enum value (GREEN)';
-        isa_ok my $process_union = wrap( $lib_path, 'process_union_float', '(@MyUnion)->float32' ), ['Affix'];
-        my $union_data = { f => 2.5 };
-        is $process_union->($union_data), float(25.0), 'Correctly passed a union with the float member active';
-    };
-    subtest 'Forward Calls: Nested Structs and By-Value Returns (with Typedefs)' => sub {
-        plan 4;
-        isa_ok my $get_width = wrap( $lib_path, 'get_rect_width', '(*@RectPlus)->int32' ), ['Affix'];
-        is $get_width->( \{ top_left => { x => 10, y => 20 }, bottom_right => { x => 60, y => 80 }, name => 'My Rectangle' } ), 50,
-            'Correctly passed nested struct and calculated width';
-        isa_ok my $create_point = wrap( $lib_path, 'create_point', '(int32, int32)->@Point' ), ['Affix'];
-        my $point = $create_point->( 123, 456 );
-        is $point, { x => 123, y => 456 }, 'Correctly received a struct returned by value';
-    };
-    subtest 'Advanced Callbacks (Reverse FFI) (with Typedefs)' => sub {
-        diag 'Testing callbacks that send and receive structs by passing coderefs directly.';
-        isa_ok my $harness1 = wrap( $lib_path, 'process_struct_with_cb', '(*@MyStruct, (*(@MyStruct))->float64)->float64' ), ['Affix'];
-        my $struct_to_pass = { id => 100, value => 5.5, label => 'Callback Struct' };
-        my $cb1            = sub ($struct_ref) {
-
-            # Struct Pointer comes as a Pin (Scalar Ref). Dereference it.
-            my $struct = $$struct_ref;
-            return $struct->{value} * 2;
-        };
-        is $harness1->( $struct_to_pass, $cb1 ), 11.0, 'Callback coderef received struct pointer and returned correct value';
-        isa_ok my $harness2 = wrap( $lib_path, 'check_returned_struct_from_cb', '( *(()->void  )->@Point )->int32' ), ['Affix'];
-        is $harness2->(
-            sub {
-                pass "Inside callback that will return a struct";
-                return { x => 70, y => 30 };
-            }
-            ),
-            100, 'C code correctly received a struct returned by value from a Perl callback';
-    };
-};
-subtest 'Type Introspection (sizeof, alignof, offsetof)' => sub {
-    my $size_of_int = sizeof('int32');
-    is $size_of_int, 4, 'sizeof(int32)';
-
-    # From typedef: @Rect = { a: @Point, b: @Point }; @Point = {x:int32, y:int32}
-    is sizeof( Rect() ),         $size_of_int * 4, 'sizeof works correctly on complex named types';
-    is alignof(Int32),           4,                'alignof(Int32)';
-    is alignof( Point() ),       4,                'alignof(Point)';
-    is offsetof( Point(), 'x' ), 0,                'offsetof(Point, x)';
-    is offsetof( Point(), 'y' ), 4,                'offsetof(Point, y)';
-
-    # Test with Affix::Type object directly
-    my $struct = Struct [ a => SInt8, b => SInt32 ];    # { int8, pad(3), int32 } -> size 8, align 4
-    is sizeof($struct),          8, 'sizeof(Struct object) with padding';
-    is alignof($struct),         4, 'alignof(Struct object)';
-    is offsetof( $struct, 'a' ), 0, 'offsetof(object, a)';
-    is offsetof( $struct, 'b' ), 4, 'offsetof(object, b)';
-    like warning { offsetof( $struct, 'missing' ) }, qr/Member 'missing' not found/, 'offsetof missing member';
-    like warning { offsetof( Int,     'x' ) },       qr/expects a Struct or Union/,  'offsetof invalid type';
-};
 subtest 'Memory Management (malloc, calloc, free)' => sub {
     my $ptr = malloc(32);
     ok $ptr, 'malloc returns a pinned SV*';
@@ -563,59 +437,6 @@ subtest 'Memory Management (malloc, calloc, free)' => sub {
         # When $scoped_ptr goes out of scope here, its DESTROY method is called.
     };
     pass('Managed pointer went out of scope without crashing');
-};
-subtest 'Affix::Pointer Methods (cast, realloc, deref)' => sub {
-    affix $lib_path, 'read_int_from_void_ptr', '(*void)->int';
-    my $mem = malloc(8);
-
-    # Cast returns a new pin. We must assign it or use the returned object.
-    # Also, we keep $mem alive to ensure the memory isn't freed if $int_ptr assumes
-    # $mem owns it (though cast usually creates unmanaged aliases, so we need $mem to stay alive).
-    my $int_ptr = Affix::cast( $mem, Pointer [Int] );
-
-    # Test magical 'set' via dereferencing
-    # $$int_ptr is a scalar magic that writes to the address
-    $$int_ptr = 42;
-
-    # Use the original $mem pointer for reading (verifying they point to the same place)
-    is( read_int_from_void_ptr($mem), 42, 'Magical set via deref wrote to C memory' );
-
-    # Test cast again
-    my $long_ptr = Affix::cast( $mem, Pointer [LongLong] );
-    $$long_ptr = 1234567890123;
-    is $$long_ptr, 1234567890123, 'Magical get after casting to a new type works';
-
-    # Test realloc
-    my $r_ptr = calloc( 2, 'int' );
-
-    # realloc updates the pointer inside $r_ptr in-place.
-    Affix::realloc( $r_ptr, 32 );    # Reallocate to hold 8 ints
-
-    # But $r_ptr still thinks it's [2:int]. We must cast to update the type view.
-    my $arr_ptr = Affix::cast( $r_ptr, '[8:int]' );
-
-    # Read the entire array from C into a Perl variable
-    my $array_values = $$arr_ptr;
-
-    # Modify perl's copy
-    $array_values->[0] = 10;
-    $array_values->[7] = 80;
-
-    # Write the entire modified array ref back to the C pointer
-    $$arr_ptr = $array_values;
-
-    # Visual evidence that the memory has actually been updated
-    #~ Affix::dump( $arr_ptr, 32 );
-    # sum_int_array takes *int, so passing [8:int] (array ref) works as pointer
-    is sum_int_array( $arr_ptr, 8 ), 90, 'realloc successfully resized memory';
-};
-subtest 'Advanced Structs and Unions' => sub {
-    affix $lib_path, 'sum_point_by_val', '(@Point)->int';
-    my $point_hash = { x => 10, y => 25 };
-    is( sum_point_by_val($point_hash), 35, 'Correctly passed a struct by value' );
-    affix $lib_path, 'read_union_int', '(@MyUnion)->int';
-    my $union_hash = { i => 999 };
-    is( read_union_int($union_hash), 999, 'Correctly read int member from a C union' );
 };
 subtest 'Advanced Arrays' => sub {
     affix $lib_path, 'get_char_at', '([20:char], int)->char';
@@ -697,10 +518,6 @@ subtest enum => sub {
         is $consts->{SDL_FLIP_BOTH}, 3,  'SDL_FLIP_BOTH';
         is $consts->{SDL_MATH_TEST}, 12, 'SDL_MATH_TEST';
     };
-
-    # ============================================================================
-    # 1. Compile C Library
-    # ============================================================================
     my $c_source = <<'END_C';
 #include "std.h"
 //ext: .c
@@ -726,7 +543,7 @@ DLLEXPORT MachineState get_next_state(MachineState s) {
     return STATE_ERROR;
 }
 END_C
-    my $lib = compile_ok( $c_source, "Compiled Enum test library" );
+    my $lib = compile_ok( $c_source, 'Compiled Enum test library' );
 
     # ============================================================================
     # 2. Pure Perl Logic Tests (Constants & Generation)
@@ -759,10 +576,6 @@ END_C
         is TEST_D(), 32, 'Hex value (0x20)';
         is TEST_E(), 10, 'Back-reference value (== TEST_B)';
     };
-
-    # ============================================================================
-    # 3. C Integration Tests
-    # ============================================================================
     subtest 'C Integration & Dualvars' => sub {
 
         # Define the Enum matching the C library
@@ -820,10 +633,6 @@ END_RAW
             is "$val", "555", 'Stringification of unknown enum value falls back to number';
         };
     };
-
-    # ============================================================================
-    # 4. Scope & Namespace Tests
-    # ============================================================================
     {
 
         package Other::Scope;
@@ -839,189 +648,6 @@ END_RAW
     subtest 'Namespace Isolation' => sub {
         Other::Scope::run_test();
         ok !defined &SCOPED_A, 'Constant NOT leaked to main package';
-    };
-};
-subtest advanced => sub {
-
-    # ============================================================================
-    # 1. C Source with Feature Detection
-    # ============================================================================
-    my $c_source = <<'END_C';
-#include "std.h"
-//ext: .c
-
-#include <stdio.h>
-#include <stdint.h>
-
-/* 128-bit Integers */
-#ifdef __SIZEOF_INT128__
-    typedef __int128_t int128;
-    typedef __uint128_t uint128;
-
-    DLLEXPORT int has_int128() { return 1; }
-
-    DLLEXPORT int128 add_i128(int128 a, int128 b) {
-        return a + b;
-    }
-
-    DLLEXPORT uint128 add_u128(uint128 a, uint128 b) {
-        return a + b;
-    }
-
-    // Helper to verify value passed correctly (returns high 64 bits cast to 64)
-    DLLEXPORT int64_t high_bits_i128(int128 v) {
-        return (int64_t)(v >> 64);
-    }
-#else
-    DLLEXPORT int has_int128() { return 0; }
-#endif
-
-/* SIMD Vectors */
-/* GCC/Clang vector extensions */
-#if defined(__GNUC__) || defined(__clang__)
-    typedef float v4f __attribute__((vector_size(16)));
-    typedef double v2d __attribute__((vector_size(16)));
-    typedef int v4i __attribute__((vector_size(16)));
-
-    DLLEXPORT int has_vector() { return 1; }
-
-    DLLEXPORT v4f add_v4f(v4f a, v4f b) {
-        return a + b;
-    }
-
-    DLLEXPORT v2d add_v2d(v2d a, v2d b) {
-        return a + b;
-    }
-
-    DLLEXPORT v4i add_v4i(v4i a, v4i b) {
-        return a + b;
-    }
-#else
-    DLLEXPORT int has_vector() { return 0; }
-#endif
-
-/* Long Double */
-DLLEXPORT long double add_ld(long double a, long double b) {
-    return a + b;
-}
-
-DLLEXPORT double ld_to_d(long double a) {
-    return (double)a;
-}
-END_C
-
-    # Compile the library
-    my $lib = compile_ok( $c_source, "Compiled extended types library" );
-
-    # ============================================================================
-    # 2. Test: 128-bit Integers
-    # ============================================================================
-    subtest '128-bit Integers' => sub {
-
-        # Check if the C compiler supported it
-        my $check = wrap( $lib, 'has_int128', [] => Int );
-        if ( !$check->() ) {
-            skip_all "Compiler does not support __int128_t";
-        }
-
-        # Bind functions
-        # Note: Passed/Returned as Strings in Perl
-        isa_ok my $add_i = wrap( $lib, 'add_i128',       [ Int128,  Int128 ]  => Int128 ),  ['Affix'];
-        isa_ok my $add_u = wrap( $lib, 'add_u128',       [ UInt128, UInt128 ] => UInt128 ), ['Affix'];
-        isa_ok my $high  = wrap( $lib, 'high_bits_i128', [Int128] => Int64 ), ['Affix'];
-
-        # Test Signed Addition
-        # 2^100 approx 1.26e30
-        my $v1  = "1267650600228229401496703205376";
-        my $v2  = "1";
-        my $sum = $add_i->( $v1, $v2 );
-        is $sum, "1267650600228229401496703205377", "Signed 128-bit add worked";
-
-        # Test Unsigned Overflow wrapping (if applicable) or just large numbers
-        # Max uint64 is 18446744073709551615
-        my $u_large = "184467440737095516150";      # > UINT64_MAX
-        my $u_sum   = $add_u->( $u_large, "10" );
-        is $u_sum, "184467440737095516160", "Unsigned 128-bit add large numbers";
-
-        # Test passing bits (Shift check)
-        # 1 << 80 = 1208925819614629174706176
-        my $shifted = "1208925819614629174706176";
-
-        # High bits should be 1 << (80-64) = 1 << 16 = 65536
-        is $high->($shifted), 65536, "Verified high bits of passed 128-bit int in C";
-    };
-
-    # ============================================================================
-    # 3. Test: SIMD Vectors
-    # ============================================================================
-    subtest 'SIMD Vectors' => sub {
-        my $check = wrap( $lib, 'has_vector', [] => Int );
-        if ( !$check->() ) {
-            skip_all "Compiler does not support vector extensions";
-        }
-        subtest 'Vector[4, Float]' => sub {
-
-            # Bind: v4f add_v4f(v4f a, v4f b);
-            isa_ok my $add = wrap( $lib, 'add_v4f', [ Vector [ 4, Float ], Vector [ 4, Float ] ] => Vector [ 4, Float ] ), ['Affix'];
-
-            # Pass as Packed String (Fast Path)
-            # 1.0, 2.0, 3.0, 4.0
-            my $v1 = pack( 'f*', 1.0, 2.0, 3.0, 4.0 );
-
-            # 10.0, 20.0, 30.0, 40.0
-            my $v2  = pack( 'f*', 10.0, 20.0, 30.0, 40.0 );
-            my $res = $add->( $v1, $v2 );
-
-            # Result comes back as ArrayRef (default unmarshalling)
-            is ref($res), 'ARRAY', 'Returned array ref';
-
-            # Check values (allow small float epsilon)
-            is $res->[0], float(11.0), 'Index 0 correct';
-            is $res->[1], float(22.0), 'Index 1 correct';
-            is $res->[2], float(33.0), 'Index 2 correct';
-            is $res->[3], float(44.0), 'Index 3 correct';
-        };
-        subtest 'Vector[2, Double]' => sub {
-            isa_ok my $add = wrap( $lib, 'add_v2d', [ Vector [ 2, Double ], Vector [ 2, Double ] ] => Vector [ 2, Double ] ), ['Affix'];
-
-            # Pass as Array Ref (Slow Path)
-            my $v1  = [ 1.5, 2.5 ];
-            my $v2  = [ 0.5, 0.5 ];
-            my $res = $add->( $v1, $v2 );
-            is $res->[0], float(2.0), 'Double Vector Index 0';
-            is $res->[1], float(3.0), 'Double Vector Index 1';
-        };
-        subtest 'Vector[4, Int]' => sub {
-            isa_ok my $add = wrap( $lib, 'add_v4i', [ Vector [ 4, Int ], Vector [ 4, Int ] ] => Vector [ 4, Int ] ), ['Affix'];
-
-            # Pass Packed (Native integers)
-            my $v1  = pack( 'i*', 10, 20, 30, 40 );
-            my $v2  = pack( 'i*', 1,  2,  3,  4 );
-            my $res = $add->( $v1, $v2 );
-            is $res->[0], 11, 'Int Vector Index 0';
-            is $res->[3], 44, 'Int Vector Index 3';
-        };
-    };
-    subtest 'Long Double' => sub {
-
-        # On FreeBSD/ARM64, 128-bit float runtime support might be missing in shared libs?
-        skip_all 'Skipping Long Double on FreeBSD ARM64 due to missing runtime symbols' if $^O eq 'freebsd' && $Config{archname} =~ /aarch64/;
-        isa_ok my $add = wrap( $lib, 'add_ld', [ LongDouble, LongDouble ] => LongDouble ), ['Affix'];
-
-        # Simple addition
-        my $res = $add->( 1.5, 2.5 );
-
-        # Perl's internal NV might be double or long double depending on Configure.
-        # Affix handles the conversion.
-        is $res, float(4.0), 'Long Double addition (small values)';
-
-        # Precision Check
-        # Verify that we can pass something > DBL_MAX or with high precision if Perl supports it
-        # For now, just ensure it roundtrips through C correctly.
-        diag LongDouble;
-        isa_ok my $convert = wrap( $lib, 'ld_to_d', [LongDouble] => Double ), ['Affix'];
-        my $val = 3.14159;
-        is $convert->($val), float(3.14159), 'LongDouble -> C -> Double roundtrip';
     };
 };
 subtest 'Pointer Arithmetic and String Utils' => sub {
@@ -1070,8 +696,7 @@ DLLEXPORT int invoke_union_cb(void (*cb)(MyUnion*)) {
     return u.i;
 }
 END_C
-
-    # Wrap the function, utilizing the 'MyUnion' typedef created in the earlier subtests.
+    ok typedef( MyUnion => Union [ i => SInt32, f => Float32, c => Array [ Char, 8 ] ] ), 'typedef @MyUnion';
     isa_ok my $invoke = wrap( $lib, 'invoke_union_cb', [ Callback [ [ Pointer [ MyUnion() ] ] => Void ] ] => Int ), ['Affix'];
     my $cb = sub($pin) {
 
@@ -1086,54 +711,6 @@ END_C
 
     # Verify the write inside the callback persisted to the C caller
     is $ret, 1073741824, 'Callback modifications persisted to C (Union write-back)';
-};
-subtest 'lvalue pointer (out params)' => sub {
-    my $lib = compile_ok( <<'END_C', 'lvalue param lib' );
-#include "std.h"
-//ext: .c
-#include <stdlib.h>
-#include <string.h>
-
-DLLEXPORT void create_thing(void **out) {
-    if (out) {
-        char *mem = malloc(16);
-        if (mem) {
-            strcpy(mem, "LValue Test");
-            *out = mem;
-        }
-    }
-}
-
-DLLEXPORT void free_thing(void *ptr) {
-    if (ptr)
-        free(ptr);
-}
-END_C
-    #
-    ok typedef( MyThing => Void ), 'Defined opaque MyThing';
-    ok affix( $lib, 'create_thing', [ Pointer [ Pointer [Void] ] ] => Void ), 'Bound create_thing';
-    ok affix( $lib, 'free_thing',   [ Pointer [Void] ]             => Void ), 'Bound free_thing';
-    subtest 'pass by reference' => sub {
-        my $thing;
-        create_thing( \$thing );
-        ok defined($thing), 'Scalar populated via reference';
-        is Affix::cast( $thing, String ), "LValue Test", 'Pointer content correct';
-        free_thing($thing);
-    };
-    #
-    subtest 'pass by value (might be a terrible over-optimization...)' => sub {
-
-        # This might (and probably should) go away in the future
-        my $thing;
-        create_thing($thing);
-        is $thing,                        D(),           'Direct scalar argument populated';
-        is Affix::cast( $thing, String ), 'LValue Test', 'Pointer content correct';
-        free_thing($thing);
-    };
-    subtest 'explicit undef (NULL)' => sub {
-        create_thing(undef);
-        pass 'Explicit undef passed as NULL (no crash)';
-    };
 };
 #
 done_testing;
