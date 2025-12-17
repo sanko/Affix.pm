@@ -3140,7 +3140,7 @@ XS_INTERNAL(Affix_alignof) {
     infix_arena_t * arena = nullptr;
     if (infix_type_from_signature(&type, &arena, signature, MY_CXT.registry) != INFIX_SUCCESS) {
         SV * err_sv = _format_parse_error(aTHX_ "for alignof", signature, infix_get_last_error());
-        warn(SvPV_nolen(err_sv));
+        warn_sv(err_sv);
         if (arena)
             infix_arena_destroy(arena);
         XSRETURN_UNDEF;
@@ -3165,7 +3165,7 @@ XS_INTERNAL(Affix_offsetof) {
     infix_arena_t * arena = nullptr;
     if (infix_type_from_signature(&type, &arena, signature, MY_CXT.registry) != INFIX_SUCCESS) {
         SV * err_sv = _format_parse_error(aTHX_ "for offsetof", signature, infix_get_last_error());
-        warn(SvPV_nolen(err_sv));
+        warn_sv(err_sv);
         if (arena)
             infix_arena_destroy(arena);
         XSRETURN_UNDEF;
@@ -3380,7 +3380,7 @@ XS_INTERNAL(Affix_typedef) {
     PING;
     if (infix_register_types(MY_CXT.registry, SvPV_nolen(def_sv)) != INFIX_SUCCESS) {
         SV * err_sv = _format_parse_error(aTHX_ "in typedef", SvPV_nolen(def_sv), infix_get_last_error());
-        warn(SvPV_nolen(err_sv));
+        warn_sv(err_sv);
         XSRETURN_UNDEF;
     }
 
@@ -3559,7 +3559,7 @@ XS_INTERNAL(Affix_malloc) {
     infix_arena_t * parse_arena = nullptr;
     if (infix_type_from_signature(&type, &parse_arena, "*void", MY_CXT.registry) != INFIX_SUCCESS) {
         SV * err_sv = _format_parse_error(aTHX_ "for malloc", "*void", infix_get_last_error());
-        warn(SvPV_nolen(err_sv));
+        warn_sv(err_sv);
         if (parse_arena)
             infix_arena_destroy(parse_arena);
         XSRETURN_UNDEF;
@@ -3598,7 +3598,7 @@ XS_INTERNAL(Affix_calloc) {
     infix_arena_t * parse_arena = nullptr;
     if (infix_type_from_signature(&elem_type, &parse_arena, signature, MY_CXT.registry) != INFIX_SUCCESS) {
         SV * err_sv = _format_parse_error(aTHX_ "for calloc", signature, infix_get_last_error());
-        warn(SvPV_nolen(err_sv));
+        warn_sv(err_sv);
         if (parse_arena)
             infix_arena_destroy(parse_arena);
         XSRETURN_UNDEF;

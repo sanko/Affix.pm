@@ -23,14 +23,12 @@ DLLEXPORT double ld_to_d(long double a) {
 }
 END_C
 
-# Compile the library
-my $lib = compile_ok( $c_source, "Compiled extended types library" );
-
 # On FreeBSD/ARM64, 128-bit float runtime support might be missing in shared libs?
 skip_all 'Skipping Long Double on FreeBSD ARM64 due to missing runtime symbols' if $^O eq 'freebsd' && $Config{archname} =~ /aarch64/;
+#
+my $lib = compile_ok( $c_source, "Compiled extended types library" );
+#
 isa_ok my $add = wrap( $lib, 'add_ld', [ LongDouble, LongDouble ] => LongDouble ), ['Affix'];
-
-# Simple addition
 my $res = $add->( 1.5, 2.5 );
 
 # Perl's internal NV might be double or long double depending on Configure.
@@ -40,7 +38,6 @@ is $res, float(4.0), 'Long Double addition (small values)';
 # Precision Check
 # Verify that we can pass something > DBL_MAX or with high precision if Perl supports it
 # For now, just ensure it roundtrips through C correctly.
-diag LongDouble;
 isa_ok my $convert = wrap( $lib, 'ld_to_d', [LongDouble] => Double ), ['Affix'];
 my $val = 3.14159;
 is $convert->($val), float(3.14159), 'LongDouble -> C -> Double roundtrip';
