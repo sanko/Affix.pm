@@ -3,7 +3,6 @@ use lib '../lib', 'lib';
 use blib;
 use Test2::Tools::Affix qw[:all];
 use Affix               qw[:all];
-use Config;
 #
 $|++;
 #
@@ -98,8 +97,7 @@ DLLEXPORT int check_returned_struct_from_cb(Point (*cb)(void)) {
     return p.x + p.y;
 }
 END_C
-
-# Compile the library once for all subtests that need it.
+#
 my $lib_path = compile_ok($C_CODE);
 ok( $lib_path && -e $lib_path, 'Compiled a test shared library successfully' );
 subtest 'Forward Calls: Advanced Pointers and Arrays of Structs (with Typedefs)' => sub {

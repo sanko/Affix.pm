@@ -12,6 +12,9 @@ my $C_CODE = <<'END_C';
 #include "std.h"
 //ext: .c
 
+#include <stdlib.h>
+#include <string.h>
+
 DLLEXPORT const char* get_hello_string() { return "Hello from C"; }
 DLLEXPORT bool set_hello_string(const char * hi) { return strcmp(hi, "Hello from Perl")==0; }
 
@@ -76,9 +79,31 @@ DLLEXPORT int32_t get_struct_id(MyStruct* s) {
 DLLEXPORT int call_int_cb(int (*cb)(int), int val) {
     return cb(val);
 }
-END_C
 
-# Compile the library once for all subtests that need it.
+DLLEXPORT void * test() {
+  void * ret = malloc(8);
+  if ( ret == NULL ) { }
+  else { strcpy(ret, "Testing"); }
+  return ret;
+}
+
+DLLEXPORT void c_free(void* p) { free(p); }
+
+DLLEXPORT void set_int_deep(int*** ptr, int val) {
+    if (ptr && *ptr && **ptr) {
+        ***ptr = val;
+    }
+}
+
+DLLEXPORT void* get_heap_int(int val) {
+    int* p = (int*)malloc(sizeof(int));
+    *p = val;
+    return p;
+}
+
+DLLEXPORT void libc_free(void * ptr){ free(ptr); }
+END_C
+#
 my $lib_path = compile_ok($C_CODE);
 ok( $lib_path && -e $lib_path, 'Compiled a test shared library successfully' );
 #
@@ -172,164 +197,138 @@ subtest 'Function Pointers (*(int->int))' => sub {
     is $result, 70, 'Correctly passed a simple coderef as a function pointer';
     ok $check_is_null->(undef), 'Passing undef as a function pointer is received as NULL';
 };
+subtest 'Memory Management (malloc, calloc, free)' => sub {
+    my $ptr = malloc(32);
+    ok $ptr, 'malloc returns a pinned SV*';
+
+    #~ use Data::Printer;
+    #~ p $ptr;
+    #~ diag length $ptr;
+    #~ diag Affix::dump( $ptr, 32 );
+    ok my $array_ptr = calloc( 4, Int ), 'calloc returns an array';
+
+    #~ diag Affix::dump( $array_ptr, 32 );
+    ok $array_ptr, 'calloc returns an Affix::Pointer object';
+    is sum_int_array( $array_ptr, 4 ), 0, 'Memory from calloc is zero-initialized';
+    ok free($array_ptr), 'Explicitly calling free() returns true';
+
+    # Note: Double-free would crash, so we assume it worked.
+    like( warning { free( find_symbol( load_library($lib_path), 'sum_int_array' ) ) },
+        qr/unmanaged/, 'free() croaks when called on an unmanaged pointer' );
+
+    # Test that auto-freeing via garbage collection doesn't crash
+    subtest 'GC of managed pointers' => sub {
+        ok my $scoped_ptr = malloc(16), 'malloc(16)';
+
+        #~ ok cast( $scoped_ptr, '*int'), 'cast void pointer to int pointer';
+        #substr $$scoped_ptr, 0, 1, 'a';
+        #~ diag '[' . ($$scoped_ptr) . ']';
+        my $values = $$scoped_ptr;
+        substr( $values, 4 ) = 'hi';
+        $$scoped_ptr = $values;
+
+        #~ Affix::dump( $scoped_ptr, 32 );
+        #~ diag '[' . ($$scoped_ptr) . ']';
+        # When $scoped_ptr goes out of scope here, its DESTROY method is called.
+    };
+    pass('Managed pointer went out of scope without crashing');
+};
+subtest 'Pointer Arithmetic and String Utils' => sub {
+    imported_ok qw[ptr_add ptr_diff strdup strnlen is_null];
+    subtest 'ptr_add and ptr_diff' => sub {
+        my $buf = calloc( 10, Int );    # 40 bytes
+        ok !is_null($buf), 'buffer is not null';
+        my $p2 = ptr_add( $buf, 8 );    # width of 2 ints
+        is ptr_diff( $p2,  $buf ),  8, 'ptr_diff calculates 8 bytes';
+        is ptr_diff( $buf, $p2 ),  -8, 'ptr_diff calculates -8 bytes';
+        $$p2 = 999;                     # Write to offset
+
+        # Verify via original array pointer
+        my $arr = cast( $buf, Array [ Int, 10 ] );
+        is $$arr->[2], 999, 'ptr_add moved to index 2 correctly';
+        free($buf);
+    };
+    subtest 'strdup and strnlen' => sub {
+        my $str = "Hello World";
+        my $dup = strdup($str);
+        ok !is_null($dup), 'strdup returned non-null';
+        is cast( $dup, String ), $str, 'strdup content matches';
+        is strnlen( $dup, 5 ),   5,  'strnlen capped at max';
+        is strnlen( $dup, 100 ), 11, 'strnlen found true length';
+
+        # Ensure it's managed memory that we can free
+        ok free($dup), 'free(dup) worked';
+    };
+};
+subtest 'return malloc\'d pointer' => sub {
+    ok affix( $lib_path, 'test', [] => Pointer [Void] ), 'affix test()';
+
+    # We MUST bind C's free, because Affix::free uses Perl's allocator.
+    # Mixing them causes crashes on Windows.
+    ok affix( $lib_path, 'c_free', [ Pointer [Void] ] => Void ), 'affix c_free()';
+    ok my $string = test(),                                      'test()';
+    is Affix::cast( $string, String ), 'Testing', 'read C string';
+
+    # Correct cleanup: Use the allocator that created it.
+    c_free($string);
+    pass('freed via c_free');
+};
+subtest 'deep pointers' => sub {
+
+    # 1. Deep Indirection (***int)
+    isa_ok my $set_deep = wrap( $lib_path, 'set_int_deep', [ Pointer [ Pointer [ Pointer [Int] ] ], Int ] => Void ), ['Affix'];
+
+    # Manually construct the pointer chain with correct types
+    # Keep original 'malloc' pointers alive (managed) while using 'cast' aliases
+    # Layer 1: The int value (int*)
+    my $p_mem = malloc(8);
+    my $p_val = Affix::cast( $p_mem, Pointer [Int] );
+
+    # Assigning directly ($p_val = 0) would overwrite the magic scalar with a normal SV*
+    $$p_val = 0;
+
+    # Layer 2: Pointer to Layer 1 (int**)
+    my $pp_mem = malloc(8);
+    my $pp_val = Affix::cast( $pp_mem, Pointer [ Pointer [Int] ] );
+    $$pp_val = $p_val;    # Writes address of $p_mem into $pp_mem
+
+    # Layer 3: Pointer to Layer 2 (int***)
+    my $ppp_mem = malloc(8);
+    my $ppp_val = Affix::cast( $ppp_mem, Pointer [ Pointer [ Pointer [Int] ] ] );
+
+    # FIXED: Dereference to invoke SET magic, writing the pointer address to memory.
+    $$ppp_val = $pp_val;
+
+    # Call Function
+    $set_deep->( $ppp_val, 12345 );
+
+    # Verification
+    is $$p_val, 12345, '***int deep write successful via Pins';
+
+    # Cleanup (Freeing the originals clears the memory)
+    Affix::free($p_mem);
+    Affix::free($pp_mem);
+    Affix::free($ppp_mem);
+
+    # 2. Manual Memory Management (malloc/free/cast)
+    isa_ok my $get_heap = wrap( $lib_path, 'get_heap_int', [Int] => Pointer [Int] ), ['Affix'];
+
+    # Alias libc free to avoid conflict with Affix::free
+    diag affix( $lib_path, 'libc_free', [ Pointer [Void] ] => Void );
+    my $heap_ptr = $get_heap->(99);
+    ok $heap_ptr, 'Received pointer from C';
+    is $$heap_ptr, 99, 'Dereferenced managed pointer value';
+    $$heap_ptr = 88;
+    is $$heap_ptr, 88, 'Modified heap memory via magic deref';
+    my $void_alias = Affix::cast( $heap_ptr, Pointer [Void] );
+    my $addr       = $$void_alias;
+    ok $addr > 0, 'Cast to void*, deref returns address';
+    my $int_alias = Affix::cast( $void_alias, Pointer [Int] );
+    is $$int_alias, 88, 'Cast back to int*, value preserved';
+
+    # Use the bound C free
+    libc_free($heap_ptr);
+    pass 'Freed C memory';
+};
 #
 done_testing;
-__END__
-
-
-#include <stdint.h>
-#include <stdbool.h>
-#include <string.h> // For strcmp
-#include <stdlib.h> // For malloc
-
-/* Basic Primitives */
-DLLEXPORT int add(int a, int b) { return a + b; }
-DLLEXPORT unsigned int u_add(unsigned int a, unsigned int b) { return a + b; }
-
-// Functions to test every supported primitive type
-DLLEXPORT int8_t   echo_int8   (int8_t   v) { return v; }
-DLLEXPORT uint8_t  echo_uint8  (uint8_t  v) { return v; }
-DLLEXPORT int16_t  echo_int16  (int16_t  v) { return v; }
-DLLEXPORT uint16_t echo_uint16 (uint16_t v) { return v; }
-DLLEXPORT int32_t  echo_int32  (int32_t  v) { return v; }
-DLLEXPORT uint32_t echo_uint32 (uint32_t v) { return v; }
-DLLEXPORT int64_t  echo_int64  (int64_t  v) { return v; }
-DLLEXPORT uint64_t echo_uint64 (uint64_t v) { return v; }
-DLLEXPORT float    echo_float  (float    v) { return v; }
-DLLEXPORT double   echo_double (double   v) { return v; }
-DLLEXPORT bool     echo_bool   (bool     v) { return v; }
-
-/* Pointers and References */
-
-
-
-// Takes a pointer to a pointer and verifies the string.
-
-
-/* Structs and Arrays */
-
-
-// Sums an array of 64-bit integers.
-DLLEXPORT int64_t sum_s64_array(int64_t* arr, int len) {
-    int64_t total = 0;
-    for (int i = 0; i < len; i++)
-        total += arr[i];
-    return total;
-}
-
-// Returns a pointer to a static internal struct
-
-
-/* Nested Structs */
-typedef struct {
-    int x;
-    int y;
-} Point;
-
-typedef struct {
-    Point top_left;
-    Point bottom_right;
-    const char* name;
-} Rectangle;
-
-DLLEXPORT int get_rect_width(Rectangle* r) {
-    if (!r) return -1;
-    return r->bottom_right.x - r->top_left.x;
-}
-
-// Return a struct by value
-DLLEXPORT Point create_point(int x, int y) {
-    Point p = {x, y};
-    return p;
-}
-
-/* Advanced Pointers */
-
-/* Enums and Unions */
-typedef enum { RED, GREEN, BLUE } Color;
-
-DLLEXPORT int check_color(Color c) {
-    if (c == GREEN) return 1;
-    return 0;
-}
-
-typedef union {
-    int i;
-    float f;
-    char c[8];
-} MyUnion;
-
-DLLEXPORT float process_union_float(MyUnion u) {
-    return u.f * 10.0;
-}
-
-/* Advanced Callbacks */
-// Takes a callback that processes a struct
-DLLEXPORT double process_struct_with_cb(MyStruct* s, double (*cb)(MyStruct*)) {
-    return cb(s);
-}
-
-// Takes a callback that returns a struct
-DLLEXPORT int check_returned_struct_from_cb(Point (*cb)(void)) {
-    Point p = cb();
-    return p.x + p.y;
-}
-
-// A callback with many arguments to test register/stack passing
-typedef void (*kitchen_sink_cb)(
-    int a, double b, int c, double d, int e, double f, int g, double h,
-    const char* i, int* j
-);
-DLLEXPORT int call_kitchen_sink(kitchen_sink_cb cb) {
-    int j_val = 100;
-    cb(1, 2.0, 3, 4.0, 5, 6.0, 7, 8.0, "kitchen sink", &j_val);
-    return j_val + 1;
-}
-
-/* Functions with many arguments */
-DLLEXPORT long long multi_arg_sum(
-    long long a, long long b, long long c, long long d,
-    long long e, long long f, long long g, long long h, long long i
-) {
-    return a + b + c + d + e + f + g + h + i;
-}
-
-/* Simple Callback Harness */
-
-
-DLLEXPORT double call_math_cb(double (*cb)(double, int), double d, int i) {
-    return cb(d, i);
-}
-
-
-DLLEXPORT int sum_point_by_val(Point p) {
-    return p.x + p.y;
-}
-
-DLLEXPORT char get_char_at(char s[20], int index) {
-    warn("# get_char_at('%s', %d);", s, index);
-    if (index >= 20 || index < 0) return '!';
-    return s[index];
-}
-
-DLLEXPORT int read_union_int(MyUnion u) {
-    return u.i;
-}
-
-DLLEXPORT float sum_float_array(float* arr, int len) {
-    float total = 0.0f;
-    for (int i = 0; i < len; i++)
-        total += arr[i];
-    return total;
-}
-
-#if !(defined(__FreeBSD__) && defined(__aarch64__))
-/* Long Double */
-DLLEXPORT long double add_ld(long double a, long double b) {
-    return a + b;
-}
-
-DLLEXPORT double ld_to_d(long double a) {
-    return (double)a;
-}
-#endif

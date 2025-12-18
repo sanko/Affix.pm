@@ -3,7 +3,6 @@ use lib '../lib', 'lib';
 use blib;
 use Test2::Tools::Affix qw[:all];
 use Affix               qw[:all];
-use Config;
 #
 $|++;
 #
