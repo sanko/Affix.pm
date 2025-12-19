@@ -49,4 +49,14 @@ is( sum_float_array( $floats, 3 ), float( 6.6, tolerance => 0.01 ), 'Correctly s
 isa_ok my $sum_arr = wrap( $lib_path, 'sum_array_static', [ Array [ Int, 5 ] ] => Int ), ['Affix'];
 is $sum_arr->( [ 1, 2, 3, 4, 5 ] ), 15, 'Fixed size array passed by value';
 #
+subtest 'Fixed Array Binary Safety' => sub {
+    my $ptr = calloc( 5, Int8 );                   # Allocate 5 bytes
+    my $mem = cast( $ptr, Array [ Int8, 5 ] );     # Write: "A \0 B \0 C"
+    $$mem = [ 65, 0, 66, 0, 67 ];                  # We can write using an array ref (slow path, verify write works)
+    my $view = cast( $ptr, Array [ Char, 5 ] );    # Now read it back as a char array (fast path)
+    my $data = $$view;
+    is length($data), 5,         'Binary string has correct length (5)';
+    is $data,         "A\0B\0C", 'Binary content preserved (nulls included)';
+    free($ptr);
+};
 done_testing;

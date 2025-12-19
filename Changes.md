@@ -7,9 +7,24 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ## [Unreleased]
 
+### Added
+
+  - Support for Variadic Functions (varargs):
+    - Implemented dynamic JIT compilation for C functions with variable arguments (e.g., `printf`).
+    - Added `variadic_cache` to cache trampolines for repeated calls, ensuring high performance.
+    - Implemented runtime type inference: Perl integers promote to `sint64`, floats to `double`, and strings to `*char`.
+  - Added `Affix::coerce($type, $value)` to explicitly hint types for variadic arguments. This allows passing structs by value or forcing specific integer widths where inference is insufficient.
+
 ### Changed
 
+  - `malloc` now accepts an optional second argument (Type) to immediately cast the returned pointer (e.g., `malloc(16, Int)`).
+  - `Array[Char]` function arguments now accept Perl Strings directly, copying the string data into the temporary C array.
 
+### Fixed
+
+  - Correctly implemented "Array Decay" for function arguments. `Array[...]` types are now marshalled into temporary C arrays and passed as pointers, matching standard C behavior. Previously, they were incorrectly passed by value, causing stack corruption.
+  - Fixed binary safety for `Array[Char/UChar]`. Reading these arrays now respects the explicit length rather than stopping at the first null byte.
+  - The write-back mechanism no longer attempts to overwrite the read-only ArrayRef scalar with the pointer address.
 
 ## [v1.0.2] - 2025-12-14
 
