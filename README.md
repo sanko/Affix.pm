@@ -201,9 +201,9 @@ affix $lib, 'func', [ MyType() ] => Void;
 
 Registers a named type alias in the Affix system. This is required for:
 
-1. **Recursive Types**: A struct that contains a pointer to itself.
-2. **Reusability**: Defining a complex signature once and using it in multiple functions.
-3. **Smart Enums**: Generating Perl constants in your package.
+- 1. **Recursive Types**: A struct that contains a pointer to itself.
+- 2. **Reusability**: Defining a complex signature once and using it in multiple functions.
+- 3. **Smart Enums**: Generating Perl constants in your package.
 
 # LIBRARY FUNCTIONS
 
@@ -647,6 +647,39 @@ refer to previously defined constants within the same Enum.
         [ ALL     => 'READ | WRITE | EXEC' ]    # 7
     ];
     ```
+
+## Variadic Functions (VarArgs)
+
+Affix supports C functions that take a variable number of arguments, like `printf`.
+
+```perl
+# C: int printf(const char* format, ...);
+affix libc, 'printf', [ String, VarArgs ] => Int;
+```
+
+When calling a variadic function, Affix performs dynamic type inference at runtime for the extra arguments:
+
+- Perl Integers -> `int64_t`
+- Perl Floats   -> `double` (Standard C promotion rules)
+- Perl Strings  -> `char*`
+
+```
+printf("Hello %s, count is %d\n", "World", 123);
+```
+
+### Hinting Types with `coerce()`
+
+Sometimes standard inference isn't enough (e.g., passing a `float` instead of `double`, or passing a Struct by
+value). Use `coerce($type, $value)` to explicitly hint the type.
+
+```perl
+# Passing a struct by value to a variadic function
+typedef Point => Struct [ x=>Int, y=>Int ];
+my $p = { x => 10, y => 20 };
+
+# Without coerce(), $p would likely be treated as an error or generic pointer
+my_variadic_func( "Point: %P", coerce( Point(), $p ) );
+```
 
 ## Callbacks
 

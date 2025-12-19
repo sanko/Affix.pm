@@ -1,6 +1,6 @@
 use v5.40;
 use blib;
-use Affix qw[wrap Int];
+use Affix qw[wrap Int32];
 use Affix::Compiler;
 use Test2::Tools::Affix qw[:all];
 use Path::Tiny;
@@ -20,8 +20,8 @@ subtest 'Inline Source' => sub {
         #endif
         int inline_add(int a, int b) { return a + b; }
 
-    ok lives { $c->compile_and_link() },                           'Linked inline source';
-    ok my $fn = wrap( $c->link, 'inline_add', [ Int, Int ], Int ), 'wrap';
+    ok lives { $c->compile_and_link() },                                 'Linked inline source';
+    ok my $fn = wrap( $c->link, 'inline_add', [ Int32, Int32 ], Int32 ), 'wrap';
     is $fn->( 65, 43 ), 108, 'call';
 };
 #
@@ -132,7 +132,7 @@ sub run_test ( $lang, $name, $code, $sym, $bin_req, $validator //= () ) {
             diag( "Load failed: " . DynaLoader::dl_error() );
         }
         #
-        ok my $fn = wrap( $lib, $sym, [ Int, Int ], Int ), 'wrap';
+        ok my $fn = wrap( $lib, $sym, [ Int32, Int32 ], Int32 ), 'wrap';
         is $fn->( 3, 7 ), 10, 'call';
     };
 }
@@ -176,8 +176,8 @@ run_test( 'rust', 'Rust', <<~'', 'add_rs', 'rustc' );
 run_test( 'go', 'Go', <<~'', 'add_go', 'go' );
     package main
     import "C"
-    // export add_go
-    func add_go(a, b int) int {
+    //export add_go
+    func add_go(a, b C.int) C.int {
         return a + b
     }
     func main() { }

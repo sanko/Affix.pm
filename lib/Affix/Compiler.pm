@@ -51,11 +51,11 @@ class Affix::Compiler {
     }
 
     method add ( $input, %args ) {
-        $_lib = ();    # Reset cached library handle
-        my( $path, $lang);
-         if ( ref $input eq 'SCALAR' ) {    # Inline source code
+        $_lib = ();                        # Reset cached library handle
+        my ( $path, $lang );
+        if ( ref $input eq 'SCALAR' ) {    # Inline source code
             $args{lang} // croak q[Parameter 'lang' (extension) is required for inline source];
-            $lang = lc $args{lang} ;
+            $lang = lc $args{lang};
 
             # Generate a unique filename in the build dir
             state $counter = 0;
@@ -63,7 +63,7 @@ class Affix::Compiler {
             $path = $build_dir->child($fname);
             $path->spew_utf8($$input);
         }
-        else {                                          #  File path
+        else {                             #  File path
             $path = Path::Tiny::path($input)->absolute;
             croak "File not found: $path" unless $path->exists;
             ($lang) = $path =~ /\.([^.]+)$/;
@@ -308,6 +308,12 @@ class Affix::Compiler {
     method _build_go ( $src, $out, $mode ) {
         my $file  = $src->{path};
         my @local = @{ $src->{flags} };    # passed to go build args
+
+        # MinGW GCC 8.3.0 had known issues guaranteeing the 16-byte stack alignment required by the
+        # Go runtime (and SSE/AVX instructions) on Windows x64. If Perl calls your library with a
+        # 8-byte aligned stack (which was common in older GCC optimization flags), Go will segfault
+        # immediately when it tries to access the stack.
+        push @local, q[-ldflags "-extldflags '-static -static-libgcc -static-libstdc++'] if $^O eq 'MSWin32';
         if ( $mode eq 'dynamic' ) {
             $self->_run( 'go', 'build', '-buildmode=c-shared', @local, '-o', "$out", "$file" );
             return $out;
@@ -644,3 +650,9 @@ XML
     }
 }
 1;
+__END__
+Copyright (C) Sanko Robinson.
+
+This library is free software; you can redistribute it and/or modify it under
+the terms found in the Artistic License 2. Other copyrights, terms, and
+conditions may apply to data transmitted through this module.

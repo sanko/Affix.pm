@@ -19,7 +19,7 @@ package Test2::Tools::Affix v0.12.0 {
                 compile_ok affix_ok leaks
                 plan todo skip skip_all done_testing diag note
                 subtest ok isa_ok skip_all is isnt like
-                pass
+                pass fail
                 lives dies try_ok warns warning
                 U D T F DNE array string float number bool hash etc end
                 refcount
@@ -69,8 +69,9 @@ package Test2::Tools::Affix v0.12.0 {
             $c->release;
             return ();
         }
-        my $compiler = Affix::Compiler->new( name => 'testing', version => '1.0', source => [ $opt->canonpath ], flags => { cflags => '-I' . $Inc } );
-        $compiler->compile;
+        my $compiler = Affix::Compiler->new( name => 'testing', version => '1.0', flags => { cflags => '-I' . $Inc } );
+    $compiler->add($opt->canonpath);
+        $compiler->link;
         push @cleanup, $opt->canonpath, $compiler->link unless $keep;
         $c->ok( 1, 'build lib: ' . $compiler->link );
         $c->release;
