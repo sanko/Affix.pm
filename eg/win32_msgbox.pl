@@ -1,7 +1,4 @@
-use strict;
-use warnings;
+use v5.40;
 use Affix;
-$|++;
 #
-CORE::say 'MessageBoxA(...) = ' .
-    wrap( 'C:\Windows\System32\user32.dll', 'MessageBoxA', [ UInt, Str, Str, UInt ] => Int )->( 0, 'JAPH!', 'Hello, World', 0 );
+say 'MessageBoxA(...) = ' . wrap( 'user32', 'MessageBoxA', [ UInt, String, String, UInt ] => Int )->( 0, 'JAPH!', 'Hello, World', 0 );

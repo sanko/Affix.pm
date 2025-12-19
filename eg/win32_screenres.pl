@@ -1,11 +1,8 @@
-use strict;
-use warnings;
-use lib '../lib', '../blib/arch', '../blib/lib';
+use v5.40;
 use Affix;
-$|++;
 #
-sub GetSystemMetrics : Native('C:\Windows\System32\user32.dll') : Signature([Int]=>Int);
+affix 'user32', 'GetSystemMetrics', [Int], Int;
 #
-CORE::say 'width = ' . GetSystemMetrics(0);
-CORE::say 'height = ' . GetSystemMetrics(1);
-CORE::say 'number of monitors = ' . GetSystemMetrics(80);
+say 'width = ' . GetSystemMetrics(0);
+say 'height = ' . GetSystemMetrics(1);
+say 'number of monitors = ' . GetSystemMetrics(80);
