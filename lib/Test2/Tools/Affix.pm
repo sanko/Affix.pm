@@ -70,7 +70,7 @@ package Test2::Tools::Affix v0.12.0 {
             return ();
         }
         my $compiler = Affix::Compiler->new( name => 'testing', version => '1.0', flags => { cflags => '-I' . $Inc } );
-    $compiler->add($opt->canonpath);
+        $compiler->add( $opt->canonpath );
         $compiler->link;
         push @cleanup, $opt->canonpath, $compiler->link unless $keep;
         $c->ok( 1, 'build lib: ' . $compiler->link );

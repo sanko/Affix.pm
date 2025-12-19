@@ -148,4 +148,41 @@ subtest 'Namespace Isolation' => sub {
     Other::Scope::run_test();
     ok !defined &SCOPED_A, 'Constant NOT leaked to main package';
 };
+subtest 'Bitwise Shift' => sub {
+    my $e = Enum [ [ BIT_0 => '1 << 0' ], [ BIT_1 => '1 << 1' ], [ BIT_5 => '1 << 5' ], [ RSHIFT => '32 >> 2' ] ];
+    my ( $c, $v ) = $e->resolve();
+    is $c->{BIT_0},  1,  '1 << 0';
+    is $c->{BIT_1},  2,  '1 << 1';
+    is $c->{BIT_5},  32, '1 << 5';
+    is $c->{RSHIFT}, 8,  '32 >> 2';
+};
+subtest 'Unary Operators' => sub {
+    my $e = Enum [ [ NEG => '-5' ], [ NOT => '!0' ], [ BIT_NOT => '~0' ], [ MASK => '~(1 << 2)' ] ];
+    my ( $c, $v ) = $e->resolve();
+    is $c->{NEG}, -5, 'Unary minus';
+    is $c->{NOT},  1, 'Logical NOT (!0)';
+
+    # C enums are signed int. ~0 is -1.
+    is $c->{BIT_NOT}, -1, 'Bitwise NOT (~0) is -1';
+
+    # ~(1<<2) = ~4. In signed 32/64-bit, this is -5.
+    is $c->{MASK}, -5, 'Complex unary/shift (~(1<<2)) is -5';
+};
+subtest 'Logical and Ternary' => sub {
+    my $e = Enum [
+        [ TRUE_VAL  => 10 ],
+        [ FALSE_VAL => 20 ],
+        [ TERNARY_T => '1 ? TRUE_VAL : FALSE_VAL' ],
+        [ TERNARY_F => '0 ? TRUE_VAL : FALSE_VAL' ],
+        [ LOGIC_AND => '1 && 1' ],
+        [ LOGIC_OR  => '0 || 0' ],
+        [ CMP_LESS  => '10 < 20' ]
+    ];
+    my ( $c, $v ) = $e->resolve();
+    is $c->{TERNARY_T}, 10, 'Ternary True';
+    is $c->{TERNARY_F}, 20, 'Ternary False';
+    is $c->{LOGIC_AND}, 1,  'Logic AND';
+    is $c->{LOGIC_OR},  0,  'Logic OR';
+    is $c->{CMP_LESS},  1,  'Comparison <';
+};
 done_testing;

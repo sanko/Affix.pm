@@ -502,29 +502,27 @@ package Affix v1.0.2 {    # 'FFI' is my middle name!
                 return ( $const_map, $values_map );
             }
 
-            # A pure-perl expression solver (Shunting-yard algorithm)
-            # Handles: + - * / | & ^ ( )
+            # Extended Shunting-yard algorithm
+            # Handles: + - * / % << >> | & ^ ~ ! ( ) && || == != < <= > >= ? :
             method _calculate_expr( $expr, $lookup ) {
 
-                # 1. Tokenize: Split on operators, keep parens and logic ops
-                # Include '%' in the regex
-                my @raw_tokens = split /([+\-*\/%|&^()])/, $expr;
-                my @tokens;
-                foreach my $t (@raw_tokens) {
+                # Force signed integer arithmetic to match C enums.
+                # This ensures ~0 becomes -1, not 18446744073709551615.
+                use integer;
 
-                    # Skip if undefined or purely whitespace
-                    next unless defined $t && $t =~ /\S/;
+                # 1. Tokenize: Split on operators
+                # Regex matches:
+                # - Multi-char ops: << >> && || == != <= >=
+                # - Single-char ops: + - * / % | & ^ ~ ! ( ) ? : < >
+                # - Numbers (hex/dec)
+                # - Identifiers
+                my @tokens = $expr =~ /(0x[0-9a-fA-F]+|\d+|[a-zA-Z_]\w*|<<|>>|&&|\|\||==|!=|<=|>=|[+\-*\/%|&^~!?:()<>])/g;
 
-                    # Trim leading/trailing whitespace from identifiers
-                    $t =~ s/^\s+|\s+$//g;
-                    push @tokens, $t;
-                }
-
-                # 2. Resolve Identifiers to Numbers
-                foreach my $t (@tokens) {
-                    next if $t =~ /^[+\-*\/%|&^()]$/;    # Skip operators
-                    next if $t =~ /^-?\d+$/;             # Skip integers
-                    next if $t =~ /^0x[0-9a-fA-F]+$/;    # Skip Hex literals
+                # 2. Resolve Identifiers
+                for my $t (@tokens) {
+                    next if $t =~ /^(?:<<|>>|&&|\|\||==|!=|<=|>=|[+\-*\/%|&^~!?:()<>])$/;
+                    next if $t =~ /^\d+$/;
+                    next if $t =~ /^0x/;
                     if ( exists $lookup->{$t} ) {
                         $t = $lookup->{$t};
                     }
@@ -537,64 +535,138 @@ package Affix v1.0.2 {    # 'FFI' is my middle name!
                     $t = hex($t) if $t =~ /^0x/;
                 }
 
-                # 3. Shunting-yard: Infix -> RPN (Reverse Polish Notation)
+                # 3. Shunting-yard
                 my @output_queue;
                 my @op_stack;
 
-                # Operator Precedence
+                # Precedence and Associativity (1=Left, 0=Right)
                 my %prec = (
-                    '*' =>  4,
-                    '/' =>  4,
-                    '%' =>  4,
-                    '+' =>  3,
-                    '-' =>  3,
-                    '&' =>  2,
-                    '^' =>  1,
-                    '|' =>  0,
-                    '(' => -1,    # Lowest, handled specially
+                    '*'          => [ 13, 1 ],
+                    '/'          => [ 13, 1 ],
+                    '%'          => [ 13, 1 ],
+                    '+'          => [ 12, 1 ],
+                    '-'          => [ 12, 1 ],
+                    '<<'         => [ 11, 1 ],
+                    '>>'         => [ 11, 1 ],
+                    '<'          => [ 10, 1 ],
+                    '<='         => [ 10, 1 ],
+                    '>'          => [ 10, 1 ],
+                    '>='         => [ 10, 1 ],
+                    '=='         => [ 9,  1 ],
+                    '!='         => [ 9,  1 ],
+                    '&'          => [ 8,  1 ],
+                    '^'          => [ 7,  1 ],
+                    '|'          => [ 6,  1 ],
+                    '&&'         => [ 5,  1 ],
+                    '||'         => [ 4,  1 ],
+                    '?'          => [ 3,  0 ],
+                    ':'          => [ 3,  0 ],                                                                    # Ternary
+                    'unary_plus' => [ 14, 0 ], 'unary_minus' => [ 14, 0 ], '!' => [ 14, 0 ], '~' => [ 14, 0 ],    # Unary
+                    '('          => [ -1, 0 ],
                 );
-                foreach my $token (@tokens) {
-                    if ( $token =~ /^-?\d+$/ ) {
+                my $expect_unary = 1;
+                for my $token (@tokens) {
+                    if ( $token =~ /^\d+$/ ) {
                         push @output_queue, $token;
+                        $expect_unary = 0;
                     }
                     elsif ( $token eq '(' ) {
                         push @op_stack, $token;
+                        $expect_unary = 1;
                     }
                     elsif ( $token eq ')' ) {
                         while ( @op_stack && $op_stack[-1] ne '(' ) {
                             push @output_queue, pop @op_stack;
                         }
                         pop @op_stack;    # Discard '('
+                        $expect_unary = 0;
                     }
-                    elsif ( exists $prec{$token} ) {
-                        while ( @op_stack && defined( $prec{ $op_stack[-1] } ) && $prec{ $op_stack[-1] } >= $prec{$token} ) {
+                    elsif ( $token eq '?' ) {    # Ternary Start
+                        while ( @op_stack && $op_stack[-1] ne '(' && $prec{ $op_stack[-1] }[0] > $prec{$token}[0] ) {
                             push @output_queue, pop @op_stack;
                         }
                         push @op_stack, $token;
+                        $expect_unary = 1;
+                    }
+                    elsif ( $token eq ':' ) {    # Ternary Mid
+                        while ( @op_stack && $op_stack[-1] ne '?' ) {
+                            push @output_queue, pop @op_stack;
+                        }
+
+                        # Don't pop '?' yet, we need it for the final evaluation
+                        $expect_unary = 1;
                     }
                     else {
-                        Carp::croak("Unknown token '$token' in enum expression");
+                        # Handle Unary Operators
+                        if ( $expect_unary && ( $token eq '+' || $token eq '-' || $token eq '!' || $token eq '~' ) ) {
+                            $token = $token eq '+' ? 'unary_plus' : $token eq '-' ? 'unary_minus' : $token;
+                        }
+                        elsif ( !exists $prec{$token} ) {
+                            Carp::croak("Unknown token '$token'");
+                        }
+                        my $p1    = $prec{$token}[0];
+                        my $assoc = $prec{$token}[1];
+                        while (@op_stack) {
+                            my $top = $op_stack[-1];
+                            last if $top eq '(';
+                            my $p2 = $prec{$top}[0];
+                            if ( ( $assoc == 1 && $p1 <= $p2 ) || ( $assoc == 0 && $p1 < $p2 ) ) {
+                                push @output_queue, pop @op_stack;
+                            }
+                            else {
+                                last;
+                            }
+                        }
+                        push @op_stack, $token;
+                        $expect_unary = 1;
                     }
                 }
                 push @output_queue, pop @op_stack while @op_stack;
 
                 # 4. RPN Evaluator
                 my @stack;
-                foreach my $token (@output_queue) {
-                    if ( $token =~ /^-?\d+$/ ) {
+                for my $token (@output_queue) {
+                    if ( $token =~ /^\d+$/ ) {
                         push @stack, $token;
+                    }
+                    elsif ( $token eq 'unary_plus' ) {    # No-op
+                    }
+                    elsif ( $token eq 'unary_minus' ) {
+                        push @stack, -( pop @stack );
+                    }
+                    elsif ( $token eq '!' ) {
+                        push @stack, int( !( pop @stack ) );
+                    }
+                    elsif ( $token eq '~' ) {
+                        push @stack, ~( pop @stack );
+                    }
+                    elsif ( $token eq '?' ) {             # Ternary Op: stack is [cond, true_val, false_val]
+                        my $false_val = pop @stack;
+                        my $true_val  = pop @stack;
+                        my $cond      = pop @stack;
+                        push @stack, $cond ? $true_val : $false_val;
                     }
                     else {
                         my $b = pop @stack;
                         my $a = pop @stack;
-                        if    ( $token eq '+' ) { push @stack, $a + $b; }
-                        elsif ( $token eq '-' ) { push @stack, $a - $b; }
-                        elsif ( $token eq '*' ) { push @stack, $a * $b; }
-                        elsif ( $token eq '/' ) { push @stack, int( $a / $b ); }    # Int div
-                        elsif ( $token eq '%' ) { push @stack, $a % $b; }           # Modulo
-                        elsif ( $token eq '|' ) { push @stack, $a | $b; }
-                        elsif ( $token eq '&' ) { push @stack, $a & $b; }
-                        elsif ( $token eq '^' ) { push @stack, $a ^ $b; }
+                        if    ( $token eq '+' )  { push @stack, $a + $b; }
+                        elsif ( $token eq '-' )  { push @stack, $a - $b; }
+                        elsif ( $token eq '*' )  { push @stack, $a * $b; }
+                        elsif ( $token eq '/' )  { push @stack, int( $a / $b ); }
+                        elsif ( $token eq '%' )  { push @stack, $a % $b; }
+                        elsif ( $token eq '<<' ) { push @stack, $a << $b; }
+                        elsif ( $token eq '>>' ) { push @stack, $a >> $b; }
+                        elsif ( $token eq '|' )  { push @stack, $a | $b; }
+                        elsif ( $token eq '&' )  { push @stack, $a & $b; }
+                        elsif ( $token eq '^' )  { push @stack, $a ^ $b; }
+                        elsif ( $token eq '==' ) { push @stack, int( $a == $b ); }
+                        elsif ( $token eq '!=' ) { push @stack, int( $a != $b ); }
+                        elsif ( $token eq '<' )  { push @stack, int( $a < $b ); }
+                        elsif ( $token eq '<=' ) { push @stack, int( $a <= $b ); }
+                        elsif ( $token eq '>' )  { push @stack, int( $a > $b ); }
+                        elsif ( $token eq '>=' ) { push @stack, int( $a >= $b ); }
+                        elsif ( $token eq '&&' ) { push @stack, int( $a && $b ); }
+                        elsif ( $token eq '||' ) { push @stack, int( $a || $b ); }
                     }
                 }
                 return $stack[0];
