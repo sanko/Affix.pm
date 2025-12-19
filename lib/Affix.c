@@ -1641,6 +1641,17 @@ static infix_library_t * _get_lib_from_registry(pTHX_ const char * path) {
 static int Affix_cv_free(pTHX_ SV * sv, MAGIC * mg) {
     Affix * affix = (Affix *)mg->mg_ptr;
     if (affix) {
+        if (affix->variadic_cache) {
+            // Destroy all cached JIT trampolines
+            hv_iterinit(affix->variadic_cache);
+            HE * he;
+            while ((he = hv_iternext(affix->variadic_cache))) {
+                SV * val = HeVAL(he);
+                infix_forward_t * t = INT2PTR(infix_forward_t *, SvIV(val));
+                infix_forward_destroy(t);
+            }
+            SvREFCNT_dec(affix->variadic_cache);
+        }
         if (affix->infix)
             infix_forward_destroy(affix->infix);
         if (affix->args_arena)
@@ -1663,7 +1674,6 @@ static int Affix_cv_free(pTHX_ SV * sv, MAGIC * mg) {
     }
     return 0;
 }
-
 static int Affix_cv_dup(pTHX_ MAGIC * mg, CLONE_PARAMS * param) {
     Affix * old_affix = (Affix *)mg->mg_ptr;
     Affix * new_affix;
@@ -1727,6 +1737,180 @@ static int Affix_cv_dup(pTHX_ MAGIC * mg, CLONE_PARAMS * param) {
 
 static MGVTBL Affix_cv_vtbl = {0, 0, 0, 0, Affix_cv_free, 0, Affix_cv_dup, 0};
 
+static MGVTBL Affix_coercion_vtbl = {0};  // Marker vtable for coerced values
+
+// Helper to extract the signature string from a coerced SV
+static const char * _get_coerced_sig(pTHX_ SV * sv) {
+    if (SvMAGICAL(sv)) {
+        MAGIC * mg = mg_findext(sv, PERL_MAGIC_ext, &Affix_coercion_vtbl);
+        if (mg && mg->mg_ptr)
+            return mg->mg_ptr;
+    }
+    return NULL;
+}
+
+void Affix_trigger_variadic(pTHX_ CV * cv) {
+    dSP;
+    dAXMARK;
+    dXSTARG;
+    dMY_CXT;
+
+    Affix * affix = (Affix *)CvXSUBANY(cv).any_ptr;
+    size_t items = SP - MARK;
+
+    if (items < affix->num_fixed_args)
+        croak(
+            "Not enough arguments for variadic function. Expected at least %zu, got %zu", affix->num_fixed_args, items);
+
+    // Construct the complete signature string dynamically
+    SV * sig_sv = sv_2mortal(newSVpv("", 0));
+
+    // Reconstruct fixed part from the cached sig_str (which ends in '; ...' or similar)
+    // We need to parse the original signature string to get the fixed part cleanly,
+    // OR we can reconstruct it from the plan.
+    // Simplest: The affix->sig_str contains the fixed part and the ';'.
+    // We assume affix->sig_str is like "(*char; ...)->int"
+
+    char * semi_ptr = strchr(affix->sig_str, ';');
+    if (!semi_ptr)
+        croak("Internal error: Variadic function missing semicolon in signature");
+
+    // Append fixed part up to and including ';'
+    sv_catpvn(sig_sv, affix->sig_str, (semi_ptr - affix->sig_str) + 1);
+
+    // Iterate varargs to infer types and append to signature
+    for (size_t i = affix->num_fixed_args; i < items; ++i) {
+        SV * arg = ST(i);
+        const char * coerced_sig = _get_coerced_sig(aTHX_ arg);
+
+        if (i > affix->num_fixed_args)
+            sv_catpvs(sig_sv, ",");
+
+        if (coerced_sig)
+            sv_catpv(sig_sv, coerced_sig);
+        else if (is_pin(aTHX_ arg))
+            // It's a pointer/struct pin. We treat it as a void pointer for the signature
+            // unless we can introspect the pin's type object deeply.
+            // For now, let's treat pins as '*void' (opaque pointer) in varargs unless coerced.
+            sv_catpvs(sig_sv, "*void");
+        else if (SvIOK(arg))             sv_catpvs(sig_sv, "sint64");  // Default integer promotion
+                else if (SvNOK(arg))
+            sv_catpvs(sig_sv, "double");  // Default float promotion
+        else if (SvPOK(arg))
+            sv_catpvs(sig_sv, "*char");  // Default string promotion
+        else             // Fallback/Unknown
+            sv_catpvs(sig_sv, "sint64");
+    }
+
+    // Append return type part (find ')' in original sig)
+    char * close_paren = strrchr(affix->sig_str, ')');
+    if (close_paren)
+        sv_catpv(sig_sv, close_paren);
+    else
+        croak("Malformed signature string in affix");
+
+    const char * full_sig = SvPV_nolen(sig_sv);
+
+    // Check Cache
+    infix_forward_t * trampoline = NULL;
+    SV ** cache_entry = hv_fetch(affix->variadic_cache, full_sig, strlen(full_sig), 0);
+
+    if (cache_entry)
+        trampoline = INT2PTR(infix_forward_t *, SvIV(*cache_entry));
+    else {
+        // Cache Miss: Compile new trampoline
+        // We use the parsing logic to get types
+        infix_arena_t * temp_arena = NULL;
+        infix_type * ret_type = NULL;
+        infix_function_argument * args = NULL;
+        size_t num_args = 0, num_fixed = 0;
+
+        infix_status status =
+            infix_signature_parse(full_sig, &temp_arena, &ret_type, &args, &num_args, &num_fixed, MY_CXT.registry);
+
+        if (status != INFIX_SUCCESS) {
+            if (temp_arena)
+                infix_arena_destroy(temp_arena);
+            croak("Failed to compile variadic signature: %s", full_sig);
+        }
+
+        // Convert args to type array
+        infix_type ** arg_types = NULL;
+        if (num_args > 0) {
+            arg_types = safemalloc(sizeof(infix_type *) * num_args);
+            for (size_t i = 0; i < num_args; ++i)
+                arg_types[i] = args[i].type;
+        }
+
+        status = infix_forward_create_manual(&trampoline, ret_type, arg_types, num_args, num_fixed, affix->target_addr);
+
+        if (arg_types)
+            safefree(arg_types);
+        infix_arena_destroy(temp_arena);
+
+        if (status != INFIX_SUCCESS)
+            croak("Failed to create variadic trampoline");
+
+        // Store in cache
+        hv_store(affix->variadic_cache, full_sig, strlen(full_sig), newSViv(PTR2IV(trampoline)), 0);
+    }
+
+    // Execute
+    infix_cif_func cif = infix_forward_get_code(trampoline);
+    size_t num_args = infix_forward_get_num_args(trampoline);
+    const infix_type * ret_type = infix_forward_get_return_type(trampoline);
+
+    // Allocate args buffer (pointers)
+    void ** c_args = alloca(sizeof(void *) * num_args);
+
+    // Use an arena for argument data to avoid many malloc/frees
+    infix_arena_t * call_arena = infix_arena_create(2048);
+    void * ret_buffer = infix_arena_alloc(call_arena, infix_type_get_size(ret_type), 8);
+
+    // Marshal Arguments
+    for (size_t i = 0; i < num_args; ++i) {
+        const infix_type * arg_type = infix_forward_get_arg_type(trampoline, i);
+        void * data = infix_arena_alloc(call_arena, infix_type_get_size(arg_type), infix_type_get_alignment(arg_type));
+        sv2ptr(aTHX_ affix, ST(i), data, arg_type);
+        c_args[i] = data;
+    }
+
+    // Call
+    cif(ret_buffer, c_args);
+
+    // Marshal Return
+    SV * ret_sv = TARG;
+    ptr2sv(aTHX_ affix, ret_buffer, ret_sv, ret_type);
+
+    infix_arena_destroy(call_arena);
+
+    ST(0) = ret_sv;
+    XSRETURN(1);
+}
+
+XS_INTERNAL(Affix_coerce) {
+    dXSARGS;
+    if (items != 2)
+        croak_xs_usage(cv, "type, value_sv");
+
+    SV * type_sv = ST(0);
+    SV * target_sv = ST(1);
+
+    if (SvREADONLY(target_sv))
+        croak("Cannot coerce a read-only value");
+
+    const char * sig = _get_string_from_type_obj(aTHX_ type_sv);
+    if (!sig)
+        croak("Invalid type object passed to coerce");
+
+    // Attach magic to the SV containing the signature string
+    sv_magicext(target_sv, NULL, PERL_MAGIC_ext, &Affix_coercion_vtbl, sig, strlen(sig));
+
+    // Return the modified SV
+    ST(0) = target_sv;
+    XSRETURN(1);
+}
+
 XS_INTERNAL(Affix_affix) {
     dXSARGS;
     dXSI32;
@@ -1769,9 +1953,8 @@ XS_INTERNAL(Affix_affix) {
         lib_handle_for_symbol = INT2PTR(infix_library_t *, tmp);
         created_implicit_handle = false;
     }
-    else if (_get_pin_from_sv(aTHX_ target_sv)) {
+    else if (_get_pin_from_sv(aTHX_ target_sv))
         symbol = _get_pin_from_sv(aTHX_ target_sv)->pointer;
-    }
     else {
         const char * path = SvOK(target_sv) ? SvPV_nolen(target_sv) : nullptr;
         lib_handle_for_symbol = _get_lib_from_registry(aTHX_ path);
@@ -1903,6 +2086,415 @@ XS_INTERNAL(Affix_affix) {
             if (!arg_sig)
                 croak("Argument %d in signature array is not a valid Affix::Type object", (int)i + 1);
             strcat(signature_buf, arg_sig);
+
+            // Logic to prevent adding commas around ';', which denotes VarArgs start
+            if (i < num_args - 1) {
+                // If current arg is ";", do not add a comma after it.
+                if (strEQ(arg_sig, ";"))
+                    continue;
+
+                // Peek at next argument. If next is ";", do not add a comma before it.
+                SV ** next_sv_ptr = av_fetch(args_av, i + 1, 0);
+                if (next_sv_ptr) {
+                    const char * next_sig = _get_string_from_type_obj(aTHX_ * next_sv_ptr);
+                    if (next_sig && strEQ(next_sig, ";"))
+                        continue;
+                }
+
+                strcat(signature_buf, ",");
+            }
+        }
+        strcat(signature_buf, ") -> ");
+
+        const char * ret_sig = _get_string_from_type_obj(aTHX_ ret_sv);
+        if (!ret_sig)
+            croak("Return type is not a valid Affix::Type object");
+        strcat(signature_buf, ret_sig);
+        signature = signature_buf;
+    }
+    else {
+        SV * signature_sv = ST(2);
+        signature = _get_string_from_type_obj(aTHX_ signature_sv);
+        if (signature == nullptr)
+            signature = SvPV_nolen(signature_sv);
+    }
+
+    Affix * affix;
+    Newxz(affix, 1, Affix);
+    affix->return_sv = newSV(0);
+    affix->variadic_cache = newHV();
+    bool is_variadic = (strstr(signature, ";") != nullptr);
+    affix->sig_str = savepv(signature);
+    affix->sym_name = symbol_name_str ? savepv(symbol_name_str) : nullptr;
+    affix->target_addr = symbol;
+
+    if (created_implicit_handle)
+        affix->lib_handle = lib_handle_for_symbol;
+    else
+        affix->lib_handle = nullptr;
+
+    infix_status status = infix_forward_create(&affix->infix, signature, symbol, MY_CXT.registry);
+
+    if (status != INFIX_SUCCESS) {
+        SvREFCNT_dec(affix->return_sv);
+        if (affix->sig_str)
+            safefree(affix->sig_str);
+        if (affix->sym_name)
+            safefree(affix->sym_name);
+        SvREFCNT_dec(affix->variadic_cache);  // Cleanup cache
+        safefree(affix);
+
+        infix_error_details_t err = infix_get_last_error();
+        if (err.message[0] != '\0')
+            warn("Failed to parse signature or create trampoline: %s", err.message);
+        else
+            warn("Failed to parse signature or create trampoline (Error Code: %d)", status);
+        XSRETURN_UNDEF;
+    }
+
+    affix->cif = infix_forward_get_code(affix->infix);
+    affix->num_args = infix_forward_get_num_args(affix->infix);
+    affix->num_fixed_args = infix_forward_get_num_fixed_args(affix->infix);
+    affix->ret_type = infix_forward_get_return_type(affix->infix);
+    affix->ret_pull_handler = get_pull_handler(aTHX_ affix->ret_type);
+    affix->ret_opcode = get_ret_opcode_for_type(affix->ret_type);
+
+    if (affix->ret_pull_handler == nullptr) {
+        infix_forward_destroy(affix->infix);
+        SvREFCNT_dec(affix->return_sv);
+        if (affix->sig_str)
+            safefree(affix->sig_str);
+        if (affix->sym_name)
+            safefree(affix->sym_name);
+        SvREFCNT_dec(affix->variadic_cache);
+        safefree(affix);
+        warn("Unsupported return type in signature");
+        XSRETURN_UNDEF;
+    }
+
+    if (affix->num_args > 0)
+        Newx(affix->c_args, affix->num_args, void *);
+    else
+        affix->c_args = nullptr;
+
+    affix->args_arena = infix_arena_create(4096);
+    affix->ret_arena = infix_arena_create(1024);
+    if (!affix->args_arena || !affix->ret_arena) {
+        infix_forward_destroy(affix->infix);
+        SvREFCNT_dec(affix->return_sv);
+        if (affix->c_args)
+            safefree(affix->c_args);
+        if (affix->sig_str)
+            safefree(affix->sig_str);
+        if (affix->sym_name)
+            safefree(affix->sym_name);
+        if (affix->args_arena)
+            infix_arena_destroy(affix->args_arena);
+        if (affix->ret_arena)
+            infix_arena_destroy(affix->ret_arena);
+        SvREFCNT_dec(affix->variadic_cache);
+        safefree(affix);
+        warn("Failed to create memory arenas for FFI call");
+        XSRETURN_UNDEF;
+    }
+
+    affix->plan_length = affix->num_args;
+    if (affix->plan_length >= 0)
+        Newxz(affix->plan, affix->plan_length + 1 /* +1 for sentinel */, Affix_Plan_Step);
+    else
+        affix->plan = nullptr;
+
+    size_t current_offset = 0;
+    for (size_t i = 0; i < affix->num_args; ++i) {
+        const infix_type * type = infix_forward_get_arg_type(affix->infix, i);
+        size_t alignment = (type->category == INFIX_TYPE_ARRAY) ? type->alignment : infix_type_get_alignment(type);
+        if (alignment == 0)
+            alignment = 1;
+
+        current_offset = (current_offset + alignment - 1) & ~(alignment - 1);
+        affix->plan[i].data.c_arg_offset = current_offset;
+
+        size_t size = (type->category == INFIX_TYPE_ARRAY) ? type->size : infix_type_get_size(type);
+        current_offset += size;
+    }
+    if (affix->plan)
+        affix->plan[affix->num_args].opcode = OP_DONE;
+
+    affix->total_args_size = current_offset;
+
+    size_t out_param_count = 0;
+    OutParamInfo * temp_out_info = safemalloc(sizeof(OutParamInfo) * (affix->num_args > 0 ? affix->num_args : 1));
+
+    for (size_t i = 0; i < affix->num_args; ++i) {
+        const infix_type * type = infix_forward_get_arg_type(affix->infix, i);
+        affix->plan[i].executor = get_plan_step_executor(type);
+        affix->plan[i].opcode = get_opcode_for_type(type);
+
+        if (affix->plan[i].executor == nullptr) {
+            safefree(temp_out_info);
+            infix_forward_destroy(affix->infix);
+            SvREFCNT_dec(affix->return_sv);
+            infix_arena_destroy(affix->args_arena);
+            infix_arena_destroy(affix->ret_arena);
+            if (affix->plan)
+                safefree(affix->plan);
+            if (affix->c_args)
+                safefree(affix->c_args);
+            if (affix->sig_str)
+                safefree(affix->sig_str);
+            if (affix->sym_name)
+                safefree(affix->sym_name);
+            SvREFCNT_dec(affix->variadic_cache);
+            safefree(affix);
+            warn("Unsupported argument type in signature at index %zu", i);
+            XSRETURN_UNDEF;
+        }
+
+        affix->plan[i].data.type = type;
+        affix->plan[i].data.index = i;
+
+        if (type->category == INFIX_TYPE_POINTER) {
+            const infix_type * pointee_type = type->meta.pointer_info.pointee_type;
+            if (pointee_type->category != INFIX_TYPE_REVERSE_TRAMPOLINE && pointee_type->category != INFIX_TYPE_VOID) {
+                temp_out_info[out_param_count].perl_stack_index = i;
+                temp_out_info[out_param_count].pointee_type = pointee_type;
+                temp_out_info[out_param_count].writer = get_out_param_writer(pointee_type);
+                out_param_count++;
+            }
+        }
+    }
+
+    affix->num_out_params = out_param_count;
+    if (out_param_count > 0) {
+        affix->out_param_info = safemalloc(sizeof(OutParamInfo) * out_param_count);
+        memcpy(affix->out_param_info, temp_out_info, sizeof(OutParamInfo) * out_param_count);
+    }
+    else
+        affix->out_param_info = nullptr;
+
+    safefree(temp_out_info);
+
+    char prototype_buf[256] = {0};
+    for (size_t i = 0; i < affix->num_args; ++i)
+        strcat(prototype_buf, "$");
+
+    XSUBADDR_t trigger;
+    if (is_variadic)
+        trigger = Affix_trigger_variadic;
+    else {
+        bool use_stack = (affix->total_args_size <= 512);
+        trigger = use_stack ? Affix_trigger_stack : Affix_trigger_arena;
+    }
+
+    CV * cv_new = newXSproto_portable(ix == 0 ? rename : nullptr, trigger, __FILE__, /*prototype_buf*/ nullptr);
+    if (UNLIKELY(cv_new == nullptr)) {
+        infix_forward_destroy(affix->infix);
+        SvREFCNT_dec(affix->return_sv);
+        infix_arena_destroy(affix->args_arena);
+        infix_arena_destroy(affix->ret_arena);
+        if (affix->plan)
+            safefree(affix->plan);
+        if (affix->out_param_info)
+            safefree(affix->out_param_info);
+        if (affix->c_args)
+            safefree(affix->c_args);
+        if (affix->sig_str)
+            safefree(affix->sig_str);
+        if (affix->sym_name)
+            safefree(affix->sym_name);
+        SvREFCNT_dec(affix->variadic_cache);
+        safefree(affix);
+        warn("Failed to install new XSUB");
+        XSRETURN_UNDEF;
+    }
+
+    // Attach magic for lifecycle management
+    sv_magicext((SV *)cv_new, nullptr, PERL_MAGIC_ext, &Affix_cv_vtbl, (const char *)affix, 0);
+
+    // Set optimization pointer
+    CvXSUBANY(cv_new).any_ptr = (void *)affix;
+
+    //
+    SV * obj = newRV_inc(MUTABLE_SV(cv_new));
+    sv_bless(obj, gv_stashpv("Affix", GV_ADD));
+    ST(0) = sv_2mortal(obj);
+    XSRETURN(1);
+}
+
+XS_INTERNAL(fdasfAffix_affix) {
+    dXSARGS;
+    dXSI32;
+    dMY_CXT;
+
+    if (ix == 2 || ix == 4) {
+        if (items != 3)
+            croak_xs_usage(cv, "Affix::affix_bundle($target, $name, $signature)");
+    }
+    else {
+        if (items != 3 && items != 4)
+            croak_xs_usage(cv, "Affix::affix($target, $name_spec, $signature, [$return])");
+    }
+
+    void * symbol = nullptr;
+    char * rename = nullptr;
+    infix_library_t * lib_handle_for_symbol = nullptr;
+    bool created_implicit_handle = false;
+    SV * target_sv = ST(0);
+    SV * name_sv = ST(1);
+    const char * symbol_name_str = nullptr;
+    const char * rename_str = nullptr;
+
+    if (SvROK(name_sv) && SvTYPE(SvRV(name_sv)) == SVt_PVAV) {
+        if (ix == 1 || ix == 3)
+            croak("Cannot rename an anonymous Affix'd wrapper");
+        AV * name_av = (AV *)SvRV(name_sv);
+        if (av_count(name_av) != 2)
+            croak("Name spec arrayref must contain exactly two elements: [symbol_name, new_sub_name]");
+        symbol_name_str = SvPV_nolen(*av_fetch(name_av, 0, 0));
+        rename_str = SvPV_nolen(*av_fetch(name_av, 1, 0));
+    }
+    else
+        symbol_name_str = rename_str = SvPV_nolen(name_sv);
+    rename = (char *)rename_str;
+
+    if (sv_isobject(target_sv) && sv_derived_from(target_sv, "Affix::Lib")) {
+        IV tmp = SvIV((SV *)SvRV(target_sv));
+        lib_handle_for_symbol = INT2PTR(infix_library_t *, tmp);
+        created_implicit_handle = false;
+    }
+    else if (_get_pin_from_sv(aTHX_ target_sv))
+        symbol = _get_pin_from_sv(aTHX_ target_sv)->pointer;
+    else {
+        const char * path = SvOK(target_sv) ? SvPV_nolen(target_sv) : nullptr;
+        lib_handle_for_symbol = _get_lib_from_registry(aTHX_ path);
+        if (lib_handle_for_symbol)
+            created_implicit_handle = true;
+    }
+
+    if (lib_handle_for_symbol && !symbol)
+        symbol = infix_library_get_symbol(lib_handle_for_symbol, symbol_name_str);
+
+    if (symbol == nullptr) {
+        // Symbol lookup failed. Clean up implicit handle if we created one.
+        if (created_implicit_handle) {
+            const char * lookup_path = SvOK(target_sv) ? SvPV_nolen(target_sv) : "";
+            SV ** entry_sv_ptr = hv_fetch(MY_CXT.lib_registry, lookup_path, strlen(lookup_path), 0);
+            if (entry_sv_ptr) {
+                LibRegistryEntry * entry = INT2PTR(LibRegistryEntry *, SvIV(*entry_sv_ptr));
+                entry->ref_count--;
+                if (entry->ref_count == 0) {
+                    infix_library_close(entry->lib);
+                    safefree(entry);
+                    hv_delete_ent(MY_CXT.lib_registry, newSVpvn(lookup_path, strlen(lookup_path)), G_DISCARD, 0);
+                }
+            }
+        }
+        // Warn and return undef instead of silent failure or croak
+        warn("Failed to locate symbol '%s'", symbol_name_str ? symbol_name_str : "(null)");
+        XSRETURN_UNDEF;
+    }
+
+    if (ix == 2) {
+        Affix_Backend * backend;
+        Newxz(backend, 1, Affix_Backend);
+
+        infix_arena_t * parse_arena = nullptr;
+        infix_type * ret_type = nullptr;
+        infix_function_argument * args = nullptr;
+        size_t num_args = 0, num_fixed = 0;
+        char * signature = SvPV_nolen(ST(2));
+
+        infix_status status =
+            infix_signature_parse(signature, &parse_arena, &ret_type, &args, &num_args, &num_fixed, MY_CXT.registry);
+
+        if (status != INFIX_SUCCESS) {
+            safefree(backend);
+            if (parse_arena)
+                infix_arena_destroy(parse_arena);
+            infix_error_details_t err = infix_get_last_error();
+            if (err.message[0] != '\0')
+                warn("Failed to parse signature for affix_bundle: %s", err.message);
+            else
+                warn("Failed to parse signature for affix_bundle (Error Code: %d)", status);
+            XSRETURN_UNDEF;
+        }
+
+        infix_direct_arg_handler_t * handlers =
+            (infix_direct_arg_handler_t *)safecalloc(num_args, sizeof(infix_direct_arg_handler_t));
+
+        for (size_t i = 0; i < num_args; ++i)
+            handlers[i] = get_direct_handler_for_type(args[i].type);
+
+        status = infix_forward_create_direct(&backend->infix, signature, symbol, handlers, MY_CXT.registry);
+
+        safefree(handlers);
+        infix_arena_destroy(parse_arena);
+
+        if (status != INFIX_SUCCESS) {
+            safefree(backend);
+            infix_error_details_t err = infix_get_last_error();
+            if (err.message[0] != '\0')
+                warn("Failed to create direct trampoline: %s", err.message);
+            else
+                warn("Failed to create direct trampoline (Error Code: %d)", status);
+            XSRETURN_UNDEF;
+        }
+
+        backend->cif = infix_forward_get_direct_code(backend->infix);
+        backend->num_args = num_args;
+        backend->ret_type = infix_forward_get_return_type(backend->infix);
+
+        backend->pull_handler = get_pull_handler(aTHX_ backend->ret_type);
+        backend->ret_opcode = get_ret_opcode_for_type(backend->ret_type);
+
+        if (!backend->pull_handler) {
+            infix_forward_destroy(backend->infix);
+            safefree(backend);
+            warn("Unsupported return type for affix_bundle");
+            XSRETURN_UNDEF;
+        }
+
+        backend->lib_handle = created_implicit_handle ? lib_handle_for_symbol : nullptr;
+
+        char prototype_buf[256] = {0};
+        for (size_t i = 0; i < backend->num_args; ++i)
+            strcat(prototype_buf, "$");
+
+        CV * cv_new = newXSproto_portable(
+            (ix == 0 || ix == 2) ? rename : nullptr, Affix_trigger_backend, __FILE__, /*prototype_buf*/ nullptr);
+
+        CvXSUBANY(cv_new).any_ptr = (void *)backend;
+
+        SV * obj = newRV_inc(MUTABLE_SV(cv_new));
+        sv_bless(obj, gv_stashpv("Affix::Bundled", GV_ADD));
+        ST(0) = sv_2mortal(obj);
+        XSRETURN(1);
+    }
+
+    const char * signature = nullptr;
+    char signature_buf[1024] = {0};
+
+    if (items == 4) {
+        SV * args_sv = ST(2);
+        SV * ret_sv = ST(3);
+
+        if (!SvROK(args_sv) || SvTYPE(SvRV(args_sv)) != SVt_PVAV)
+            croak("Usage: affix(..., \\@args, $ret_type) - 3rd argument must be an array reference of types");
+        if (sv_isobject(ret_sv) && !sv_derived_from(ret_sv, "Affix::Type"))
+            croak("Usage: affix(..., \\@args, $ret_type) - 4th argument must be an Affix::Type object");
+
+        strcat(signature_buf, "(");
+        AV * args_av = (AV *)SvRV(args_sv);
+        SSize_t num_args = av_len(args_av) + 1;
+
+        for (SSize_t i = 0; i < num_args; ++i) {
+            SV ** type_sv_ptr = av_fetch(args_av, i, 0);
+            if (!type_sv_ptr)
+                continue;
+            const char * arg_sig = _get_string_from_type_obj(aTHX_ * type_sv_ptr);
+            if (!arg_sig)
+                croak("Argument %d in signature array is not a valid Affix::Type object", (int)i + 1);
+            strcat(signature_buf, arg_sig);
             if (i < num_args - 1)
                 strcat(signature_buf, ",");
         }
@@ -1925,7 +2517,7 @@ XS_INTERNAL(Affix_affix) {
     Newxz(affix, 1, Affix);
     affix->return_sv = newSV(0);
 
-    /* Store reconstruction info */
+    // Store reconstruction info
     affix->sig_str = savepv(signature);
     affix->sym_name = symbol_name_str ? savepv(symbol_name_str) : nullptr;
     affix->target_addr = symbol;
@@ -1938,7 +2530,6 @@ XS_INTERNAL(Affix_affix) {
     infix_status status = infix_forward_create(&affix->infix, signature, symbol, MY_CXT.registry);
 
     if (status != INFIX_SUCCESS) {
-        /* Cleanup and Warn */
         SvREFCNT_dec(affix->return_sv);
         if (affix->sig_str)
             safefree(affix->sig_str);
@@ -2103,13 +2694,13 @@ XS_INTERNAL(Affix_affix) {
         XSRETURN_UNDEF;
     }
 
-    /* Attach Magic for lifecycle management */
+    // Attach magic for lifecycle management
     sv_magicext((SV *)cv_new, nullptr, PERL_MAGIC_ext, &Affix_cv_vtbl, (const char *)affix, 0);
 
-    /* Set optimization pointer */
+    // Set optimization pointer
     CvXSUBANY(cv_new).any_ptr = (void *)affix;
 
-    /* Return object */
+    // Return object
     SV * obj = newRV_inc(MUTABLE_SV(cv_new));
     sv_bless(obj, gv_stashpv("Affix", GV_ADD));
     ST(0) = sv_2mortal(obj);
@@ -2137,6 +2728,7 @@ XS_INTERNAL(Affix_Bundled_DESTROY) {
     }
     XSRETURN_EMPTY;
 }
+
 XS_INTERNAL(Affix_DESTROY) {
     dXSARGS;
     dMY_CXT;
@@ -2198,9 +2790,7 @@ static void pull_sint64(pTHX_ Affix * affix, SV * sv, const infix_type * t, void
 static void pull_uint64(pTHX_ Affix * affix, SV * sv, const infix_type * t, void * p) { sv_setuv(sv, *(uint64_t *)p); }
 static void pull_float(pTHX_ Affix * affix, SV * sv, const infix_type * t, void * p) { sv_setnv(sv, *(float *)p); }
 static void pull_double(pTHX_ Affix * affix, SV * sv, const infix_type * t, void * p) { sv_setnv(sv, *(double *)p); }
-static void pull_long_double(pTHX_ Affix * affix, SV * sv, const infix_type * t, void * p) {
-    sv_setnv(sv, *(long double *)p);
-}
+static void pull_long_double(pTHX_ Affix * affix, SV * sv, const infix_type * t, void * p) {    sv_setnv(sv, *(long double *)p);}
 static void pull_bool(pTHX_ Affix * affix, SV * sv, const infix_type * t, void * p) { sv_setbool(sv, *(bool *)p); }
 static void pull_void(pTHX_ Affix * affix, SV * sv, const infix_type * t, void * p) { sv_setsv(sv, &PL_sv_undef); }
 
@@ -2286,7 +2876,6 @@ static void pull_enum(pTHX_ Affix * affix, SV * sv, const infix_type * type, voi
 static void pull_enum_dualvar(pTHX_ Affix * affix, SV * sv, const infix_type * type, void * p) {
     // We assume standard 'e:int' (int32/64 based on platform 'int').
     // But type->meta.enum_info.underlying_type tells us the exact size.
-
     const infix_type * int_type = type->meta.enum_info.underlying_type;
     IV val = 0;
 
@@ -3088,7 +3677,7 @@ XS_INTERNAL(Affix_pin) {
     infix_arena_t * arena = nullptr;
     if (infix_type_from_signature(&type, &arena, signature, MY_CXT.registry) != INFIX_SUCCESS) {
         SV * err_sv = _format_parse_error(aTHX_ "for pin", signature, infix_get_last_error());
-        warn(SvPV_nolen(err_sv));
+        warn_sv(err_sv);
         if (arena)
             infix_arena_destroy(arena);
         XSRETURN_UNDEF;
@@ -3118,7 +3707,7 @@ XS_INTERNAL(Affix_sizeof) {
     infix_arena_t * arena = nullptr;
     if (infix_type_from_signature(&type, &arena, signature, MY_CXT.registry) != INFIX_SUCCESS) {
         SV * err_sv = _format_parse_error(aTHX_ "for sizeof", signature, infix_get_last_error());
-        warn(SvPV_nolen(err_sv));
+        warn_sv(err_sv);
         if (arena)
             infix_arena_destroy(arena);
         XSRETURN_UNDEF;
@@ -3326,6 +3915,10 @@ XS_INTERNAL(Affix_END) {
         // hv_undef decreases refcounts of values automatically.
         hv_undef(MY_CXT.enum_registry);
         MY_CXT.enum_registry = nullptr;
+    }
+    if (MY_CXT.coercion_cache) {
+        hv_undef(MY_CXT.coercion_cache);
+        MY_CXT.coercion_cache = nullptr;
     }
     XSRETURN_EMPTY;
 }
@@ -3700,7 +4293,7 @@ XS_INTERNAL(Affix_cast) {
 
     if (infix_type_from_signature(&new_type, &parse_arena, signature, MY_CXT.registry) != INFIX_SUCCESS) {
         SV * err_sv = _format_parse_error(aTHX_ "for cast", signature, infix_get_last_error());
-        warn(SvPV_nolen(err_sv));
+        warn_sv(err_sv);
         if (parse_arena)
             infix_arena_destroy(parse_arena);
         XSRETURN_UNDEF;
@@ -4180,6 +4773,7 @@ XS_INTERNAL(Affix_CLONE) {
     MY_CXT.lib_registry = newHV();
     MY_CXT.callback_registry = newHV();
     MY_CXT.enum_registry = newHV();
+    MY_CXT.coercion_cache = newHV();
     MY_CXT.registry = infix_registry_create();
     if (!MY_CXT.registry)
         warn("Failed to initialize the global type registry in new thread");
@@ -4197,6 +4791,7 @@ void boot_Affix(pTHX_ CV * cv) {
     MY_CXT.lib_registry = newHV();
     MY_CXT.callback_registry = newHV();
     MY_CXT.enum_registry = newHV();
+    MY_CXT.coercion_cache = newHV();
     MY_CXT.registry = infix_registry_create();
     if (!MY_CXT.registry)
         croak("Failed to initialize the global type registry");
@@ -4294,6 +4889,9 @@ void boot_Affix(pTHX_ CV * cv) {
 
     newXS("Affix::get_system_error", Affix_get_system_error, __FILE__);
     (void)newXSproto_portable("Affix::set_destruct_level", Affix_set_destruct_level, __FILE__, "$");
+
+    XSUB_EXPORT(coerce, "$$", "core");
+
 
 #undef XSUB_EXPORT
 
