@@ -2,6 +2,7 @@ package Test2::Tools::Affix v0.12.0 {
     use v5.40;
     use blib;
     use Affix;
+    use Affix::Compiler;
     use Test2::API qw[context run_subtest];
     use Test2::V0 -no_srand => 1, '!subtest';
     use Test2::Util::Importer 'Test2::Tools::Subtest' => ( subtest_streamed => { -as => 'subtest' } );

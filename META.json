@@ -190,7 +190,8 @@
       "infix/CHANGELOG.md",
       "infix/CODE_OF_CONDUCT.md",
       "infix/CONTRIBUTING.md",
-      "infix/build.pl"
+      "infix/build.pl",
+      ".github/**"
    ],
    "x_serialization_backend" : "JSON::PP version 4.16",
    "x_static_install" : 0,
