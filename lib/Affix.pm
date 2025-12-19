@@ -86,7 +86,7 @@ package Affix v1.0.2 {    # 'FFI' is my middle name!
     my $is_bsd = $OS =~ /bsd/;
     my $is_sun = $OS =~ /(solaris|sunos)/;
     #
-    sub locate_libs ( $lib, $version ) {
+    sub locate_libs ( $lib, $version //= () ) {
         $lib =~ s[^lib][];
         my $ver;
         if ( defined $version ) {
@@ -186,7 +186,7 @@ package Affix v1.0.2 {    # 'FFI' is my middle name!
         values %store;
     }
 
-    sub locate_lib( $name, $version ) {
+    sub locate_lib( $name, $version //= () ) {
         return $name if $name && -B $name;
         CORE::state $cache //= {};
         return $cache->{$name}{ $version // '' }->{path} if defined $cache->{$name}{ $version // '' };
