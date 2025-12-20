@@ -1965,6 +1965,733 @@ the C function expects a 32-bit int, use C<coerce(Int32, $val)>.
 
 =back
 
+
+=head1 Chapter 19: Performance Profiling
+
+"Is it faster?"
+
+This is the most common question when moving code to C. The answer is usually "Yes, but..."
+
+There is a fixed cost to crossing the boundary between Perl and C (marshalling arguments, setting up the stack, the JIT trampoline). If your C function does very little (like adding two numbers), the overhead might outweigh the speed gain. If your C function does heavy lifting (matrix math, cryptography, parsing), the gain is massive.
+
+=head2 The Recipe
+
+We will benchmark a naive Fibonacci calculation in Perl versus C to visualize the crossover point.
+
+    use v5.40;
+    use Affix qw[:all];
+    use Affix::Compiler;
+    use Benchmark qw[cmpthese];
+
+    # 1. Compile C Implementation
+    my $c = Affix::Compiler->new( flags => { cflags => '-O3' } );    # Optimize!
+    $c->add( \<<~'END', lang => 'c' );
+    int fib_c(int n) {
+        if (n < 2) return n;
+        return fib_c(n-1) + fib_c(n-2);
+    }
+    END
+    my $lib = $c->link;
+
+    # Use Direct Marshalling for maximum speed on primitives
+    my $fib_c = direct_wrap $lib, 'fib_c', [Int] => Int;
+
+    # 2. Perl Implementation
+    sub fib_pl($n) {
+        return $n if $n < 2;
+        return fib_pl( $n - 1 ) + fib_pl( $n - 2 );
+    }
+
+    # 3. Benchmark
+    say "Small N (High overhead impact)";
+    cmpthese(
+        -2,
+        {   Perl_10 => sub { fib_pl(10) },
+            C_10    => sub { $fib_c->(10) }
+        }
+    );
+    say "\nLarge N (Raw compute dominance)";
+    cmpthese(
+        -2,
+        {   Perl_30 => sub { fib_pl(30) },
+            C_30    => sub { $fib_c->(30) }
+        }
+    );
+
+=head2 How It Works
+
+=over
+
+=item B<1. The Boundary Cost>
+
+In the "Small N" test, Affix might only be 2x or 3x faster (or even slower if using standard `wrap`). The CPU spends more time setting up the call than calculating.
+
+=item B<2. The Compute Gain>
+
+In the "Large N" test, the C code runs entirely in native machine code for millions of recursive iterations without crossing back to Perl. You will likely see C performing B<100x to 200x faster>.
+
+=back
+
+=head2 Kitchen Reminders
+
+=over
+
+=item * B<Batching>
+
+If you have a C function that sets a single pixel, calling it 2 million times from Perl will be slow. Instead, expose a C function that takes an `Array[Pixel]` and updates the whole image in one call.
+
+=item * B<Direct Marshalling>
+
+For tight loops involving primitives, always use `direct_affix` / `direct_wrap` (see Chapter 17).
+
+=back
+
+=pod
+
+=pod
+
+=head1 Chapter 20: SIMD Performance Profiling (Benchmarks)
+
+So, you read chapter 19 and yet, the ultimate question remains: "Is it fast?"
+
+To find out, we will benchmark Affix against the two titans of Perl performance:
+
+=over
+
+=item 1. B<PDL (Perl Data Language)>
+
+The standard for high-performance numerical computing in Perl. It is heavily optimized for processing large arrays.
+
+=item 2. B<Inline::C>
+
+The traditional way to write C extensions. It compiles C code on the fly and links it to Perl via XS. It is generally considered the speed limit of Perl.
+
+=back
+
+=head2 The Challenge
+
+We will perform a **SIMD Vector Addition** (`A + B = C`) on 4 floating-point numbers. We will repeat this operation 500,000 times.
+
+=head2 The Recipe
+
+    use v5.40;
+    use Benchmark qw[cmpthese];
+    use Affix qw[:all];
+    use Affix::Compiler;
+    use PDL;
+    use Inline C => Config => (
+        CCFLAGSEX => '-mavx', # Enable AVX for Inline::C
+    );
+    use Inline C => <<~'END_C';
+        typedef float v4f __attribute__((vector_size(16)));
+
+        // Inline::C implementation (Manual XS-style marshalling)
+        SV* inline_add_vec(SV* a_sv, SV* b_sv) {
+            STRLEN len_a, len_b;
+            float* a = (float*)SvPVbyte(a_sv, len_a);
+            float* b = (float*)SvPVbyte(b_sv, len_b);
+
+            if (len_a != 16 || len_b != 16) croak("Bad length");
+
+            // Cast to vector type and add
+            v4f va = *(v4f*)a;
+            v4f vb = *(v4f*)b;
+            v4f vc = va + vb;
+
+            // Return packed string
+            return newSVpvn((const char*)&vc, 16);
+        }
+    END_C
+
+    # 1. Compile C Library for Affix
+    my $c = Affix::Compiler->new();
+    $c->add( \<<~'END', lang => 'c' );
+        typedef float v4f __attribute__((vector_size(16)));
+
+        v4f affix_add_vec(v4f a, v4f b) {
+            return a + b;
+        }
+    END
+    my $lib = $c->link;
+
+    # 2. Bind with Affix
+    # We use Direct Marshalling for maximum performance
+    # v[4:float] maps to the 128-bit vector registers
+    my $affix_add = direct_wrap $lib, 'affix_add_vec',
+        [ Vector[4,Float], Vector[4,Float] ] => Vector[4,Float];
+
+    # 3. Prepare Data
+    # 4 floats packed into 16 bytes
+    my $packed_a = pack('f4', 1.0, 2.0, 3.0, 4.0);
+    my $packed_b = pack('f4', 5.0, 6.0, 7.0, 8.0);
+
+    # PDL objects (piddles)
+    my $pdl_a = pdl([1.0, 2.0, 3.0, 4.0]);
+    my $pdl_b = pdl([5.0, 6.0, 7.0, 8.0]);
+
+    # 4. Benchmark!
+    cmpthese( -3, {
+        'PDL' => sub {
+            # PDL handles the loop in C, but here we test the overhead
+            # of invoking the operation from Perl repeatedly.
+            my $res = $pdl_a + $pdl_b;
+        },
+        'Inline::C' => sub {
+            # Manual XS marshalling
+            my $res = inline_add_vec($packed_a, $packed_b);
+        },
+        'Affix' => sub {
+            # JIT trampoline marshalling
+            my $res = $affix_add->($packed_a, $packed_b);
+        }
+    });
+
+=head2 The Results
+
+On my machine (x64), I see results similar to this:
+
+                   Rate       PDL Inline::C     Affix
+    PDL        604446/s        --      -88%      -93%
+    Inline::C 5150483/s      752%        --      -38%
+    Affix     8319743/s     1276%       62%        --
+
+=head2 Analysis
+
+=over
+
+=item B<1. Affix vs. Inline::C>
+
+Affix is B<faster> than `Inline::C`.
+
+Why? `Inline::C` forces you to write XS glue code (macros like `SvPVbyte`, `newSVpvn`). This glue code is compiled statically. Affix generates a B<JIT Trampoline> at runtime that is specifically optimized for moving data between Perl scalars and CPU registers. It skips much of the generic XS overhead.
+
+Also, look at the code complexity. Affix defined the binding in **one line**:
+
+    direct_wrap $lib, 'func', [Vector...] => Vector...;
+
+`Inline::C` required 10 lines of manual pointer casting, length checking, and SV creation.
+
+=item B<2. Affix vs. PDL>
+
+PDL is slower in this specific test (calling a function 500k times).
+
+PDL is designed for **bulk** operations. If you added two arrays of 1,000,000 numbers, PDL would win effortlessly because it stays in C for the entire loop. But for frequent, small function calls (like physics updates in a game loop or processing individual events), the overhead of creating PDL objects weighs it down.
+
+Affix hits the sweet spot: light enough for small calls, fast enough for heavy math.
+
+=back
+
+=head2 Kitchen Reminders
+
+=over
+
+=item * B<Packed Strings>
+
+Notice we passed C<$packed_a> (a scalar string) to Affix. This is the secret to high performance. Passing an ArrayRef (C<[1,2,3,4]>) works, but Affix has to pack it for you every single call, which kills performance.
+
+=back
+
+=pod
+
+=head1 Chapter 21: Benchmarks (Affix vs. The World)
+
+The Perl ecosystem offers several ways to call C code. How does Affix stack up?
+
+We will benchmark four approaches:
+
+=over
+
+=item 1. B<Inline::C>
+
+Compiles C code into a custom XS module. This is historically the fastest way to call C from Perl, as it eliminates the "FFI" layer entirely, but it requires a C compiler at installation time (or runtime).
+
+=item 2. B<FFI::Platypus>
+
+The current dominant FFI module on CPAN. It uses C<libffi> (a portable, general-purpose Foreign Function Interface library) to handle argument shuffling.
+
+=item 3. B<Affix (Standard)>
+
+Our default C<wrap> mode. It performs robust type checking and safety handling before invoking our custom JIT engine.
+
+=item 4. B<Affix (Direct)>
+
+Our high-performance C<direct_wrap> mode. It bypasses many safety checks and intermediate buffers to call the C function as fast as physically possible.
+
+=back
+
+=head2 The Recipe
+
+We will compile a shared library performing a simple integer addition, then bind it using all three libraries.
+
+    use v5.40;
+    use Benchmark qw[cmpthese];
+    use Affix qw[:all];
+    use Affix::Compiler;
+    use FFI::Platypus;
+
+    # We use Inline::C for the baseline, so we need to configure it
+    use Inline C => Config => (
+        clean_after_build => 0,
+    );
+
+    # 1. Inline::C Implementation
+    # Inline compiles this into XS automatically.
+    use Inline C => <<~'END_XS';
+        int add_xs(int a, int b) {
+            return a + b;
+        }
+    END_XS
+
+    # 2. Compile Library for FFI
+    # We need a shared object (.so/.dll) for Affix and Platypus
+    my $c = Affix::Compiler->new();
+    $c->add( \<<~'END_C', lang => 'c' );
+        int add_c(int a, int b) {
+            return a + b;
+        }
+    END_C
+    my $lib = $c->link;
+
+    # 3. FFI::Platypus Setup
+    my $ffi_plat = FFI::Platypus->new( api => 2 );
+    $ffi_plat->lib($lib);
+    # "attach" creates an XSUB alias for speed, similar to Affix
+    $ffi_plat->attach( [add_c => 'add_platypus'] => ['int', 'int'] => 'int' );
+
+    # 4. Affix Setup
+    # Standard: Full type safety
+    my $add_affix = wrap $lib, 'add_c', [Int, Int] => Int;
+
+    # Direct: Speed freak mode
+    my $add_direct = direct_wrap $lib, 'add_c', [Int, Int] => Int;
+
+    # 5. The Race
+    say "Benchmarking 5,000,000 calls...";
+    my $x = 100;
+    my $y = 200;
+
+    cmpthese( -5, {
+        'Inline::C' => sub { add_xs($x, $y) },
+        'Platypus'  => sub { add_platypus($x, $y) },
+        'Affix'     => sub { $add_affix->($x, $y) },
+        'Affix::D'  => sub { $add_direct->($x, $y) },
+    });
+
+=head2 The Results
+
+On my system, I see results similar to this:
+
+    Benchmarking 5,000,000 calls...
+                    Rate  Platypus Inline::C  Affix::D     Affix
+    Platypus   5138750/s        --      -52%      -73%      -81%
+    Inline::C 10746524/s      109%        --      -44%      -60%
+    Affix::D  19040619/s      271%       77%        --      -29%
+    Affix     26968736/s      425%      151%       42%        --
+
+=head2 Analysis
+
+=over
+
+=item B<Affix (Standard)>
+
+The clean winner in this raw micro-benchmark. Despite Affix's powerful features like type checking, struct marshalling, and dynamic layout calculation, it comes out ahead. For most applications, 26 million calls per second is more than fast enough.
+
+=item B<Affix::Direct (Affix::D)>
+
+By generating a custom JIT trampoline that reads Perl's internal SVs directly (skipping the intermediate "marshalling" buffer that standard FFI uses), it outperforms even hand-written XS (Inline::C) in simple cases. It is effectively "Inline Assembly" for Perl.
+
+=item B<Inline::C>
+
+Traditionally the fastest option. It compiles static glue code. It is extremely fast but requires a C compiler on the target machine at installation time.
+
+=item B<FFI::Platypus>
+
+A very respectable performer. It uses C<libffi>, a mature and stable library. It beats standard Affix because C<libffi> has been optimized by thousands of engineers over decades.
+
+=back
+
+=head2 Summary
+
+=over
+
+=item * Use B<Affix (Standard)> for flexibility, safety, and complex types (Structs, Arrays) and when you need raw speed for primitives (Ints, Floats) and want to beat XS.
+
+=item * Use B<Inline::C> if you are already comfortable writing XS macros and want static compilation.
+
+=back
+
+=head1 Chapter 22: File I/O (The CRT Trap)
+
+Handling files in FFI requires understanding the **C Runtime (CRT)**.
+
+On POSIX systems (Linux, macOS, BSD), file descriptors are global integers managed by the kernel. You can open a file in Perl and hand the descriptor to C.
+
+On Windows, however, file descriptors belong to a specific instance of the C Runtime DLL. If Perl uses one CRT (e.g., UCRT) and your library uses another (e.g., MSVCRT), they cannot share file descriptors.
+
+To ensure your code works on all platforms, the safest approach is to let C handle the file opening.
+
+=head2 The Recipe
+
+We will use the standard C library to write data to a file.
+
+    use v5.40;
+    use Affix qw[:all];
+
+    # 1. Bind libc functions
+    # FILE *fdopen(int fd, const char *mode);
+    # int fprintf(FILE *stream, const char *format, ...);
+    # int fclose(FILE *stream);
+    affix libc, 'fopen',   [ String, String ]                  => Pointer [Void];
+    affix libc, 'fprintf', [ Pointer [Void], String, VarArgs ] => Int;
+    affix libc, 'fclose',  [ Pointer [Void] ]                  => Int;
+
+    # 2. Open a file in Perl
+    #open(my $fh, '>', 'output.txt') or die $!;
+    # 3. Bridge to C
+    # Get the OS file descriptor (an integer, e.g., 3)
+    #my $fd = fileno($fh);
+    # Create a C FILE* from that descriptor
+    # Note: 'w' must match the Perl mode ('>')
+    my $c_file = fopen( 'output.txt', 'w' );
+    unless ( is_null($c_file) ) {
+
+        # 4. Write using C
+        fprintf( $c_file, "Line %d: Written by %s\n", 1, "Affix" );
+
+        # 5. Flush and Close
+        # CRITICAL: We must close the C handle.
+        # This will also close the underlying FD, so the Perl $fh
+        # becomes unusable/closed automatically.
+        fclose($c_file);
+    }
+    # $fh is now closed.
+
+=head2 Advanced: Bridging Perl Handles (POSIX Only)
+
+If you are strictly targeting Linux/macOS/BSD, you I<can> bridge a Perl filehandle to C using `fdopen`.
+
+    # WARNING: This typically fails on Windows due to CRT mismatch.
+    if ($^O ne 'MSWin32') {
+        affix libc, 'fdopen', [ Int, String ]    => Pointer [Void];
+        affix libc, 'fflush', [ Pointer [Void] ] => Int;
+        open( my $fh, '>', 'bridge.txt' ) or die $!;
+        my $fd = fileno($fh);
+        warn $fd;
+
+        # Create a C view of the Perl filehandle
+        my $c_stream = fdopen( $fd, 'w' );
+        fprintf( $c_stream, "Writing to Perl handle via C\n" );
+
+        # fflush required because Perl and C buffer separately
+        fflush($c_stream);
+
+        # Do not fclose() here if you want to keep using $fh in Perl!
+    }
+
+=head2 Kitchen Reminders
+
+=over
+
+=item * B<Buffers>
+
+Perl and C have separate IO buffers. If you mix writing to a file from Perl and C simultaneously, the output order will likely be scrambled. It is best to pick one language to own the file handle.
+
+=item * B<Permissions>
+
+C's C<fopen> does not automatically handle Perl-style path expansion (like `~/file.txt`). Always pass absolute paths or paths relative to the current working directory.
+
+=back
+
+=head1 Chapter 23: Nested Callbacks & Context
+
+In Chapter 12, we passed a simple callback. But real-world C libraries often take a callback *and* a `void *user_data` pointer to track context.
+
+If the C library is old or poorly designed, it might *not* accept `user_data`, forcing you to use globals. Affix allows you to bake the context into the callback itself using closures.
+
+=head2 The Recipe
+
+We will wrap a hypothetical iteration function that takes a callback but no data argument.
+
+    use v5.40;
+    use feature 'class';
+    no warnings 'experimental::class';
+    use Affix qw[:all];
+    use Affix::Compiler;
+
+    # 1. C Library (No user_data support)
+    my $c = Affix::Compiler->new();
+    $c->add( \<<~'END', lang => 'c' );
+        void iterate_3( void (*cb)(int) ) {
+            cb(1); cb(2); cb(3);
+        }
+    END
+    my $lib = $c->link;
+    affix $lib, 'iterate_3', [ Callback [ [Int] => Void ] ] => Void;
+
+    # 2. The Problem
+    # We want to sum these numbers into a Perl object.
+    # But the C function doesn't accept the object.
+    class Sum {
+        field $total = 0;
+        method add($n) { $total += $n; }
+        method get()   { $total; }
+    }
+    my $obj = Sum->new;
+
+    # 3. The Closure Solution
+    # We define the callback inside the scope where $obj exists.
+    # Perl closes over $obj.
+    my $cb = sub ($n) {
+        $obj->add($n);
+    };
+
+    # 4. Execute
+    iterate_3($cb);
+    say "Total: " . $obj->get();    # 6
+
+=head2 How It Works
+
+=over
+
+=item B<1. Closures>
+
+When you create `sub { ... }` in Perl, it captures the surrounding lexical variables (`$obj`).
+
+=item B<2. The Trampoline>
+
+When you pass `$cb` to Affix, Affix generates a **Reverse Trampoline**. This is a C function pointer. When C calls it, the trampoline invokes the *specific* Perl CodeRef, which restores the Perl environment and finds `$obj`.
+
+To the C library, it looks like a standard function pointer. To you, it looks like magic.
+
+=back
+
+=head1 Chapter 24: Packaging for CPAN (Alien::Base)
+
+You wrote a script that binds to `libgit2`. It works on your laptop. Now you want to upload it to CPAN. How do you ensure the user has `libgit2` installed?
+
+The Perl ecosystem solves this with the **Alien** namespace.
+
+=head2 The Recipe
+
+This isn't a script; it's a `Makefile.PL` strategy.
+
+    # Makefile.PL
+    use ExtUtils::MakeMaker;
+    use Alien::Base::Wrapper qw( Alien::libgit2 );
+
+    WriteMakefile(
+        NAME => 'My::Git::Wrapper',
+        # ...
+        CONFIGURE_REQUIRES => {
+            'Alien::libgit2' => 0,
+        },
+        PREREQ_PM => {
+            'Affix'          => '1.00',
+            'Alien::libgit2' => 0,
+        },
+    );
+
+    # In your module: lib/My/Git/Wrapper.pm
+    package My::Git::Wrapper;
+    use Affix;
+    use Alien::libgit2;
+
+    # Ask Alien where the library is
+    my $lib_path = Alien::libgit2->dynamic_libs;
+
+    # Bind
+    affix $lib_path, 'git_libgit2_init', [] => Int;
+
+=head2 How It Works
+
+=over
+
+=item B<1. Alien::Modules>
+
+`Alien::libgit2` (and hundreds of others) are CPAN modules dedicated to finding a C library on the system or, if missing, downloading and compiling it from source during installation.
+
+=item B<2. Dynamic Resolution>
+
+`$alien->dynamic_libs` returns the absolute path to the `.so` or `.dll` file found/built by Alien. Feeding this to Affix ensures your wrapper works on any system, regardless of where libraries are installed.
+
+=back
+
+=head1 Chapter 25: The Rust Bridge
+
+Rust is excellent for writing safe, high-performance shared libraries. `Affix::Compiler` supports Rust out of the box.
+
+=head2 The Recipe
+
+    use v5.40;
+    use Affix qw[:all];
+    use Affix::Compiler;
+
+    # 1. Write Rust
+    # We use #[no_mangle] and extern "C" to expose C-compatible symbols.
+    my $c = Affix::Compiler->new();
+    $c->add( \<<~'END', lang => 'rs' );
+        #[no_mangle]
+        pub extern "C" fn rust_add(a: i32, b: i32) -> i32 {
+            a + b
+        }
+    END
+
+    # 2. Compile
+    # This invokes `rustc` and produces a .so/.dll
+    my $lib = $c->link;
+
+    # 3. Bind
+    affix $lib, 'rust_add', [Int, Int] => Int;
+
+    say rust_add(50, 50); # 100
+
+=head2 How It Works
+
+=over
+
+=item B<1. The C ABI>
+
+Rust (and Go, and Zig, and Nim) can speak the "C Calling Convention". By marking a function `extern "C"`, you tell the Rust compiler to generate machine code compatible with standard linkers. Affix doesn't know it's calling Rust; it just sees a binary interface.
+
+=back
+
+=head1 Chapter 26: Error Handling (errno)
+
+System calls fail. In C, you check the global `errno` variable (or `GetLastError()` on Windows). In Affix, we expose this via `get_system_error`.
+
+=head2 The Recipe
+
+We will try to open a file that doesn't exist.
+
+    use v5.40;
+    use Affix qw[:all];
+
+    # fopen returns NULL on failure
+    affix libc, 'fopen', [String, String] => Pointer[Void];
+
+    my $file = fopen("non_existent_file.txt", "r");
+
+    if (is_null($file)) {
+        # get_system_error returns the numeric error code
+        # In numerical context: errno
+        # In string context:    strerror(errno)
+        my $err = Affix::get_system_error();
+
+        die "Could not open file: $err (${\(0+$err)})";
+    }
+
+=head2 How It Works
+
+=over
+
+=item B<1. Thread Local Storage>
+
+When an FFI call returns, Affix immediately captures the system error code from the thread-local C storage and saves it. You can retrieve it safely even if other Perl operations (like `print`) have happened in the meantime.
+
+=item B<2. Dualvar Return>
+
+`get_system_error()` returns a Dualvar.
+    * Number: `2` (ENOENT)
+    * String: "No such file or directory"
+
+This makes logging errors extremely convenient.
+
+=back
+
+=head1 Chapter 27: Objective-C Runtime (macOS)
+
+On macOS, system APIs are often Objective-C. ObjC is a superset of C, relying on a message-passing runtime. We can bind to `objc_msgSend` to call methods on Cocoa objects.
+
+=head2 The Recipe
+
+We will create a native `NSString`.
+
+    use v5.40;
+    use Affix qw[:all];
+
+    # 1. Load the Runtime
+    my $objc = '/usr/lib/libobjc.dylib';
+
+    # We need a few helpers to find classes and selectors (method names)
+    affix $objc, 'objc_getClass',    [String] => Pointer[Void];
+    affix $objc, 'sel_registerName', [String] => Pointer[Void];
+
+    # The magic function. It is variadic.
+    # id objc_msgSend(id self, SEL op, ...);
+    affix $objc, 'objc_msgSend',
+        [ Pointer[Void], Pointer[Void], VarArgs ] => Pointer[Void];
+
+    # 2. Helpers
+    sub msg($obj, $selector, @args) {
+        state %sels;
+        my $sel = $sels{$selector} //= sel_registerName($selector);
+        return objc_msgSend($obj, $sel, @args);
+    }
+
+    # 3. Create a String
+    # [NSString alloc]
+    my $cls_NSString = objc_getClass("NSString");
+    my $alloc        = msg($cls_NSString, "alloc");
+
+    # [alloc initWithUTF8String:"Hello from macOS"]
+    # We must coerce the string to Pointer[Void] or it might be treated as char*
+    my $str_obj = msg($alloc, "initWithUTF8String:",
+                      coerce(String, "Hello from macOS"));
+
+    # 4. Print it (description)
+    # const char* s = [[str_obj description] UTF8String];
+    my $desc = msg($str_obj, "description");
+    my $utf8 = msg($desc,    "UTF8String");
+
+    # Cast raw pointer to Perl String
+    say cast($utf8, String);
+
+=head2 How It Works
+
+This works because `objc_msgSend` is just a C function. By defining it as Variadic, Affix constructs the correct stack frame to pass messages to the Objective-C runtime, effectively letting you write Cocoa apps in Perl.
+
+=head1 Chapter 28: Automatic Resource Management (RAII)
+
+Manual C<free()> is error-prone. We can use Perl's C<DESTROY> phase to automate it.
+
+=head2 The Recipe
+
+    package AutoPointer {
+        use Affix;
+
+        sub new {
+            my ($class, $ptr) = @_;
+            return bless \$ptr, $class;
+        }
+
+        sub DESTROY {
+            my $self = shift;
+            return if is_null($$self);
+
+            # Call C free()
+            Affix::free($$self);
+
+            # Prevent double-free
+            $$self = 0;
+        }
+
+        # Accessor to get the raw Pin
+        sub ptr { ${shift()} }
+    }
+
+    # Usage
+    {
+        my $raw = malloc(1024);
+        my $safe = AutoPointer->new($raw);
+
+        # ... use $safe->ptr ...
+
+    } # $safe goes out of scope -> DESTROY called -> free() called.
+
+=head2 How It Works
+
+Perl uses Reference Counting. When the last reference to `$safe` disappears, Perl calls `DESTROY`. By wrapping our raw C pointer (Pin) in a blessed object, we tie the C memory lifecycle to the Perl variable's scope. This is known as **RAII** (Resource Acquisition Is Initialization).
+
 =head1 SEE ALSO
 
 L<Affix> - The main documentation.

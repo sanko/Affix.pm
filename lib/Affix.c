@@ -4006,7 +4006,7 @@ XS_INTERNAL(Affix_malloc) {
 
     if (infix_type_from_signature(&type, &parse_arena, sig, MY_CXT.registry) != INFIX_SUCCESS) {
         SV * err_sv = _format_parse_error(aTHX_ "for malloc", sig, infix_get_last_error());
-        warn(SvPV_nolen(err_sv));
+        warn_sv(err_sv);
         if (parse_arena)
             infix_arena_destroy(parse_arena);
         XSRETURN_UNDEF;
