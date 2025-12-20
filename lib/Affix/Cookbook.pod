@@ -1,0 +1,1972 @@
+=pod
+
+=encoding utf-8
+
+=head1 NAME
+
+Affix::Cookbook - Recipes for bridging Perl and C without the pain of XS
+
+=head1 DESCRIPTION
+
+Welcome to the Affix Cookbook.
+
+For decades, the barrier between Perl and the raw speed of C (or Rust, or C++, or Fortran) has been guarded by the
+complex, arcane rituals of XS. You had to learn a new macro language, configure a build system, handle the Perl stack
+manually, and compile everything before you could even run a "Hello World".
+
+Affix changes the menu.
+
+Affix is a Foreign Function Interface (FFI) built on the low-overhead L<infix|https://github.com/sanko/infix/> JIT
+engine. It allows you to bind libraries, marshal complex data structures, and manage memory dynamically, all from
+within your Perl script.
+
+=head2 What is in this Cookbook?
+
+This document is a collection of recipes designed to take you from a hungry beginner to a master chef of systems
+programming.
+
+We will cover:
+
+=over
+
+=item * B<The Basics:> Calling standard C library functions like C<printf> and C<pow>.
+
+=item * B<The Compiler:> Using L<Affix::Compiler> to write C code directly inside your Perl scripts for instant optimization.
+
+=item * B<Memory Management:> Understanding Pointers, Pins, and how to allocate memory without leaking it.
+
+=item * B<Advanced Structures:> Handling C Structs, Unions, and Arrays as easily as Perl Hashes and Lists.
+
+=item * B<The Exotic:> Callbacks, Function Pointers, and SIMD Vector mathematics.
+
+=back
+
+=head2 Prerequisites
+
+To follow these recipes, you will need:
+
+=over
+
+=item * B<Perl v5.40> or higher (Affix leverages modern Perl features like C<class>).
+
+=item * B<Affix> installed from CPAN.
+
+=item * A C compiler (GCC, Clang, or MSVC) is highly recommended for the advanced recipes, though not strictly required for binding to existing system libraries.
+
+=back
+
+Grab your apron. Let's get cooking.
+
+=head1 Chapter 1: The Instant C Library
+
+Sometimes, you don't have a pre-existing F<.dll> or F<.so> file. Sometimes, you just have an idea, a heavy mathematical
+loop, or a snippet of C code you found on Stack Overflow, and you want to run it I<right now> inside your Perl script.
+
+This is where C<Affix::Compiler> shines. It turns your Perl script into a build system, a linker, and a loader, all in
+about five lines of code.
+
+Let's look at the classic "Hello World" of pointer manipulation: the Integer Swap.
+
+=head2 The Recipe
+
+    use v5.40;
+    use Affix;
+    use Affix::Compiler;
+
+    # 1. Spin up the compiler
+    my $c = Affix::Compiler->new();
+
+    # 2. Add some C code directly into the script
+    $c->add( \<<~'', lang => 'c' );
+        void swap(int *a, int *b) {
+            int tmp = *b;
+            *b = *a;
+            *a = tmp;
+        }
+
+    # 3. Compile, Link, and Bind
+    affix $c->link, swap => [ Pointer [Int], Pointer [Int] ] => Void;
+
+    # 4. Profit
+    my $a = 1;
+    my $b = 2;
+
+    say "Before: [a,b] = [$a, $b]";
+
+    # Pass references so C can write back to Perl
+    swap( \$a, \$b );
+
+    say "After:  [a,b] = [$a, $b]";
+
+=head2 How It Works
+
+This creates a seamless bridge between the two languages. Here is what is happening under the hood:
+
+=over
+
+=item B<1. The Builder>
+
+C<Affix::Compiler-E<gt>new()> creates a temporary workspace. It detects your operating system (Windows, Linux, macOS,
+BSD) and hunts for a viable compiler chain (GCC, Clang, MSVC). You don't need to configure Makefiles or worry about
+linker flags; the class handles the heavy lifting.
+
+=item B<2. The Source>
+
+We pass the source code as a B<reference to a string> (C<\<<~''>). This tells the compiler, "I'm not giving you a
+filename; I'm giving you the raw code." We specify C<lang =E<gt> 'c'>, but C<Affix::Compiler> is a polyglot—it could
+just as easily have been C<cpp>, C<rust>, or C<fortran>.
+
+=item B<3. The Link>
+
+Calling C<$c-E<gt>link> triggers the build process. It writes your source to a temp file, compiles it into an object
+file, and links it into a dynamic library. It returns the absolute path to that library (e.g., F</tmp/affix_lib.so>).
+
+We pass that path immediately to C<affix>, binding the symbol C<swap>.
+
+=item B<4. The Types>
+
+This is the most critical part of this recipe:
+
+    [ Pointer [Int], Pointer [Int] ]
+
+If we had defined this as C<[ Int, Int ]>, Affix would have passed the I<values> C<1> and C<2> to C. The C code would
+have swapped those values in its own local stack and returned, leaving our Perl variables untouched.
+
+By specifying C<Pointer>, we tell Affix we expect a memory address.
+
+=item B<5. The Execution>
+
+Because we defined the types as Pointers, we must pass B<references> to our Perl scalars:
+
+    swap( \$a, \$b );
+
+Affix takes the memory address of the SV (Scalar Value) holding C<$a>, passes it to C, and allows the C code to
+overwrite the memory directly. When C<swap> returns, C<$a> sees the data that was previously in C<$b>.
+
+=back
+
+=head2 Kitchen Reminders
+
+=over
+
+=item * B<Compiler Required>
+
+While C<Affix> works on any machine, C<Affix::Compiler> obviously requires a C compiler (like C<gcc>, C<clang>, or
+Visual Studio) to be in your system's C<PATH>.
+
+=item * B<Automatic Cleanup>
+
+By default, C<Affix::Compiler> creates a temporary directory for the build artifacts. When your script ends, that
+directory is wiped clean. If you want to inspect the generated C files or the F<.so> library for debugging, pass
+C<clean =E<gt> 0> to the constructor:
+
+    my $c = Affix::Compiler->new( clean => 0, debug => 1 );
+
+=item * B<Type Safety>
+
+C is unforgiving. If you tell Affix the argument is a C<Pointer[Int]>, but you pass a string like C<"Hello">, Affix
+will try to make it work, but the C code effectively interprets the bytes of that string as an integer. Always match
+your Perl data types to your Affix definitions.
+
+=back
+
+=head1 Chapter 2: Speaking Windows (Unicode)
+
+When interacting with the Windows API (Win32), you will inevitably face two facts: libraries are named things like
+F<user32.dll>, and text is almost always expected to be UTF-16 (Wide Characters).
+
+Perl works natively in UTF-8. In the old days of XS, bridging this gap involved tedious calls to C<MultiByteToWideChar>
+and manual buffer management.
+
+Affix handles the translation for you.
+
+=head2 The Recipe
+
+This recipe displays a native Windows message box containing Unicode characters (an emoji).
+
+    use v5.40;
+    use utf8; # Required for literal emojis in source
+    use Affix;
+
+    # Define some standard Windows constants
+    use constant MB_OK                   => 0x00000000;
+    use constant MB_DEFAULT_DESKTOP_ONLY => 0x00020000;
+
+    # Bind the function
+    # Library: user32.dll
+    # Symbol:  MessageBoxW (The Unicode version)
+    # Alias:   MessageBox  (What we call it in Perl)
+    affix 'user32', [ MessageBoxW => 'MessageBox' ] =>
+        [ Pointer [Void], WString, WString, UInt ] => Int;
+
+    # Call it
+    # undef becomes NULL (No owner window)
+    MessageBox( undef, 'Keep your stick on the ice.', '🏒', MB_OK | MB_DEFAULT_DESKTOP_ONLY );
+
+=head2 How It Works
+
+=over
+
+=item B<1. The A vs. W Suffix>
+
+Most Windows functions come in two flavors: B<ANSI> (ending in C<A>) and B<Wide> (ending in C<W>). C<MessageBoxA>
+expects system-codepage strings (like ASCII), while C<MessageBoxW> expects UTF-16.
+
+Since modern Perl is Unicode-aware, we almost always want the B<W> version.
+
+=item B<2. Aliasing>
+
+We bind the symbol C<MessageBoxW>, but that is a clumsy name to type in Perl. By passing an array reference C<[
+'MessageBoxW' =E<gt> 'MessageBox' ]>, we tell Affix to look up the real symbol in the DLL but install it into our
+namespace as C<MessageBox>.
+
+=item B<3. The WString Type>
+
+This is the magic ingredient.
+
+    [ ..., WString, WString, ... ]
+
+When you pass a Perl string to a C<WString> argument, Affix performs the following steps on the fly:
+
+=over
+
+=item 1. Check the internal encoding of the Perl scalar.
+
+=item 2. Transcode the string into UTF-16LE (Little Endian).
+
+=item 3. Append a double-null terminator (C<\0\0>).
+
+=item 4. Pass the pointer to the C function.
+
+=back
+
+This allows us to pass the hockey stick emoji C<'🏒'> directly.
+
+=item B<4. The Null Pointer>
+
+The first argument to C<MessageBox> is a handle to an owner window (C<HWND>). Since we don't have a parent window, we
+pass C<NULL>.
+
+In Affix, C<NULL> is represented by Perl's C<undef>. When passed to a C<Pointer> type, C<undef> is automatically
+converted to address C<0x0>.
+
+=back
+
+=head2 Kitchen Reminders
+
+=over
+
+=item * B<Input Only>
+
+The C<WString> type is designed for B<input> strings (C<LPCWSTR> or C<const wchar_t*>). Affix creates a temporary
+buffer for the duration of the call. If the C function intends to I<modify> the string buffer, you must use
+C<Pointer[WChar]> and manage the memory yourself using C<calloc>.
+
+=item * B<Use utf8>
+
+If you are typing special characters like '🏒' directly into your Perl script, always remember C<use utf8;> at the
+top of your file, or Perl might interpret the bytes incorrectly before Affix even sees them.
+
+=back
+
+=head1 Chapter 3: Binary Data (The Null Byte Trap)
+
+C strings are simple: they start at a memory address and end at the first zero byte (C<\0>).
+
+But what if your data I<contains> zeros? If you use standard string types like C<String> or C<Array[Char]>, C (and
+Affix) will assume the data ends at the first null byte. This is fatal for encryption, compression, and binary formats.
+
+To handle this, we must stop thinking in B<Characters> and start thinking in B<Bytes>.
+
+=head2 The Recipe
+
+We will modify the XOR Cipher example. Since the data might contain nulls, we handle it as a raw buffer.
+
+    use v5.40;
+    use Affix qw[:all];
+    use Affix::Compiler;
+
+    # 1. Compile the C library
+    my $c = Affix::Compiler->new();
+    $c->add( \<<~'END', lang => 'c' );
+        #include <stdlib.h>
+        #include <string.h>
+
+        char * string_crypt(const char * input, int len, const char * key) {
+            char * output = malloc(len + 1);
+            if (!output) return NULL;
+            output[len] = '\0';
+
+            int key_len = strlen(key);
+            for (int i = 0; i < len; i++) {
+                output[i] = input[i] ^ key[i % key_len];
+            }
+            return output;
+        }
+
+        void string_free(void * p) { free(p); }
+    END
+
+    my $lib = $c->link;
+
+    # 2. Bind the functions
+    # Return Pointer[Void] to get the raw address (Pin) without interpretation.
+    affix $lib, 'string_crypt', [ String, Int, String ] => Pointer[Void];
+    affix $lib, 'string_free',  [ Pointer[Void] ]       => Void;
+
+    # 3. The Wrapper
+    sub cipher( $input, $key ) {
+        my $len = length($input);
+
+        # Call C. We get back a Pin (unmanaged pointer).
+        my $ptr = string_crypt( $input, $len, $key );
+        return undef if is_null($ptr);
+
+        # Create a view of the memory as an Array of Bytes (UInt8).
+        # Important:
+        #   Array[Char]  => Reads up to NULL (String behavior)
+        #   Array[UInt8] => Reads exactly $len bytes (Binary behavior)
+        my $view = cast( $ptr, Array[UInt8, $len] );
+
+        # Dereference the view ($$view).
+        # For byte arrays, Affix returns a binary string directly.
+        my $binary_string = $$view;
+
+        # Clean up the C memory immediately
+        string_free($ptr);
+
+        return $binary_string;
+    }
+
+    # 4. Run it
+    my $orig = 'hello world!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!';
+    my $key  = 'foobar';
+
+    my $enc = cipher( $orig, $key );
+    my $dec = cipher( $enc,  $key );
+
+    say "Original:  $orig";
+    say "Decrypted: $dec";
+
+    # Verify the binary data size
+    say "Encrypted length: " . length($enc);
+
+    use JSON::PP;
+    say "Encrypted blob:   " . encode_json([$enc]);
+
+=head2 How It Works
+
+=over
+
+=item B<1. Pointer[Void]>
+
+We define the return type as C<Pointer[Void]> to prevent Affix from automatically attempting to read it as a
+null-terminated string. We receive a raw B<Pin>.
+
+=item B<2. Casting to Array[UInt8]>
+
+    my $view = cast( $ptr, Array[UInt8, $len] );
+
+We use C<UInt8> (unsigned 8-bit integer) instead of C<Char>. This tells Affix we are dealing with raw binary data, not
+text. Affix will read exactly C<$len> bytes from memory, regardless of nulls.
+
+=item B<3. Dereferencing>
+
+    my $binary_string = $$view;
+
+When you dereference a Pin defined as an C<Array> of 8-bit types, Affix optimizes the operation. It copies the raw
+bytes directly into a Perl scalar.
+
+=back
+
+=head2 Kitchen Reminders
+
+=over
+
+=item * B<Char vs UInt8>
+
+In Affix, C<Array[Char]> is treated as a string buffer (stops at null). C<Array[UInt8]> is treated as a byte buffer
+(reads full length). Use the one matching your data.
+
+=back
+
+=head1 Chapter 4: Strings and Static State
+
+Dealing with C strings usually involves asking "Who owns this memory?"
+
+In Perl, strings are values. In C, they are pointers. A common (though not thread-safe) pattern in C libraries is to
+return a pointer to an internal static buffer. This buffer is overwritten or freed the next time the function is
+called.
+
+If you were using raw pointers, this would be dangerous; your Perl variable would suddenly change its value or point to
+freed memory when you made a subsequent API call.
+
+Affix solves this by copying string return values into Perl's memory space immediately.
+
+=head2 The Recipe
+
+In this example, we implement a C function that remembers its last result. It frees the old result before allocating a
+new one. We use a final call with C<undef> to trigger a cleanup.
+
+    use v5.40;
+    use Affix qw[:all];
+    use Affix::Compiler;
+
+    # 1. Compile the C library
+    my $c = Affix::Compiler->new();
+    $c->add( \<<~'END', lang => 'c' );
+        #include <stdlib.h>
+        #include <string.h>
+
+        const char * string_reverse(const char * input) {
+            // Static pointer persists across function calls
+            static char * output = NULL;
+            int i, len;
+
+            // Cleanup previous call's memory
+            if (output != NULL) {
+                free(output);
+                output = NULL;
+            }
+
+            // Handle "Cleanup Mode" (NULL input)
+            if (input == NULL)
+                return NULL;
+
+            // Allocate new buffer
+            len = strlen(input);
+            output = malloc(len + 1);
+
+            // Reverse the string
+            for (i = 0; input[i]; i++)
+                output[len - i - 1] = input[i];
+            output[len] = '\0';
+
+            return output;
+        }
+    END
+
+    my $lib = $c->link;
+
+    # 2. Bind the function
+    # String means "const char*" for input and output.
+    affix $lib, 'string_reverse', [String] => String;
+
+    # 3. Use it
+    # Input:  "\nHello world"
+    # Output: "dlrow olleH\n"
+    print string_reverse("\nHello world");
+
+    # 4. Cleanup
+    # Passing undef sends NULL to C, triggering the free() logic.
+    string_reverse(undef);
+
+=head2 How It Works
+
+=over
+
+=item B<1. Passing Strings (Input)>
+
+    [ String ] => ...
+
+When passing a Perl string to a C<String> argument, Affix temporarily allocates a C buffer, copies the Perl string
+(encoded as UTF-8), and passes that pointer to C. This buffer is valid only for the duration of the call.
+
+=item B<2. Returning Strings (Output)>
+
+    ... => String
+
+When a C function returns a C<String> type, Affix reads the memory at that address (up to the first null byte), creates
+a B<new> Perl scalar containing those bytes, and returns the scalar.
+
+It does B<not> return a pointer to the C memory.
+
+This is crucial for this recipe. Even though the C function eventually calls C<free(output)> on the next invocation,
+our Perl variable holding C<"dlrow olleH\n"> remains safe because it is a distinct copy.
+
+=item B<3. Passing Undef>
+
+    string_reverse(undef);
+
+For string arguments, C<undef> is marshalled as C<NULL> (0x0). Our C function checks for this to perform its cleanup
+duties.
+
+=back
+
+=head2 Kitchen Reminders
+
+=over
+
+=item * B<Copy vs. Reference>
+
+If you want a copy of the text (standard Perl behavior), use the type C<String>. If you want to modify the C memory
+buffer in place or hold onto the specific memory address, use C<Pointer[Char]> (see Chapter 3).
+
+=item * B<Thread Safety>
+
+While Affix is thread-safe, C functions using C<static> variables (like the one in this recipe) are generally B<not>
+thread-safe. If two threads call C<string_reverse> at the same time, they will race to free/overwrite the same static
+pointer.
+
+=back
+
+=head1 Chapter 5: The Standard Library (Hello World)
+
+Every operating system comes with a "Standard C Library" (libc). It contains the fundamental building blocks of C
+programming: memory allocation, file I/O, string manipulation, and system calls.
+
+Affix provides a shortcut to access this library without you needing to know its exact filename (which varies wildly
+between Linux, macOS, and Windows).
+
+=head2 The Recipe
+
+We will bind the standard C function C<puts> (put string). It takes a string, prints it to Standard Output (stdout),
+and appends a newline character.
+
+    use v5.40;
+    use Affix;
+
+    # 1. Bind
+    # libc is a helper function exported by Affix.
+    # It returns the handle to the system's standard library.
+    affix libc, 'puts' => [String] => Int;
+
+    # 2. Call
+    # Note: puts() automatically adds a newline "\n"
+    puts('Hello World');
+
+    # 3. Check Result
+    # puts returns a non-negative integer on success, or EOF (-1) on error.
+    my $ret = puts('Affix makes FFI easy.');
+    if ($ret >= 0) {
+        say "Successfully wrote to stdout.";
+    }
+
+=head2 How It Works
+
+=over
+
+=item B<1. The C<libc> Helper>
+
+Finding the standard library is platform-dependent:
+
+=over
+
+=item * Linux: F<libc.so.6> (usually)
+
+=item * macOS: F<libSystem.B.dylib>
+
+=item * Windows: F<msvcrt.dll> (or F<ucrtbase.dll>)
+
+=back
+
+The C<libc> function (exported by Affix) handles this detection logic for you, returning the correct handle for your
+operating system.
+
+=item B<2. The C<puts> Function>
+
+The C signature for `puts` is:
+
+    int puts(const char *s);
+
+We map this to:
+
+    [String] => Int
+
+When you call C<puts('Hello')>, Affix takes your Perl string, ensures it is null-terminated, and passes the pointer to
+C. The C library writes the bytes to the file descriptor for STDOUT.
+
+=back
+
+=head2 Kitchen Reminders
+
+=over
+
+=item * B<Output Buffering>
+
+Perl and C use their own IO buffers. If you mix C<print "...">, C<say "...">, and C<puts(...)> in the same script, the
+output might appear out of order depending on when the buffers are flushed. Setting C<$| = 1;> in Perl usually helps,
+but doesn't strictly control the C buffer.
+
+=item * B<Implicit Newlines>
+
+Unlike Perl's C<print>, C<puts> always adds a newline. If you want to print without a newline using C, you would need
+to bind C<printf> (which is a variadic function—see the Variadic recipes).
+
+=back
+
+=head1 Chapter 6: Opaque Pointers (C++)
+
+Perl cannot directly instantiate a C++ class or read a C struct unless we define every single field in Affix. Often, we
+don't care about the fields. We just want to hold onto the object and pass it back to the library later.
+
+This pattern is called the **Opaque Pointer** (or Opaque Handle). We treat the object as a black box (C<Pointer[Void]>)
+and use helper functions to interact with it.
+
+=head2 The Recipe
+
+We will create a simple C++ `Person` struct, wrap it with C-compatible helpers, and bind it to Perl.
+
+    use v5.40;
+    use Affix qw[:all];
+    use Affix::Compiler;
+
+    # 1. Compile the C++ Library
+    my $c = Affix::Compiler->new();
+    $c->add( \<<~'END', lang => 'cpp' );
+        #include <stdlib.h>
+        #include <string.h>
+
+        typedef struct {
+            char * name;
+            unsigned int age;
+        } Person;
+
+        // extern "C" prevents C++ Name Mangling.
+        // This ensures the symbols in the DLL are just "person_new",
+        // not "_Z10person_newPKcj".
+        extern "C" {
+
+            Person * person_new(const char * name, unsigned int age) {
+                Person * self = (Person *) malloc(sizeof(Person));
+                self->name = strdup(name);
+                self->age = age;
+                return self;
+            }
+
+            const char * person_name(Person * self) {
+                return self->name;
+            }
+
+            unsigned int person_age(Person * self) {
+                return self->age;
+            }
+
+            void person_free(Person * self) {
+                if (self) {
+                    free(self->name);
+                    free(self);
+                }
+            }
+        }
+    END
+
+    my $lib = $c->link;
+
+    # 2. Define the Opaque Type
+    # We tell Affix: "Whenever you see 'Person', treat it as a void pointer."
+    typedef Person => Pointer[Void];
+
+    # 3. Bind
+    # Notice we use Person() as the type.
+    affix $lib, 'person_new',  [ String, UInt ] => Person();
+    affix $lib, 'person_name', [ Person() ]     => String;
+    affix $lib, 'person_age',  [ Person() ]     => UInt;
+    affix $lib, 'person_free', [ Person() ]     => Void;
+
+    # 4. Use
+    my $roger = person_new( 'Roger Frooble Bits', 35 );
+
+    # $roger is just a blessed scalar holding a memory address.
+    # We pass it back to C to get data.
+    say "Name: " . person_name($roger);
+    say "Age:  " . person_age($roger);
+
+    # Clean up
+    person_free($roger);
+
+=head2 How It Works
+
+=over
+
+=item B<1. extern "C">
+
+C++ compilers "mangle" function names (e.g., C<person_new> becomes C<_Z10person_newPKcj>) to support function
+overloading. This is a nightmare to bind. Wrapping your helper functions in C<extern "C"> forces the compiler to use
+standard C names.
+
+=item B<2. The Shim Pattern>
+
+We didn't bind the C++ struct fields directly. Instead, we wrote small C helper functions (Shims) to access the data:
+
+    const char * person_name(Person * self) { return self->name; }
+
+This insulates your Perl code from changes in the C++ class layout.
+
+=item B<3. Typedef Aliases>
+
+    typedef Person => Pointer[Void];
+
+This creates a named alias. While C<Pointer[Void]> works, using C<Person()> in your signatures makes the code
+self-documenting. It also prevents accidents—if you later define C<Car => Pointer[Void]>, Affix won't stop you from
+passing a Car to a Person function (since they are both just pointers), but your code will be much easier to read and
+debug.
+
+=back
+
+=head2 Kitchen Reminders
+
+=over
+
+=item * B<Constructors must Return>
+
+It seems obvious, but in C++, forgetting to C<return self;> in a constructor function is easy to do and leads to
+immediate Segfaults or Illegal Instruction errors.
+
+=item * B<Memory Ownership>
+
+Since C<person_new> used C<malloc>, the memory belongs to the C heap. You must explicitly call C<person_free> to
+release it. Affix cannot garbage collect these opaque pointers automatically unless you attach a destructor using
+Perl's C<DESTROY> (which is an advanced topic for another chapter).
+
+=back
+
+=head1 Chapter 7: System Libraries (Desktop Notifications)
+
+Perl scripts often live in the terminal, but they don't have to stay there.
+
+On Linux (and BSDs with a desktop environment), the C<libnotify> library allows applications to send pop-up
+notifications to the user. These are the bubbles you see from apps like Slack, Discord, or your system updater.
+
+This library uses the GLib object system (GObject), which is notoriously complex to bind manually. However, if we only
+want to trigger a notification, we can treat the objects as B<Opaque Pointers> and ignore the internal complexity
+entirely.
+
+=head2 The Recipe
+
+    use v5.40;
+    use Affix;
+
+    # 1. Find the library
+    # locate_lib searches system paths (like /usr/lib) for libnotify.so
+    # It returns the full path as a string.
+    my $libnotify = Affix::locate_lib('notify');
+
+    unless ($libnotify) {
+        die "Could not find libnotify. Are you on Linux with libnotify-bin installed?";
+    }
+
+    # 2. Bind the lifecycle functions
+    # bool notify_init(const char *app_name);
+    affix $libnotify, 'notify_init',   [String] => Bool;
+    affix $libnotify, 'notify_uninit', []       => Void;
+
+    # 3. Bind the object functions
+    # NotifyNotification* notify_notification_new(const char *summary, const char *body, const char *icon);
+    affix $libnotify, 'notify_notification_new',
+        [ String, String, String ] => Pointer[Void];
+
+    # bool notify_notification_show(NotifyNotification *notification, GError **error);
+    affix $libnotify, 'notify_notification_show',
+        [ Pointer[Void], Pointer[Void] ] => Bool;
+
+    # 4. Use it
+    # Initialize the library with our app name
+    notify_init('Affix 🏒');
+
+    # Create the notification object
+    # We get back a Pin (opaque pointer), but we don't need to look inside it.
+    my $n = notify_notification_new(
+        'Keep your stick on the ice!',
+        "Hello from Affix!\nWelcome to the fun world of FFI.",
+        'dialog-information' # Standard icon name
+    );
+
+    # Show it
+    # We pass undef for the second argument (GError**), meaning "ignore errors".
+    notify_notification_show( $n, undef );
+
+    # Clean up
+    notify_uninit();
+
+=head2 How It Works
+
+=over
+
+=item B<1. Locating Libraries>
+
+    my $libnotify = Affix::locate_lib('notify');
+
+Unlike C<load_library> (which loads the DLL into memory immediately), C<locate_lib> scans the system's dynamic linker
+paths (like C<LD_LIBRARY_PATH>) and returns the filename. We pass this path to C<affix>, which handles the loading.
+
+=item B<2. Ignoring Complexity>
+
+The C<notify_notification_new> function returns a C<NotifyNotification*>. In C, this is a struct with many private
+fields and GObject metadata. In Perl, we don't care. We define the return type as C<Pointer[Void]>.
+
+As long as we pass that pointer back to other functions in the same library (like C<notify_notification_show>),
+everything works.
+
+=item B<3. Optional Error Handling>
+
+The C signature for C<show> is:
+
+    gboolean notify_notification_show (NotifyNotification *notification, GError **error);
+
+The second argument is a pointer-to-a-pointer that the library fills if an error occurs. By passing C<undef>, Affix
+sends a C<NULL>, telling the library we don't want to receive error details.
+
+=back
+
+=head2 Kitchen Reminders
+
+=over
+
+=item * B<Platform Specific>
+
+This recipe works on Linux/BSD with a freedesktop.org compliant notification daemon (GNOME, KDE, XFCE, etc.). It will
+likely fail to find the library on Windows or vanilla macOS.
+
+=item * B<Unicode>
+
+Notice we used an emoji in the app name: C<'Affix 🏒'>. Because we used the C<String> type, Affix automatically
+encoded this as UTF-8, which is what modern Linux libraries expect.
+
+=back
+
+=head1 Chapter 8: Manual Memory Management
+
+Perl handles memory for you. C does not. When you start allocating raw memory buffers in Affix, you are stepping into
+the C world.
+
+This recipe demonstrates how to manually allocate, manipulate, and free memory using the standard C lifecycle.
+
+=head2 The Recipe
+
+    use v5.40;
+    use Affix qw[:all];
+
+    # 1. Allocation
+    # We allocate 14 bytes.
+    # malloc returns a Pointer[Void] (a Pin).
+    my $void_ptr = malloc( 14 );
+
+    # 2. String Duplication
+    # strdup allocates new memory containing a copy of the string.
+    my $ptr_string = strdup("hello there!!\n");
+
+    # 3. Memory Copy
+    # We copy 15 bytes (text + null terminator) from one pointer to another.
+    # memcpy works on raw pointers, so passing $void_ptr is fine.
+    memcpy( $void_ptr, $ptr_string, 15 );
+
+    # 4. Read (The Cast)
+    # Dereferencing $void_ptr ($$void_ptr) would just return the memory address
+    # as an integer, because Affix doesn't know what's inside.
+    # We must CAST it to a specific type to read it.
+    my $str_view = cast( $void_ptr, String );
+
+    print $str_view;
+
+    # 5. Cleanup
+    # These are managed pointers, so Perl *would* free them when the variables
+    # go out of scope. But in C, explicit is better than implicit.
+    free($ptr_string);
+    free($void_ptr);
+
+=head2 How It Works
+
+=over
+
+=item B<1. Malloc returns Void>
+
+    my $void_ptr = malloc( 14 );
+
+Just like in C, C<malloc> returns a C<void*>. It represents a chunk of raw memory with no type information attached.
+
+=item B<2. Cast adds Meaning>
+
+    my $str_view = cast( $void_ptr, String );
+
+Casting creates a B<new Pin> that points to the I<same memory address> but has different type metadata.
+
+    $void_ptr  -> Address 0x1234, Type: *void
+    $str_view  -> Address 0x1234, Type: *char
+
+When you dereference C<$$str_view>, Affix sees the type is C<String> and reads the memory until the null terminator.
+
+=item B<3. Pointer Arithmetic via memcpy>
+
+    memcpy( $void_ptr, $ptr_string, 15 );
+
+This is a raw memory operation. It doesn't care about types; it just moves bytes. This is extremely fast, but dangerous
+if you get the length wrong. Always ensure your destination buffer is large enough to hold the source data.
+
+=item B<4. Explicit Free>
+
+    free($void_ptr);
+
+Affix uses Perl's memory allocator (C<safemalloc>) for C<malloc>, C<calloc>, and C<strdup>. This means these pointers
+are distinct from pointers allocated by a loaded C library (which use the system C<malloc>).
+
+Always use Affix's C<free> for Affix-created pointers, and the library's free function for library-created pointers.
+
+=back
+
+=head2 Kitchen Reminders
+
+=over
+
+=item * B<The Void Default>
+
+If you see a large integer when you expected data (e.g. C<2029945...>), you are dereferencing a C<Pointer[Void]>. Use
+C<cast($ptr, Type)> to tell Affix how to read the data.
+
+=item * B<Buffer Overflows>
+
+Perl protects you from buffer overflows. Affix does not. C<memcpy> will happily write past the end of your allocation
+and corrupt your program's memory. Measure twice, cut once.
+
+=back
+
+=head1 Chapter 9: Arrays vs. Pointers (The Sentinel)
+
+In C, arrays and pointers are cousins. In function arguments, they are twins. Declaring C<void func(int a[])> is
+exactly the same as C<void func(int *a)>.
+
+However, in Affix, B<Types Matter>.
+
+=over
+
+=item * B<C<Pointer[Int]>> expects a I<Reference> to a scalar integer (memory address).
+
+=item * B<C<Array[Int]>> expects a I<List> of integers (data).
+
+=back
+
+This recipe shows how to pass lists of data to C using the C<Array> type, which handles allocation and copying for you.
+
+=head2 The Recipe
+
+We will wrap a C function that sums a zero-terminated array of integers.
+
+    use v5.40;
+    use Affix qw[:all];
+    use Affix::Compiler;
+
+    # 1. Compile C
+    my $c = Affix::Compiler->new();
+    $c->add( \<<~'END', lang => 'c' );
+        #include <stdlib.h>
+
+        int array_sum(const int * a) {
+            int i, sum;
+            if (a == NULL)
+                return -1; // Error code for NULL
+
+            // Loop until we hit a 0
+            for (i = 0, sum = 0; a[i] != 0; i++)
+                sum += a[i];
+            return sum;
+        }
+    END
+
+    # 2. Bind
+    # We use Array[Int] to tell Affix: "Expect a list of numbers"
+    # Affix automatically handles the C "Array Decay" (passing as pointer).
+    affix $c->link, array_sum => [ Array[Int] ] => Int;
+
+    # 3. Call
+
+    # Pass undef -> NULL
+    say "Undef: " . array_sum(undef);        # -1
+
+    # Pass [0] -> {0} -> Sums to 0 (Immediate stop)
+    say "Zero:  " . array_sum( [0] );        # 0
+
+    # Pass List -> {1, 2, 3, 0} -> Sums to 6
+    say "List:  " . array_sum( [ 1, 2, 3, 0 ] ); # 6
+
+=head2 How It Works
+
+=over
+
+=item B<1. Array Marshalling>
+
+    array_sum( [ 1, 2, 3, 0 ] );
+
+When you define an argument as C<Array[Int]>, Affix allocates a temporary C array, copies the values from your Perl
+array reference into it, and passes the B<pointer> to the C function. This matches C's array decay rules.
+
+=item B<2. The Undef Case>
+
+    array_sum(undef);
+
+C allows array pointers to be NULL. Affix supports this by checking for C<undef> and passing C<NULL> to the function,
+skipping the allocation entirely.
+
+=back
+
+=head2 Kitchen Reminders
+
+=over
+
+=item * B<Syntactic Sugar>
+
+You I<could> have bound this function using C<Pointer[Int]>. If you did, you would have to manually pack a binary
+string or use C<malloc> to create the buffer. C<Array[Int]> handles that boilerplate for you.
+
+=item * B<Sentinels>
+
+Notice we passed C<0> at the end of our list: C<[1, 2, 3, 0]>. Affix does B<not> automatically append null terminators
+to numeric arrays (unlike Strings). Since our C function relies on finding a C<0> to stop the loop, we must provide it
+explicitly.
+
+=back
+
+=head1 Chapter 10: Mutable Arrays
+
+In C, arrays passed to functions are often used as output buffers. The function reads data from the array, modifies it
+in place, and expects the caller to see the changes.
+
+Affix supports this B<Array Write-Back> automatically.
+
+=head2 The Recipe
+
+We will define a C function that reverses an integer array in place.
+
+    use v5.40;
+    use Affix qw[:all];
+    use Affix::Compiler;
+
+    # 1. Compile C
+    my $c = Affix::Compiler->new();
+    $c->add( \<<~'END', lang => 'c' );
+        // Reverses array 'a' in place
+        int array_reverse(int a[], int len) {
+            int tmp, i;
+            int ret = 0; // Sum of first half (arbitrary logic)
+            for (i = 0; i < len / 2; i++) {
+                ret += a[i];
+                tmp = a[i];
+                a[i] = a[len - i - 1];
+                a[len - i - 1] = tmp;
+            }
+            return ret;
+        }
+
+        // Wrapper for fixed-size 10-element array
+        int array_reverse10(int a[10]) {
+            return array_reverse(a, 10);
+        }
+    END
+    my $lib = $c->link;
+
+    # 2. Bind
+    # Dynamic length array
+    affix $lib, array_reverse => [ Array[Int], Int ], Int;
+
+    # Fixed length array
+    affix $lib, array_reverse10 => [ Array[Int, 10] ], Int;
+
+    # 3. Call (Fixed Size)
+    my @a = ( 1 .. 10 );
+    array_reverse10( \@a );
+    say "@a"; # Output: 10 9 8 7 6 5 4 3 2 1
+
+    # 4. Call (Dynamic Size)
+    my $b = [ 1 .. 20 ];
+    array_reverse( $b, 20 );
+    say "@$b"; # Output: 20 19 ... 2 1
+
+=head2 How It Works
+
+=over
+
+=item B<1. In-Place Modification>
+
+When you pass a Perl ArrayRef to an C<Array> argument:     1. Affix allocates a temporary C array.     2. Copies your
+data into it.     3. Calls the C function.     4. B<Copies the data back> from C to your Perl array.
+
+This ensures that any changes made by the C function are reflected in your Perl variable.
+
+=item B<2. Fixed Size Padding>
+
+    affix ..., [ Array[Int, 10] ] ...
+
+If you define a fixed size (e.g. 10) but pass a shorter list (e.g. C<[1, 2]>), Affix allocates the full 10 integers and
+zero-fills the rest. This protects the C function from reading garbage memory if it assumes the array is 10 elements
+long.
+
+=back
+
+=head2 Kitchen Reminders
+
+=over
+
+=item * B<Performance>
+
+Copying arrays back and forth (Perl -> C -> Perl) takes time. For very large datasets where you only need to modify a
+few bytes, consider using C<malloc> and C<Pointer> types to keep the data in C memory (Chapter 8).
+
+=item * B<Reference Requirement>
+
+You must pass a reference (C<\@a> or C<$array_ref>). Passing a list directly (e.g. C<array_reverse([1,2], ...)>) works,
+but the modifications will be lost because the anonymous array reference is discarded immediately after the call.
+
+=back
+
+=head1 Chapter 11: Variadic Functions (printf)
+
+Some C functions don't have a fixed number of arguments. The most famous example is C<printf>, which takes a format
+string and... I<everything else>.
+
+Affix supports variadic functions, but they require a little more care than standard functions because the C compiler
+isn't there to cast types for you.
+
+=head2 The Recipe
+
+We will wrap the standard C library's C<snprintf>. This is safer than C<printf> because it writes to a buffer.
+
+We also handle a common cross-platform annoyance: on Windows, this function is often named C<_snprintf>, while on
+Linux/macOS it is C<snprintf>. We can normalize this using symbol aliasing.
+
+    use v5.40;
+    use Affix;
+
+    # 1. Bind snprintf
+    # Windows uses _snprintf, POSIX uses snprintf.
+    # We detect the OS and bind the correct symbol to the name 'snprintf'.
+    my $symbol = $^O eq 'MSWin32' ? '_snprintf' : 'snprintf';
+
+    # Signature: int snprintf(char *str, size_t size, const char *format, ...);
+    # We use '...' (or VarArgs) to indicate the variadic part.
+    affix libc, [ $symbol => 'snprintf' ],
+        [ Pointer[Char], Int, String, VarArgs ] => Int;
+
+    # 2. Prepare a buffer
+    # We need a place for C to write the formatted string.
+    my $size = 100;
+    my $buffer = "\0" x $size;
+
+    # 3. Call with Inference
+    # Affix guesses the C type based on the Perl value.
+    #   "A String" -> char*
+    #   123        -> int64_t
+    #   12.34      -> double
+    snprintf(
+        $buffer, $size,
+        "Name: %s, ID: %d, Score: %.2f",
+        "Alice", 42, 99.9
+    );
+
+    # Clean up the null terminator and print
+    $buffer =~ s/\0.*//;
+    say $buffer; # "Name: Alice, ID: 42, Score: 99.90"
+
+    # 4. Explicit Coercion
+    # Sometimes inference isn't enough.
+    # Here we want to print a pointer address (%p).
+    # Passing a Perl integer might be interpreted as a value, not a pointer.
+    # We use coerce() to force specific types.
+    my $ptr = 0xDEADBEEF;
+
+    snprintf(
+        $buffer, $size,
+        "Pointer address: %p",
+        coerce( Pointer[Void], $ptr )
+    );
+
+    $buffer =~ s/\0.*//;
+    say $buffer;
+
+=head2 How It Works
+
+=over
+
+=item B<1. Symbol Aliasing>
+
+    affix $lib, [ 'RealSymbol', 'PerlName' ], ...
+
+Often, C libraries have messy naming conventions or platform-specific quirks (like C<_snprintf> vs C<snprintf>), or the
+library has mangled symbol names. By passing an array reference as the symbol name, you tell Affix: "Find B<RealSymbol>
+in the library, but create a Perl subroutine named B<PerlName>."
+
+=item B<2. VarArgs in Signature>
+
+    [ ..., VarArgs ]
+
+The C<VarArgs> constant (or the string C<';'>) tells Affix: "Stop checking types here. Everything after this point is
+dynamic."
+
+=item B<3. Dynamic JIT>
+
+When you call a variadic function, Affix looks at the arguments you provided I<at that moment>. It generates a custom,
+temporary API signature on the fly (e.g., C<(char*, size_t, char*, char*, int64, double)>) and compiles a trampoline
+for it.
+
+These trampolines are cached, so calling C<snprintf> repeatedly with the same argument types is fast.
+
+=item B<4. Coercion>
+
+    coerce( Type, $value )
+
+If you need to pass a C<float> (not double), a C<short>, or a C<struct> by value, the default inference won't work.
+C<coerce> attaches a "Type Hint" to the value. Affix sees this hint and uses the exact type you requested.
+
+=back
+
+=head2 Kitchen Reminders
+
+=over
+
+=item * B<Format Strings>
+
+Affix does not validate your format string (e.g. C<"%s">). If you pass an integer to a C<%s> placeholder, C<snprintf>
+will try to read memory at address 123 and likely segfault.
+
+=item * B<Sentinels>
+
+Some variadic functions (like C<execl> or certain GUI builders) expect a C<NULL> sentinel at the end of the list. Don't
+forget to pass C<undef> (or C<coerce(Pointer[Void], undef)>) if the C API requires it.
+
+=back
+
+=head1 Chapter 12: Callbacks (qsort)
+
+C libraries often use "Callback functions" to delegate logic back to the user. The standard library's C<qsort> is the
+classic example: it knows how to sort, but it doesn't know I<how> to compare your data. It asks you to provide a
+function for that.
+
+Affix allows you to pass a standard Perl subroutine (CodeRef) where C expects a function pointer.
+
+=head2 The Recipe
+
+We will sort a list of integers using the C standard library's C<qsort>.
+
+    use v5.40;
+    use Affix;
+
+    # 1. Bind qsort
+    # void qsort(void *base, size_t nmemb, size_t size,
+    #            int (*compar)(const void *, const void *));
+    #
+    # The callback signature is defined inside the argument list.
+    # Callback[ [Args...] => ReturnType ]
+    affix libc, 'qsort',
+        [
+            Pointer[Int],
+            Size_t,
+            Size_t,
+            Callback[ [Pointer[Int], Pointer[Int]] => Int ]
+        ] => Void;
+
+    # 2. Prepare Data
+    # qsort works on a raw memory array.
+    # We create a C array of integers.
+    my $nums = [ 88, 56, 100, 2, 25 ];
+    my $count = scalar @$nums;
+
+    # 3. Define the Comparator
+    # C passes us pointers to the two items being compared.
+    # We must dereference them to get the values.
+    my $compare_fn = sub ( $p_a, $p_b ) {
+        my $a = $$p_a;
+        my $b = $$p_b;
+        return $a <=> $b;
+    };
+
+    # 4. Call
+    # We pass the ArrayRef directly. Affix handles the pointer decay
+    # and write-back (see Chapter 10).
+    # sizeof(int) is usually 4.
+    qsort( $nums, $count, 4, $compare_fn );
+
+    say join(", ", @$nums); # 2, 25, 56, 88, 100
+
+=head2 How It Works
+
+=over
+
+=item B<1. The Callback Type>
+
+    Callback[ [Pointer[Int], Pointer[Int]] => Int ]
+
+This tells Affix to create a B<Reverse Trampoline>. It generates a small piece of C code that looks like a standard C
+function. When that C code is called by C<qsort>, it:
+
+1. Marshals the C arguments (two pointers) into Perl variables. 2. Calls your Perl subroutine C<$compare_fn>. 3. Takes
+the integer return value and passes it back to C.
+
+=item B<2. Pointer Dereferencing>
+
+    my $a = $$p_a;
+
+In the callback signature, we claimed the arguments were C<Pointer[Int]>. Affix receives the raw address from C, wraps
+it in a B<Pin> with the type C<Int>, and passes it to your sub. Dereferencing it reads the integer value from memory.
+
+=back
+
+=head2 Kitchen Reminders
+
+=over
+
+=item * B<Scope and Lifecycle>
+
+The magic trampoline created for your subroutine exists only as long as the C call is running. If you pass a callback
+to a C function that stores it for later use (like setting an event handler in a GUI library), you must ensure your
+Perl CodeRef stays alive.
+
+=item * B<Exceptions>
+
+If your Perl callback dies (throws an exception), Affix catches it, issues a warning, and returns a zero/void value to
+C to prevent crashing the host application. C does not understand Perl exceptions.
+
+=back
+
+=pod
+
+=head1 Chapter 13: Transparent Structs
+
+Sometimes you need to peek inside the box.
+
+If a C API expects a struct by value, or if you want to read struct members without writing C helper functions, you can
+define the struct layout in Perl.
+
+=head2 The Recipe
+
+We will create a simple geometry library that operates on Points and Rectangles.
+
+    use v5.40;
+    use Affix qw[:all];
+    use Affix::Compiler;
+
+    # 1. Compile C Library
+    my $c = Affix::Compiler->new();
+    $c->add( \<<~'END', lang => 'c' );
+        typedef struct {
+            int x, y;
+        } Point;
+
+        typedef struct {
+            Point top_left;
+            Point bottom_right;
+            int color;
+        } Rect;
+
+        // Pass by Value
+        int area(Rect r) {
+            int w = r.bottom_right.x - r.top_left.x;
+            int h = r.bottom_right.y - r.top_left.y;
+            return w * h;
+        }
+
+        // Pass by Reference (Modify in place)
+        void move_rect(Rect *r, int dx, int dy) {
+            r->top_left.x += dx;
+            r->top_left.y += dy;
+            r->bottom_right.x += dx;
+            r->bottom_right.y += dy;
+        }
+    END
+    my $lib = $c->link;
+
+    # 2. Define Types
+    # Order matters! Defined in the same order as the C struct.
+    typedef Point => Struct [
+        x => Int,
+        y => Int
+    ];
+
+    # We can nest types. Point() refers to the typedef above.
+    typedef Rect => Struct [
+        tl    => Point(),
+        br    => Point(),
+        color => Int
+    ];
+
+    # 3. Bind
+    affix $lib, 'area',      [ Rect() ]           => Int;
+    affix $lib, 'move_rect', [ Pointer[Rect()], Int, Int ] => Void;
+
+    # 4. Use (Pass by Value)
+    # We represent the struct as a HashRef.
+    my $r = {
+        tl    => { x => 0,  y => 0 },
+        br    => { x => 10, y => 20 },
+        color => 0xFF00FF
+    };
+
+    say "Area: " . area($r); # 200
+
+    # 5. Use (Pass by Reference)
+    # We pass a reference to the hash.
+    # Affix updates the hash members after the call.
+    move_rect( $r, 5, 5 );
+
+    say "New TL: $r->{tl}{x}, $r->{tl}{y}"; # 5, 5
+
+=head2 How It Works
+
+=over
+
+=item B<1. Structural Typing>
+
+    typedef Point => Struct [ x => Int, y => Int ];
+
+Affix calculates the memory layout (padding, alignment, size) of the struct matching the platform's C ABI.
+
+=item B<2. HashRef Marshalling>
+
+When you pass a HashRef to a C<Struct> argument, Affix packs the hash values into a temporary C memory block. When the
+call returns, if you passed a reference (step 5), Affix unpacks the C memory back into your HashRef, updating any
+changed values.
+
+=item B<3. Nesting>
+
+Structs can contain other Structs, Arrays, and Pointers. Affix handles the recursive packing and unpacking
+automatically.
+
+=back
+
+=head2 Kitchen Reminders
+
+=over
+
+=item * B<Performance>
+
+Marshalling a deep HashRef into a C struct (and back) involves copying data. For high-performance scenarios (like
+processing millions of points), use C<calloc> to allocate the struct in C memory once, and pass the pointer around.
+
+=item * B<Missing Keys>
+
+If your HashRef is missing a key defined in the Struct, Affix assumes 0 (or NULL).
+
+=back
+
+=head1 Chapter 14: Smart Enums (Dualvars)
+
+C headers are full of C<enum> definitions. To the C compiler, these are just integers. To the programmer, they have
+semantic meaning.
+
+When binding these functions to Perl, passing magic numbers (like C<0>, C<1>, C<2>) makes your code unreadable. Affix
+solves this by allowing you to define Enums that generate **Perl Constants** and return **Dualvars**.
+
+=head2 The Recipe
+
+We will wrap a hypothetical state machine library.
+
+    use v5.40;
+    use Affix qw[:all];
+    use Affix::Compiler;
+
+    # 1. Compile C
+    my $c = Affix::Compiler->new();
+    $c->add( \<<~'END', lang => 'c' );
+        typedef enum {
+            STATE_IDLE      = 0,
+            STATE_RUNNING   = 1,
+            STATE_PAUSED    = 2,
+            STATE_ERROR     = 99,
+            // Bitmasks
+            FLAG_READ       = 1 << 0, // 1
+            FLAG_WRITE      = 1 << 1  // 2
+        } MachineState;
+
+        int set_state(MachineState s) {
+            return s; // Returns the new state
+        }
+    END
+    my $lib = $c->link;
+
+    # 2. Define the Enum
+    # We can use:
+    #   'NAME'            -> Auto-increments
+    #   [ NAME => Value ] -> Explicit value
+    #   [ NAME => 'Expr'] -> C-style expression strings
+    typedef State => Enum [
+        [ STATE_IDLE    => 0 ],
+        'STATE_RUNNING',              # Auto-set to 1
+        'STATE_PAUSED',               # Auto-set to 2
+        [ STATE_ERROR   => 99 ],
+        [ FLAG_READ     => '1 << 0' ],
+        [ FLAG_WRITE    => '1 << 1' ],
+        [ FLAG_RDWR     => 'FLAG_READ | FLAG_WRITE' ]
+    ];
+
+    # 3. Bind
+    # We use the typedef alias '@State'
+    affix $lib, 'set_state', [ State() ] => State();
+
+    # 4. Use Constants (Input)
+    # typedef installs these constants into your package.
+    set_state( STATE_RUNNING );
+    set_state( FLAG_RDWR );
+
+    # 5. Use Dualvars (Output)
+    # The return value behaves like a number AND a string.
+    my $current = set_state( STATE_PAUSED );
+
+    if ( $current == 2 ) {
+        say "Numeric check passed.";
+    }
+
+    if ( $current eq 'STATE_PAUSED' ) {
+        say "String check passed.";
+    }
+
+    # Debugging is free
+    say "Current State: $current"; # Prints "Current State: STATE_PAUSED"
+
+=head2 How It Works
+
+=over
+
+=item B<1. Constants Generation>
+
+When you call C<typedef ... Enum [...]>, Affix calculates the integer value of every element in the list. It then
+installs a constant subroutine (e.g., C<sub STATE_IDLE () { 0 }>) into your current package. This allows you to use the
+names directly in your Perl code.
+
+=item B<2. Expression Parsing>
+
+Affix includes a small expression parser. This allows you to copy-paste definitions from C headers—like bit shifts
+(C<<< 1 << 4 >>>) or combinations (C<FLAG_A | FLAG_B>)—directly into your Affix definition without manually
+calculating the result.
+
+=item B<3. Dualvars>
+
+When a C function returns a value defined as an C<Enum> type, Affix looks up the integer in the definition map. If
+found, it returns a Scalar with B<both> slots filled:     * IV (Integer Value): 2     * PV (String Value):
+"STATE_PAUSED"
+
+This allows you to write readable code (C<eq 'STATE_...'>) while maintaining high performance for numeric comparisons.
+
+=back
+
+=head2 Kitchen Reminders
+
+=over
+
+=item * B<Unknown Values>
+
+If the C library returns an integer that you didn't define in your Enum list (e.g., a new error code added in a library
+update), Affix returns the integer as a string (e.g., value C<100> becomes string C<"100">). It does not crash.
+
+=item * B<Scope>
+
+The constants are installed into the package where C<typedef> is called. If you put your Affix setup in a utility
+module (e.g., C<MyApp::Lib>), callers will need to import those constants or refer to them fully qualified
+(C<MyApp::Lib::STATE_IDLE>).
+
+=back
+
+=head1 Chapter 15: SIMD Vectors (Number Crunching)
+
+Standard Perl scalars are designed for flexibility, not raw math throughput. When you need to process millions of
+coordinates, pixels, or audio samples, you want B<SIMD> (Single Instruction, Multiple Data).
+
+Affix makes SIMD vectors (like C<__m128>, C<__m256>, C<float32x4_t>) first-class citizens.
+
+=head2 The Recipe
+
+We will wrap a hypothetical 3D math library that uses 128-bit vectors (4 floats).
+
+    use v5.40;
+    use Affix qw[:all];
+    use Affix::Compiler;
+
+    # 1. Compile C Library
+    # We use GCC/Clang vector extensions for this example.
+    my $c = Affix::Compiler->new();
+    $c->add( \<<~'END', lang => 'c' );
+        #if defined(__GNUC__) || defined(__clang__)
+            typedef float v4f __attribute__((vector_size(16)));
+
+            // Add two vectors
+            v4f add_vecs(v4f a, v4f b) {
+                return a + b;
+            }
+
+            // Scale a vector by a scalar
+            v4f scale_vec(v4f v, float s) {
+                return v * s;
+            }
+
+            // Dot product (returns scalar)
+            float dot_vec(v4f a, v4f b) {
+                v4f res = a * b;
+                return res[0] + res[1] + res[2] + res[3];
+            }
+        #endif
+    END
+    my $lib = $c->link;
+
+    # 2. Bind
+    # We define a generic "Vec4" type: v[4:float]
+    typedef Vec4 => Vector[ 4, Float ];
+
+    affix $lib, 'add_vecs',  [ Vec4(), Vec4() ] => Vec4();
+    affix $lib, 'scale_vec', [ Vec4(), Float ]  => Vec4;
+    affix $lib, 'dot_vec',   [ Vec4(), Vec4() ] => Float;
+
+    # 3. Use (Packed Strings - The Fast Way)
+    # Pack 4 floats into a 16-byte string
+    my $v1 = pack( 'f4', 1.0, 2.0, 3.0, 4.0 );
+    my $v2 = pack( 'f4', 5.0, 6.0, 7.0, 8.0 );
+
+    # Add
+    my $sum_ref = add_vecs( $v1, $v2 );
+
+    # Results come back as ArrayRefs by default (for convenience)
+    say "Sum: " . join(", ", @$sum_ref); # 6, 8, 10, 12
+
+    # 4. Use (ArrayRefs - The Convenient Way)
+    # You can also pass ArrayRefs directly. Affix handles the packing.
+    my $scaled_ref = scale_vec( [1.0, 1.0, 1.0, 1.0], 0.5 );
+    say "Scaled: " . join(", ", @$scaled_ref); # 0.5, 0.5, 0.5, 0.5
+
+    # 5. Dot Product
+    my $dot = dot_vec( $v1, $v2 );
+    say "Dot Product: $dot"; # 1*5 + 2*6 + 3*7 + 4*8 = 70
+
+=head2 How It Works
+
+=over
+
+=item B<1. First-Class Types>
+
+    Vector[ 4, Float ]
+
+Affix understands that this is not just an array, but a specific machine type (128-bit register). On x64, this maps to
+C<__m128> and is passed in SSE registers (XMM0, etc.). On ARM64, it maps to NEON registers (V0, etc.).
+
+=item B<2. Packed String Input>
+
+    my $v1 = pack( 'f4', ... );
+
+This is the most efficient way to work. You are creating the raw binary layout of the vector in a Perl scalar. Affix
+simply passes the pointer to this data directly to the C function (or loads it into a register). This avoids the
+overhead of iterating over a Perl array and converting individual values.
+
+=item B<3. ArrayRef Output>
+
+By default, Affix unpacks returned vectors into a Perl ArrayRef (e.g., C<[x, y, z, w]>). This is convenient for
+debugging or light math.
+
+=back
+
+=head2 Kitchen Reminders
+
+=over
+
+=item * B<Alignment>
+
+SIMD instructions are picky about alignment. When you use C<pack>, Perl usually handles the string buffer allocation,
+but it doesn't guarantee 16-byte alignment. Affix handles the move to the register safely. If you use C<malloc> to
+store vectors for C functions, be sure to use an aligned allocation if the C library requires it.
+
+=item * B<Aliases>
+
+Affix exports aliases for common SIMD types if you import C<:types>:     * C<M128>  -> C<Vector[4, Float]>     *
+C<M128d> -> C<Vector[2, Double]>     * C<M256>  -> C<Vector[8, Float]>  (AVX)
+
+=back
+
+=head1 Chapter 16: Function Pointers in Structs (Virtual Tables)
+
+In C, Object-Oriented Programming is often simulated using structs containing function pointers. This pattern is often
+called a "VTable" (Virtual Method Table). It allows a library to call different implementations of a function depending
+on the object it is holding.
+
+Affix allows you to populate these fields with Perl subroutines, effectively creating a Perl class that C can call
+into.
+
+=head2 The Recipe
+
+We will wrap a hypothetical "Plugin" system. The C library expects a struct containing handlers for `init` and
+`process`.
+
+    use v5.40;
+    use Affix qw[:all];
+    use Affix::Compiler;
+
+    # 1. Compile C Library
+    my $c = Affix::Compiler->new();
+    $c->add( \<<~'END', lang => 'c' );
+        typedef struct {
+            const char* name;
+            int (*init)(void);
+            void (*process)(const char* data);
+        } Plugin;
+
+        void run_plugin(Plugin* p, const char* data) {
+            if (p->init()) {
+                p->process(data);
+            }
+        }
+    END
+    my $lib = $c->link;
+
+    # 2. Define Types
+    # The struct fields must include the Callback signature.
+    typedef Plugin => Struct [
+        name    => String,
+        init    => Callback[ [] => Int ],
+        process => Callback[ [String] => Void ]
+    ];
+
+    # 3. Bind
+    affix $lib, 'run_plugin', [ Pointer[Plugin()], String ] => Void;
+
+    # 4. Create the Perl "Object"
+    # We use a HashRef to represent the struct.
+    # The callback fields are populated with anonymous subs.
+    my $my_plugin = {
+        name    => "PerlPlugin v1.0",
+
+        init    => sub {
+            say "Initializing Perl Plugin...";
+            return 1; # Success
+        },
+
+        process => sub ($data) {
+            say "Processing data in Perl: $data";
+        }
+    };
+
+    # 5. Call C
+    # We pass the reference to our hash. Affix packs it into the C struct,
+    # creating trampolines for the subroutines automatically.
+    run_plugin( $my_plugin, "Some Input Data" );
+
+=head2 How It Works
+
+=over
+
+=item B<1. Nested Callbacks>
+
+    init => Callback[ [] => Int ]
+
+When you define a struct member as a C<Callback>, Affix expects a Perl CodeRef (sub) in that hash field.
+
+=item B<2. Auto-Trampolining>
+
+When you pass the HashRef C<$my_plugin> to the C function, Affix: 1. Allocates the C struct. 2. Copies the string
+"PerlPlugin v1.0". 3. Generates B<Reverse Trampolines> for the C<init> and C<process> subs. 4. Stores the function
+pointers to those trampolines in the struct.
+
+=item B<3. Execution>
+
+When C calls C<p->process(data)>, it hits the trampoline, which calls your Perl sub.
+
+=back
+
+=head2 Kitchen Reminders
+
+=over
+
+=item * B<Lifetime Management>
+
+The trampolines generated for struct members exist only for the duration of the call to C<run_plugin>. If the C library
+stores this struct pointer globally and tries to call the callbacks I<after> C<run_plugin> returns, the program will
+crash.
+
+If you need persistent callbacks, you must manually allocate the struct using C<calloc> and assigning the fields,
+ensuring the Perl variables stay in scope.
+
+=back
+
+=head1 Chapter 17: Direct Marshalling (Benchmarks)
+
+Speed. Sometimes you need a lot of it.
+
+Standard Affix calls involve a "Marshalling" phase: Perl values are converted to C values, stored in a buffer, passed
+to the JIT trampoline, and then passed to the C function. This is flexible, but adds overhead.
+
+B<Direct Marshalling> removes the middleman. Affix generates a specialized JIT trampoline that knows how to read your
+Perl variables directly.
+
+=head2 The Recipe
+
+We will compare the standard C<wrap> against C<direct_wrap> using a simple addition function.
+
+    use v5.40;
+    use Affix qw[:all];
+    use Affix::Compiler;
+    use Benchmark qw[cmpthese];
+
+    # 1. Compile
+    my $c = Affix::Compiler->new();
+    $c->add( \<<~'END', lang => 'c' );
+        int add(int a, int b) { return a + b; }
+    END
+    my $lib = $c->link;
+
+    # 2. Standard Bind
+    my $std_add = wrap $lib, 'add', [Int, Int] => Int;
+
+    # 3. Direct Bind
+    # The syntax is identical, just a different function name.
+    my $fast_add = direct_wrap $lib, 'add', [Int, Int] => Int;
+
+    # 4. Benchmark
+    my $x = 10;
+    my $y = 20;
+
+    cmpthese( -5, {
+        Standard => sub { $std_add->($x, $y) },
+        Direct   => sub { $fast_add->($x, $y) }
+    });
+
+=head2 The Results
+
+On a typical machine, Direct Marshalling can be faster for simple primitives.
+
+                   Rate Standard   Direct
+    Standard 27006813/s       --      -2%
+    Direct   27626341/s       2%       --
+
+The difference between the two grows as the number of parameters grows.
+
+=head2 How It Works
+
+=over
+
+=item * B<Standard Trampoline>
+
+    Perl Stack -> Argument Buffer -> C Trampoline -> C Function
+
+The trampoline is generic. It expects arguments to be laid out in a specific C array format.
+
+=item * B<Direct Trampoline>
+
+    Perl Stack -> C Function (via custom JIT)
+
+Affix generates machine code that calls into the Perl API (e.g. C<SvIV>) directly to fetch values from the Perl stack,
+puts them into CPU registers, and jumps straight to the target function.
+
+=back
+
+=head2 Kitchen Reminders
+
+=over
+
+=item * B<Experimental>
+
+This feature is currently marked as B<Experimental> because it is not as feature complete as the mainline affix and
+wrap functions. It supports primitives (Int, Float, Pointer) robustly, but complex aggregates (Structs by value) may
+fallback to standard marshalling or behave unexpectedly in edge cases.
+
+=item * B<Restrictions>
+
+Direct marshalling relies on knowing exact types at compile time. It is less forgiving of type mismatches (e.g. passing
+an Object where an Int is expected) than the standard path, which often attempts coercion.
+
+=back
+
+=head1 Chapter 18: Troubleshooting & Debugging
+
+When Perl goes wrong, you get an error message. When C goes wrong, you get a Segmentation Fault, a frozen terminal, or
+data corruption that only shows up three hours later.
+
+This chapter provides a survival kit for when things go bump in the night.
+
+=head2 The Bug: The Vanishing Callback
+
+A common source of crashes in FFI is the **Scope Mismatch**. Perl relies on Reference Counting. C relies on you knowing
+what you are doing.
+
+    # 1. C Library (Event System)
+    # void register_handler(void (*cb)(void));
+    # void trigger_event();
+
+    # 2. Perl Binding
+    affix $lib, 'register_handler', [ Callback[ []=>Void ] ] => Void;
+    affix $lib, 'trigger_event',    [] => Void;
+
+    # 3. The Buggy Code
+    sub setup {
+        # We pass an anonymous subroutine.
+        # Affix creates a trampoline for it.
+        register_handler( sub { say "Event!" } );
+
+        # END OF SCOPE
+        # The anonymous sub has refcount 0. Perl frees it.
+        # The trampoline is destroyed.
+    }
+
+    setup();
+
+    # ... later ...
+    trigger_event(); # SEGFAULT! C jumps to freed memory.
+
+=head2 The Fix
+
+You must ensure the Perl CodeRef lives as long as the C library needs it.
+
+    my $KEEP_ALIVE; # Global or Object-level storage
+
+    sub setup {
+        $KEEP_ALIVE = sub { say "Event!" };
+        register_handler( $KEEP_ALIVE );
+    }
+
+    # ...
+    trigger_event(); # Works!
+
+=head2 The Debugging Toolbox
+
+Affix provides tools to inspect raw memory and internal states.
+
+=head3 1. C<Affix::dump( $ptr, $bytes )>
+
+If you suspect struct alignment issues or garbage data, look at the raw bytes.
+
+    my $ptr = malloc(16);
+    # ... C writes to ptr ...
+
+    # Dump 16 bytes to STDOUT in Hex/ASCII format
+    Affix::dump($ptr, 16);
+
+=head3 2. C<address( $ptr )> & C<is_null( $ptr )>
+
+Sanity check your pointers. A pointer value of C<0> (NULL) or C<0xFFFFFF...> (Uninitialized memory) is a smoking gun.
+
+    my $ptr = some_c_function();
+    say sprintf("Pointer address: 0x%X", address($ptr));
+
+=head3 3. C<get_system_error()>
+
+If a C function returns C<-1> or C<NULL> to indicate failure, it usually sets a system error code (errno/GetLastError).
+
+    if ( some_call() < 0 ) {
+        die "C Error: " . get_system_error();
+    }
+
+=head3 4. C<sv_dump( $scalar )>
+
+Debugging the Perl side. If Affix refuses to accept a variable, checking its internal flags (Integer vs String,
+Read-only status) often reveals why.
+
+    my $val = 10;
+    sv_dump($val);
+    # flags=IOK,pIOK... (Good, it's a number)
+
+=head2 Common Pitfalls
+
+=over
+
+=item * B<Writing to Strings>
+
+C<String> arguments (C<const char*>) are read-only copies. If the C function modifies the string in-place, you MUST use
+C<Pointer[Char]> and pass a mutable scalar.
+
+=item * B<Struct Padding>
+
+C compilers insert padding bytes to align members. If your Perl C<Struct[...]> definition doesn't match the C
+compiler's packing rules, fields will be read from the wrong offsets. Use C<dump()> to verify alignment.
+
+=item * B<VarArg Types>
+
+Passing a Perl float to a variadic function? It promotes to C<double>. Passing an Int? It promotes to C<int64_t>. If
+the C function expects a 32-bit int, use C<coerce(Int32, $val)>.
+
+=back
+
+=head1 SEE ALSO
+
+L<Affix> - The main documentation.
+
+=cut
