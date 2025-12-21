@@ -6,9 +6,13 @@ use Affix               qw[:all];
 use Affix::Compiler;
 use Config;
 use ExtUtils::Embed;
+#
+$Config{useshrplib} eq 'true' || exit skip_all 'Cannot embed perl in a shared lib without building a shared libperl.';
 
+# See https://metacpan.org/release/RJBS/perl-5.36.0/view/INSTALL#Building-a-shared-Perl-library
+#
 # 1. Compile C Library 1 (Basic Operations)
-my $lib = compile_ok( <<~'END', { cflags => ExtUtils::Embed::ccopts() . ' -IC:\STRAWB~1\perl\lib\CORE', ldflags => ExtUtils::Embed::ldopts() } );
+my $lib = compile_ok( <<~'END', { cflags => ExtUtils::Embed::ccopts(), ldflags => ExtUtils::Embed::ldopts() } );
         #include "std.h"
         //ext: .c
         #undef warn
