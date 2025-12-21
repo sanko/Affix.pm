@@ -5,7 +5,7 @@ use Test2::Tools::Affix qw[:all];
 use Affix               qw[:all];
 #
 $|++;
-my $lib = compile_ok( <<'END_C', 'lvalue param lib' );
+my $lib = compile_ok( <<'END_C', { name => 'lvalue param lib' } );
 #include "std.h"
 //ext: .c
 #include <stdlib.h>

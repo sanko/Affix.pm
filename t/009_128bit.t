@@ -38,7 +38,7 @@ my $c_source = <<'END_C';
 END_C
 
 # Compile the library
-my $lib = compile_ok( $c_source, "Compiled extended types library" );
+my $lib = compile_ok($c_source);
 
 # Check if the C compiler supported it
 my $check = wrap( $lib, 'has_int128', [] => Int );

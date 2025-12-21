@@ -161,5 +161,35 @@ void * test( ) { void * ret = "Testing"; return ret; }
         is Affix::cast( $string_ptr, String ), 'Testing', 'cast($ptr, String) returns value';
     }
 };
+subtest 'affix/wrap function pointer' => sub {
+    my $lib = compile_ok(<<~'');
+    #include "std.h"
+    //ext: .c
+    DLLEXPORT int add(int a, int b) { return a + b; }
+
+
+    # Get address via find_symbol (simulating getting it from vtable or dlsym)
+    my $ptr = find_symbol( load_library($lib), 'add' );
+    ok $ptr, 'Got function pointer';
+
+    # Test wrap(undef, $ptr, ...)
+    subtest 'wrap(undef, $ptr, ...)' => sub {
+        my $fn = wrap( undef, $ptr, [ Int, Int ] => Int );
+        is $fn->( 10, 20 ), 30, 'Wrapped raw function pointer works';
+    };
+
+    # Test affix(undef, [$ptr => 'name'], ...)
+    subtest 'affix(undef, [$ptr => name], ...)' => sub {
+        affix( undef, [ $ptr => 'my_add' ], [ Int, Int ] => Int );
+        is my_add( 5, 5 ), 10, 'Affixed raw function pointer works';
+    };
+
+    # 4. Test wrap with explicit raw integer (simulating cast)
+    subtest 'wrap(undef, int_addr, ...)' => sub {
+        my $addr = address($ptr);                               # Convert Pin to UV
+        my $fn   = wrap( undef, $addr, [ Int, Int ] => Int );
+        is $fn->( 3, 4 ), 7, 'Wrapped raw integer address works';
+    };
+};
 #
 done_testing;

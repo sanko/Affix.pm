@@ -16,17 +16,20 @@ Based on infix v0.1.3
     - Added `variadic_cache` to cache trampolines for repeated calls, ensuring high performance.
     - Implemented runtime type inference: Perl integers promote to `sint64`, floats to `double`, and strings to `*char`.
   - Added `Affix::coerce($type, $value)` to explicitly hint types for variadic arguments. This allows passing structs by value or forcing specific integer widths where inference is insufficient.
+  - Cookbook: Added 30+ chapters of documentation covering everything from basic calls to coroutines and C++ v-table hacking.
+  - Raw Function Pointers: `wrap` and `affix` now accept raw memory addresses (integers) or Pins as targets.
+  - `affix` and `wrap` functions now accept an address to bind to. This expects the library to be `undef` and jumps past the lib location and loading steps.
 
 ### Changed
 
-  - `malloc` now accepts an optional second argument (Type) to immediately cast the returned pointer (e.g., `malloc(16, Int)`).
-  - `Array[Char]` function arguments now accept Perl Strings directly, copying the string data into the temporary C array.
+  - `Array[Char]` function arguments now accept Perl strings directly, copying the string data into the temporary C array.
 
 ### Fixed
 
-  - Correctly implemented "Array Decay" for function arguments. `Array[...]` types are now marshalled into temporary C arrays and passed as pointers, matching standard C behavior. Previously, they were incorrectly passed by value, causing stack corruption.
+  - Correctly implemented "Array Decay" for function arguments on ARM and Win64. `Array[...]` types are now marshalled into temporary C arrays and passed as pointers, matching standard C behavior. Previously, they were incorrectly passed by value, causing stack corruption.
   - Fixed binary safety for `Array[Char/UChar]`. Reading these arrays now respects the explicit length rather than stopping at the first null byte.
   - The write-back mechanism no longer attempts to overwrite the read-only ArrayRef scalar with the pointer address.
+  - `Pointer[SV]` is now handled properly as args, return values, and in callbacks. Reference counting is automatic to prevent premature garbage collection of passed scalars.
 
 ## [v1.0.2] - 2025-12-14
 

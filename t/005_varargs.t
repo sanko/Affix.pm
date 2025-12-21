@@ -47,7 +47,7 @@ DLLEXPORT int var_sum(const char *fmt, ...) {
     return total;
 }
 END_C
-my $lib = compile_ok( $c_code, 'variadic_dynamic_lib' );
+my $lib = compile_ok( $c_code, { name => 'variadic_dynamic_lib' } );
 
 # 2. Bind with "Empty" Variadic Signature
 # We define the fixed arguments (*char) and end with a semicolon.

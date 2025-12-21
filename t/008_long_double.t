@@ -26,7 +26,7 @@ END_C
 # On FreeBSD/ARM64, 128-bit float runtime support might be missing in shared libs?
 skip_all 'Skipping Long Double on FreeBSD ARM64 due to missing runtime symbols' if $^O eq 'freebsd' && $Config{archname} =~ /aarch64/;
 #
-my $lib = compile_ok( $c_source, "Compiled extended types library" );
+my $lib = compile_ok($c_source);
 #
 isa_ok my $add = wrap( $lib, 'add_ld', [ LongDouble, LongDouble ] => LongDouble ), ['Affix'];
 my $res = $add->( 1.5, 2.5 );

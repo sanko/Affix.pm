@@ -361,7 +361,7 @@ package Affix v1.0.2 {    # 'FFI' is my middle name!
     # Semantic aliases and convienient types
     sub String ()  {'*char'}
     sub WString () {'*ushort'}
-    sub SV()       {'SV'}
+    sub SV()       {'@SV'}
 
     # Helper for Struct/Union to handle "Name => Type" syntax
     sub _build_aggregate {

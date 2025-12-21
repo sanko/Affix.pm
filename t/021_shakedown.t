@@ -71,7 +71,7 @@ DLLEXPORT int sum_list(Node* head) {
 }
 END_C
 #
-my $lib = compile_ok( $c_source, "Compiling test library" );
+my $lib = compile_ok($c_source);
 ok( $lib, "Library compiled at $lib" );
 #
 typedef Point => Struct [ x => Int, y => Int ];

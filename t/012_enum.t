@@ -45,7 +45,7 @@ DLLEXPORT MachineState get_next_state(MachineState s) {
     return STATE_ERROR;
 }
 END_C
-my $lib = compile_ok( $c_source, 'Compiled Enum test library' );
+my $lib = compile_ok($c_source);
 #
 subtest 'Enum Definition & Constants' => sub {
 

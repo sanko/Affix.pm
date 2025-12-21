@@ -49,7 +49,7 @@ DLLEXPORT double ld_to_d(long double a) {
 END_C
 
 # Compile the library
-my $lib   = compile_ok( $c_source, "Compiled extended types library" );
+my $lib   = compile_ok($c_source);
 my $check = wrap( $lib, 'has_vector', [] => Int );
 if ( !$check->() ) {
     skip_all "Compiler does not support vector extensions";

@@ -7,6 +7,7 @@ use File::Spec;
 use Carp          qw[croak];
 use Capture::Tiny qw[capture];
 use ExtUtils::MakeMaker;
+use Text::ParseWords;
 
 class Affix::Compiler {
 
@@ -44,10 +45,10 @@ class Affix::Compiler {
         # We prefer C++ drivers (g++, clang++) to handle standard libraries for mixed code (C+Rust, C+C++)
         $linker = $self->_can_run(qw[g++ clang++ c++ icpx]) || $self->_can_run(qw[cc gcc clang icx cl]) || 'c++';
 
-        # Parse Global Flags
-        @cflags   = split( ' ', $flags->{cflags}   // '' );
-        @cxxflags = split( ' ', $flags->{cxxflags} // '' );
-        @ldflags  = split( ' ', $flags->{ldflags}  // '' );
+        # Parse global flags...
+        @cflags   = map { chomp; $_ } grep { defined && length } Text::ParseWords::parse_line( q/ /, 1, $flags->{cflags}   // '' );
+        @cxxflags = map { chomp; $_ } grep { defined && length } Text::ParseWords::parse_line( q/ /, 1, $flags->{cxxflags} // '' );
+        @ldflags  = map { chomp; $_ } grep { defined && length } Text::ParseWords::parse_line( q/ /, 1, $flags->{ldflags}  // '' );
     }
 
     method add ( $input, %args ) {
@@ -110,15 +111,10 @@ class Affix::Compiler {
             push @libs,  @{ $res->{libs} } if $res->{libs};
         }
 
-        # --- Link Step ---
+        # Link step
         my @cmd = ($linker);
         push @cmd, $os eq 'MSWin32' ? ('-shared') : ( '-shared', '-fPIC' );
-
-        # MinGW Export Fix: Ensure symbols are visible if not explicitly exported
-        if ( $os eq 'MSWin32' && $linker =~ /gcc|g\+\+|clang/ ) {
-            push @cmd, '-Wl,--export-all-symbols';
-        }
-        push @cmd, @ldflags;    # Global LDFLAGS
+        push @cmd, '-Wl,--export-all-symbols' if $os eq 'MSWin32' && $linker =~ /gcc|g\+\+|clang/;
         push @cmd, '-o', $libname->stringify;
 
         # MinGW Static Lib Fix: --whole-archive ensures unused symbols (like language runtimes) are kept
@@ -137,6 +133,7 @@ class Affix::Compiler {
             next if $seen{$l}++;
             push @cmd, "-l$l";
         }
+        push @cmd, @ldflags;
         $self->_run(@cmd);
         return $libname;
     }
@@ -173,8 +170,11 @@ class Affix::Compiler {
 
     method _run (@cmd) {
         print STDERR "[Affix] Exec: @cmd\n" if $debug;
+
+        # use Data::Dump;
+        # ddx \@cmd;
         my ( $stdout, $stderr, $exit ) = capture {
-            system(@cmd);
+            system join ' ', @cmd;
         };
         if ( !!$exit ) {
             warn $stdout if $stdout;
@@ -203,7 +203,7 @@ class Affix::Compiler {
         if ( $mode eq 'dynamic' ) {
 
             # Combine Global CFLAGS + Local Flags + Global LDFLAGS
-            my @cmd = ( $cc, '-shared', @cflags, @local, @ldflags, '-o', "$out", "$file" );
+            my @cmd = ( $cc, '-shared', @cflags, @local, "$file", '-o', "$out", @ldflags );
             push @cmd, '-fPIC' unless $os eq 'MSWin32';
             $self->_run(@cmd);
             return $out;
@@ -224,7 +224,7 @@ class Affix::Compiler {
         my @local = @{ $src->{flags} };
         my $cxx   = ( $Config{cc} =~ /gcc/ ) ? 'g++' : ( ( $Config{cc} =~ /clang/ ) ? 'clang++' : 'c++' );
         if ( $mode eq 'dynamic' ) {
-            my @cmd = ( $cxx, '-shared', @cxxflags, @local, @ldflags, '-o', "$out", "$file" );
+            my @cmd = ( $cxx, '-shared', @cxxflags, @local, "$file", '-o', "$out", @ldflags );
             push @cmd, '-fPIC' unless $os eq 'MSWin32';
             $self->_run(@cmd);
             return $out;
@@ -264,9 +264,9 @@ class Affix::Compiler {
                 $compiled = 1;
             }
         }
-        croak "Assembly failed" unless $compiled && -e "$obj";
+        croak 'Assembly failed' unless $compiled && -e "$obj";
         if ( $mode eq 'dynamic' ) {
-            my @cmd = ( $linker, '-shared', @ldflags, '-o', "$out", "$obj" );
+            my @cmd = ( $linker, '-shared', "$obj", '-o', "$out", @ldflags );
             push @cmd, '-fPIC' unless $os eq 'MSWin32';
             if ( $os eq 'MSWin32' && $linker =~ /gcc|g\+\+/ ) {
                 push @cmd, '-Wl,--export-all-symbols';
@@ -440,7 +440,7 @@ XML
         my @local = @{ $src->{flags} };
         my $fc    = $self->_can_run(qw[gfortran ifx ifort]) // croak "No Fortran compiler";
         if ( $mode eq 'dynamic' ) {
-            my @cmd = ( $fc, '-shared', @local, @ldflags, '-o', "$out", "$file" );
+            my @cmd = ( $fc, '-shared', @local, "$file", '-o', "$out", @ldflags );
             push @cmd, '-fPIC' unless $os eq 'MSWin32';
             $self->_run(@cmd);
             return $out;

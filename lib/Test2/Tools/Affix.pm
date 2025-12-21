@@ -43,7 +43,7 @@ package Test2::Tools::Affix v0.12.0 {
         }
     }
     #
-    sub compile_ok( $name, $aggs //= '', $keep //= 0 ) {
+    sub compile_ok( $name, $aggs //= {}, $keep //= 0 ) {
         my $c = context();
 
         #~ return $c->pass_and_release($name) if 1;
@@ -69,7 +69,8 @@ package Test2::Tools::Affix v0.12.0 {
             $c->release;
             return ();
         }
-        my $compiler = Affix::Compiler->new( name => 'testing', version => '1.0', flags => { cflags => '-I' . $Inc } );
+        $aggs->{cflags} .= ' -I' . $Inc;
+        my $compiler = Affix::Compiler->new( debug => 0, name => 'testing', version => '1.0', flags => $aggs );
         $compiler->add( $opt->canonpath );
         $compiler->link;
         push @cleanup, $opt->canonpath, $compiler->link unless $keep;
