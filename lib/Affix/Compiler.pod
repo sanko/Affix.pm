@@ -30,11 +30,16 @@ Affix::Compiler - A robust, polyglot build system for FFI extensions
 
 =head1 DESCRIPTION
 
-C<Affix::Compiler> is a cross-platform compilation utility designed to generate shared libraries (C<.dll>, C<.so>, C<.dylib>) from source code in over 15 different programming languages.
+C<Affix::Compiler> is a cross-platform compilation utility designed to generate shared libraries (C<.dll>, C<.so>,
+C<.dylib>) from source code in over 15 different programming languages.
 
-It is specifically engineered to support Foreign Function Interface (FFI) development. It abstracts away the complexity of invoking various compilers, normalizing object file extensions, handling platform-specific linker flags (such as MinGW vs MSVC on Windows), and ensuring that language runtimes (like the Go GC or .NET Runtime) are correctly initialized.
+It is specifically engineered to support Foreign Function Interface (FFI) development. It abstracts away the complexity
+of invoking various compilers, normalizing object file extensions, handling platform-specific linker flags (such as
+MinGW vs MSVC on Windows), and ensuring that language runtimes (like the Go GC or .NET Runtime) are correctly
+initialized.
 
-To be honest, this might be an easy backdoor way to get the functionality of an L<Inline> module but I wrote it to test against compiled libs in the Affix test suite.
+To be honest, this might be an easy backdoor way to get the functionality of an L<Inline> module but I wrote it to test
+against compiled libs in the Affix test suite.
 
 =head2 Build Strategies
 
@@ -44,13 +49,16 @@ The compiler automatically selects the best build strategy based on the input so
 
 =item 1. B<Native/Dynamic Strategy> (Single Language)
 
-If you provide source files for only B<one> language, C<Affix::Compiler> delegates the entire build process to that language's native toolchain (e.g., `go build -buildmode=c-shared`, `rustc --crate-type cdylib`, `dotnet publish`).
+If you provide source files for only B<one> language, C<Affix::Compiler> delegates the entire build process to that
+language's native toolchain (e.g., `go build -buildmode=c-shared`, `rustc --crate-type cdylib`, `dotnet publish`).
 
-This is the preferred method as it guarantees the language's standard library and runtime environment are configured exactly as the language maintainers intended.
+This is the preferred method as it guarantees the language's standard library and runtime environment are configured
+exactly as the language maintainers intended.
 
 =item 2. B<Polyglot/Static Strategy> (Mixed Languages)
 
-If you provide source files from B<multiple> languages (e.g., C calling into Rust), the compiler switches to an aggregation strategy:
+If you provide source files from B<multiple> languages (e.g., C calling into Rust), the compiler switches to an
+aggregation strategy:
 
 =over
 
@@ -74,11 +82,13 @@ Creates a new compiler instance.
 
 =item C<name> (Default: C<'affix_lib'>)
 
-The base name of the resulting library. The compiler will automatically append the OS-specific extension (C<.dll> on Windows, C<.dylib> on macOS, C<.so> on Linux).
+The base name of the resulting library. The compiler will automatically append the OS-specific extension (C<.dll> on
+Windows, C<.dylib> on macOS, C<.so> on Linux).
 
 =item C<build_dir> (Default: Temporary Directory)
 
-The directory where intermediate artifacts and the final library will be written. If not provided, a temporary directory is created via L<Path::Tiny> and cleaned up when the object is destroyed.
+The directory where intermediate artifacts and the final library will be written. If not provided, a temporary
+directory is created via L<Path::Tiny> and cleaned up when the object is destroyed.
 
 =item C<debug> (Default: 0)
 
@@ -105,10 +115,12 @@ Override the detected operating system (useful for testing).
 
 Adds a source file to the build manifest. The compiler auto-detects the language based on the file extension.
 
-You can also pass raw source code as a SCALAR reference; in this case, the C<lang> argument is required (e.g., C<'c'>, C<'rust'>, C<'go'>). See L</SUPPORTED LANGUAGES> for a list of recognized extensions.
+You can also pass raw source code as a SCALAR reference; in this case, the C<lang> argument is required (e.g., C<'c'>,
+C<'rust'>, C<'go'>). See L</SUPPORTED LANGUAGES> for a list of recognized extensions.
 
 
-Optionally, this method accepts a C<flags> argument (string or arrayref) to pass specific flags to the compiler for this file.
+Optionally, this method accepts a C<flags> argument (string or arrayref) to pass specific flags to the compiler for
+this file.
 
 See L</SUPPORTED LANGUAGES> for a list of recognized extensions.
 
@@ -128,12 +140,12 @@ Performs the build process:
 
 =back
 
-Returns a L<Path::Tiny> object pointing to the generated shared library.
-Dies with a detailed error message (including STDOUT/STDERR of the failed command) if compilation fails.
+Returns a L<Path::Tiny> object pointing to the generated shared library. Dies with a detailed error message (including
+STDOUT/STDERR of the failed command) if compilation fails.
 
 =head2 C<link( )>
 
-An alias for L</compile_and_link> but only compiles and links if the state hasn't changed since the last build.
+An alias for L</compile_and_link( )> but only compiles and links if the state hasn't changed since the last build.
 
 =head1 SUPPORTED LANGUAGES
 

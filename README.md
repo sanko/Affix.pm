@@ -93,19 +93,15 @@ Affix's API is designed to be expressive. Let's start at the beginning with the 
 Attaches a given symbol to a named perl sub in the current namespace.
 
 ```perl
-affix libm, 'pow', [Double, Double] => Double;
-warn pow( 3, 5 );
+# 1. Standard: Load from library
+affix $lib, 'pow', [Double, Double] => Double;
 
-affix libc, 'puts', [String], Int;
-puts( 'Hello' );
+# 2. Rename: Load 'pow', install as 'power'
+affix $lib, ['pow' => 'power'], [Double, Double] => Double;
 
-# Rename a function during import
-affix './mylib.dll', ['output', 'write'], [String], Int;
-write( 'Hello' );
-
-# Use current process symbols (e.g. standard C library)
-affix undef, [ 'rint', 'round' ], [Double], Double;
-warn round(3.14);
+# 3. Raw Pointer: Bind a specific memory address
+# Useful for vtables, JIT code, or manual dlsym
+affix undef, [ $ptr => 'my_func' ], [Int] => Void;
 ```
 
 Parameters:
@@ -141,8 +137,12 @@ On success, `affix( ... )` installs the subroutine and returns the generated cod
 Creates a wrapper around a given symbol but returns it as an anonymous CodeRef.
 
 ```perl
-my $pow = wrap libm, 'pow', [Double, Double] => Double;
-warn $pow->(5, 10); # 5**10
+# 1. From Library
+my $pow = wrap $lib, 'pow', [Double, Double] => Double;
+
+# 2. From Raw Pointer
+# Note: Library argument is undef
+my $func = wrap undef, $ptr, [Int] => Void;
 ```
 
 Arguments are nearly identical to ["affix( ... )"](#affix). `wrap( ... )` allows you to use FFI functions without polluting
@@ -243,8 +243,8 @@ Convenience functions that return handles to the standard C library and Math lib
 
 # MEMORY FUNCTIONS
 
-Affix uses a concept called **pins** to manage C pointers safely. A pin is a magical scalar reference that
-holds a raw memory address.
+Affix uses a concept called **pins** to manage C pointers safely. A pin is a magical scalar reference that holds a raw
+memory address.
 
 Memory functions are exported via the `:memory` or `:all` tags.
 
@@ -256,7 +256,7 @@ my $ptr = malloc( 1024 );
 
 Allocates `$size` bytes of uninitialized storage. Returns a **Pin** typed as `Pointer[Void]`.
 
-To read or write to this memory, you must ["cast( ... )"](#cast) it to a specific type or use `memcpy`.
+To read or write to this memory, you must ["cast( $ptr, $type )"](#cast-ptr-type) it to a specific type or use `memcpy`.
 
 ## `calloc( $num, $size_or_type )`
 
@@ -570,7 +570,8 @@ handle_event( { pressure => 0.5 } );
 
 - **Fixed-Size Arrays (`Array[Type, N]`)**
 
-    Fixed-size C arrays are mapped to Perl Array References. Affix handles the decay to pointers and automatically writes back changes to your Perl array.
+    Fixed-size C arrays are mapped to Perl Array References. Affix handles the decay to pointers and automatically writes
+    back changes to your Perl array.
 
     ```perl
     # C: void process_matrix(int matrix[9]);
@@ -582,9 +583,11 @@ handle_event( { pressure => 0.5 } );
 
 - **Binary Data**
 
-    For arrays of bytes (`Array[UChar]` or `Array[UInt8]`), Affix treats the data as a raw binary blob. Dereferencing a Pin of this type yields a binary string, reading exactly the number of bytes specified.
+    For arrays of bytes (`Array[UChar]` or `Array[UInt8]`), Affix treats the data as a raw binary blob. Dereferencing a
+    Pin of this type yields a binary string, reading exactly the number of bytes specified.
 
-    For arrays of characters (`Array[Char]` or `Array[SInt8]`), Affix treats the data as a C String, reading until the first null terminator or the array limit.
+    For arrays of characters (`Array[Char]` or `Array[SInt8]`), Affix treats the data as a C String, reading until the
+    first null terminator or the array limit.
 
 ## SIMD Vectors
 
@@ -652,8 +655,8 @@ printf("Hello %s, count is %d\n", "World", 123);
 
 ### Hinting Types with `coerce()`
 
-Sometimes standard inference isn't enough (e.g., passing a `float` instead of `double`, or passing a Struct by value).
-Use `coerce($type, $value)` to explicitly hint the type.
+Sometimes standard inference isn't enough (e.g., passing a `float` instead of `double`, or passing a Struct by
+value). Use `coerce($type, $value)` to explicitly hint the type.
 
 ```perl
 # Passing a struct by value to a variadic function

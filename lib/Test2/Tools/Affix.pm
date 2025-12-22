@@ -1,4 +1,5 @@
-package Test2::Tools::Affix v0.12.0 {
+package    #
+    Test2::Tools::Affix v0.12.0 {
     use v5.40;
     use blib;
     use Affix;
@@ -366,5 +367,5 @@ exit !$exit;
             $dir->remove_tree;
         }
     }
-};
+    };
 1;
