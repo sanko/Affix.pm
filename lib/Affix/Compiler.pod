@@ -118,7 +118,6 @@ Adds a source file to the build manifest. The compiler auto-detects the language
 You can also pass raw source code as a SCALAR reference; in this case, the C<lang> argument is required (e.g., C<'c'>,
 C<'rust'>, C<'go'>). See L</SUPPORTED LANGUAGES> for a list of recognized extensions.
 
-
 Optionally, this method accepts a C<flags> argument (string or arrayref) to pass specific flags to the compiler for
 this file.
 

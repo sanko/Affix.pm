@@ -1,0 +1,151 @@
+=pod
+
+=encoding utf-8
+
+=head1 NAME
+
+Affix::Bind - Frictionless C Header Introspection and FFI Wrapper Generation
+
+=head1 SYNOPSIS
+
+    use Affix::Bind;
+
+    # 1. Configure the binder with header files
+    my $binder = Affix::Bind->new(
+        project_files => [ 'include/mylib.h', 'include/mylib_types.h' ],
+        include_dirs  => [ '/usr/local/include', 'inc/' ],
+    );
+
+    # 2. Parse the headers into an Abstract Syntax Tree (AST)
+    my $ast = $binder->parse;
+
+    # 3. Iterate over the findings to generate Affix code or attach at runtime
+    for my $node (@$ast) {
+        if ( $node isa Affix::Bind::Function ) {
+            say "Found function: " . $node->name;
+            say "Returns: "        . $node->ret;
+            say "Arguments: "      . join(', ', @{$node->args});
+            say "Documentation: "  . $node->doc if $node->doc;
+        }
+        elsif ( $node isa Affix::Bind::Struct ) {
+            say "Found struct: " . $node->name;
+            foreach my $member (@{$node->members}) {
+                say "  - " . $member->name . " (" . $member->type . ")";
+            }
+        }
+    }
+
+=head1 DESCRIPTION
+
+C<Affix::Bind> acts as a bridge between C/C++ header files and the B<Affix> FFI system. It parses C header files to
+extract structured metadata about functions, structs, enums, typedefs, and macros.
+
+This allows you to: 1.  **Generate FFI wrappers at runtime:** Point `Affix::Bind` at a header, scan it, and
+automatically call `Affix::attach`. 2.  **Generate static Perl modules:** Create a build script that scans headers and
+outputs a ready-to-ship Perl module using `Affix`. 3.  **Introspect C libraries:** Analyze a library's API surface for
+documentation or validation purposes.
+
+=head2 Drivers
+
+Affix::Bind utilizes a dual-driver approach to parsing:
+
+=over
+
+=item * Clang driver
+
+The preferred driver. It uses the system's C<clang> executable to dump the AST in JSON format. It is extremely accurate, handles C preprocessor logic (macros, includes), and resolves complex typedef chains correctly.
+
+=item * Regex driver
+
+A fallback driver implemented in pure Perl. It scans headers using regular expressions. While zero-dependency, it may struggle with heavily macro-laden code or complex C++ templates.
+
+=head1 CONSTRUCTOR
+
+=head2 C<new( ... )>
+
+    my $binder = Affix::Bind->new( %params );
+
+Creates a new binding instance.
+
+=over
+
+=item C<project_files> - required
+
+An array reference of paths to the C<.h> (or C<.hpp>, C<.hxx>) files you wish to parse.
+
+=item C<include_dirs>
+
+An array reference of paths to search for C<#include "..."> directives. The directory of every file in C<project_files> is automatically added to this list.
+
+=back
+
+=head1 METHODS
+
+=head2 parse
+
+    my $objects = $binder->parse( $entry_point, $include_dirs );
+
+Parses the project files and returns an array reference of Nodes. The nodes are sorted by file name and line number.
+
+=head1 DATA MODEL
+
+The C<parse( )> method returns a list of objects inheriting from C<Affix::Bind::Entity>.
+
+=head2 Common Attributes
+
+All nodes share these attributes:
+
+=over
+
+=item * C<name>: The identifier name (e.g., C<BUF_SIZE>, C<my_func>).
+
+=item * C<doc>: Extracted Doxygen style comments preceeding the definition.
+
+=item * C<file>: The source file path.
+
+=item * C<line> / C<end_line>: Line numbers defining the range of the definition.
+
+=back
+
+=head2 Affix::Bind::Function
+
+Represents a C function declaration.
+
+    say $func->ret;          # e.g., "int", "void *"
+    say $func->args->[0];    # e.g., "const char * src"
+    say $func->mangled_name; # Linker symbol (if available/needed)
+
+=head2 Affix::Bind::Struct
+
+Represents a C<struct> or C<union>.
+
+    say $struct->tag;        # "struct" or "union"
+    foreach my $mem (@{ $struct->members }) {
+        # $mem is an Affix::Bind::Member
+        say $mem->name;
+        say $mem->type;
+        say $mem->doc;
+    }
+
+=head2 Affix::Bind::Enum
+
+Represents an C<enum>.
+
+    foreach my $const (@{ $enum->constants }) {
+        say $const->{name} . " = " . $const->{value};
+    }
+
+=head2 Affix::Bind::Typedef
+
+Represents a C<typedef>. Affix::Bind attempts to "resolve" typedefs. If a typedef points to an anonymous struct
+defined immediately adjacent to it, Affix::Bind will merge them into a single named Affix::Bind::Struct.
+
+    say $typedef->underlying; # e.g., "unsigned int"
+
+=head2 Affix::Bind::Macro
+
+Represents a C<#define> that contains a literal value. Complex function-like macros are generally ignored.
+
+    say $macro->value; # e.g., "1024", "Version 1.0"
+
+=cut

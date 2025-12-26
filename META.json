@@ -108,6 +108,19 @@
          "file" : "lib/Affix.pm",
          "version" : "v1.0.2"
       },
+      "Affix::Bind" : {
+         "file" : "lib/Affix/Bind.pm",
+         "version" : "v1.0.0"
+      },
+      "Affix::Bind::Driver" : {
+         "file" : "lib/Affix/Bind.pm"
+      },
+      "Affix::Bind::Entity" : {
+         "file" : "lib/Affix/Bind.pm"
+      },
+      "Affix::Bind::Member" : {
+         "file" : "lib/Affix/Bind.pm"
+      },
       "Affix::Compiler" : {
          "file" : "lib/Affix/Compiler.pm",
          "version" : "v1.0.3"
