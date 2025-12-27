@@ -459,7 +459,7 @@ package Affix v1.0.2 {    # 'FFI' is my middle name!
                 for my $item (@$elements) {
                     my ( $name, $final_val );
 
-                    # 1. Determine Name and Raw Value Source
+                    # Determine Name and Raw Value Source
                     if ( !ref $item ) {
 
                         # Case: 'NAME' (Auto-increment)
@@ -472,7 +472,7 @@ package Affix v1.0.2 {    # 'FFI' is my middle name!
                         my $raw_val;
                         ( $name, $raw_val ) = @$item;
 
-                        # 2. Calculate Value
+                        # Calculate Value
                         if ( $raw_val =~ /^-?\d+$/ ) {
 
                             # Literal Integer
@@ -492,7 +492,7 @@ package Affix v1.0.2 {    # 'FFI' is my middle name!
                         Carp::croak("Enum elements must be Strings or [Name => Value] ArrayRefs");
                     }
 
-                    # 3. Store and Increment
+                    # Store and Increment
                     $const_map->{$name} = $final_val;
 
                     # Only map value->name if not already mapped (first name for a value wins in C usually)
@@ -502,15 +502,12 @@ package Affix v1.0.2 {    # 'FFI' is my middle name!
                 return ( $const_map, $values_map );
             }
 
-            # Extended Shunting-yard algorithm
+            # Shunting-yard algorithm
             # Handles: + - * / % << >> | & ^ ~ ! ( ) && || == != < <= > >= ? :
             method _calculate_expr( $expr, $lookup ) {
+                use integer;    # Force signed integer arithmetic to match C enums. This ensures ~0 becomes -1, not 18446744073709551615.
 
-                # Force signed integer arithmetic to match C enums.
-                # This ensures ~0 becomes -1, not 18446744073709551615.
-                use integer;
-
-                # 1. Tokenize: Split on operators
+                # Tokenize: Split on operators
                 # Regex matches:
                 # - Multi-char ops: << >> && || == != <= >=
                 # - Single-char ops: + - * / % | & ^ ~ ! ( ) ? : < >
@@ -518,7 +515,7 @@ package Affix v1.0.2 {    # 'FFI' is my middle name!
                 # - Identifiers
                 my @tokens = $expr =~ /(0x[0-9a-fA-F]+|\d+|[a-zA-Z_]\w*|<<|>>|&&|\|\||==|!=|<=|>=|[+\-*\/%|&^~!?:()<>])/g;
 
-                # 2. Resolve Identifiers
+                # Resolve Identifiers
                 for my $t (@tokens) {
                     next if $t =~ /^(?:<<|>>|&&|\|\||==|!=|<=|>=|[+\-*\/%|&^~!?:()<>])$/;
                     next if $t =~ /^\d+$/;
@@ -535,7 +532,7 @@ package Affix v1.0.2 {    # 'FFI' is my middle name!
                     $t = hex($t) if $t =~ /^0x/;
                 }
 
-                # 3. Shunting-yard
+                # Shunting-yard
                 my @output_queue;
                 my @op_stack;
 
@@ -623,7 +620,7 @@ package Affix v1.0.2 {    # 'FFI' is my middle name!
                 }
                 push @output_queue, pop @op_stack while @op_stack;
 
-                # 4. RPN Evaluator
+                # RPN Evaluator
                 my @stack;
                 for my $token (@output_queue) {
                     if ( $token =~ /^\d+$/ ) {
