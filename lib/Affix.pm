@@ -64,6 +64,7 @@ package Affix v1.0.2 {    # 'FFI' is my middle name!
             SV
             File PerlIO
             StringList
+            Buffer SockAddr
             M256 M256d M512 M512d M512i
         ]
     ];
@@ -367,6 +368,8 @@ package Affix v1.0.2 {    # 'FFI' is my middle name!
     sub File ()       {'@File'}
     sub PerlIO ()     {'@PerlIO'}
     sub StringList () {'@StringList'}
+    sub Buffer ()     {'@Buffer'}
+    sub SockAddr ()   {'@SockAddr'}
 
     # Helper for Struct/Union to handle "Name => Type" syntax
     sub _build_aggregate {

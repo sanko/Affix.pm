@@ -956,7 +956,9 @@ static void plan_step_push_pointer(pTHX_ Affix * affix,
     const char * type_name = infix_type_get_name(type);
     if (type_name &&
         (strEQ(type_name, "File") || strEQ(type_name, "@File") || strEQ(type_name, "PerlIO") ||
-         strEQ(type_name, "@PerlIO") || strEQ(type_name, "StringList") || strEQ(type_name, "@StringList"))) {
+         strEQ(type_name, "@PerlIO") || strEQ(type_name, "StringList") || strEQ(type_name, "@StringList") ||
+         strEQ(type_name, "Buffer") || strEQ(type_name, "@Buffer") || strEQ(type_name, "SockAddr") ||
+         strEQ(type_name, "@SockAddr"))) {
         sv2ptr(aTHX_ affix, sv, c_arg_ptr, type);
         return;
     }
@@ -3039,40 +3041,84 @@ static void pull_sv(pTHX_ Affix * affix, SV * sv, const infix_type * type, void 
 }
 
 static void pull_file(pTHX_ Affix * affix, SV * sv, const infix_type * type, void * ptr) {
+    PERL_UNUSED_VAR(affix);
+    PERL_UNUSED_VAR(type);
     FILE * fp = *(FILE **)ptr;
     if (!fp) {
         sv_setsv(sv, &PL_sv_undef);
         return;
     }
-    // Import FILE* into PerlIO system
-    PerlIO * pio = PerlIO_importFILE(fp, 0);
-    if (!pio) {
+
+    // Duplicate FD to avoid double-close issues
+    int fd =
+#ifdef _WIN32
+        _fileno
+#else
+        fileno
+#endif
+        (fp);
+    if (fd < 0) {
         sv_setsv(sv, &PL_sv_undef);
         return;
     }
-    // Create a new Generated Value (Glob)
-    GV * gv = newGVgen("Affix::FileHandle");
-    // Associate PerlIO with Glob
-    if (do_open(gv, "+<&", 3, FALSE, 0, 0, pio)) {
-        // Return Reference to Glob
-        sv_setsv(sv, sv_2mortal(newRV((SV *)gv)));
+
+    int new_fd = PerlLIO_dup(fd);
+    if (new_fd < 0) {
+        sv_setsv(sv, &PL_sv_undef);
+        return;
     }
+
+    PerlIO * new_pio = PerlIO_fdopen(new_fd, "r+");  // Assuming R/W safe
+    if (!new_pio) {
+        PerlLIO_close(new_fd);
+        sv_setsv(sv, &PL_sv_undef);
+        return;
+    }
+
+    GV * gv = newGVgen("Affix::FileHandle");
+    if (do_open(gv, "+<&", 3, FALSE, 0, 0, new_pio))
+        sv_setsv(sv, sv_2mortal(newRV((SV *)gv)));
     else {
+        PerlIO_close(new_pio);
         sv_setsv(sv, &PL_sv_undef);
     }
 }
 
 static void pull_perlio(pTHX_ Affix * affix, SV * sv, const infix_type * type, void * ptr) {
+    PERL_UNUSED_VAR(affix);
+    PERL_UNUSED_VAR(type);
     PerlIO * pio = *(PerlIO **)ptr;
     if (!pio) {
         sv_setsv(sv, &PL_sv_undef);
         return;
     }
-    GV * gv = newGVgen("Affix::FileHandle");
-    if (do_open(gv, "+<&", 3, FALSE, 0, 0, pio))
-        sv_setsv(sv, sv_2mortal(newRV((SV *)gv)));
-    else
+
+    int fd = PerlIO_fileno(pio);
+    if (fd < 0) {
         sv_setsv(sv, &PL_sv_undef);
+        return;
+    }
+
+    int new_fd = PerlLIO_dup(fd);
+    if (new_fd < 0) {
+        sv_setsv(sv, &PL_sv_undef);
+        return;
+    }
+
+    PerlIO * new_pio = PerlIO_fdopen(new_fd, "r+");
+    if (!new_pio) {
+        PerlLIO_close(new_fd);
+        sv_setsv(sv, &PL_sv_undef);
+        return;
+    }
+
+    GV * gv = newGVgen("Affix::FileHandle");
+    if (do_open(gv, "+<&", 3, FALSE, 0, 0, new_pio))
+        sv_setsv(sv, sv_2mortal(newRV((SV *)gv)));
+    else {
+        PerlIO_close(new_pio);
+        sv_setsv(sv, &PL_sv_undef);
+    }
 }
 
 static void push_stringlist(pTHX_ Affix * affix, SV * sv, void * c_arg_ptr) {
@@ -3124,6 +3170,47 @@ static void pull_stringlist(pTHX_ Affix * affix, SV * sv, const infix_type * typ
     sv_setsv(sv, sv_2mortal(newRV_noinc(MUTABLE_SV(av))));
 }
 
+// Mutable Buffer: Passes pointer to Perl's string buffer directly.
+// Allows C to write to the Perl scalar.
+static void push_buffer(pTHX_ Affix * affix, SV * sv, void * c_arg_ptr) {
+    PERL_UNUSED_VAR(affix);
+    if (!SvOK(sv)) {
+        *(void **)c_arg_ptr = NULL;
+        return;
+    }
+
+    // De-ref if it's a reference (e.g., passing \$scalar)
+    if (SvROK(sv))
+        sv = SvRV(sv);
+
+    if (SvREADONLY(sv))
+        croak("Cannot pass read-only scalar as a mutable Buffer");
+
+    // Force string upgrade if needed, but don't copy
+    SvPV_force_nolen(sv);
+
+    // Return raw pointer to SV's buffer
+    *(char **)c_arg_ptr = SvPVX(sv);
+}
+
+// SockAddr: Passes pointer to Perl's string buffer (readonly ok).
+static void push_sockaddr(pTHX_ Affix * affix, SV * sv, void * c_arg_ptr) {
+    PERL_UNUSED_VAR(affix);
+    if (!SvOK(sv)) {
+        *(void **)c_arg_ptr = NULL;
+        return;
+    }
+
+    // De-ref
+    if (SvROK(sv))
+        sv = SvRV(sv);
+
+    if (!SvPOK(sv))
+        croak("SockAddr argument must be a packed string");
+
+    *(void **)c_arg_ptr = SvPVX(sv);
+}
+
 static const Affix_Pull pull_handlers[] = {[INFIX_PRIMITIVE_BOOL] = pull_bool,
                                            [INFIX_PRIMITIVE_SINT8] = pull_sint8,
                                            [INFIX_PRIMITIVE_UINT8] = pull_uint8,
@@ -3149,15 +3236,19 @@ Affix_Pull get_pull_handler(pTHX_ const infix_type * type) {
     case INFIX_TYPE_POINTER:
         {
             const char * name = infix_type_get_name(type);
-            if (name && (strEQ(name, "SV") || strEQ(name, "@SV")))
-                return pull_sv;
             if (name) {
+                if (strEQ(name, "Buffer") || strEQ(name, "@Buffer"))
+                    return pull_pointer_as_pin;  // Fallback: Return pin to buffer
                 if (strEQ(name, "File") || strEQ(name, "@File"))
                     return pull_file;
                 if (strEQ(name, "PerlIO") || strEQ(name, "@PerlIO"))
                     return pull_perlio;
+                if (strEQ(name, "SockAddr") || strEQ(name, "@SockAddr"))
+                    return pull_pointer_as_pin;  // Fallback: Return pin to struct
                 if (strEQ(name, "StringList") || strEQ(name, "@StringList"))
                     return pull_stringlist;
+                if (strEQ(name, "SV") || strEQ(name, "@SV"))
+                    return pull_sv;
             }
             if (name != nullptr)
                 return pull_pointer_as_pin;
@@ -3252,6 +3343,10 @@ void sv2ptr(pTHX_ Affix * affix, SV * perl_sv, void * c_ptr, const infix_type * 
 
             const char * type_name = infix_type_get_name(type);
             if (type_name) {
+                if (strEQ(type_name, "Buffer") || strEQ(type_name, "@Buffer")) {
+                    push_buffer(aTHX_ affix, perl_sv, c_ptr);
+                    return;
+                }
                 if (strEQ(type_name, "File") || strEQ(type_name, "@File")) {
                     IO * io = sv_2io(perl_sv);
                     if (!io)
@@ -3267,6 +3362,10 @@ void sv2ptr(pTHX_ Affix * affix, SV * perl_sv, void * c_ptr, const infix_type * 
                     if (!io)
                         croak("Argument is not an IO handle");
                     *(PerlIO **)c_ptr = IoIFP(io);
+                    return;
+                }
+                if (strEQ(type_name, "SockAddr") || strEQ(type_name, "@SockAddr")) {
+                    push_sockaddr(aTHX_ affix, perl_sv, c_ptr);
                     return;
                 }
                 if (strEQ(type_name, "StringList") || strEQ(type_name, "@StringList")) {
@@ -4833,10 +4932,12 @@ XS_INTERNAL(Affix_ptr_diff) {
     XSRETURN(1);
 }
 
+
 XS_INTERNAL(Affix_strdup) {
     dXSARGS;
     if (items != 1)
         croak_xs_usage(cv, "string");
+
     STRLEN len;
     const char * str = SvPV(ST(0), len);
 
@@ -4972,13 +5073,18 @@ void boot_Affix(pTHX_ CV * cv) {
     // NOTE: Direct usage of this type is blocked in get_opcode_for_type; it must be wrapped in Pointer[].
     if (infix_register_types(MY_CXT.registry, "@SV = { __sv_opaque: uint8 };") != INFIX_SUCCESS)
         croak("Failed to register internal type alias '@SV'");
-    // They're okay to appear as opaque here. The name is what triggers the custom marshalling at runtime.
+
+    // We register them as pointers to void, but the name is what triggers the custom marshalling
     if (infix_register_types(MY_CXT.registry, "@File = *void;") != INFIX_SUCCESS)
         croak("Failed to register internal type alias '@File'");
     if (infix_register_types(MY_CXT.registry, "@PerlIO = *void;") != INFIX_SUCCESS)
         croak("Failed to register internal type alias '@PerlIO'");
     if (infix_register_types(MY_CXT.registry, "@StringList = *void;") != INFIX_SUCCESS)
         croak("Failed to register internal type alias '@StringList'");
+    if (infix_register_types(MY_CXT.registry, "@Buffer = *void;") != INFIX_SUCCESS)
+        croak("Failed to register internal type alias '@Buffer'");
+    if (infix_register_types(MY_CXT.registry, "@SockAddr = *void;") != INFIX_SUCCESS)
+        croak("Failed to register internal type alias '@SockAddr'");
 
     // Helper macro to define and export an XSUB in one line.
     // Assumes C function is Affix_name and Perl sub is Affix::name.
@@ -5075,6 +5181,7 @@ void boot_Affix(pTHX_ CV * cv) {
     (void)newXSproto_portable("Affix::set_destruct_level", Affix_set_destruct_level, __FILE__, "$");
 
     XSUB_EXPORT(coerce, "$$", "core");
+
 
 #undef XSUB_EXPORT
 

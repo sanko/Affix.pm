@@ -22,7 +22,10 @@ Based on infix v0.1.3
   - Added `File` (`FILE*`) and `PerlIO` (`PerlIO*`) types.
     - Allows passing Perl filehandles to C functions expecting standard C streams.
     - Allows receiving `FILE*` from C and using them as standard Perl filehandles.
-  - Added `StringList` type for handling `NULL`-terminated arrays of strings (`char**`), commonly used in C APIs like `execve` or configuration lists.
+  - A few specialized pointer types:
+    - `StringList`: Automatically marshals an array ref of strings to a null-terminated `char**` array (and back). This is useful in instances where `argv` or a similar list is expected.
+    - `Buffer`: Allows passing a pre-allocated scalar as a mutable `char*` buffer to C (zero-copy write).
+    - `SockAddr`: Safe marshalling of Perl packed socket addresses to `struct sockaddr*`.
 
 ### Changed
 
