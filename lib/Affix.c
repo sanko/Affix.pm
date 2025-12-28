@@ -593,6 +593,9 @@ static void pull_pointer_as_array(pTHX_ Affix *, SV *, const infix_type *, void 
 static void pull_pointer_as_pin(pTHX_ Affix *, SV *, const infix_type *, void *);
 static void pull_sv(pTHX_ Affix *, SV *, const infix_type *, void *);
 static void pull_reverse_trampoline(pTHX_ Affix *, SV *, const infix_type *, void *);
+static void pull_file(pTHX_ Affix *, SV *, const infix_type *, void *);
+static void pull_perlio(pTHX_ Affix *, SV *, const infix_type *, void *);
+static void pull_stringlist(pTHX_ Affix *, SV *, const infix_type *, void *);
 #if !defined(INFIX_COMPILER_MSVC)
 static void pull_sint128(pTHX_ Affix *, SV *, const infix_type *, void *);
 static void pull_uint128(pTHX_ Affix *, SV *, const infix_type *, void *);
@@ -949,6 +952,15 @@ static void plan_step_push_pointer(pTHX_ Affix * affix,
         *(void **)c_arg_ptr = INT2PTR(void *, SvUV(sv));
         return;
     }
+
+    const char * type_name = infix_type_get_name(type);
+    if (type_name &&
+        (strEQ(type_name, "File") || strEQ(type_name, "@File") || strEQ(type_name, "PerlIO") ||
+         strEQ(type_name, "@PerlIO") || strEQ(type_name, "StringList") || strEQ(type_name, "@StringList"))) {
+        sv2ptr(aTHX_ affix, sv, c_arg_ptr, type);
+        return;
+    }
+
     if (pointee_type->category == INFIX_TYPE_REVERSE_TRAMPOLINE &&
         (SvTYPE(sv) == SVt_PVCV || (SvROK(sv) && SvTYPE(SvRV(sv)) == SVt_PVCV))) {
         push_reverse_trampoline(aTHX_ affix, pointee_type, sv, c_arg_ptr);
@@ -3026,6 +3038,92 @@ static void pull_sv(pTHX_ Affix * affix, SV * sv, const infix_type * type, void 
         sv_setsv(sv, (SV *)c_ptr);
 }
 
+static void pull_file(pTHX_ Affix * affix, SV * sv, const infix_type * type, void * ptr) {
+    FILE * fp = *(FILE **)ptr;
+    if (!fp) {
+        sv_setsv(sv, &PL_sv_undef);
+        return;
+    }
+    // Import FILE* into PerlIO system
+    PerlIO * pio = PerlIO_importFILE(fp, 0);
+    if (!pio) {
+        sv_setsv(sv, &PL_sv_undef);
+        return;
+    }
+    // Create a new Generated Value (Glob)
+    GV * gv = newGVgen("Affix::FileHandle");
+    // Associate PerlIO with Glob
+    if (do_open(gv, "+<&", 3, FALSE, 0, 0, pio)) {
+        // Return Reference to Glob
+        sv_setsv(sv, sv_2mortal(newRV((SV *)gv)));
+    }
+    else {
+        sv_setsv(sv, &PL_sv_undef);
+    }
+}
+
+static void pull_perlio(pTHX_ Affix * affix, SV * sv, const infix_type * type, void * ptr) {
+    PerlIO * pio = *(PerlIO **)ptr;
+    if (!pio) {
+        sv_setsv(sv, &PL_sv_undef);
+        return;
+    }
+    GV * gv = newGVgen("Affix::FileHandle");
+    if (do_open(gv, "+<&", 3, FALSE, 0, 0, pio))
+        sv_setsv(sv, sv_2mortal(newRV((SV *)gv)));
+    else
+        sv_setsv(sv, &PL_sv_undef);
+}
+
+static void push_stringlist(pTHX_ Affix * affix, SV * sv, void * c_arg_ptr) {
+    if (!SvROK(sv) || SvTYPE(SvRV(sv)) != SVt_PVAV) {
+        *(void **)c_arg_ptr = NULL;
+        return;
+    }
+
+    AV * av = (AV *)SvRV(sv);
+    size_t len = av_len(av) + 1;
+
+    // Allocate array of pointers + 1 for NULL terminator
+    // We use the args_arena so this memory is automatically freed after the call
+    char ** list = (char **)infix_arena_alloc(affix->args_arena, (len + 1) * sizeof(char *), _Alignof(char *));
+
+    for (size_t i = 0; i < len; ++i) {
+        SV ** elem = av_fetch(av, i, 0);
+        if (elem && SvPOK(*elem)) {
+            STRLEN slen;
+            const char * s = SvPV(*elem, slen);
+            // Copy string content to arena to ensure stability
+            char * buf = (char *)infix_arena_alloc(affix->args_arena, slen + 1, 1);
+            memcpy(buf, s, slen + 1);
+            list[i] = buf;
+        }
+        else {
+            list[i] = NULL;
+        }
+    }
+    list[len] = NULL;  // Terminator
+
+    *(char ***)c_arg_ptr = list;
+}
+
+static void pull_stringlist(pTHX_ Affix * affix, SV * sv, const infix_type * type, void * ptr) {
+    PERL_UNUSED_VAR(affix);
+    PERL_UNUSED_VAR(type);
+    char ** list = *(char ***)ptr;
+
+    AV * av = newAV();
+    if (list) {
+        while (*list) {
+            av_push(av, newSVpv(*list, 0));
+            list++;
+        }
+    }
+
+    // Return ArrayRef
+    sv_setsv(sv, sv_2mortal(newRV_noinc(MUTABLE_SV(av))));
+}
+
 static const Affix_Pull pull_handlers[] = {[INFIX_PRIMITIVE_BOOL] = pull_bool,
                                            [INFIX_PRIMITIVE_SINT8] = pull_sint8,
                                            [INFIX_PRIMITIVE_UINT8] = pull_uint8,
@@ -3053,6 +3151,14 @@ Affix_Pull get_pull_handler(pTHX_ const infix_type * type) {
             const char * name = infix_type_get_name(type);
             if (name && (strEQ(name, "SV") || strEQ(name, "@SV")))
                 return pull_sv;
+            if (name) {
+                if (strEQ(name, "File") || strEQ(name, "@File"))
+                    return pull_file;
+                if (strEQ(name, "PerlIO") || strEQ(name, "@PerlIO"))
+                    return pull_perlio;
+                if (strEQ(name, "StringList") || strEQ(name, "@StringList"))
+                    return pull_stringlist;
+            }
             if (name != nullptr)
                 return pull_pointer_as_pin;
 
@@ -3139,6 +3245,35 @@ void sv2ptr(pTHX_ Affix * affix, SV * perl_sv, void * c_ptr, const infix_type * 
         break;
     case INFIX_TYPE_POINTER:
         {
+            if (!SvOK(perl_sv)) {
+                *(void **)c_ptr = nullptr;
+                return;
+            }
+
+            const char * type_name = infix_type_get_name(type);
+            if (type_name) {
+                if (strEQ(type_name, "File") || strEQ(type_name, "@File")) {
+                    IO * io = sv_2io(perl_sv);
+                    if (!io)
+                        croak("Argument is not an IO handle");
+                    // IoIFP gets the PerlIO*, PerlIO_findFILE gets the stdio FILE*
+                    // Note: This might flush buffers.
+                    PerlIO * pio = IoIFP(io);
+                    *(FILE **)c_ptr = PerlIO_findFILE(pio);
+                    return;
+                }
+                if (strEQ(type_name, "PerlIO") || strEQ(type_name, "@PerlIO")) {
+                    IO * io = sv_2io(perl_sv);
+                    if (!io)
+                        croak("Argument is not an IO handle");
+                    *(PerlIO **)c_ptr = IoIFP(io);
+                    return;
+                }
+                if (strEQ(type_name, "StringList") || strEQ(type_name, "@StringList")) {
+                    push_stringlist(aTHX_ affix, perl_sv, c_ptr);
+                    return;
+                }
+            }
             const infix_type * pointee_type = type->meta.pointer_info.pointee_type;
             const char * pointee_name = infix_type_get_name(pointee_type);
             if (pointee_name && (strEQ(pointee_name, "SV") || strEQ(pointee_name, "@SV"))) {
@@ -3174,8 +3309,6 @@ void sv2ptr(pTHX_ Affix * affix, SV * perl_sv, void * c_ptr, const infix_type * 
                 else
                     *(void **)c_ptr = nullptr;
             }
-            else if (!SvOK(perl_sv))
-                *(void **)c_ptr = nullptr;
             else if (SvIOK(perl_sv))
                 // Allow passing raw integer addresses as pointers
                 *(void **)c_ptr = INT2PTR(void *, SvUV(perl_sv));
@@ -3183,6 +3316,17 @@ void sv2ptr(pTHX_ Affix * affix, SV * perl_sv, void * c_ptr, const infix_type * 
                 *(const char **)c_ptr = SvPV_nolen(perl_sv);
             else if (SvROK(perl_sv)) {
                 SV * const rv = SvRV(perl_sv);
+
+                if (pointee_type->category == INFIX_TYPE_VOID) {
+                    if (SvTYPE(rv) == SVt_PVGV || SvTYPE(rv) == SVt_PVIO) {
+                        IO * io = sv_2io(perl_sv);
+                        if (io) {
+                            PerlIO * pio = IoIFP(io);
+                            *(FILE **)c_ptr = PerlIO_findFILE(pio);
+                            return;
+                        }
+                    }
+                }
 
                 if (SvTYPE(rv) == SVt_PVAV) {
                     AV * av = (AV *)SvRV(perl_sv);
@@ -4689,12 +4833,10 @@ XS_INTERNAL(Affix_ptr_diff) {
     XSRETURN(1);
 }
 
-
 XS_INTERNAL(Affix_strdup) {
     dXSARGS;
     if (items != 1)
         croak_xs_usage(cv, "string");
-
     STRLEN len;
     const char * str = SvPV(ST(0), len);
 
@@ -4830,6 +4972,13 @@ void boot_Affix(pTHX_ CV * cv) {
     // NOTE: Direct usage of this type is blocked in get_opcode_for_type; it must be wrapped in Pointer[].
     if (infix_register_types(MY_CXT.registry, "@SV = { __sv_opaque: uint8 };") != INFIX_SUCCESS)
         croak("Failed to register internal type alias '@SV'");
+    // They're okay to appear as opaque here. The name is what triggers the custom marshalling at runtime.
+    if (infix_register_types(MY_CXT.registry, "@File = *void;") != INFIX_SUCCESS)
+        croak("Failed to register internal type alias '@File'");
+    if (infix_register_types(MY_CXT.registry, "@PerlIO = *void;") != INFIX_SUCCESS)
+        croak("Failed to register internal type alias '@PerlIO'");
+    if (infix_register_types(MY_CXT.registry, "@StringList = *void;") != INFIX_SUCCESS)
+        croak("Failed to register internal type alias '@StringList'");
 
     // Helper macro to define and export an XSUB in one line.
     // Assumes C function is Affix_name and Perl sub is Affix::name.
@@ -4926,7 +5075,6 @@ void boot_Affix(pTHX_ CV * cv) {
     (void)newXSproto_portable("Affix::set_destruct_level", Affix_set_destruct_level, __FILE__, "$");
 
     XSUB_EXPORT(coerce, "$$", "core");
-
 
 #undef XSUB_EXPORT
 

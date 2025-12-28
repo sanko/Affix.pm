@@ -75,7 +75,7 @@ EOF
                 is( $pkt->members->[1]->name, 'payload', "Member 1: payload" );
                 is( $pkt->members->[2]->name, 'flags',   "Member 2: flags" );
                 my $u = $pkt->members->[1]->definition;
-                ok( $u, "Payload has definition" );
+                ok $u, 'Payload has definition';
                 if ($u) {
                     is( $u->tag,                'union', "Payload is union" );
                     is( $u->members->[0]->name, 'i',     "Union mem 0: i" );
@@ -83,7 +83,7 @@ EOF
             }
         };
         #
-        subtest "Enums" => sub {
+        subtest Enums => sub {
             my $dir = Path::Tiny->tempdir;
             spew_files(
                 $dir,
@@ -102,14 +102,14 @@ EOF
             ok( $st, "Found State enum" );
             if ($st) {
                 my $c = $st->constants;
-                is( $c->[0]{name},  'IDLE',    "IDLE" );
-                is( $c->[0]{value}, 0,         "IDLE=0" );
-                is( $c->[1]{name},  'RUNNING', "RUNNING" );
-                is( $c->[1]{value}, 5,         "RUNNING=5" );
+                is( $c->[0]{name},  'IDLE',    'IDLE' );
+                is( $c->[0]{value}, 0,         'IDLE=0' );
+                is( $c->[1]{name},  'RUNNING', 'RUNNING' );
+                is( $c->[1]{value}, 5,         'RUNNING=5' );
             }
         };
         #
-        subtest "Functions" => sub {
+        subtest Functions => sub {
             my $dir = Path::Tiny->tempdir;
             spew_files(
                 $dir,
@@ -126,7 +126,7 @@ EOF
             is( @calcs, 2, "Found 2 calc overloads" );
         };
         #
-        subtest "Edge Cases" => sub {
+        subtest 'Edge Cases' => sub {
             my $dir = Path::Tiny->tempdir;
             spew_files(
                 $dir,

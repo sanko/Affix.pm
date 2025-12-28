@@ -477,6 +477,8 @@ scalar holding the memory address, blessed with magic.
     $$view = 123;             # Write 123 to the memory
     free($ptr);               # Free it manually (optional, GC handles it otherwise)
 
+=head2 Special Types
+
 =over
 
 =item C<String>
@@ -492,6 +494,27 @@ Pairs automatically.
 
 The raw Perl Interpreter Object (C<SV*>). Use this if you are writing a function that manipulates Perl internals
 directly.
+
+=item C<File>
+
+Maps a Perl filehandle (Glob or IO object) to a standard C C<FILE*>. You can pass a Perl filehandle to a C function
+expecting C<FILE*>, and you can receive a C<FILE*> from C (which Affix wraps in a Perl IO handle).
+
+    affix $lib, 'fprintf', [ File, String ] => Int;
+    open my $fh, '>', 'log.txt';
+    fprintf($fh, "Hello from Affix!");
+
+=item C<PerlIO>
+
+Similar to C<File>, but maps to the internal C<PerlIO*> stream. Use this when the C function expects C<PerlIO*>.
+
+=item C<StringList>
+
+Maps a Perl Array Reference of strings (C<[ "a", "b" ]>) to a null-terminated C<char**> array (common in C APIs like
+C<execve> or C<main(argc, argv)>).
+
+    affix $lib, 'process_args', [ StringList ] => Int;
+    process_args( [ "arg1", "arg2" ] );
 
 =back
 

@@ -24,13 +24,13 @@ subtest import => sub {
 };
 subtest types => sub {
     imported_ok qw[
-        Array     Bool Callback Char  CodeRef Complex Double Enum Float Float32
-        Float64   Int  Int128   Int16 Int32   Int64   Int8   Long LongDouble
-        LongLong  M256 M256d    M512  M512d   M512i   Packed Pointer    SChar
-        SInt128   SInt16        SInt32        SInt64  SInt8  SSize_t    SV
-        Short     Size_t        String        Struct  UChar  UInt       UInt128
-        UInt16    UInt32        UInt64        UInt8   ULong  ULongLong  UShort
-        Union     VarArgs       Vector        Void    WChar  WString    ];
+        Array     Bool    Callback Char   CodeRef Complex   Double Enum   File
+        Float     Float32 Float64  Int    Int128  Int16     Int32  Int64  Int8    Long  LongDouble
+        LongLong  M256    M256d    M512   M512d   M512i     Packed PerlIO Pointer SChar
+        SInt128   SInt16  SInt32   SInt64 SInt8   SSize_t   SV
+        Short     Size_t  String   Struct UChar   UInt      UInt128
+        UInt16    UInt32  UInt64   UInt8  ULong   ULongLong UShort
+        Union     VarArgs Vector   Void   WChar   WString    ];
     subtest abstract => sub {
         is Void,       'void',       'Void';
         is Bool,       'bool',       'Bool';
@@ -73,6 +73,11 @@ subtest types => sub {
             'Struct[ name => ..., dob => ...]';
         #
         is Union [ i => Int, f => Float ], '<i:int,f:float>', 'Union[...]';
+    };
+    subtest etc => sub {
+        is SV,     '@SV',     'SV';
+        is File,   '@File',   'File';
+        is PerlIO, '@PerlIO', 'PerlIO';
     };
 };
 #

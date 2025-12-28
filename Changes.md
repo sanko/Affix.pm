@@ -19,6 +19,10 @@ Based on infix v0.1.3
   - Cookbook: Added 30+ chapters of documentation covering everything from basic calls to coroutines and C++ v-table hacking.
   - Raw Function Pointers: `wrap` and `affix` now accept raw memory addresses (integers) or Pins as targets.
   - `affix` and `wrap` functions now accept an address to bind to. This expects the library to be `undef` and jumps past the lib location and loading steps.
+  - Added `File` (`FILE*`) and `PerlIO` (`PerlIO*`) types.
+    - Allows passing Perl filehandles to C functions expecting standard C streams.
+    - Allows receiving `FILE*` from C and using them as standard Perl filehandles.
+  - Added `StringList` type for handling `NULL`-terminated arrays of strings (`char**`), commonly used in C APIs like `execve` or configuration lists.
 
 ### Changed
 

@@ -62,6 +62,8 @@ package Affix v1.0.2 {    # 'FFI' is my middle name!
             Pointer Array Struct Union Enum Callback CodeRef Complex Vector
             Packed VarArgs
             SV
+            File PerlIO
+            StringList
             M256 M256d M512 M512d M512i
         ]
     ];
@@ -359,9 +361,12 @@ package Affix v1.0.2 {    # 'FFI' is my middle name!
     sub VarArgs () {';'}
 
     # Semantic aliases and convienient types
-    sub String ()  {'*char'}
-    sub WString () {'*ushort'}
-    sub SV()       {'@SV'}
+    sub String ()     {'*char'}
+    sub WString ()    {'*ushort'}
+    sub SV()          {'@SV'}
+    sub File ()       {'@File'}
+    sub PerlIO ()     {'@PerlIO'}
+    sub StringList () {'@StringList'}
 
     # Helper for Struct/Union to handle "Name => Type" syntax
     sub _build_aggregate {
