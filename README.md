@@ -32,6 +32,9 @@ It distinguishes itself from other FFI solutions by using **infix**, a custom li
 function, Affix generates machine code at runtime to handle the argument marshalling, resulting in significantly lower
 overhead than generic FFI wrappers.
 
+A Cookbook for Affix is being written. Check it out here:
+[https://github.com/sanko/Affix.pm/discussions/categories/recipes](https://github.com/sanko/Affix.pm/discussions/categories/recipes)
+
 # EXPORTS
 
 Affix exports nothing by default. You can import tags:
@@ -435,19 +438,66 @@ $$view = 123;             # Write 123 to the memory
 free($ptr);               # Free it manually (optional, GC handles it otherwise)
 ```
 
+## Special Types
+
+- `Buffer`
+
+    Passes a pointer to the raw string buffer of a Perl scalar. Useful for "Zero-Copy" or "Direct-Write" C functions that
+    populate a buffer.
+
+    ```perl
+    # C: void get_data(char *buf, int len);
+    affix $lib, 'get_data', [ Buffer, Int ] => Void;
+
+    my $buf = "\0" x 1024; # Pre-allocate
+    get_data($buf, 1024);
+    ```
+
+    **Warning:** The scalar must be writable and have sufficient pre-allocated capacity.
+
+- `File`
+
+    Represents the standard C `FILE` structure. Use `Pointer[File]` to map a Perl filehandle (Glob or IO object) to
+    `FILE*`.
+
+    ```perl
+    affix $lib, 'fprintf', [ Pointer[File], String ] => Int;
+    open my $fh, '>', 'log.txt';
+    fprintf($fh, "Hello from Affix!");
+    ```
+
+- `PerlIO`
+
+    Represents the internal `PerlIO` structure. Use `Pointer[PerlIO]` when the C function expects `PerlIO*`.
+
+- `SockAddr`
+
+    Safe marshalling for packed socket addresses (e.g. from `Socket::pack_sockaddr_in`). Passed to C as `struct
+    sockaddr*`.
+
 - `String`
 
     Alias for `const char*`. Affix automatically handles UTF-8 encoding (Perl to C) and decoding (C to Perl).
+
+- `StringList`
+
+    Maps a Perl Array Reference of strings (`[ "a", "b" ]`) to a null-terminated `char**` array (common in C APIs like
+    `execve` or `main(argc, argv)`).
+
+    ```perl
+    affix $lib, 'process_args', [ StringList ] => Int;
+    process_args( [ "arg1", "arg2" ] );
+    ```
+
+- `SV`
+
+    The raw Perl Interpreter Object (`SV`). Use this if you are writing a function that manipulates Perl internals
+    directly. Note that this must always be a pointer: `Pointer[SV]`.
 
 - `WString`
 
     Alias for `const wchar_t*`. Affix handles the complexity of UTF-16 (Windows) vs UTF-32 (Linux/macOS) and Surrogate
     Pairs automatically.
-
-- `SV`
-
-    The raw Perl Interpreter Object (`SV*`). Use this if you are writing a function that manipulates Perl internals
-    directly.
 
 ## Aggregates
 
@@ -642,10 +692,20 @@ lifecycle automatically for the duration of the call).
 
 # UTILITIES
 
-## `get_system_error()`
+## `errno()`
 
-Returns the `errno` (Linux/Unix) or `GetLastError` (Windows) from the most recent FFI call. This must be called
+```perl
+my $err = get_system_error();
+die "Error $err: " . int($err);
+```
+
+Access the `errno` (Linux/Unix) or `GetLastError` (Windows) from the most recent FFI call. This must be called
 immediately after the function invokes to ensure accuracy.
+
+The return value is a **dualvar**:
+
+- **Numeric context**: Returns the integer error code.
+- **String context**: Returns the human-readable system error message (via `strerror` or `FormatMessage`).
 
 ## `sv_dump( $sv )`
 
@@ -675,6 +735,8 @@ toolchain is installed on the system.
 See [Affix::Cookbook](https://metacpan.org/pod/Affix%3A%3ACookbook) for a comprehensive guide to using Affix.
 
 # SEE ALSO
+
+The Affix Cookbook: [https://github.com/sanko/Affix.pm/discussions/categories/recipes](https://github.com/sanko/Affix.pm/discussions/categories/recipes)
 
 [FFI::Platypus](https://metacpan.org/pod/FFI%3A%3APlatypus), [C::DynaLib](https://metacpan.org/pod/C%3A%3ADynaLib), [XS::TCC](https://metacpan.org/pod/XS%3A%3ATCC)
 

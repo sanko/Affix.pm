@@ -112,7 +112,10 @@
          "file" : "lib/Affix/Bind.pm",
          "version" : "v1.0.0"
       },
-      "Affix::Bind::Driver" : {
+      "Affix::Bind::Driver::Clang" : {
+         "file" : "lib/Affix/Bind.pm"
+      },
+      "Affix::Bind::Driver::Regex" : {
          "file" : "lib/Affix/Bind.pm"
       },
       "Affix::Bind::Entity" : {

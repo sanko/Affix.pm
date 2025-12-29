@@ -53,11 +53,15 @@ Affix::Bind utilizes a dual-driver approach to parsing:
 
 =item * Clang driver
 
-The preferred driver. It uses the system's C<clang> executable to dump the AST in JSON format. It is extremely accurate, handles C preprocessor logic (macros, includes), and resolves complex typedef chains correctly.
+The preferred driver. It uses the system's C<clang> executable to dump the AST in JSON format. It is extremely
+accurate, handles C preprocessor logic (macros, includes), and resolves complex typedef chains correctly.
 
 =item * Regex driver
 
-A fallback driver implemented in pure Perl. It scans headers using regular expressions. While zero-dependency, it may struggle with heavily macro-laden code or complex C++ templates.
+A fallback driver implemented in pure Perl. It scans headers using regular expressions. While zero-dependency, it may
+struggle with heavily macro-laden code or complex C++ templates.
+
+=back
 
 =head1 CONSTRUCTOR
 
@@ -75,7 +79,8 @@ An array reference of paths to the C<.h> (or C<.hpp>, C<.hxx>) files you wish to
 
 =item C<include_dirs>
 
-An array reference of paths to search for C<#include "..."> directives. The directory of every file in C<project_files> is automatically added to this list.
+An array reference of paths to search for C<#include "..."> directives. The directory of every file in C<project_files>
+is automatically added to this list.
 
 =back
 
@@ -137,8 +142,8 @@ Represents an C<enum>.
 
 =head2 Affix::Bind::Typedef
 
-Represents a C<typedef>. Affix::Bind attempts to "resolve" typedefs. If a typedef points to an anonymous struct
-defined immediately adjacent to it, Affix::Bind will merge them into a single named Affix::Bind::Struct.
+Represents a C<typedef>. Affix::Bind attempts to "resolve" typedefs. If a typedef points to an anonymous struct defined
+immediately adjacent to it, Affix::Bind will merge them into a single named Affix::Bind::Struct.
 
     say $typedef->underlying; # e.g., "unsigned int"
 

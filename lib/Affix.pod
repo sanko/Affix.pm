@@ -34,7 +34,8 @@ It distinguishes itself from other FFI solutions by using B<infix>, a custom lig
 function, Affix generates machine code at runtime to handle the argument marshalling, resulting in significantly lower
 overhead than generic FFI wrappers.
 
-A Cookbook for Affix is being written. Check it out here: L<https://github.com/sanko/Affix.pm/discussions/categories/recipes>
+A Cookbook for Affix is being written. Check it out here:
+L<https://github.com/sanko/Affix.pm/discussions/categories/recipes>
 
 =head1 EXPORTS
 
@@ -482,9 +483,11 @@ scalar holding the memory address, blessed with magic.
 =head2 Special Types
 
 =over
+
 =item C<Buffer>
 
-Passes a pointer to the raw string buffer of a Perl scalar. Useful for "Zero-Copy" or "Direct-Write" C functions that populate a buffer.
+Passes a pointer to the raw string buffer of a Perl scalar. Useful for "Zero-Copy" or "Direct-Write" C functions that
+populate a buffer.
 
     # C: void get_data(char *buf, int len);
     affix $lib, 'get_data', [ Buffer, Int ] => Void;
@@ -496,7 +499,8 @@ B<Warning:> The scalar must be writable and have sufficient pre-allocated capaci
 
 =item C<File>
 
-Represents the standard C C<FILE> structure. Use C<Pointer[File]> to map a Perl filehandle (Glob or IO object) to C<FILE*>.
+Represents the standard C C<FILE> structure. Use C<Pointer[File]> to map a Perl filehandle (Glob or IO object) to
+C<FILE*>.
 
     affix $lib, 'fprintf', [ Pointer[File], String ] => Int;
     open my $fh, '>', 'log.txt';
@@ -508,7 +512,8 @@ Represents the internal C<PerlIO> structure. Use C<Pointer[PerlIO]> when the C f
 
 =item C<SockAddr>
 
-Safe marshalling for packed socket addresses (e.g. from C<Socket::pack_sockaddr_in>). Passed to C as C<struct sockaddr*>.
+Safe marshalling for packed socket addresses (e.g. from C<Socket::pack_sockaddr_in>). Passed to C as C<struct
+sockaddr*>.
 
 =item C<String>
 
