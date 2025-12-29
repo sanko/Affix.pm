@@ -494,16 +494,15 @@ B<Warning:> The scalar must be writable and have sufficient pre-allocated capaci
 
 =item C<File>
 
-Maps a Perl filehandle (Glob or IO object) to a standard C C<FILE*>. You can pass a Perl filehandle to a C function
-expecting C<FILE*>, and you can receive a C<FILE*> from C (which Affix wraps in a Perl IO handle).
+Represents the standard C C<FILE> structure. Use C<Pointer[File]> to map a Perl filehandle (Glob or IO object) to C<FILE*>.
 
-    affix $lib, 'fprintf', [ File, String ] => Int;
+    affix $lib, 'fprintf', [ Pointer[File], String ] => Int;
     open my $fh, '>', 'log.txt';
     fprintf($fh, "Hello from Affix!");
 
 =item C<PerlIO>
 
-Similar to C<File>, but maps to the internal C<PerlIO*> stream. Use this when the C function expects C<PerlIO*>.
+Represents the internal C<PerlIO> structure. Use C<Pointer[PerlIO]> when the C function expects C<PerlIO*>.
 
 =item C<SockAddr>
 

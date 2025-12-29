@@ -49,10 +49,12 @@ DLLEXPORT int c_is_null_file(FILE* fp) {
 }
 END_C
     subtest 'Standard C FILE* (Affix::File)' => sub {
-        affix $lib, 'c_write_to_file',  [ File, String ] => Int;
-        affix $lib, 'c_read_char',      [File]           => Int;
-        affix $lib, 'c_create_tmpfile', []               => File;
-        affix $lib, 'c_is_null_file',   [File]           => Int;
+
+        # File represents the FILE struct, so Pointer[File] is FILE*
+        affix $lib, 'c_write_to_file',  [ Pointer [File], String ] => Int;
+        affix $lib, 'c_read_char',      [ Pointer [File] ]         => Int;
+        affix $lib, 'c_create_tmpfile', []                         => Pointer [File];
+        affix $lib, 'c_is_null_file',   [ Pointer [File] ]         => Int;
         #
         subtest 'Writing to a Perl filehandle from C' => sub {
             my ( $fh, $filename ) = tempfile();
@@ -106,7 +108,7 @@ END_C
     subtest 'PerlIO* Streams (Affix::PerlIO)' => sub {
 
         # Bind the identity function using PerlIO type
-        affix $lib, 'c_perlio_identity', [PerlIO] => PerlIO;
+        affix $lib, 'c_perlio_identity', [ Pointer [PerlIO] ] => Pointer [PerlIO];
 
         # Test Roundtrip
         # Note: PerlIO* handles are generally strictly tied to the Perl layer.
@@ -149,7 +151,7 @@ subtest complex => sub {
             logger->counter = 0;
         }
 
-        // Write to the file inside the struct
+        // Write to a file retrieved from the struct
         DLLEXPORT void log_message(Logger* logger, const char* msg) {
             if (logger->log_file) {
                 fprintf(logger->log_file, "[%d] %s\n", ++logger->counter, msg);
@@ -166,13 +168,14 @@ subtest complex => sub {
         }
         END_C
 
-    # Define the struct type in Perl
-    typedef Logger => Struct [ log_file => File, counter => Int ];
+    # Define the struct type in Perl.
+    # Use Pointer[File] because the C struct member is FILE*.
+    typedef Logger => Struct [ log_file => Pointer [File], counter => Int ];
 
     # Bind functions
-    affix $lib, 'init_logger',   [ Pointer [ Logger() ], File ]   => Void;
-    affix $lib, 'log_message',   [ Pointer [ Logger() ], String ] => Void;
-    affix $lib, 'create_logger', [File] => Logger();
+    affix $lib, 'init_logger',   [ Pointer [ Logger() ], Pointer [File] ] => Void;
+    affix $lib, 'log_message',   [ Pointer [ Logger() ], String ]         => Void;
+    affix $lib, 'create_logger', [ Pointer [File] ] => Logger();
     subtest 'File inside Struct (Pointer)' => sub {
         my ( $fh, $filename ) = tempfile();
         my $old_fh = select($fh);
@@ -251,7 +254,9 @@ subtest complex => sub {
             }
         }
         END_C2
-        affix $lib2, 'write_all', [ Array [ File, 3 ], String ] => Void;
+
+        # Array of Pointers to Files (FILE* files[3])
+        affix $lib2, 'write_all', [ Array [ Pointer [File], 3 ], String ] => Void;
         my ( $fh1, $f1 ) = tempfile();
         my ( $fh2, $f2 ) = tempfile();
         my ( $fh3, $f3 ) = tempfile();
@@ -266,7 +271,7 @@ subtest complex => sub {
         # Verify
         for my $f ( $f1, $f2, $f3 ) {
             open my $in, '<', $f;
-            is <$in>, "Broadcast", "File $f written to";
+            is <$in>, 'Broadcast', "File $f written to";
             close $in;
         }
     };
@@ -302,11 +307,12 @@ END_C
         my $lib = compile_ok($C_CODE);
 
         # Define the struct type in Perl using PerlIO for the handle
-        typedef Logger2 => Struct [ handle => PerlIO, counter => Int ];
+        # Struct member is PerlIO* so use Pointer[PerlIO]
+        typedef Logger2 => Struct [ handle => Pointer [PerlIO], counter => Int ];
 
         # Bind functions using the defined struct
-        affix $lib, 'init_logger2',   [ Pointer [ Logger2() ], PerlIO ] => Void;
-        affix $lib, 'create_logger2', [PerlIO]                          => Logger2();
+        affix $lib, 'init_logger2',   [ Pointer [ Logger2() ], Pointer [PerlIO] ] => Void;
+        affix $lib, 'create_logger2', [ Pointer [PerlIO] ]                        => Logger2();
         subtest 'PerlIO inside Struct (Pointer)' => sub {
             my ( $fh, $filename ) = tempfile();
             syswrite $fh, "Original Content\n";
@@ -370,7 +376,9 @@ END_C
     }
 END_C2
             my $lib2 = compile_ok($C_CODE_ARRAY);
-            affix $lib2, 'swap_handles', [ Array [ PerlIO, 3 ] ] => Void;
+
+            # Array of PerlIO*
+            affix $lib2, 'swap_handles', [ Array [ Pointer [PerlIO], 3 ] ] => Void;
             my ( $fh1, $f1 ) = tempfile();
             my ( $fh2, $f2 ) = tempfile();
             my ( $fh3, $f3 ) = tempfile();
@@ -393,10 +401,9 @@ END_C2
             seek $swapped_2, 0, 0;
             my $c1 = <$swapped_1>;
             my $c2 = <$swapped_2>;
-            is $c1, "File 2", "Index 0 now contains File 2";
-            is $c2, "File 1", "Index 1 now contains File 1";
-
-            #~ close $_ for ( $fh1, $fh2, $fh3 );
+            is $c1, 'File 2', 'Index 0 now contains File 2';
+            is $c2, 'File 1', 'Index 1 now contains File 1';
+            close $_ for ( $fh1, $fh2, $fh3 );
         }
     }
 };
