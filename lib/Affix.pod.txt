@@ -8,43 +8,81 @@ Affix - A Foreign Function Interface eXtension
 
 =head1 SYNOPSIS
 
-    use Affix;
+    use v5.40;
+    use Affix qw[:all];
 
-    # 1. Load a Library
-    my $lib = load_library('m'); # libm.so / m.dll
+    # Load a Library
+    # Affix finds the system math library automatically
+    my $libm = libm();
 
-    # 2. Bind a Function
-    #    double pow(double x, double y);
-    affix $lib, 'pow', [Double, Double] => Double;
+    # Bind Functions
+    # double pow(double x, double y);
+    affix $libm, 'pow', [Double, Double] => Double;
 
-    # 3. Call it
-    say pow(2.0, 10.0); # 1024
+    # Call from Perl
+    warn pow(2.0, 10.0); # 1024
 
-    # 4. Manual Memory Management (optional)
-    my $ptr = malloc(1024);
-    # ... use ptr ...
-    free($ptr);
+    # Wrap an exported function in a code reference
+    my $bar = wrap( 'libfoo', 'bar', [Str, Float] => Double );
+
+    # Call from Perl
+    print $bar->( 'Baz', 3.14 );
+
+    # Bind an exported value to a Perl value
+    pin( my $ver, 'libfoo', 'VERSION', Int );
+
+    # Read the value
+    say $ver;
+
+    # Write to it too
+    $ver = 9;
+
+    # Complex Types (Structs)
+    # typedef struct { int x, y; int w, h; } Rect;
+    typedef Rect => Struct [
+        x => Int, y => Int,
+        w => Int, h => Int
+    ];
+
+    # void draw_rect(Rect r);
+    affix $lib, 'draw_rect', [ Rect() ] => Void;
+
+    # Pass a simple HashRef - Affix marshals it automatically
+    draw_rect( { x => 10, y => 10, w => 100, h => 50 } );
+
+    # High performance memory
+    # For hot loops, allocate once and reuse
+    my $rect_ptr = calloc(1, Rect());
+
+    # Create views into the memory for fast updates
+    my $ptr_x = cast( $rect_ptr, Pointer[Int] );
+
+    while ($running) {
+        # Pointer arithmetic and dereferencing
+        my $next_int = ptr_add($ptr_x, 4);
+        $$next_int = 99;
+
+        draw_rect($rect_ptr);  # Pass the pointer
+    }
 
 =head1 DESCRIPTION
 
-B<Affix> is a Foreign Function Interface (FFI) for Perl. It allows you to load dynamic libraries (DLLs, shared objects)
-and call their functions natively without writing XS code or configuring a C compiler.
+B<Affix> is a modern Foreign Function Interface (FFI) that allows Perl to call functions exported by dynamic libraries
+(DLLs, .so files, dylibs) developed in C, C++, Rust, Zig, Fortran, Assembly, and others without writing XS code.
 
-It distinguishes itself from other FFI solutions by using B<infix>, a custom lightweight JIT engine. When you bind a
-function, Affix generates machine code at runtime to handle the argument marshalling, resulting in significantly lower
-overhead than generic FFI wrappers.
-
-A Cookbook for Affix is being written. Check it out here:
-L<https://github.com/sanko/Affix.pm/discussions/categories/recipes>
+It is built on top of B<infix>, a lightweight C-based JIT engine designed specifically for zero-overhead calls. Affix
+handles the complex ABI details of passing Structs, Arrays, and Callbacks by value or reference, on Windows, macOS,
+Linux, and BSD, on both x64 and AArch64.
 
 =head1 EXPORTS
 
-Affix exports nothing by default. You can import tags:
+No functions are exported by default. You may import them individually or using tags.
 
-    use Affix qw[:all];    # Everything
-    use Affix qw[:lib];    # Library loading (load_library, libc, ...)
-    use Affix qw[:memory]; # malloc, free, cast, ...
-    use Affix qw[:types];  # Int, Void, String, ...
+    use Affix qw[:all];     # Everything
+    use Affix qw[:types];   # Int, Float, Struct, Pointer, Enum...
+    use Affix qw[:memory];  # malloc, free, cast, dump, ptr_add...
+    use Affix qw[:lib];     # load_library, find_symbol, get_last_error_message...
+    use Affix qw[:pin];     # pin, unpin
 
 =head1 THE BASICS
 
@@ -68,27 +106,34 @@ Parameters:
 
 =over
 
-=item C<$lib>
+=item C<$lib> - required
 
-A library handle returned by L</load_library( $path )>, a path string, or C<undef> (main executable).
+A library handle returned by L</load_library( $path )>, a file path string, or C<undef> (to pull functions from the
+main executable).
 
-=item C<$symbol_name>
+=item C<$symbol_name> - required
 
-The name of the function to find.
+Name of the symbol to wrap.
 
-Pass C<['real_name', 'alias']> to rename it in Perl.
+If you pass a string, Affix will try to load the symbol with that exact name.
 
-=item C<$parameters>
+If you pass an array reference (e.g., C<['real_name', 'alias']>), Affix will look up C<real_name> in the library but
+install the subroutine as C<alias> in your Perl package.
+
+=item C<$parameters> - required
 
 An array reference of argument types. See L</TYPES> for the full list (primitives, Struct, Pointer, etc.).
 
-=item C<$return>
+If you pass an empty array C<[]>, Affix assumes the function takes no arguments.
 
-A single return type for the function.
+=item C<$return> - required
+
+A single return type for the function. Use C<Void> if the function returns nothing.
 
 =back
 
 On success, C<affix( ... )> installs the subroutine and returns the generated code reference.
+
 
 =head2 C<wrap( ... )>
 
@@ -96,9 +141,6 @@ Creates a wrapper around a given symbol but returns it as an anonymous CodeRef.
 
     # 1. From Library
     my $pow = wrap $lib, 'pow', [Double, Double] => Double;
-
-    # Call the function
-    my $x = $pow->(2, 5);
 
     # 2. From Raw Pointer
     # Note: Library argument is undef
@@ -222,8 +264,10 @@ Convenience functions that return handles to the standard C library and Math lib
 
 =head1 MEMORY FUNCTIONS
 
-Affix provides tools to manage raw C memory via a concept called B<pins>. A pin is a magical scalar reference that
-binds to a raw memory address.
+Affix uses a concept called B<pins> to manage C pointers safely. A pin is a magical scalar reference that holds a raw
+memory address.
+
+Memory functions are exported via the C<:memory> or C<:all> tags.
 
 =head2 C<malloc( $size )>
 
@@ -480,62 +524,21 @@ scalar holding the memory address, blessed with magic.
     $$view = 123;             # Write 123 to the memory
     free($ptr);               # Free it manually (optional, GC handles it otherwise)
 
-=head2 Special Types
-
 =over
-
-=item C<Buffer>
-
-Passes a pointer to the raw string buffer of a Perl scalar. Useful for "Zero-Copy" or "Direct-Write" C functions that
-populate a buffer.
-
-    # C: void get_data(char *buf, int len);
-    affix $lib, 'get_data', [ Buffer, Int ] => Void;
-
-    my $buf = "\0" x 1024; # Pre-allocate
-    get_data($buf, 1024);
-
-B<Warning:> The scalar must be writable and have sufficient pre-allocated capacity.
-
-=item C<File>
-
-Represents the standard C C<FILE> structure. Use C<Pointer[File]> to map a Perl filehandle (Glob or IO object) to
-C<FILE*>.
-
-    affix $lib, 'fprintf', [ Pointer[File], String ] => Int;
-    open my $fh, '>', 'log.txt';
-    fprintf($fh, "Hello from Affix!");
-
-=item C<PerlIO>
-
-Represents the internal C<PerlIO> structure. Use C<Pointer[PerlIO]> when the C function expects C<PerlIO*>.
-
-=item C<SockAddr>
-
-Safe marshalling for packed socket addresses (e.g. from C<Socket::pack_sockaddr_in>). Passed to C as C<struct
-sockaddr*>.
 
 =item C<String>
 
 Alias for C<const char*>. Affix automatically handles UTF-8 encoding (Perl to C) and decoding (C to Perl).
 
-=item C<StringList>
-
-Maps a Perl Array Reference of strings (C<[ "a", "b" ]>) to a null-terminated C<char**> array (common in C APIs like
-C<execve> or C<main(argc, argv)>).
-
-    affix $lib, 'process_args', [ StringList ] => Int;
-    process_args( [ "arg1", "arg2" ] );
-
-=item C<SV>
-
-The raw Perl Interpreter Object (C<SV>). Use this if you are writing a function that manipulates Perl internals
-directly. Note that this must always be a pointer: C<Pointer[SV]>.
-
 =item C<WString>
 
 Alias for C<const wchar_t*>. Affix handles the complexity of UTF-16 (Windows) vs UTF-32 (Linux/macOS) and Surrogate
 Pairs automatically.
+
+=item C<SV>
+
+The raw Perl Interpreter Object (C<SV*>). Use this if you are writing a function that manipulates Perl internals
+directly.
 
 =back
 
@@ -745,27 +748,10 @@ lifecycle automatically for the duration of the call).
 
 =head1 UTILITIES
 
-=head2 C<errno()>
+=head2 C<get_system_error()>
 
-    my $err = get_system_error();
-    die "Error $err: " . int($err);
-
-Access the C<errno> (Linux/Unix) or C<GetLastError> (Windows) from the most recent FFI call. This must be called
+Returns the C<errno> (Linux/Unix) or C<GetLastError> (Windows) from the most recent FFI call. This must be called
 immediately after the function invokes to ensure accuracy.
-
-The return value is a B<dualvar>:
-
-=over
-
-=item *
-
-B<Numeric context>: Returns the integer error code.
-
-=item *
-
-B<String context>: Returns the human-readable system error message (via C<strerror> or C<FormatMessage>).
-
-=back
 
 =head2 C<sv_dump( $sv )>
 
@@ -793,8 +779,6 @@ toolchain is installed on the system.
 See L<Affix::Cookbook> for a comprehensive guide to using Affix.
 
 =head1 SEE ALSO
-
-The Affix Cookbook: L<https://github.com/sanko/Affix.pm/discussions/categories/recipes>
 
 L<FFI::Platypus>, L<C::DynaLib>, L<XS::TCC>
 

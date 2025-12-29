@@ -7,9 +7,36 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ## [Unreleased]
 
+Based on infix v0.1.3
+
+### Added
+
+  - Support for Variadic Functions (varargs):
+    - Implemented dynamic JIT compilation for C functions with variable arguments (e.g., `printf`).
+    - Added `variadic_cache` to cache trampolines for repeated calls, ensuring high performance.
+    - Implemented runtime type inference: Perl integers promote to `sint64`, floats to `double`, and strings to `*char`.
+  - Added `Affix::coerce($type, $value)` to explicitly hint types for variadic arguments. This allows passing structs by value or forcing specific integer widths where inference is insufficient.
+  - Cookbook: I'm putting together chapters on a wide range of topics at https://github.com/sanko/Affix.pm/discussions/categories/recipes
+  - `affix` and `wrap` functions now accept an address to bind to. This expects the library to be `undef` and jumps past the lib location and loading steps.
+  - Added `File` and `PerlIO` types.
+    - Allows passing Perl filehandles to C functions expecting standard C streams (`PerlIO*` => `Pointer[PerlIO]`).
+    - Allows receiving `FILE*` from C and using them as standard Perl filehandles (`FILE*` => `Pointer[File]`).
+  - A few new specialized pointer types:
+    - `StringList`: Automatically marshals an array ref of strings to a null-terminated `char**` array (and back). This is useful in instances where `argv` or a similar list is expected.
+    - `Buffer`: Allows passing a pre-allocated scalar as a mutable `char*` buffer to C (zero-copy write).
+    - `SockAddr`: Safe marshalling of Perl packed socket addresses to `struct sockaddr*`.
+
 ### Changed
 
+  - `Array[Char]` function arguments now accept Perl strings directly, copying the string data into the temporary C array.
+  - `Affix::errno()` now returns a dualvar containing both the numeric error code (`errno`/`GetLastError`) and the system error string (`strerror`/`FormatMessage`).
 
+### Fixed
+
+  - Correctly implemented array decay for function arguments on ARM and Win64. `Array[...]` types are now marshalled into temporary C arrays and passed as pointers, matching standard C behavior. Previously, they were incorrectly passed by value, causing stack corruption.
+  - Fixed binary safety for `Array[Char/UChar]`. Reading these arrays now respects the explicit length rather than stopping at the first null byte.
+  - The write-back mechanism no longer attempts to overwrite the read-only ArrayRef scalar with the pointer address.
+  - `Pointer[SV]` is now handled properly as args, return values, and in callbacks. Reference counting is automatic to prevent premature garbage collection of passed scalars.
 
 ## [v1.0.2] - 2025-12-14
 
