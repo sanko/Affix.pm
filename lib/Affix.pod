@@ -34,6 +34,8 @@ It distinguishes itself from other FFI solutions by using B<infix>, a custom lig
 function, Affix generates machine code at runtime to handle the argument marshalling, resulting in significantly lower
 overhead than generic FFI wrappers.
 
+A Cookbook for Affix is being written. Check it out here: L<https://github.com/sanko/Affix.pm/discussions/categories/recipes>
+
 =head1 EXPORTS
 
 Affix exports nothing by default. You can import tags:
@@ -738,10 +740,27 @@ lifecycle automatically for the duration of the call).
 
 =head1 UTILITIES
 
-=head2 C<get_system_error()>
+=head2 C<errno()>
 
-Returns the C<errno> (Linux/Unix) or C<GetLastError> (Windows) from the most recent FFI call. This must be called
+    my $err = get_system_error();
+    die "Error $err: " . int($err);
+
+Access the C<errno> (Linux/Unix) or C<GetLastError> (Windows) from the most recent FFI call. This must be called
 immediately after the function invokes to ensure accuracy.
+
+The return value is a B<dualvar>:
+
+=over
+
+=item *
+
+B<Numeric context>: Returns the integer error code.
+
+=item *
+
+B<String context>: Returns the human-readable system error message (via C<strerror> or C<FormatMessage>).
+
+=back
 
 =head2 C<sv_dump( $sv )>
 
@@ -769,6 +788,8 @@ toolchain is installed on the system.
 See L<Affix::Cookbook> for a comprehensive guide to using Affix.
 
 =head1 SEE ALSO
+
+The Affix Cookbook: L<https://github.com/sanko/Affix.pm/discussions/categories/recipes>
 
 L<FFI::Platypus>, L<C::DynaLib>, L<XS::TCC>
 

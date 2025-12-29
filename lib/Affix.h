@@ -51,7 +51,6 @@ START_MY_CXT;
 #define dTHXfield(var)
 #endif
 
-
 // Forward-declare the primary structures.
 typedef struct Affix Affix;
 typedef struct Affix_Backend Affix_Backend;

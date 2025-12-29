@@ -4676,21 +4676,53 @@ XS_INTERNAL(Affix_own) {
     XSRETURN(1);
 }
 
-XS_INTERNAL(Affix_get_system_error) {
+XS_INTERNAL(Affix_errno) {
     dXSARGS;
     PERL_UNUSED_VAR(items);
 
-    // Return standard errno
-    EXTEND(SP, 2);
-    mPUSHi(errno);
+    SV * dual = newSV(1);
 
 #ifdef _WIN32
-    // Return GetLastError on Windows
-    mPUSHu((UV)GetLastError());
+    DWORD err_code = GetLastError();
+    sv_setuv(dual, (UV)err_code);
+
+    char * buf = nullptr;
+    DWORD len =
+        FormatMessageA(FORMAT_MESSAGE_ALLOCATE_BUFFER | FORMAT_MESSAGE_FROM_SYSTEM | FORMAT_MESSAGE_IGNORE_INSERTS,
+                       nullptr,
+                       err_code,
+                       MAKELANGID(LANG_NEUTRAL, SUBLANG_DEFAULT),
+                       (LPSTR)&buf,
+                       0,
+                       nullptr);
+
+    if (buf) {
+        while (len > 0 && (buf[len - 1] == '\n' || buf[len - 1] == '\r'))
+            buf[--len] = '\0';
+        sv_setpvn(dual, buf, len);
+        LocalFree(buf);
+    }
+    else
+        sv_setpvn(dual, "Unknown system error", 20);
+
+    SvIOK_on(dual);
+    SvIsUV_on(dual);  // Mark as unsigned for DWORD
 #else
-    mPUSHi(0);
+    int err_code = errno;
+    sv_setiv(dual, err_code);
+
+    const char * msg = strerror(err_code);
+    if (msg)
+        sv_setpv(dual, msg);
+    else
+        sv_setpv(dual, "Unknown system error");
+
+    SvIV_set(dual, (IV)err_code);
+    SvIOK_on(dual);
 #endif
-    XSRETURN(2);
+
+    ST(0) = sv_2mortal(dual);
+    XSRETURN(1);
 }
 
 XS_INTERNAL(Affix_dump) {
@@ -5188,10 +5220,10 @@ void boot_Affix(pTHX_ CV * cv) {
         XSUB_EXPORT(is_null, "$", "memory");
     }
 
-    newXS("Affix::get_system_error", Affix_get_system_error, __FILE__);
-    (void)newXSproto_portable("Affix::set_destruct_level", Affix_set_destruct_level, __FILE__, "$");
-
     XSUB_EXPORT(coerce, "$$", "core");
+
+    XSUB_EXPORT(errno, "", "core");
+    (void)newXSproto_portable("Affix::set_destruct_level", Affix_set_destruct_level, __FILE__, "$");
 
 #undef XSUB_EXPORT
 
