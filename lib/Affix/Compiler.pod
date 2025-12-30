@@ -182,7 +182,19 @@ Extensions: C<.go>
 
 Compiler: C<go> or C<gccgo>
 
-Notes: In Polyglot mode, requires C<gccgo> or standard C<go> with C<c-archive> support.
+Notes:
+
+=over
+
+=item * In Polyglot mode, requires C<gccgo> or standard C<go> with C<c-archive> support.
+
+=item * The Go runtime spins up background threads (for GC and scheduling) that do not shut down cleanly when a shared library is unloaded. This often causes access violations on Windows during program exit.
+
+Affix attempts to detect Go libraries (by looking for the C<_cgo_dummy_export> symbol) and keep them in memory to
+prevent this crash. However, if you still encounter segmentation faults during global destruction, you can force a safe
+exit using C<POSIX::_exit(0)>.
+
+=back
 
 =head3 Zig
 

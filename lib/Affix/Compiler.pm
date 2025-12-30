@@ -142,27 +142,27 @@ package Affix::Compiler v1.0.3 {
         method _resolve_handler ($l) {
 
             # Normalize
-            if    ( $l =~ /^(cpp|cxx|cc|\+\+)$/ ) { return '_build_cpp'; }
-            elsif ( $l =~ /^(f|f90|f95|for)$/ )   { return '_build_fortran'; }
-            elsif ( $l =~ /^(rs)$/ )              { return '_build_rust'; }
-            elsif ( $l =~ /^(cs)$/ )              { return '_build_csharp'; }
-            elsif ( $l =~ /^(fs)$/ )              { return '_build_fsharp'; }
-            elsif ( $l =~ /^(s|asm)$/ )           { return '_build_asm'; }
-            elsif ( $l =~ /^(adb|ads)$/ )         { return '_build_ada'; }
-            elsif ( $l =~ /^(hs|lhs)$/ )          { return '_build_haskell'; }
-            elsif ( $l =~ /^(cr)$/ )              { return '_build_crystal'; }
-            elsif ( $l =~ /^(fut)$/ )             { return '_build_futhark'; }
-            elsif ( $l =~ /^(pas|pp)$/ )          { return '_build_pascal'; }
-            elsif ( $l =~ /^(cbl|cob)$/ )         { return '_build_cobol'; }
-            elsif ( $l =~ /^(ml)$/ )              { return '_build_ocaml'; }
-            elsif ( $l =~ /^(e)$/ )               { return '_build_eiffel'; }
-            elsif ( $l =~ /^(go)$/ )              { return '_build_go'; }
-            elsif ( $l =~ /^(zig)$/ )             { return '_build_zig'; }
-            elsif ( $l =~ /^(odin)$/ )            { return '_build_odin'; }
-            elsif ( $l =~ /^(nim)$/ )             { return '_build_nim'; }
-            elsif ( $l =~ /^(d)$/ )               { return '_build_d'; }
-            elsif ( $l =~ /^(swift)$/ )           { return '_build_swift'; }
-            elsif ( $l =~ /^(v)$/ )               { return '_build_v'; }
+            if    ( $l =~ /^(cpp|cxx|cc|c\+\+)$/ )      { return '_build_cpp'; }
+            elsif ( $l =~ /^(f|f90|f95|for|fortran)$/ ) { return '_build_fortran'; }
+            elsif ( $l =~ /^(ru?st?)$/ )                { return '_build_rust'; }
+            elsif ( $l =~ /^(cs|csharp|c#)$/ )          { return '_build_csharp'; }
+            elsif ( $l =~ /^(fs|fsharp|f#)$/ )          { return '_build_fsharp'; }
+            elsif ( $l =~ /^(s|asm|assembly)$/ )        { return '_build_asm'; }
+            elsif ( $l =~ /^(adb|ads|ada)$/ )           { return '_build_ada'; }
+            elsif ( $l =~ /^(hs|lhs|haskell)$/ )        { return '_build_haskell'; }
+            elsif ( $l =~ /^(cr|crystal)$/ )            { return '_build_crystal'; }
+            elsif ( $l =~ /^(fut|futhark)$/ )           { return '_build_futhark'; }
+            elsif ( $l =~ /^(pas|pp|pascal)$/ )         { return '_build_pascal'; }
+            elsif ( $l =~ /^(cbl|cob|cobol)$/ )         { return '_build_cobol'; }
+            elsif ( $l =~ /^(ml|ocaml)$/ )              { return '_build_ocaml'; }
+            elsif ( $l =~ /^(e|eiffel)$/ )              { return '_build_eiffel'; }
+            elsif ( $l =~ /^(go)$/ )                    { return '_build_go'; }
+            elsif ( $l =~ /^(zig)$/ )                   { return '_build_zig'; }
+            elsif ( $l =~ /^(odin)$/ )                  { return '_build_odin'; }
+            elsif ( $l =~ /^(nim)$/ )                   { return '_build_nim'; }
+            elsif ( $l =~ /^(d|dlang)$/ )               { return '_build_d'; }
+            elsif ( $l =~ /^(swift)$/ )                 { return '_build_swift'; }
+            elsif ( $l =~ /^(v|vlang)$/ )               { return '_build_v'; }
 
             # Fallback to C
             return '_build_c';
@@ -174,7 +174,7 @@ package Affix::Compiler v1.0.3 {
             # use Data::Dump;
             # ddx \@cmd;
             my ( $stdout, $stderr, $exit ) = capture {
-                system join ' ', @cmd;
+                system @cmd;
             };
             if ( !!$exit ) {
                 warn $stdout if $stdout;
@@ -313,7 +313,7 @@ package Affix::Compiler v1.0.3 {
             # Go runtime (and SSE/AVX instructions) on Windows x64. If Perl calls your library with a
             # 8-byte aligned stack (which was common in older GCC optimization flags), Go will segfault
             # immediately when it tries to access the stack.
-            push @local, q[-ldflags "-extldflags '-static -static-libgcc -static-libstdc++'] if $^O eq 'MSWin32';
+            push @local, q[-ldflags "-extldflags '-static -static-libgcc -static-libstdc++'"] if $^O eq 'MSWin32';
             if ( $mode eq 'dynamic' ) {
                 $self->_run( 'go', 'build', '-buildmode=c-shared', @local, '-o', "$out", "$file" );
                 return $out;
@@ -401,7 +401,7 @@ XML
             # Local flags? Dotnet CLI args are tricky, assuming they aremsbuild props?
             # Ignoring for now to keep it safe, or pass as raw args if user knows what they do.
             my @local = @{ $src->{flags} };
-            $self->_run( $dotnet, 'publish', "$proj", '-r', $rid, '-o', "$out_dir", @local );
+            $self->_run( "$dotnet", 'publish', "$proj", '-r', $rid, '-o', "$out_dir", @local );
             if ( $mode eq 'dynamic' ) {
                 my $dll_ext = $Config{so};
                 $dll_ext = ".$dll_ext" unless $dll_ext =~ /^\./;

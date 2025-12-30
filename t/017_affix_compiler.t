@@ -126,7 +126,7 @@ sub run_test ( $lang, $name, $code, $sym, $bin_req, $validator //= () ) {
             }
 
             # Attempt unload
-            DynaLoader::dl_unload_file($dll) if defined &DynaLoader::dl_unload_file;
+            DynaLoader::dl_unload_file($dll) if ( $^O eq 'MSWin32' ? $lang ne 'go' : 1 ) && defined &DynaLoader::dl_unload_file;
         }
         else {
             diag( "Load failed: " . DynaLoader::dl_error() );

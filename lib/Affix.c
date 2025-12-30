@@ -4143,8 +4143,22 @@ XS_INTERNAL(Affix_END) {
                          HeKEY(he),
                          (int)entry->ref_count);
 #endif
-                if (entry->lib)
+
+                // This extra symbol check is here to prevent shared libs written in Go from crashing Affix.
+                // The issue is that Go inits the full Go runtime when the lib is loaded but DOES NOT STOP
+                // IT when the lib is unloaded. Threads and everything else still run and we crash when perl
+                // exits. This only happens on Windows.
+                // See:
+                //  - https://github.com/golang/go/issues/43591
+                //  - https://github.com/golang/go/issues/22192
+                //  - https://github.com/golang/go/issues/11100
+                if (entry->lib
+#ifdef _WIN32
+                    && infix_library_get_symbol(entry->lib, "_cgo_dummy_export") == nullptr
+#endif
+                )
                     infix_library_close(entry->lib);
+
                 safefree(entry);
             }
         }

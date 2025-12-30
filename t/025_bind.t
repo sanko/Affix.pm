@@ -13,8 +13,7 @@ sub spew_files ( $dir, %files ) {
     $dir;
 }
 
-sub run_tests_for_driver {
-    my ( $driver_class, $label ) = @_;
+sub run_tests_for_driver ( $driver_class, $label ) {
     subtest "Driver: $label" => sub {
         #
         subtest "Preprocessor & Defines" => sub {
