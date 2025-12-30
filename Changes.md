@@ -37,6 +37,7 @@ Based on infix v0.1.3
   - Fixed binary safety for `Array[Char/UChar]`. Reading these arrays now respects the explicit length rather than stopping at the first null byte.
   - The write-back mechanism no longer attempts to overwrite the read-only ArrayRef scalar with the pointer address.
   - `Pointer[SV]` is now handled properly as args, return values, and in callbacks. Reference counting is automatic to prevent premature garbage collection of passed scalars.
+  - Shared libs written in Go spin up background threads (for GC and scheduling) that do not shut down cleanly when a shared library is unloaded. This often causes access violations on Windows during program exit. We attempt to work around this by detecting libs with the Go runtime and just... not unloading them.
 
 ## [v1.0.2] - 2025-12-14
 
