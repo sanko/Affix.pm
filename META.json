@@ -50,28 +50,10 @@
       }
    },
    "prereqs" : {
-      "build" : {
-         "requires" : {
-            "DynaLoader" : "0",
-            "ExtUtils::CBuilder" : "0",
-            "Getopt::Long" : "2.36",
-            "Path::Tiny" : "0"
-         }
-      },
       "configure" : {
          "requires" : {
-            "CPAN::Meta" : "0",
-            "Exporter" : "5.57",
-            "ExtUtils::Helpers" : "0.028",
-            "ExtUtils::Install" : "0",
-            "ExtUtils::InstallPaths" : "0.002",
-            "File::Basename" : "0",
-            "File::Find" : "0",
-            "File::Path" : "0",
-            "File::Spec::Functions" : "0",
-            "Getopt::Long" : "2.36",
-            "JSON::PP" : "2",
-            "Path::Tiny" : "0",
+            "Dist::Build": "0.025",
+            "Dist::Build::XS": "0.025",
             "perl" : "v5.40.0"
          }
       },
