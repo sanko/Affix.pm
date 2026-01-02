@@ -214,7 +214,7 @@ EOF
         ok( !$sys, 'System function (exit/malloc) was correctly filtered out' );
         my ($size_t) = grep { $_->name eq 'size_t' } @objs;
         ok( !$size_t, 'System typedef (size_t) was filtered out' );
-    };
+    }
 }
 run_tests_for_driver( 'Affix::Bind::Driver::Clang', 'Clang System' ) if $CLANG_AVAIL;
 run_tests_for_driver( 'Affix::Bind::Driver::Regex', 'Regex System (Fallback)' );
