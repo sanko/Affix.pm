@@ -54,3 +54,8 @@ MANIFEST
 
 *.html
 *.tmp
+
+eg/tmp/*
+eg/ast*
+eg/*.pl
+eg/temp*
