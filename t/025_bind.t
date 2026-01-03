@@ -207,10 +207,11 @@ EOF
             my $lib = compile_ok($src);
             my $pkg = $driver_class eq 'Affix::Bind::Driver::Clang' ? 'Testing_clang' : 'Testing_regex';
             #
-            Affix::Bind->new(
+            my $binder = Affix::Bind->new(
                 driver       => $driver_class->new( project_files => [ $dir->child('main.c')->stringify ] ),
                 include_dirs => [ './t/src', 'src', 'C:\Users\S\Documents\GitHub\Affix.pm\t\src' ]
-            )->wrap( $lib, $pkg );
+            );
+            $binder->wrap( $lib, $pkg );
             #
             is $pkg->can('return_six')->(), 6, 'returned 6';
         };
