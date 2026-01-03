@@ -302,7 +302,6 @@ package Affix::Bind v1.0.0 {
     # The good one
     class Affix::Bind::Driver::Clang {
         use Config;
-        use Affix qw[Void];
         field $project_files : param;
         field $allowed_files  = {};
         field $project_dirs   = [];
@@ -585,18 +584,24 @@ package Affix::Bind v1.0.0 {
         method _enum( $n, $acc, $f ) {
             my ( $s, $e, $l, $el ) = $self->_meta($n);
             my @c;
-            my $cnt = 0;
+            my $src = $self->_get_content($f);
             for my $ch ( @{ $n->{inner} } ) {
                 if ( ( $ch->{kind} // '' ) eq 'EnumConstantDecl' ) {
-                    my $v = undef;
-                    if ( $ch->{inner} ) {
-                        for ( @{ $ch->{inner} } ) {
-                            if ( $_->{kind} =~ /ConstantExpr|IntegerLiteral/ ) { $v = $_->{value}; }
+                    my $name = $ch->{name};
+                    my $val  = undef;
+                    my $off  = $ch->{range}{begin}{offset};
+                    if ( defined $off ) {
+                        my $chunk = substr( $src, $off );
+                        if ( $chunk =~ /^\s*\Q$name\E\s*(?:=\s*(.*?))?\s*(?:,|}|$)/s ) {
+                            $val = $1;
+                            if ( defined $val ) {
+                                $val =~ s/\/\/.*$//mg;
+                                $val =~ s/\/\*.*?\*\///sg;
+                                $val =~ s/^\s+|\s+$//g;
+                            }
                         }
                     }
-                    $v //= $cnt;
-                    $cnt = $v + 1;
-                    push @c, { name => $ch->{name}, value => $v };
+                    push @c, { name => $name, value => $val };
                 }
             }
             push @$acc,
@@ -640,6 +645,9 @@ package Affix::Bind v1.0.0 {
                     my $pn = $_->{name} // '';
                     push @args, Affix::Bind::Argument->new( type => $pt, name => $pn );
                 }
+            }
+            if ( $n->{variadic} ) {
+                push @args, Affix::Bind::Argument->new( type => Affix::Bind::Type->new( name => '...' ) );
             }
             push @$acc,
                 Affix::Bind::Function->new(
@@ -700,6 +708,8 @@ package Affix::Bind v1.0.0 {
             return '' unless defined $off;
             my $content = $self->_get_content($f);
             return '' unless length($content);
+
+            # Extract the line starting at offset
             my $post   = substr( $content, $off );
             my ($line) = split /\R/, $post, 2;
             return '' unless defined $line;
@@ -711,6 +721,13 @@ package Affix::Bind v1.0.0 {
                 return $c;
             }
             return '';
+        }
+
+        method _extract_raw( $f, $s, $e ) {
+            return '' unless defined $s && defined $e;
+            my $content = $self->_get_content($f);
+            return '' unless length($content) >= $e;
+            return substr( $content, $s, $e - $s );
         }
 
         method _extract_macro_val( $n, $f ) {
@@ -850,7 +867,6 @@ package Affix::Bind v1.0.0 {
 
     # The fallback
     class Affix::Bind::Driver::Regex {
-        use Affix qw[Void];
         field $project_files : param;
         field $file_cache = {};
 
@@ -977,6 +993,7 @@ package Affix::Bind v1.0.0 {
             }
 
             # Global Variables
+            # Matches: extern [API_MACRO] Type Name [= val]; // Optional Trailing Comment
             while ( $c
                 =~ /^\s*extern\s+((?:const\s+|unsigned\s+|struct\s+|[\w:<>]+(?:\s*::\s*[\w:<>]+)*\s*\*?\s*)+?)\s*(\w+(?:\[.*?\])?)\s*(?:=\s*[^;]+)?\s*;\s*(?:\/\/([^\r\n]*))?/gm
             ) {
@@ -1062,10 +1079,10 @@ package Affix::Bind v1.0.0 {
                 s/\/\*.*?\*\///s;
                 s/^\s+|\s+$//g;
                 next unless length;
-                if (/\s*(\w+)\s*(?:=\s*(-?\d+))?/) {
-                    my $val = $2 // $v;
-                    $v = $val + 1;
-                    push @cs, { name => $1, value => $val };
+                if (/^(\w+)\s*(?:=\s*(.+?))?$/) {
+                    my $name = $1;
+                    my $val  = $2;    # Capture expression string or undef if implicit
+                    push @cs, { name => $name, value => $val };
                 }
             }
             return \@cs;
@@ -1082,10 +1099,11 @@ package Affix::Bind v1.0.0 {
                 my ( $ret_str, $func_name, $args_str ) = ( $1, $2, substr( $3, 1, -1 ) );
                 my $ret_obj  = Affix::Bind::Type->parse($ret_str);
                 my @args_raw = grep {length} map { s/^\s+|\s+$//g; $_ } split /,/, $args_str;
-                @args_raw = grep { $_ ne '...' } @args_raw;
+
+                # Keep ellipsis if present (Regex driver)
+                # @args_raw = grep { $_ ne '...' } @args_raw;
                 if ( @args_raw == 1 && $args_raw[0] =~ /^void$/ ) { @args_raw = (); }
                 my @args;
-
                 for my $raw (@args_raw) {
                     if ( $raw =~ /^(.+?)\s+(\w+(?:\[.*?\])?)$/ ) {
                         my ( $t, $n ) = ( $1, $2 );

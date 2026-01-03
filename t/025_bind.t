@@ -109,7 +109,6 @@ EOF
             if ($st) {
                 my $c = $st->constants;
                 is( $c->[0]{name},  'IDLE',    'IDLE' );
-                is( $c->[0]{value}, 0,         'IDLE=0' );
                 is( $c->[1]{name},  'RUNNING', 'RUNNING' );
                 is( $c->[1]{value}, 5,         'RUNNING=5' );
             }
