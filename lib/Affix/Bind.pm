@@ -224,6 +224,7 @@ package Affix::Bind v1.0.0 {
             $out .= $self->_format_pod( $d->{desc} ) . "\n\n"  if $d->{desc};
             $out;
         }
+        method affix( $lib = undef, $pkg = undef ) { return undef }
     }
 
     class Affix::Bind::Member {
@@ -254,13 +255,19 @@ package Affix::Bind v1.0.0 {
             $v =~ s/^\s+|\s+$//g;
             return '' unless length $v;
             if ( $v =~ /^-?(?:0x[\da-fA-F]+|\d+(?:\.\d+)?)$/ || $v =~ /^".*"$/ || $v =~ /^'.*'$/ ) {
-                return sprintf 'use constant %s => %s', $self->name, $v;
+                return $v;
             }
             $v =~ s/'/\\'/g;
             sprintf 'use constant %s => %s', $self->name, $v;
         }
 
-        method affix {
+        method affix ( $lib = undef, $pkg = undef ) {
+            if ( $pkg && defined $value && length $value ) {
+                my $val = $value;
+                if ( $val =~ /^"(.*)"$/ || $val =~ /^'(.*)'$/ ) { $val = $1; }
+                no strict 'refs';
+                *{ "${pkg}::" . $self->name } = sub () {$val};
+            }
             sub () {$value};
         }
     }
@@ -268,13 +275,30 @@ package Affix::Bind v1.0.0 {
     class Affix::Bind::Variable : isa(Affix::Bind::Entity) {
         field $type : reader : param;
         method affix_type { sprintf 'pin my $%s, $lib, %s => %s', $self->name, $self->name, $type->affix_type }
-        method affix      { $type->affix }
+
+        method affix ( $lib, $pkg //= () ) {
+            if ($lib) {
+                my $t = $type->affix;
+                if ($pkg) {
+                    no strict 'refs';
+
+                    # Vivify package variable and bind it
+                    Affix::pin( ${ "${pkg}::" . $self->name }, $lib, $self->name, $t );
+                }
+                else {
+                    my $var;
+                    Affix::pin( $var, $lib, $self->name, $t );
+                    return $var;
+                }
+            }
+            $type->affix;
+        }
     }
 
     class Affix::Bind::Typedef : isa(Affix::Bind::Entity) {
         field $underlying : reader : param;
-        method affix_type { 'typedef ' . $self->name . ' => ' . $underlying->affix_type }
-        method affix      { Affix::typedef $self->name, $underlying->affix }
+        method affix_type                           { 'typedef ' . $self->name . ' => ' . $underlying->affix_type }
+        method affix ( $lib = undef, $pkg = undef ) { Affix::typedef $self->name, $underlying->affix }
     }
 
     class Affix::Bind::Struct : isa(Affix::Bind::Entity) {
@@ -286,7 +310,7 @@ package Affix::Bind v1.0.0 {
             sprintf '%s[ %s ]', $type_name, join( ', ', map { $_->name . ' => ' . $_->affix_type } @$members );
         }
 
-        method affix {
+        method affix ( $lib = undef, $pkg = undef ) {
             use Affix qw[Struct Union];
             if ( $tag eq 'union' ) {
                 return Union [ map { $_->name, $_->affix } @$members ];
@@ -302,7 +326,7 @@ package Affix::Bind v1.0.0 {
             my @defs;
             for my $c (@$constants) {
                 if ( !defined $c->{value} ) {
-                    push @defs, q['] . $c->{name} . q['];
+                    push @defs, $c->{name};
                     next;
                 }
                 my $v = $c->{value} // 0;
@@ -312,7 +336,7 @@ package Affix::Bind v1.0.0 {
             return sprintf 'Enum[ %s ]', join( ', ', @defs );
         }
 
-        method affix {
+        method affix ( $lib = undef, $pkg = undef ) {
             use Affix qw[Enum];
             my @defs;
             for my $c (@$constants) {
@@ -324,6 +348,7 @@ package Affix::Bind v1.0.0 {
     }
 
     class Affix::Bind::Function : isa(Affix::Bind::Entity) {
+        use Carp  qw[];
         use Affix qw[CodeRef];
         field $ret          : reader : param;
         field $args         : reader : param //= [];
@@ -335,8 +360,38 @@ package Affix::Bind v1.0.0 {
                 join( ', ', @{ $self->affix_args } ), $self->affix_ret;
         }
 
-        method affix ($lib) {
-            Affix::affix $lib, [ map { $_->affix } @$args ], $ret->affix;
+        method affix ( $lib, $pkg //= () ) {
+            if ($lib) {
+                my $arg_types = [ map { $_->affix } @$args ];
+                my $_lib      = Affix::load_library($lib);
+                my $ret_type  = $ret->affix;
+                if ($pkg) {
+                    no strict 'refs';
+                    no warnings 'redefine';
+                    Affix::affix(
+                        $lib,
+                        [   (
+                                defined $self->mangled_name &&
+                                    $self->mangled_name ne $self->name &&
+                                    Affix::find_symbol( $_lib, $self->mangled_name ) ? $self->mangled_name : $self->name
+                            ),
+                            $pkg . '::' . $self->name
+                        ],
+                        $arg_types,
+                        $ret_type
+                    ) // Carp::carp Affix::errno();
+                }
+                else {
+                    Affix::affix(
+                        $lib,
+                        defined $self->mangled_name &&
+                            $self->mangled_name ne $self->name &&
+                            Affix::find_symbol( $lib, $self->mangled_name ) ? [ $self->mangled_name, $self->name ] : $self->name,
+                        $arg_types,
+                        $ret_type
+                    ) // Carp::carp Affix::errno();
+                }
+            }
         }
         method affix_ret { $ret->affix_type }
 
@@ -352,7 +407,7 @@ package Affix::Bind v1.0.0 {
 
     class Affix::Bind::Driver::Clang {
         use Config;
-        field $project_files : param;
+        field $project_files : param : reader;
         field $allowed_files  = {};
         field $project_dirs   = [];
         field $paths_seen     = {};
@@ -600,6 +655,15 @@ package Affix::Bind v1.0.0 {
                             }
                         }
                     }
+
+                    # Fallback calc for next value
+                    if ( defined $val && $val =~ /^-?\d+$/ ) {
+                        $cnt = $val + 1;
+                    }
+                    else {
+                        if ( !defined $val ) { $val = $cnt; }
+                        $cnt++;    # Approximation for symbolic
+                    }
                     push @c, { name => $name, value => $val };
                 }
             }
@@ -839,7 +903,7 @@ package Affix::Bind v1.0.0 {
     }
 
     class Affix::Bind::Driver::Regex {
-        field $project_files : param;
+        field $project_files : param : reader;
         field $file_cache = {};
 
         method _normalize ($path) {
@@ -1083,6 +1147,13 @@ package Affix::Bind v1.0.0 {
                 if (/^(\w+)\s*(?:=\s*(.+?))?$/) {
                     my $name = $1;
                     my $val  = $2;    # Capture string or undef
+
+                    # Safe hex handling without string eval
+                    if ( defined $val && $val =~ /^(-?)0x([\da-fA-F]+)$/ ) {
+                        my $sign = $1 || '';
+                        my $num  = hex($2);
+                        $val = $sign eq '-' ? -$num : $num;
+                    }
                     push @cs, { name => $name, value => $val };
                 }
             }
@@ -1098,11 +1169,15 @@ package Affix::Bind v1.0.0 {
                 my $s = $-[0];
                 my $e = $+[0];
                 my ( $ret_str, $func_name, $args_str ) = ( $1, $2, substr( $3, 1, -1 ) );
-                my $ret_obj  = Affix::Bind::Type->parse($ret_str);
-                my @args_raw = grep {length} map { s/^\s+|\s+$//g; $_ } split /,/, $args_str;
+                #
+                $ret_str =~ s/\b[A-Z_][A-Z0-9_]*\b//g;
+                $ret_str =~ s/^\s+|\s+$//g;
+                my $ret_obj = Affix::Bind::Type->parse($ret_str);
+
+                # Split args respecting commas inside parentheses (e.g. function pointers)
+                my @args_raw = grep {length} map { s/^\s+|\s+$//g; $_ } split /,(?![^(]*\))/, $args_str;
                 if ( @args_raw == 1 && $args_raw[0] =~ /^void$/ ) { @args_raw = (); }
                 my @args;
-
                 for my $raw (@args_raw) {
                     if ( $raw =~ /^(.+?)\s*\(\*\s*(\w+)\)\s*\((.*)\)$/ ) {
                         my ( $r_type, $cb_name, $cb_args ) = ( $1, $2, $3 );
@@ -1215,20 +1290,36 @@ package Affix::Bind v1.0.0 {
     }
 
     class Affix::Bind {
-        field $driver;
-        field $project_files : param;
-        field $include_dirs : param //= [];
+        field $driver        : param //= ();
+        field $project_files : param //= $driver->project_files;
+        field $include_dirs  : param //= [];
         ADJUST {
-            my $has_clang = 0;
-            my ( $out, $err, $exit ) = Capture::Tiny::capture { system( 'clang', '--version' ); };
-            $has_clang = 1 if $exit == 0;
-            $driver    = $has_clang ? Affix::Bind::Driver::Clang->new( project_files => $project_files ) : $driver
-                = Affix::Bind::Driver::Regex->new( project_files => $project_files );
+            my $use_clang = 0;
+            unless ( defined $driver ) {
+                my ( $out, $err, $exit ) = Capture::Tiny::capture { system( 'clang', '--version' ); };
+                $use_clang = 1 if $exit == 0;
+                $driver    = $use_clang ? Affix::Bind::Driver::Clang->new( project_files => $project_files ) :
+                    Affix::Bind::Driver::Regex->new( project_files => $project_files );
+            }
         }
 
-        method parse( $entry_point = undef ) {
+        method parse( $entry_point //= () ) {
             $entry_point //= $project_files->[0];
-            return $driver->parse( $entry_point, $include_dirs );
+            $driver->parse( $entry_point, $include_dirs );
+        }
+
+        method wrap ( $lib, $target //= [caller]->[0] ) {
+            for my $node ( $self->parse ) {
+                if ( $node isa Affix::Bind::Macro ) {
+                    $node->affix( undef, $target );
+                }
+                elsif ( $node isa Affix::Bind::Variable || $node isa Affix::Bind::Function ) {
+                    $node->affix( $lib, $target );
+                }
+                elsif ( $node->can('affix') ) {
+                    $node->affix( $lib, $target );
+                }
+            }
         }
     }
 };

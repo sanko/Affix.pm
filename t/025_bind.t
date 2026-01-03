@@ -18,10 +18,6 @@ sub spew_files ( $dir, %files ) {
 
 sub run_tests_for_driver ( $driver_class, $label ) {
     subtest 'Driver: ' . $label => sub {
-
-        # ---------------------------------------------------------
-        # 1. Preprocessor & Defines
-        # ---------------------------------------------------------
         subtest 'Preprocessor & Defines' => sub {
             my $dir = Path::Tiny->tempdir;
             spew_files(
@@ -46,10 +42,6 @@ EOF
             # affix_type should quote expressions: '(10 + 20)' -> "'(10 + 20)'" or similar
             like( $calc->affix_type, qr/'?\(10 \+ 20\)'?/, 'Expression quoted in affix_type' );
         };
-
-        # ---------------------------------------------------------
-        # 2. Records (Structs & Unions via Typedef)
-        # ---------------------------------------------------------
         subtest 'Records (Structs & Unions)' => sub {
             my $dir = Path::Tiny->tempdir;
             spew_files(
@@ -103,10 +95,6 @@ EOF
                 like( $u->affix_type, qr/^Union\[/, 'Generates Union[...] signature' );
             }
         };
-
-        # ---------------------------------------------------------
-        # 3. Enums
-        # ---------------------------------------------------------
         subtest Enums => sub {
             my $dir = Path::Tiny->tempdir;
             spew_files(
@@ -136,10 +124,6 @@ EOF
             like( $sig, qr/IDLE/,         'IDLE in sig' );
             like( $sig, qr/RUNNING => 5/, 'RUNNING in sig' );
         };
-
-        # ---------------------------------------------------------
-        # 4. Functions & Variables
-        # ---------------------------------------------------------
         subtest 'Functions & Variables' => sub {
             my $dir = Path::Tiny->tempdir;
             spew_files(
@@ -177,10 +161,6 @@ EOF
                 is( $arg0->type->affix_type,              'Callback[[Int] => Void]', 'Signature matches' );
             }
         };
-
-        # ---------------------------------------------------------
-        # 5. Complex Types (Arrays/Pointers)
-        # ---------------------------------------------------------
         subtest 'Complex Types' => sub {
             my $dir = Path::Tiny->tempdir;
             spew_files(
@@ -211,6 +191,28 @@ EOF
                 isa_ok( $m2->type, ['Affix::Bind::Type::Array'], 'Member 2 is Array' );
                 is( $m2->type->affix_type, 'Array[Array[Float, 4], 4]', '2D Array Affix Sig' );
             }
+        };
+        subtest 'Compile -> Bind -> Affix' => sub {
+            use v5.40;
+            use Affix;
+            use Affix::Compiler;
+            use Affix::Bind;
+            #
+            my $src = <<~'';
+                //ext: .c
+                int return_six() { return 6; }
+
+            my $dir = Path::Tiny->tempdir;
+            spew_files( $dir, 'main.c' => $src );
+            my $lib = compile_ok($src);
+            my $pkg = $driver_class eq 'Affix::Bind::Driver::Clang' ? 'Testing_clang' : 'Testing_regex';
+            #
+            Affix::Bind->new(
+                driver       => $driver_class->new( project_files => [ $dir->child('main.c')->stringify ] ),
+                include_dirs => [ './t/src', 'src', 'C:\Users\S\Documents\GitHub\Affix.pm\t\src' ]
+            )->wrap( $lib, $pkg );
+            #
+            is $pkg->can('return_six')->(), 6, 'returned 6';
         };
     };
 }
