@@ -1,4 +1,3 @@
-
 =pod
 
 =encoding utf-8
@@ -11,77 +10,50 @@ Affix::Bind - Frictionless C Header Introspection and FFI Wrapper Generation
 
     use Affix::Bind;
 
-    # Configure the binder with header files
+    # Configure the binder
     my $binder = Affix::Bind->new(
-        project_files => [ 'include/mylib.h', 'include/mylib_types.h' ],
-        include_dirs  => [ '/usr/local/include', 'inc/' ],
+        project_files => [ 'include/mylib.h' ],
+        include_dirs  => [ 'include/' ],
     );
 
-    # Parse the headers into an Abstract Syntax Tree (AST)
+    # Parse headers into an AST
     my $ast = $binder->parse;
 
-    # Iterate over the findings to generate Affix code or attach at runtime
     for my $node (@$ast) {
+
+        # Functions
         if ( $node isa Affix::Bind::Function ) {
-            say "Found function: " . $node->name;
-
-            # C Type information
-            say "  Returns: " . $node->ret; # e.g. "int"
-
-            # Affix Type information (for attach/wrap)
-            say "  Affix Ret: " . $node->affix_ret; # e.g. "Int"
-
-            # Arguments are now objects
-            foreach my $arg (@{$node->args}) {
-                say "  Arg: " . $arg->name;
-                say "    C Type:     " . $arg->type;       # e.g. "const char *"
-                say "    Affix Type: " . $arg->affix_type; # e.g. "String"
-
-                # Retrieve actual Affix::Type object (if Affix is loaded)
-                my $type_obj = $arg->affix;
-            }
+            # Generate: affix $lib, 'func_name' => [Args], Ret;
+            say $node->affix_type;
         }
-        elsif ( $node isa Affix::Bind::Struct ) {
-            say "Found struct: " . $node->name;
-            foreach my $member (@{$node->members}) {
-                say "  - " . $member->name . " (" . $member->type . ")";
-                say "    Affix Sig: " . $member->affix_type;
 
-                # Check for array types
-                if ($member->type isa Affix::Bind::Type::Array) {
-                    say "    [Array of " . $member->type->count . " items]";
+        # Typedefs (often wrapping Structs/Enums)
+        elsif ( $node isa Affix::Bind::Typedef ) {
+            say "typedef " . $node->name . " => " . $node->underlying->affix_type;
+
+            # Inspect underlying Struct
+            if ( $node->underlying isa Affix::Bind::Struct ) {
+                my $struct = $node->underlying;
+                say "  Members:";
+                for my $m (@{$struct->members}) {
+                    say "    " . $m->name . " (" . $m->affix_type . ")";
                 }
             }
+        }
+
+        # Global Variables
+        elsif ( $node isa Affix::Bind::Variable ) {
+            say $node->affix_type; # Generates 'pin my $var ...'
         }
     }
 
 =head1 DESCRIPTION
 
-C<Affix::Bind> acts as a bridge between C/C++ header files and the B<Affix> FFI system. It parses C header files to
-extract structured metadata about functions, structs, enums, typedefs, and macros.
+C<Affix::Bind> acts as a bridge between C/C++ header files and the B<Affix> FFI system. It parses headers to produce a
+structured object model representing functions, structs, enums, typedefs, and variables.
 
-B<Note on System Headers:> By default, the Clang driver filters out declarations from system headers (e.g.,
-F</usr/include>, F</System/Library>) and files outside the project directories to keep the binding surface clean. Only
-declarations found within the directories of your C<project_files> (or explicitly whitelisted declarations) are
-returned.
-
-=head2 Drivers
-
-Affix::Bind utilizes a dual-driver approach to parsing:
-
-=over
-
-=item * Clang driver
-
-The preferred driver. It uses the system's C<clang> executable to dump the AST in JSON format. It is extremely
-accurate, handles C preprocessor logic (macros, includes), and resolves complex typedef chains correctly.
-
-=item * Regex driver
-
-A fallback driver implemented in pure Perl. It scans headers using regular expressions. While zero-dependency, it may
-struggle with heavily macro-laden code or complex C++ templates.
-
-=back
+It is designed to normalize the output between its two internal drivers (Clang and Regex) so that downstream code
+generation remains consistent regardless of the environment.
 
 =head1 CONSTRUCTOR
 
@@ -92,216 +64,133 @@ struggle with heavily macro-laden code or complex C++ templates.
         include_dirs  => [ '/usr/include' ],
     );
 
-Creates a new binding instance.
-
 =over
 
 =item C<project_files>
 
-Required. An array reference of paths to the C header files (C<.h>, C<.hpp>, C<.hxx>) you wish to parse.
+Required. Array reference of C header files to parse.
 
 =item C<include_dirs>
 
-Optional. An array reference of paths to search for C<#include "..."> directives. The directory of every file listed in
-C<project_files> is automatically added to this list.
-
-=back
-
-=head1 METHODS
-
-=head2 parse
-
-    my $objects = $binder->parse( $entry_point, $include_dirs );
-
-Parses the project files and returns an array reference of Nodes. The nodes are sorted by file name and line number.
-
-=over
-
-=item C<$entry_point>
-
-Optional. The specific file to start parsing from. Defaults to the first file in C<project_files>.
+Optional. Array reference of include paths.
 
 =back
 
 =head1 DATA MODEL
 
-The C<parse( )> method returns a list of objects inheriting from C<Affix::Bind::Entity>.
-
-=head2 Common Attributes
-
-All nodes share these attributes:
-
-=over
-
-=item * C<name>: The identifier name (e.g., C<BUF_SIZE>, C<my_func>).
-
-=item * C<doc>: Extracted Doxygen style comments preceeding the definition.
-
-=item * C<file>: The source file path.
-
-=item * C<line> / C<end_line>: Line numbers defining the range of the definition.
-
-=back
+The C<parse()> method returns a list of objects.
 
 =head2 Affix::Bind::Type
 
-Represents a generic C type. Stringifies to the C type representation (e.g., "int", "char *").
+Represents a generic C type (e.g., C<int>, C<void>).
 
 =over
 
-=item * C<name>: The string representation of the type.
+=item * C<affix_type>: Returns the Affix signature string (e.g., C<Int>).
 
-=item * C<affix_type>: Returns the Affix signature string (e.g., C<Int>, C<Pointer[Void]>, C<String>).
-
-=item * C<affix>: Calls the Affix library function to generate the actual Type object (e.g., returns the result of C<Affix::Int()>).
+=item * C<affix>: Returns the actual Affix type object.
 
 =back
 
 =head2 Affix::Bind::Type::Pointer
 
-A subclass of C<Affix::Bind::Type> representing a pointer (e.g., C<int*>).
-
-=over
-
-=item * C<of>: An C<Affix::Bind::Type> object representing the type being pointed to.
-
-=item * C<affix_type>: Returns the Affix pointer signature (e.g., C<Pointer[Int]>).
-
-=item * C<affix>: Calls C<Affix::Pointer(...)> with the inner type object.
-
-=back
+Represents C<T*> types. Wraps another type object.
 
 =head2 Affix::Bind::Type::Array
 
-A subclass of C<Affix::Bind::Type> representing a fixed-size array (e.g., C<int[16]>).
+Represents C<T[N]> fixed-size arrays. Wraps a type object and a count.
+
+=head2 Affix::Bind::Type::CodeRef
+
+Represents function pointers (callbacks), e.g., C<void (*)(int)>.
 
 =over
 
-=item * C<of>: An C<Affix::Bind::Type> object representing the element type.
+=item * C<ret>: Return type object.
 
-=item * C<count>: The number of elements in the array.
+=item * C<params>: ArrayRef of argument type objects.
 
-=item * C<affix_type>: Returns the Affix array signature (e.g., C<Array[Int, 16]>).
-
-=item * C<affix>: Calls C<Affix::Array(...)> with the inner type object and count.
+=item * C<affix_type>: Returns C<Callback[[Args] => Ret]>.
 
 =back
 
 =head2 Affix::Bind::Argument
 
-Represents a function argument. Stringifies to "Type Name" (e.g., "int count").
-
-=over
-
-=item * C<name>: The variable name of the argument (if present).
-
-=item * C<type>: An C<Affix::Bind::Type> object.
-
-=item * C<affix_type>: Delegate method for C<< $self->type->affix_type >>.
-
-=item * C<affix>: Delegate method for C<< $self->type->affix >>.
-
-=back
+Function arguments.
 
 =head2 Affix::Bind::Member
 
-Represents a field within a struct or union.
+Struct/Union members.
 
 =over
 
-=item * C<name>: The name of the member field.
+=item * C<definition>: If the member defines a nested struct/union inline, this holds that definition object.
 
-=item * C<type>: An C<Affix::Bind::Type> object representing the field's data type.
-
-=item * C<affix_type>: Delegate method for C<< $self->type->affix_type >>.
-
-=item * C<affix>: Delegate method for C<< $self->type->affix >>.
-
-=item * C<doc>: Documentation specific to this member.
-
-=item * C<definition>: If this member defines a nested anonymous struct or union, this field contains that C<Affix::Bind::Struct> object.
+=item * C<affix_type>: Returns the signature of the type OR the nested definition.
 
 =back
 
 =head2 Affix::Bind::Function
 
-Represents a C function declaration.
+A C function declaration.
 
 =over
 
-=item * C<ret>: An C<Affix::Bind::Type> object representing the return type.
-
-=item * C<args>: An array reference of C<Affix::Bind::Argument> objects.
-
-=item * C<mangled_name>: The linker symbol name, if available (mostly relevant for C++).
-
-=item * C<affix_ret>: Helper returning the Affix signature for the return type.
-
-=item * C<affix_args>: Helper returning an array reference of Affix signature strings for the arguments.
-
-=item * C<call_ret>: Helper returning the Affix type object for the return type.
-
-=item * C<call_args>: Helper returning an array reference of Affix type objects for the arguments.
+=item * C<affix_type>: Returns a complete Perl string to bind this function (e.g., C<affix $lib, name => ...>).
 
 =back
 
 =head2 Affix::Bind::Struct
 
-Represents a C<struct> or C<union>.
+A C struct or union definition.
 
 =over
 
-=item * C<tag>: Indicates if this is a C<struct> or a C<union>.
-
-=item * C<members>: An array reference of C<Affix::Bind::Member> objects.
-
-=back
-
-=head2 Affix::Bind::Enum
-
-Represents an C<enum>.
-
-=over
-
-=item * C<constants>: An array reference of hashrefs, where each hashref contains C<{ name => '...', value => ... }>.
+=item * C<tag>: Either 'struct' or 'union'.
+=item * C<affix_type>: Returns C<Struct[ ... ]> or C<Union[ ... ]>.
 
 =back
 
 =head2 Affix::Bind::Typedef
 
-Represents a C<typedef>.
+A name alias for another type.
 
 =over
 
-=item * C<underlying>: An C<Affix::Bind::Type> object representing the original type being aliased.
+=item * C<underlying>: The type object being aliased.
 
-=item * C<affix_type>: Delegate method for C<< $self->underlying->affix_type >>.
+=back
 
-=item * C<affix>: Delegate method for C<< $self->underlying->affix >>.
+B<Note:> In C, C<typedef struct { ... } Name;> results in a C<Typedef> object where C<underlying> is the C<Struct>
+object.
+
+=head2 Affix::Bind::Enum
+
+An enumeration.
+
+=over
+
+=item * C<affix_type>: Returns C<Enum[ Name => Val, ... ]>. String values in enums are quoted automatically.
 
 =back
 
 =head2 Affix::Bind::Variable
 
-Represents a global or static variable.
+A global C<extern> variable.
 
 =over
 
-=item * C<type>: An C<Affix::Bind::Type> object.
-
-=item * C<affix_type>: Delegate method for C<< $self->type->affix_type >>.
-
-=item * C<affix>: Delegate method for C<< $self->type->affix >>.
+=item * C<affix_type>: Returns a C<pin my $var ...> string.
 
 =back
 
 =head2 Affix::Bind::Macro
 
-Represents a C<#define> that contains a literal value. Complex function-like macros are generally ignored.
+A preprocessor C<#define>.
 
 =over
 
-=item * C<value>: The literal value of the macro (e.g., "1024").
+=item * C<affix_type>: Returns a C<use constant> string. Expressions (e.g., C<A + B>) are quoted as strings to prevent compile-time errors in Perl, while literals are preserved.
 
 =back
 
