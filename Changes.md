@@ -25,6 +25,10 @@ Based on infix v0.1.3
     - `StringList`: Automatically marshals an array ref of strings to a null-terminated `char**` array (and back). This is useful in instances where `argv` or a similar list is expected.
     - `Buffer`: Allows passing a pre-allocated scalar as a mutable `char*` buffer to C (zero-copy write).
     - `SockAddr`: Safe marshalling of Perl packed socket addresses to `struct sockaddr*`.
+  - Affix::Bind: An experimental tool to introspect C header files and generate Affix bindings and documentation.
+    - Dual-Driver Architecture:
+      - `Affix::Bind::Driver::Clang`: Uses the system `clang` executable to parse the AST for high-fidelity extraction of types, macros, and comments.
+      - `Affix::Bind::Driver::Regex`: A zero-dependency fallback driver that parses headers using heuristics.
 
 ### Changed
 

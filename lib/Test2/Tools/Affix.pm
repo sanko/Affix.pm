@@ -25,7 +25,8 @@ package    #
                 U D T F DNE array string float number bool hash etc end
                 refcount
                 can_ok isa_ok
-                capture imported_ok warns]
+                capture imported_ok warns
+                path tempfile tempdir]
         ]
     );
     #

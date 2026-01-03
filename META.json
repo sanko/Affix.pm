@@ -112,6 +112,9 @@
          "file" : "lib/Affix/Bind.pm",
          "version" : "v1.0.0"
       },
+      "Affix::Bind::Argument" : {
+         "file" : "lib/Affix/Bind.pm"
+      },
       "Affix::Bind::Driver::Clang" : {
          "file" : "lib/Affix/Bind.pm"
       },
@@ -122,6 +125,9 @@
          "file" : "lib/Affix/Bind.pm"
       },
       "Affix::Bind::Member" : {
+         "file" : "lib/Affix/Bind.pm"
+      },
+      "Affix::Bind::Type" : {
          "file" : "lib/Affix/Bind.pm"
       },
       "Affix::Compiler" : {

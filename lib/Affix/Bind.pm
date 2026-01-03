@@ -7,107 +7,449 @@ package Affix::Bind v1.0.0 {
     use Capture::Tiny qw[capture];
     use JSON::PP;
     use File::Basename qw[basename];
+    use Affix          qw[];
+
+    class Affix::Bind::Type {
+        use Affix qw[Void];
+        field $name : reader : param //= 'void';
+        method to_string { $self->name }
+        use overload '""' => 'to_string', fallback => 1;
+
+        # Factory method to parse a C type string into objects
+        sub parse ( $class, $t ) {
+            return $class->new( name => 'void' ) unless defined $t;
+
+            # Cleanup attributes and whitespace
+            $t =~ s/__attribute__\s*\(\(.*\)\)//g;
+            $t =~ s/^\s+|\s+$//g;
+
+            # Function Pointer: Ret (*)(Args)
+            if ( $t =~ /^(.+?)\s*\(\*\)\s*\((.*)\)$/ ) {
+                my $ret_str  = $1;
+                my $args_str = $2;
+                my $ret      = $class->parse($ret_str);
+                my @args;
+                if ( $args_str ne '' && $args_str ne 'void' ) {
+                    @args = map { $class->parse($_) } split( /\s*,\s*/, $args_str );
+                }
+                return Affix::Bind::Type::CodeRef->new( ret => $ret, params => \@args );
+            }
+            if ( $t =~ /^(.*)\s*\[(\d+)\]$/ ) {
+                return Affix::Bind::Type::Array->new( of => $class->parse($1), count => $2 );
+            }
+            $t =~ s/(\*)\s*(?:const|restrict)\s*$/$1/;
+            if ( $t =~ /^(.+)\s*\*$/ ) {
+                return Affix::Bind::Type::Pointer->new( of => $class->parse($1) );
+            }
+            return $class->new( name => $t );
+        }
+
+        method affix_type {
+            my $t = $self->name;
+            $t =~ s/consts?\s+//g;
+            $t =~ s/(\s+\**)const$/$1/g;
+            $t =~ s/(\s+\**)restrict$/$1/g;
+            $t =~ s/\s+$//;
+            state $type_map //= {
+                void                 => 'Void',
+                bool                 => 'Bool',
+                short                => 'Short',
+                'unsigned short'     => 'UShort',
+                char                 => 'Char',
+                'signed char'        => 'SChar',
+                'unsigned char'      => 'UChar',
+                int                  => 'Int',
+                'unsigned int'       => 'UInt',
+                long                 => 'Long',
+                'unsigned long'      => 'ULong',
+                'long long'          => 'LongLong',
+                'unsigned long long' => 'ULongLong',
+                float                => 'Float',
+                double               => 'Double',
+                'long double'        => 'LongDouble',
+                int8_t               => 'Int8',
+                sint8_t              => 'SInt8',
+                uint8_t              => 'UInt8',
+                int16_t              => 'Int16',
+                sint16_t             => 'SInt16',
+                uint16_t             => 'UInt16',
+                int32_t              => 'Int32',
+                sint32_t             => 'SInt32',
+                uint32_t             => 'UInt32',
+                int64_t              => 'Int64',
+                sint64_t             => 'SInt64',
+                uint64_t             => 'UInt64',
+                int128_t             => 'Int128',
+                sint128_t            => 'SInt128',
+                uint128_t            => 'UInt128',
+                size_t               => 'Size_t',
+                ssize_t              => 'SSize_t',
+                wchar_t              => 'WChar',
+                '...'                => 'VarArgs',
+                'va_list'            => 'VarArgs'
+            };
+            return $type_map->{ lc $t } if defined $type_map->{ lc $t };
+            return $t                   if $t =~ /^[a-zA-Z_]\w*$/;
+            return 'Void';
+        }
+
+        method affix {
+            use Affix qw[Void];
+            my $func_name = $self->affix_type;
+            if ( $func_name =~ /^(\w+)$/ ) {
+                no strict 'refs';
+                my $fn = "Affix::$func_name";
+                return $fn->() if defined &{$fn};
+            }
+            Void;
+        }
+    }
+
+    class Affix::Bind::Type::Pointer : isa(Affix::Bind::Type) {
+        use Affix qw[Pointer];
+        field $of : reader : param;
+        method name       { $of->name . '*' }
+        method affix_type { 'Pointer[' . $of->affix_type . ']' }
+        method affix      { Pointer [ $of->affix ] }
+    }
+
+    class Affix::Bind::Type::Array : isa(Affix::Bind::Type) {
+        use Affix qw[Array];
+        field $of    : reader : param;
+        field $count : reader : param;
+        method name       { $of->name . "[" . $count . "]" }
+        method affix_type { sprintf( 'Array[%s, %d]', $of->affix_type, $count ) }
+        method affix      { Array [ $of->affix, $count ] }
+    }
+
+    class Affix::Bind::Type::CodeRef : isa(Affix::Bind::Type) {
+        use Affix qw[CodeRef];
+        field $ret    : reader : param;
+        field $params : reader : param;    # ArrayRef of Types
+
+        method name {
+            sprintf '%s (*)(%s)', $ret->name, join( ', ', map { $_->name } @$params );
+        }
+
+        method affix_type {
+            sprintf 'Callback[[%s] => %s]', join( ', ', map { $_->affix_type } @$params ), $ret->affix_type;
+        }
+
+        method affix {
+            CodeRef [ [ map { $_->affix } @$params ], $ret->affix ];
+        }
+    }
+
+    class Affix::Bind::Argument {
+        field $type : reader : param;
+        field $name : reader : param //= '';
+        method to_string { length($name) ? $type->to_string . ' ' . $name : $type->to_string }
+        use overload '""' => 'to_string', fallback => 1;
+        method affix_type { $type->affix_type }
+        method affix      { $type->affix }
+    }
 
     class Affix::Bind::Entity {
         field $name         : reader : param //= '';
-        field $doc          : reader : param //= undef;
+        field $doc          : reader : param //= ();
         field $file         : reader : param //= '';
         field $line         : reader : param //= 0;
         field $end_line     : reader : param //= 0;
         field $start_offset : reader : param //= 0;
         field $end_offset   : reader : param //= 0;
         field $is_merged    : reader = 0;
+        field $doc_data = undef;
         method mark_merged { $is_merged = 1 }
         method _base($p)   { return '' unless defined $p; $p =~ s{^.*[/\\]}{}; return $p }
 
         method describe {
-            my $t = ref($self);
-            $t =~ s/^Affix::Bind:://;
-            return "[$t] $name (" . $self->_base($file) . ":$line)";
+            return sprintf '[%s] %s (%s:%d)', __CLASS__ =~ s/^Affix::Bind:://r, $name, $self->_base($file), $line;
         }
+
+        # Helper to convert Doxygen/Markdown to POD
+        method _format_pod($text) {
+            $text =~ s/^\s+|\s+$//g;
+            $text =~ s/`([^`]+)`/C<$1>/g;                     # Code blocks: `code` -> C<code>
+            $text =~ s/\*\*([^*]+)\*\*/B<$1>/g;               # Bold: **text** -> B<text>
+            $text =~ s/\*([^*]+)\*/I<$1>/g;                   # Italic: *text* -> I<text>
+            $text =~ s/\[([^\]]+)\]\(([^)]+)\)/L<$1|$2>/g;    # Links: [foo](bar) -> L<foo|bar>
+            return $text;
+        }
+
+        method parse_doc () {
+            return $doc_data if defined $doc_data;
+            my $raw           = $doc // '';
+            my $data          = { brief => '', desc => '', params => {}, return => '', };
+            my @lines         = split /\n/, $raw;
+            my $current_tag   = 'desc';
+            my $current_param = undef;
+            foreach my $line (@lines) {
+                $line =~ s/^\s+|\s+$//g;
+                next unless length $line;
+                if ( $line =~ /^[@\\]brief\s+(.*)/ ) {
+                    $data->{brief} = $1;
+                    $current_tag = 'brief';
+                }
+                elsif ( $line =~ /^[@\\]param(?:\[.*?\])?\s+(\w+)\s+(.*)/ ) {
+                    $data->{params}{$1} = $2;
+                    $current_param      = $1;
+                    $current_tag        = 'param';
+                }
+                elsif ( $line =~ /^[@\\]returns?\s+(.*)/ ) {
+                    $data->{return} = $1;
+                    $current_tag = 'return';
+                }
+                elsif ( $line =~ /^[@\\](\w+)\s*(.*)/ ) {
+                    my $tag = ucfirst($1);
+                    $data->{desc} .= "\n\nB<$tag:> $2";
+                    $current_tag = 'desc';
+                }
+                else {
+                    if    ( $current_tag eq 'brief' )                           { $data->{brief}                  .= ' ' . $line; }
+                    elsif ( $current_tag eq 'param' && defined $current_param ) { $data->{params}{$current_param} .= ' ' . $line; }
+                    elsif ( $current_tag eq 'return' )                          { $data->{return}                 .= ' ' . $line; }
+                    else                                                        { $data->{desc} .= ( length( $data->{desc} ) ? "\n" : '' ) . $line; }
+                }
+            }
+            if ( length( $data->{brief} ) == 0 && length( $data->{desc} ) > 0 ) {
+                if ( $data->{desc} =~ s/^(.+?\.)\s+//s ) { $data->{brief} = $1; }
+            }
+            return $doc_data = $data;
+        }
+
+        method pod {
+            my $d   = $self->parse_doc;
+            my $out = '=head2 ' . $self->name . "\n\n";
+            $out .= $self->_format_pod( $d->{brief} ) . "\n\n" if $d->{brief};
+            $out .= $self->_format_pod( $d->{desc} ) . "\n\n"  if $d->{desc};
+            $out;
+        }
+        method affix( $lib = undef, $pkg = undef ) { return undef }
     }
 
     class Affix::Bind::Member {
+        use Affix qw[Void];
         field $name       : reader : param //= '';
         field $type       : reader : param //= '';
         field $doc        : reader : param //= undef;
         field $definition : reader : param //= undef;
+
+        method affix_type {
+            return $definition->affix_type if defined $definition;
+            return $type->affix_type       if builtin::blessed($type);
+            return 'Void';
+        }
+
+        method affix {
+            return $definition->affix if defined $definition;
+            builtin::blessed($type) ? $type->affix : Void;
+        }
     }
 
     class Affix::Bind::Macro : isa(Affix::Bind::Entity) {
-        field $value : reader : param //= '';
+        field $value : reader : param //= ();
+
+        method affix_type {
+            $value // return '';
+            my $v = $value // '';
+            $v =~ s/^\s+|\s+$//g;
+            return '' unless length $v;
+            if ( $v =~ /^-?(?:0x[\da-fA-F]+|\d+(?:\.\d+)?)$/ || $v =~ /^".*"$/ || $v =~ /^'.*'$/ ) {
+                return $v;
+            }
+            $v =~ s/'/\\'/g;
+            sprintf 'use constant %s => %s', $self->name, $v;
+        }
+
+        method affix ( $lib = undef, $pkg = undef ) {
+            if ( $pkg && defined $value && length $value ) {
+                my $val = $value;
+                if ( $val =~ /^"(.*)"$/ || $val =~ /^'(.*)'$/ ) { $val = $1; }
+                no strict 'refs';
+                *{ "${pkg}::" . $self->name } = sub () {$val};
+            }
+            sub () {$value};
+        }
     }
 
     class Affix::Bind::Variable : isa(Affix::Bind::Entity) {
-        field $type : reader : param //= '';
+        field $type : reader : param;
+        method affix_type { sprintf 'pin my $%s, $lib, %s => %s', $self->name, $self->name, $type->affix_type }
+
+        method affix ( $lib, $pkg //= () ) {
+            if ($lib) {
+                my $t = $type->affix;
+                if ($pkg) {
+                    no strict 'refs';
+
+                    # Vivify package variable and bind it
+                    Affix::pin( ${ "${pkg}::" . $self->name }, $lib, $self->name, $t );
+                }
+                else {
+                    my $var;
+                    Affix::pin( $var, $lib, $self->name, $t );
+                    return $var;
+                }
+            }
+            $type->affix;
+        }
     }
 
     class Affix::Bind::Typedef : isa(Affix::Bind::Entity) {
-        field $underlying : reader : param //= '';
+        field $underlying : reader : param;
+        method affix_type                           { 'typedef ' . $self->name . ' => ' . $underlying->affix_type }
+        method affix ( $lib = undef, $pkg = undef ) { Affix::typedef $self->name, $underlying->affix }
     }
 
     class Affix::Bind::Struct : isa(Affix::Bind::Entity) {
         field $tag     : reader : param //= 'struct';
         field $members : reader : param //= [];
+
+        method affix_type {
+            my $type_name = $tag eq 'union' ? 'Union' : 'Struct';
+            sprintf '%s[ %s ]', $type_name, join( ', ', map { $_->name . ' => ' . $_->affix_type } @$members );
+        }
+
+        method affix ( $lib = undef, $pkg = undef ) {
+            use Affix qw[Struct Union];
+            if ( $tag eq 'union' ) {
+                return Union [ map { $_->name, $_->affix } @$members ];
+            }
+            Struct [ map { $_->name, $_->affix } @$members ];
+        }
     }
 
     class Affix::Bind::Enum : isa(Affix::Bind::Entity) {
         field $constants : reader : param //= [];
+
+        method affix_type {
+            my @defs;
+            for my $c (@$constants) {
+                if ( !defined $c->{value} ) {
+                    push @defs, $c->{name};
+                    next;
+                }
+                my $v = $c->{value} // 0;
+                $v = "'$v'" if $v !~ /^-?\d+$/;
+                push @defs, sprintf( '[%s => %s]', $c->{name}, $v );
+            }
+            return sprintf 'Enum[ %s ]', join( ', ', @defs );
+        }
+
+        method affix ( $lib = undef, $pkg = undef ) {
+            use Affix qw[Enum];
+            my @defs;
+            for my $c (@$constants) {
+                if ( !defined $c->{value} ) { push @defs, $c->{name}; next }
+                push @defs, [ $c->{name}, $c->{value} ];
+            }
+            Enum [@defs];
+        }
     }
 
     class Affix::Bind::Function : isa(Affix::Bind::Entity) {
-        field $ret          : reader : param //= 'void';
+        use Carp  qw[];
+        use Affix qw[CodeRef];
+        field $ret          : reader : param;
         field $args         : reader : param //= [];
-        field $mangled_name : reader : param //= undef;
-    }
+        field $mangled_name : reader : param //= ();
 
-    # =============================================================================
-    # DRIVER: CLANG
-    # =============================================================================
-    class Affix::Bind::Driver::Clang {
-        field $project_files : param;
-        field $allowed_files = {};
-        field $paths_seen    = {};
-        field $file_cache    = {};
-
-        method _basename ($path) {
-            return "" unless defined $path;
-            $path =~ s{^.*[/\\]}{};
-            return lc($path);
-        }
-        ADJUST {
-            foreach my $f (@$project_files) {
-                my $base = $self->_basename($f);
-                $allowed_files->{$base} = $f;
-            }
+        method affix_type {
+            sprintf 'affix $lib, %s => [%s], %s;',
+                ( $self->mangled_name ne $self->name ? ( sprintf q[[%s => '%s']], $self->mangled_name, $self->name ) : $self->name ),
+                join( ', ', @{ $self->affix_args } ), $self->affix_ret;
         }
 
-        method parse ( $entry_point, $include_dirs = [] ) {
-            my $ep_abs = Path::Tiny::path($entry_point)->absolute->stringify;
-            $ep_abs =~ s{\\}{/}g;
-
-            # Add entry point to allowed files to capture typedefs that fall back to TU scope
-            my $ep_base = $self->_basename($ep_abs);
-            $allowed_files->{$ep_base} = $ep_abs;
-            my @includes = map {
-                my $p = Path::Tiny::path($_)->absolute->stringify;
-                $p =~ s{\\}{/}g;
-                "-I$p"
-            } @$include_dirs;
-
-            # Ensure project file directories are included
-            my %seen_dirs;
-            foreach my $pf ( @$project_files, $ep_abs ) {
-                my $dir = Path::Tiny::path($pf)->parent->absolute->stringify;
-                $dir =~ s{\\}{/}g;
-                unless ( $seen_dirs{$dir}++ ) {
-                    push @includes, "-I$dir";
+        method affix ( $lib, $pkg //= () ) {
+            if ($lib) {
+                my $arg_types = [ map { $_->affix } @$args ];
+                my $_lib      = Affix::load_library($lib);
+                my $ret_type  = $ret->affix;
+                if ($pkg) {
+                    no strict 'refs';
+                    no warnings 'redefine';
+                    Affix::affix(
+                        $lib,
+                        [   (
+                                defined $self->mangled_name &&
+                                    $self->mangled_name ne $self->name &&
+                                    Affix::find_symbol( $_lib, $self->mangled_name ) ? $self->mangled_name : $self->name
+                            ),
+                            $pkg . '::' . $self->name
+                        ],
+                        $arg_types,
+                        $ret_type
+                    ) // Carp::carp Affix::errno();
+                }
+                else {
+                    Affix::affix(
+                        $lib,
+                        defined $self->mangled_name &&
+                            $self->mangled_name ne $self->name &&
+                            Affix::find_symbol( $lib, $self->mangled_name ) ? [ $self->mangled_name, $self->name ] : $self->name,
+                        $arg_types,
+                        $ret_type
+                    ) // Carp::carp Affix::errno();
                 }
             }
+        }
+        method affix_ret { $ret->affix_type }
+
+        method affix_args {
+            [ map { $_->affix_type } @$args ]
+        }
+        method call_ret { $ret->affix }
+
+        method call_args {
+            [ map { $_->affix } @$args ]
+        }
+    }
+
+    class Affix::Bind::Driver::Clang {
+        use Config;
+        field $project_files : param : reader;
+        field $allowed_files  = {};
+        field $project_dirs   = [];
+        field $paths_seen     = {};
+        field $file_cache     = {};
+        field $last_seen_file = undef;
+        field $clang //= 'clang';
+        method _basename ($path) { return '' unless defined $path; $path =~ s{^.*[/\\]}{}; return lc($path); }
+
+        method _normalize ($path) {
+            return '' unless defined $path;
+            my $abs = Path::Tiny::path($path)->absolute->stringify;
+            $abs =~ s{\\}{/}g;
+            return $abs;
+        }
+        ADJUST {
+            my %seen_dirs;
+            for my $f (@$project_files) {
+                my $abs = $self->_normalize($f);
+                $allowed_files->{$abs} = 1;
+                my $dir = Path::Tiny::path($abs)->parent->stringify;
+                $dir =~ s{\\}{/}g;
+                unless ( $seen_dirs{$dir}++ ) { push @$project_dirs, $dir; }
+            }
+        }
+
+        method parse ( $entry_point, $include_dirs //= [] ) {
+            my $ep_abs = $self->_normalize($entry_point);
+            $allowed_files->{$ep_abs} = 1;
+            $last_seen_file = $ep_abs;
+            my $ep_dir = Path::Tiny::path($ep_abs)->parent->stringify;
+            $ep_dir =~ s{\\}{/}g;
+            my $found = 0;
+            for my $pd (@$project_dirs) {
+                if ( $ep_dir eq $pd ) { $found = 1; last; }
+            }
+            push @$project_dirs, $ep_dir unless $found;
+            my @includes = map { "-I" . $self->_normalize($_) } @$include_dirs;
+            for my $d (@$project_dirs) { push @includes, "-I$d"; }
             my @cmd = (
-                'clang',                          '-Xclang',       '-ast-dump=json',       '-Xclang',
-                '-detailed-preprocessing-record', '-fsyntax-only', '-fparse-all-comments', '-Wno-everything',
-                @includes,                        $ep_abs
+                $clang,                 '-target',         $self->_get_triple(),             '-Xclang',
+                '-ast-dump=json',       '-Xclang',         '-detailed-preprocessing-record', '-fsyntax-only',
+                '-fparse-all-comments', '-Wno-everything', @includes,                        $ep_abs
             );
             my ( $stdout, $stderr, $exit ) = Capture::Tiny::capture { system(@cmd); };
             if ( $exit != 0 )               { die "Clang Error:\n$stderr"; }
@@ -117,53 +459,55 @@ package Affix::Bind v1.0.0 {
             $self->_walk( $ast, \@objects, $ep_abs );
             $self->_scan_macros_fallback( \@objects );
             $self->_merge_typedefs( \@objects );
+            $self->_wrap_named_types( \@objects );
             @objects = sort { ( $a->file cmp $b->file ) || ( $a->start_offset <=> $b->start_offset ) } @objects;
-            return \@objects;
+            @objects;
         }
 
         method _walk( $node, $acc, $current_file ) {
             return unless ref $node eq 'HASH';
-            my $kind = $node->{kind} // 'Unknown';
-
-            # 1. Update Context
+            my $kind      = $node->{kind} // 'Unknown';
             my $node_file = $self->_get_node_file($node);
-            if ($node_file) { $current_file = $node_file; }
-
-            # 2. Filter
-            my $base    = $self->_basename($current_file);
-            my $is_ours = exists $allowed_files->{$base};
-
-            # 3. Capture
-            if ( $is_ours && !$node->{isImplicit} ) {
+            if ($node_file) {
+                $current_file   = $self->_normalize($node_file);
+                $last_seen_file = $current_file;
+            }
+            elsif ( defined $last_seen_file ) { $current_file = $last_seen_file; }
+            if    ( $self->_is_valid_file($current_file) && !$node->{isImplicit} ) {
                 if ( $kind eq 'MacroDefinitionRecord' ) {
                     if ( $node->{range} ) { $self->_macro( $node, $acc, $current_file ); }
                 }
-                elsif ( $kind eq 'TypedefDecl' ) {
-                    $self->_typedef( $node, $acc, $current_file );
-                }
+                elsif ( $kind eq 'TypedefDecl' ) { $self->_typedef( $node, $acc, $current_file ); }
                 elsif ( $kind eq 'RecordDecl' || $kind eq 'CXXRecordDecl' ) {
                     $self->_record( $node, $acc, $current_file );
-                    return;    # Stop recursion: we handle inner members inside _record
+                    return;
                 }
                 elsif ( $kind eq 'EnumDecl' ) {
                     $self->_enum( $node, $acc, $current_file );
-                    return;    # Stop recursion
+                    return;
                 }
                 elsif ( $kind eq 'VarDecl' ) {
-                    if ( ( $node->{storageClass} // '' ) ne 'static' ) {
-                        $self->_var( $node, $acc, $current_file );
-                    }
+                    if ( ( $node->{storageClass} // '' ) ne 'static' ) { $self->_var( $node, $acc, $current_file ); }
                 }
                 elsif ( $kind eq 'FunctionDecl' ) {
                     $self->_func( $node, $acc, $current_file );
-                    return;    # Stop recursion
+                    return;
                 }
+                elsif ( $kind eq 'BuiltinType' ) { return; }
             }
-
-            # Recurse
             if ( $node->{inner} ) {
-                foreach ( @{ $node->{inner} } ) { $self->_walk( $_, $acc, $current_file ); }
+                for ( @{ $node->{inner} } ) { $self->_walk( $_, $acc, $current_file ); }
             }
+        }
+
+        method _is_valid_file ($f) {
+            return 0 unless defined $f && length $f;
+            return 0 if $f =~ m{^/usr/(include|lib|share|local/include)};
+            return 0 if $f =~ m{^/System/Library};
+            return 0 if $f =~ m{(Program Files|Strawberry|MinGW|Windows|cygwin|msys)}i;
+            return 1 if $allowed_files->{$f};
+            for my $dir (@$project_dirs) { return 1 if index( $f, $dir ) == 0; }
+            return 0;
         }
 
         method _get_node_file($node) {
@@ -173,8 +517,6 @@ package Affix::Bind v1.0.0 {
             if ( ref($loc) eq 'HASH' ) {
                 $f = $loc->{presumedLoc}{file} || $loc->{expansionLoc}{file} || $loc->{spellingLoc}{file} || $loc->{file};
             }
-
-            # Fallback to range begin if loc is missing file
             if ( !$f && $node->{range} && $node->{range}{begin} ) {
                 my $b = $node->{range}{begin};
                 $f = $b->{presumedLoc}{file} || $b->{expansionLoc}{file} || $b->{spellingLoc}{file} || $b->{file};
@@ -190,23 +532,26 @@ package Affix::Bind v1.0.0 {
             my $e        = $n->{range}{end}{offset}   // 0;
             my $line     = 0;
             my $end_line = 0;
-            if ( ref( $n->{loc} ) eq 'HASH' ) {
-                $line = $n->{loc}{presumedLoc}{line} || $n->{loc}{line};
-            }
+            if ( ref( $n->{loc} ) eq 'HASH' ) { $line = $n->{loc}{presumedLoc}{line} || $n->{loc}{line}; }
             $line ||= $n->{range}{begin}{line} // 0;
             if ( $n->{range}{end} ) {
                 $end_line = $n->{range}{end}{presumedLoc}{line} || $n->{range}{end}{line} || $n->{range}{end}{expansionLoc}{line} || $line;
             }
-            else {
-                $end_line = $line;
-            }
+            else { $end_line = $line; }
             return ( $s, $e, $line, $end_line );
+        }
+
+        method _doc_w_trail( $f, $s, $e ) {
+            my $d = $self->_extract_doc( $f, $s );
+            my $t = $self->_extract_trailing( $f, $e );
+            return $d unless defined $t && length $t;
+            return $t unless defined $d && length $d;
+            return "$d\n$t";
         }
 
         method _macro( $n, $acc, $f ) {
             my ( $s, $e, $l, $el ) = $self->_meta($n);
             my $val = $self->_extract_macro_val( $n, $f );
-            return unless length($val);
             push @$acc,
                 Affix::Bind::Macro->new(
                 name         => $n->{name},
@@ -228,8 +573,8 @@ package Affix::Bind v1.0.0 {
                 file         => $f,
                 line         => $l,
                 end_line     => $el,
-                underlying   => $n->{type}{qualType},
-                doc          => $self->_extract_doc( $f, $s ),
+                underlying   => Affix::Bind::Type->parse( $n->{type}{qualType} ),
+                doc          => $self->_doc_w_trail( $f, $s, $e ),
                 start_offset => $s,
                 end_offset   => $e
                 );
@@ -248,7 +593,7 @@ package Affix::Bind v1.0.0 {
                 line         => $l,
                 end_line     => $el,
                 members      => $m_list,
-                doc          => $self->_extract_doc( $f, $s ),
+                doc          => $self->_doc_w_trail( $f, $s, $e ),
                 start_offset => $s,
                 end_offset   => $e
                 );
@@ -272,20 +617,18 @@ package Affix::Bind v1.0.0 {
                         doc      => undef
                     );
                     my $name = $child->{name} // '';
-                    if ( $name eq '' ) {
-                        push @pending_anonymous_records, $rec;
-                    }
+                    if ( $name eq '' ) { push @pending_anonymous_records, $rec; }
                 }
                 elsif ( $kind eq 'FieldDecl' ) {
-                    my $name = $child->{name} // '';
-                    my $type = $child->{type}{qualType};
-                    my $def  = undef;
-                    if (@pending_anonymous_records) {
-                        $def = pop @pending_anonymous_records;
-                    }
+                    my $name     = $child->{name} // '';
+                    my $raw_type = $child->{type}{qualType};
+                    my $type_obj = Affix::Bind::Type->parse($raw_type);
+                    my $def      = undef;
+                    if (@pending_anonymous_records) { $def = pop @pending_anonymous_records; }
                     my $f_offset = $child->{range}{begin}{offset};
-                    my $f_doc    = $self->_extract_doc( $f, $f_offset );
-                    push @members, Affix::Bind::Member->new( name => $name, type => $type, doc => $f_doc, definition => $def );
+                    my $f_end    = $child->{range}{end}{offset};
+                    my $f_doc    = $self->_doc_w_trail( $f, $f_offset, $f_end );
+                    push @members, Affix::Bind::Member->new( name => $name, type => $type_obj, doc => $f_doc, definition => $def );
                 }
             }
             return \@members;
@@ -295,17 +638,33 @@ package Affix::Bind v1.0.0 {
             my ( $s, $e, $l, $el ) = $self->_meta($n);
             my @c;
             my $cnt = 0;
+            my $src = $self->_get_content($f);
             for my $ch ( @{ $n->{inner} } ) {
                 if ( ( $ch->{kind} // '' ) eq 'EnumConstantDecl' ) {
-                    my $v = undef;
-                    if ( $ch->{inner} ) {
-                        for ( @{ $ch->{inner} } ) {
-                            if ( $_->{kind} =~ /ConstantExpr|IntegerLiteral/ ) { $v = $_->{value}; }
+                    my $name = $ch->{name};
+                    my $val  = undef;
+                    my $off  = $ch->{range}{begin}{offset};
+                    if ( defined $off ) {
+                        my $chunk = substr( $src, $off );
+                        if ( $chunk =~ /^\s*\Q$name\E\s*(?:=\s*(.*?))?\s*(?:,|}|$)/s ) {
+                            $val = $1;
+                            if ( defined $val ) {
+                                $val =~ s/\/\/.*$//mg;
+                                $val =~ s/\/\*.*?\*\///sg;
+                                $val =~ s/^\s+|\s+$//g;
+                            }
                         }
                     }
-                    $v //= $cnt;
-                    $cnt = $v + 1;
-                    push @c, { name => $ch->{name}, value => $v };
+
+                    # Fallback calc for next value
+                    if ( defined $val && $val =~ /^-?\d+$/ ) {
+                        $cnt = $val + 1;
+                    }
+                    else {
+                        if ( !defined $val ) { $val = $cnt; }
+                        $cnt++;    # Approximation for symbolic
+                    }
+                    push @c, { name => $name, value => $val };
                 }
             }
             push @$acc,
@@ -315,7 +674,7 @@ package Affix::Bind v1.0.0 {
                 line         => $l,
                 end_line     => $el,
                 constants    => \@c,
-                doc          => $self->_extract_doc( $f, $s ),
+                doc          => $self->_doc_w_trail( $f, $s, $e ),
                 start_offset => $s,
                 end_offset   => $e
                 );
@@ -329,8 +688,8 @@ package Affix::Bind v1.0.0 {
                 file         => $f,
                 line         => $l,
                 end_line     => $el,
-                type         => $n->{type}{qualType},
-                doc          => $self->_extract_doc( $f, $s ),
+                type         => Affix::Bind::Type->parse( $n->{type}{qualType} ),
+                doc          => $self->_doc_w_trail( $f, $s, $e ),
                 start_offset => $s,
                 end_offset   => $e
                 );
@@ -339,14 +698,18 @@ package Affix::Bind v1.0.0 {
         method _func( $n, $acc, $f ) {
             return if ( $n->{storageClass} // '' ) eq 'static';
             my ( $s, $e, $l, $el ) = $self->_meta($n);
-            my $ret = $n->{type}{qualType};
-            $ret =~ s/\(.*\)//;
-            my @a;
+            my $ret_str = $n->{type}{qualType};
+            $ret_str =~ s/\(.*\)//;
+            my $ret_obj = Affix::Bind::Type->parse($ret_str);
+            my @args;
             for ( @{ $n->{inner} } ) {
                 if ( ( $_->{kind} // '' ) eq 'ParmVarDecl' ) {
-                    push @a, ( $_->{type}{qualType} . " " . ( $_->{name} // '' ) );
+                    my $pt = Affix::Bind::Type->parse( $_->{type}{qualType} );
+                    my $pn = $_->{name} // '';
+                    push @args, Affix::Bind::Argument->new( type => $pt, name => $pn );
                 }
             }
+            if ( $n->{variadic} ) { push @args, Affix::Bind::Argument->new( type => Affix::Bind::Type->new( name => '...' ) ); }
             push @$acc,
                 Affix::Bind::Function->new(
                 name         => $n->{name},
@@ -354,22 +717,19 @@ package Affix::Bind v1.0.0 {
                 file         => $f,
                 line         => $l,
                 end_line     => $el,
-                ret          => $ret,
-                args         => \@a,
-                doc          => $self->_extract_doc( $f, $s ),
+                ret          => $ret_obj,
+                args         => \@args,
+                doc          => $self->_doc_w_trail( $f, $s, $e ),
                 start_offset => $s,
                 end_offset   => $e
                 );
         }
 
-        # --- Utilities ---
         method _get_content($f) {
-            my $base = $self->_basename($f);
-            return $file_cache->{$base} if exists $file_cache->{$base};
-            if ( exists $allowed_files->{$base} ) {
-                return $file_cache->{$base} = Path::Tiny::path( $allowed_files->{$base} )->slurp_utf8;
-            }
-            return "";
+            my $abs = $self->_normalize($f);
+            return $file_cache->{$abs} if exists $file_cache->{$abs};
+            if ( -e $abs ) { return $file_cache->{$abs} = Path::Tiny::path($abs)->slurp_utf8; }
+            return '';
         }
 
         method _extract_doc( $f, $off ) {
@@ -401,37 +761,64 @@ package Affix::Bind v1.0.0 {
             return $t;
         }
 
+        method _extract_trailing( $f, $off ) {
+            return '' unless defined $off;
+            my $content = $self->_get_content($f);
+            return '' unless length($content);
+            my $post   = substr( $content, $off );
+            my ($line) = split /\R/, $post, 2;
+            return '' unless defined $line;
+            if ( $line =~ /\/\/(.*)$/ ) {
+                my $c = $1;
+                $c =~ s/^\s+|\s+$//g;
+                return $c;
+            }
+            return '';
+        }
+
+        method _extract_raw( $f, $s, $e ) {
+            return '' unless defined $s && defined $e;
+            my $content = $self->_get_content($f);
+            return '' unless length($content) >= $e;
+            return substr( $content, $s, $e - $s );
+        }
+
         method _extract_macro_val( $n, $f ) {
             my $off = $n->{range}{begin}{offset};
-            return "" unless defined $off;
+            return '' unless defined $off;
             my $content = $self->_get_content($f);
-            return "" unless length($content);
+            return '' unless length($content);
             my $r = substr( $content, $off );
             if ( $r =~ /^(.*?)$/m ) {
                 my $line = $1;
                 my $name = $n->{name};
                 if ( $line =~ /#\s*define\s+\Q$name\E\s+(.*)/ ) {
                     my $v = $1;
+                    $v =~ s/\/\/.*$//;
+                    $v =~ s/\/\*.*?\*\///g;
                     $v =~ s/^\s+|\s+$//g;
                     return $v;
                 }
             }
-            return "";
+            '';
         }
 
         method _scan_macros_fallback($acc) {
             my %seen = map { $_->name => 1 } grep { ref($_) eq 'Affix::Bind::Macro' } @$acc;
-            foreach my $base ( keys %$allowed_files ) {
-                my $f = $allowed_files->{$base};
+            for my $f ( keys %$allowed_files ) {
+                next unless $self->_is_valid_file($f);
                 my $c = $self->_get_content($f);
                 while ( $c =~ /^\s*#\s*define\s+(\w+)(?:[ \t]+(.*?))?\s*$/mg ) {
                     my $name = $1;
                     next if $seen{$name};
-                    my $val  = $2 // "";
+                    my $val  = $2 // '';
                     my $off  = $-[0];
                     my $end  = $+[0];
                     my $pre  = substr( $c, 0, $off );
                     my $line = ( $pre =~ tr/\n// ) + 1;
+                    $val =~ s/\/\/.*$//;
+                    $val =~ s/\/\*.*?\*\///g;
+                    $val =~ s/^\s+|\s+$//g;
                     push @$acc,
                         Affix::Bind::Macro->new(
                         name         => $name,
@@ -449,48 +836,26 @@ package Affix::Bind v1.0.0 {
 
         method _merge_typedefs($objs) {
             my @tds = grep { ref($_) eq 'Affix::Bind::Typedef' } @$objs;
-            foreach my $td (@tds) {
+            for my $td (@tds) {
                 next if $td->is_merged;
                 my ($child) = grep {
                     !$_->is_merged                                                               &&
+                        $_->file eq $td->file                                                    &&
                         ( $_->name eq '(anonymous)' || $_->name eq '' || $_->name eq $td->name ) &&
                         ( ref($_) eq 'Affix::Bind::Enum' || ref($_) eq 'Affix::Bind::Struct' )   &&
-
-                        # Use a wider window for multi-line structs
-                        ( ( abs( $_->line - $td->line ) < 50 ) || ( abs( $_->end_line - $td->line ) < 50 ) )
+                        ( abs( $_->end_line - $td->line ) <= 1 || abs( $_->end_line - $td->end_line ) <= 1 )
                 } @$objs;
                 if ($child) {
-                    my $new;
-                    my $doc       = $td->doc     // $child->doc;
-                    my $real_file = $child->file // $td->file;
-                    if ( !defined $doc ) {
-                        $doc = $self->_extract_doc( $real_file, $td->start_offset );
-                    }
-                    if ( ref($child) eq 'Affix::Bind::Enum' ) {
-                        $new = Affix::Bind::Enum->new(
-                            name         => $td->name,
-                            file         => $real_file,
-                            line         => $td->line,
-                            end_line     => $child->end_line,
-                            doc          => $doc,
-                            start_offset => $td->start_offset,
-                            end_offset   => $td->end_offset,
-                            constants    => $child->constants
-                        );
-                    }
-                    elsif ( ref($child) eq 'Affix::Bind::Struct' ) {
-                        $new = Affix::Bind::Struct->new(
-                            name         => $td->name,
-                            tag          => $child->tag,
-                            file         => $real_file,
-                            line         => $td->line,
-                            end_line     => $child->end_line,
-                            doc          => $doc,
-                            start_offset => $td->start_offset,
-                            end_offset   => $td->end_offset,
-                            members      => $child->members
-                        );
-                    }
+                    my $new = Affix::Bind::Typedef->new(
+                        name         => $td->name,
+                        underlying   => $child,
+                        file         => $td->file,
+                        line         => $td->line,
+                        end_line     => $child->end_line,
+                        doc          => $td->doc // $child->doc // $self->_extract_doc( $td->file, $td->start_offset ),
+                        start_offset => $td->start_offset,
+                        end_offset   => $td->end_offset
+                    );
                     for ( my $i = 0; $i < @$objs; $i++ ) {
                         if ( $objs->[$i] == $td ) { $objs->[$i] = $new; last; }
                     }
@@ -499,76 +864,300 @@ package Affix::Bind v1.0.0 {
             }
             @$objs = grep { !$_->is_merged } @$objs;
         }
+
+        method _wrap_named_types($objs) {
+            for ( my $i = 0; $i < @$objs; $i++ ) {
+                my $node = $objs->[$i];
+                next if $node->is_merged;
+                if ( ( ref($node) eq 'Affix::Bind::Struct' || ref($node) eq 'Affix::Bind::Enum' ) &&
+                    length( $node->name ) &&
+                    $node->name ne '(anonymous)' ) {
+                    my $new = Affix::Bind::Typedef->new(
+                        name         => $node->name,
+                        underlying   => $node,
+                        file         => $node->file,
+                        line         => $node->line,
+                        end_line     => $node->end_line,
+                        doc          => $node->doc,
+                        start_offset => $node->start_offset,
+                        end_offset   => $node->end_offset
+                    );
+                    $node->mark_merged();
+                    $objs->[$i] = $new;
+                }
+            }
+        }
+
+        method _get_triple {
+            my $arch = $Config{archname} =~ /aarch64|arm64/i ? 'aarch64' : $Config{archname} =~ /x64|x86_64/i ? 'x86_64' : 'i686';
+            if ( $^O eq 'MSWin32' ) {
+                if   ( $Config{cc} =~ /gcc/i ) { return "$arch-pc-windows-gnu"; }
+                else                           { return "$arch-pc-windows-msvc"; }
+            }
+            elsif ( $^O eq 'linux' )  { return "$arch-unknown-linux-gnu"; }
+            elsif ( $^O eq 'darwin' ) { return "$arch-apple-darwin"; }
+            my ($out) = Capture::Tiny::capture { system $clang, '-print-target-triple' };
+            $out =~ s/\s+//g if $out;
+            return $out // "$arch-unknown-unknown";
+        }
     }
 
-    # =============================================================================
-    # DRIVER: REGEX (FALLBACK)
-    # =============================================================================
     class Affix::Bind::Driver::Regex {
-        field $project_files : param;
+        field $project_files : param : reader;
+        field $file_cache = {};
+
+        method _normalize ($path) {
+            return '' unless defined $path;
+            my $abs = Path::Tiny::path($path)->absolute->stringify;
+            $abs =~ s{\\}{/}g;
+            return $abs;
+        }
+
+        method _is_valid_file ($f) {
+            return 0 unless defined $f && length $f;
+            return 0 if $f =~ m{^/usr/(include|lib|share|local/include)};
+            return 0 if $f =~ m{^/System/Library};
+            return 0 if $f =~ m{(Program Files|Strawberry|MinGW|Windows|cygwin|msys)};
+            return 1;
+        }
 
         method parse( $entry_point, $ids = [] ) {
             my @objs;
             for my $f (@$project_files) {
+                my $abs = $self->_normalize($f);
+                next unless $self->_is_valid_file($abs);
                 if ( $f =~ /\.h(pp|xx)?$/i ) { $self->_scan( $f, \@objs ); $self->_scan_funcs( $f, \@objs ); }
                 else                         { $self->_scan_funcs( $f, \@objs ); }
             }
             @objs = sort { ( $a->file cmp $b->file ) || ( $a->start_offset <=> $b->start_offset ) } @objs;
-            return \@objs;
+            @objs;
         }
-        method _read($f) { Path::Tiny::path($f)->slurp_utf8 }
+
+        method _read($f) {
+            my $abs = $self->_normalize($f);
+            return $file_cache->{$abs} if exists $file_cache->{$abs};
+            return $file_cache->{$abs} = Path::Tiny::path($f)->slurp_utf8;
+        }
 
         method _scan( $f, $acc ) {
             my $c = $self->_read($f);
-            while ( $c =~ /^\s*#\s*define\s+(\w+)\s+(.+?)\s*$/gm ) {
-                my $s = $-[0];
-                my $e = $+[0];
+
+            # Macros
+            while ( $c =~ /^\s*#\s*define\s+(\w+)(?:[ \t]+(.*?))?$/gm ) {
+                my $name = $1;
+                my $val  = $2 // '';
+                my $s    = $-[0];
+                my $e    = $+[0];
+                $val =~ s/\/\/.*$//;
+                $val =~ s/\/\*.*?\*\///g;
+                $val =~ s/^\s+|\s+$//g;
                 push @$acc,
                     Affix::Bind::Macro->new(
-                    name     => $1,
-                    value    => $2,
-                    file     => $f,
-                    line     => $self->_ln( $c, $s ),
-                    end_line => $self->_ln( $c, $e ),
-                    doc      => $self->_doc( $c, $s )
+                    name         => $name,
+                    value        => $val,
+                    file         => $f,
+                    line         => $self->_ln( $c, $s ),
+                    end_line     => $self->_ln( $c, $e ),
+                    doc          => $self->_doc( $c, $s ),
+                    start_offset => $s,
+                    end_offset   => $e
                     );
             }
-            while ( $c =~ /typedef\s+struct\s*(\{(?:[^{}]++|(?1))*\})\s*(\w+)\s*;/gs ) {
-                my $s   = $-[0];
-                my $e   = $+[0];
-                my $mem = $self->_mem( substr( $1, 1, -1 ) );
+
+            # Structs
+            while ( $c =~ /typedef\s+struct\s*(?:\w+\s*)?(\{(?:[^{}]++|(?1))*\})\s*(\w+)\s*;/gs ) {
+                my $s      = $-[0];
+                my $e      = $+[0];
+                my $mem    = $self->_mem( substr( $1, 1, -1 ) );
+                my $struct = Affix::Bind::Struct->new(
+                    name         => '',
+                    tag          => 'struct',
+                    members      => $mem,
+                    file         => $f,
+                    line         => $self->_ln( $c, $s ),
+                    end_line     => $self->_ln( $c, $e ),
+                    doc          => undef,
+                    start_offset => $s,
+                    end_offset   => $e
+                );
                 push @$acc,
-                    Affix::Bind::Struct->new(
-                    name     => $2,
-                    tag      => 'struct',
-                    members  => $mem,
-                    file     => $f,
-                    line     => $self->_ln( $c, $s ),
-                    end_line => $self->_ln( $c, $e ),
-                    doc      => $self->_doc( $c, $s )
+                    Affix::Bind::Typedef->new(
+                    name         => $2,
+                    underlying   => $struct,
+                    file         => $f,
+                    line         => $self->_ln( $c, $s ),
+                    end_line     => $self->_ln( $c, $e ),
+                    doc          => $self->_doc( $c, $s ),
+                    start_offset => $s,
+                    end_offset   => $e
                     );
             }
+
+            # Enums (typedef)
+            while ( $c =~ /typedef\s+enum\s*(?:\w+\s*)?(\{(?:[^{}]++|(?1))*\})\s*(\w+)\s*;/gs ) {
+                my $s    = $-[0];
+                my $e    = $+[0];
+                my $enum = Affix::Bind::Enum->new(
+                    name         => '',
+                    constants    => $self->_enum_consts( substr( $1, 1, -1 ) ),
+                    file         => $f,
+                    line         => $self->_ln( $c, $s ),
+                    end_line     => $self->_ln( $c, $e ),
+                    doc          => undef,
+                    start_offset => $s,
+                    end_offset   => $e
+                );
+                push @$acc,
+                    Affix::Bind::Typedef->new(
+                    name         => $2,
+                    underlying   => $enum,
+                    file         => $f,
+                    line         => $self->_ln( $c, $s ),
+                    end_line     => $self->_ln( $c, $e ),
+                    doc          => $self->_doc( $c, $s ),
+                    start_offset => $s,
+                    end_offset   => $e
+                    );
+            }
+
+            # Enums (Standard)
             while ( $c =~ /enum\s+(\w+)\s*(\{(?:[^{}]++|(?2))*\})\s*;/gs ) {
-                my $s = $-[0];
-                my $e = $+[0];
-                my $b = substr( $2, 1, -1 );
-                my @cs;
-                my $v = 0;
-                for ( split /,/, $b ) {
-                    s/\/\/.*$//;
-                    s/\/\*.*?\*\///s;
-                    if (/\s*(\w+)\s*(?:=\s*(\d+))?/) { my $val = $2 // $v; $v = $val + 1; push @cs, { name => $1, value => $val }; }
+                my $s    = $-[0];
+                my $e    = $+[0];
+                my $enum = Affix::Bind::Enum->new(
+                    name         => $1,
+                    constants    => $self->_enum_consts( substr( $2, 1, -1 ) ),
+                    file         => $f,
+                    line         => $self->_ln( $c, $s ),
+                    end_line     => $self->_ln( $c, $e ),
+                    doc          => $self->_doc( $c, $s ),
+                    start_offset => $s,
+                    end_offset   => $e
+                );
+                push @$acc,
+                    Affix::Bind::Typedef->new(
+                    name         => $1,
+                    underlying   => $enum,
+                    file         => $f,
+                    line         => $self->_ln( $c, $s ),
+                    end_line     => $self->_ln( $c, $e ),
+                    doc          => $self->_doc( $c, $s ),
+                    start_offset => $s,
+                    end_offset   => $e
+                    );
+            }
+
+            # Global Variables
+            while ( $c
+                =~ /^\s*extern\s+((?:const\s+|unsigned\s+|struct\s+|[\w:<>]+(?:\s*::\s*[\w:<>]+)*\s*\*?\s*)+?)\s*(\w+(?:\[.*?\])?)\s*(?:=\s*[^;]+)?\s*;\s*(?:\/\/([^\r\n]*))?/gm
+            ) {
+                my $s        = $-[0];
+                my $e        = $+[0];
+                my $type_str = $1;
+                my $name     = $2;
+                my $trail    = $3;
+
+                # Strip likely API macros (uppercase words) from the type definition
+                $type_str =~ s/\b[A-Z_][A-Z0-9_]*\b//g;
+                $type_str =~ s/^\s+|\s+$//g;
+
+                # Handle Array Syntax: "int vars[10]" -> type="int[10]", name="vars"
+                if ( $name =~ s/(\[.*\])$// ) { $type_str .= $1; }
+
+                # Merge standard preceding doc with captured trailing doc
+                my $doc = $self->_doc( $c, $s );
+                if ( defined $trail && length $trail ) {
+                    $trail =~ s/^\s+|\s+$//g;
+                    $doc = defined $doc ? "$doc\n$trail" : $trail;
                 }
                 push @$acc,
-                    Affix::Bind::Enum->new(
-                    name      => $1,
-                    constants => \@cs,
-                    file      => $f,
-                    line      => $self->_ln( $c, $s ),
-                    end_line  => $self->_ln( $c, $e ),
-                    doc       => $self->_doc( $c, $s )
+                    Affix::Bind::Variable->new(
+                    name         => $name,
+                    type         => Affix::Bind::Type->parse($type_str),
+                    file         => $f,
+                    line         => $self->_ln( $c, $s ),
+                    end_line     => $self->_ln( $c, $e ),
+                    doc          => $doc,
+                    start_offset => $s,
+                    end_offset   => $e
                     );
             }
+
+            # Typedefs
+            while ( $c =~ /typedef\s+(?!struct\s*(?:\w+\s*)?\{|enum\s*(?:\w+\s*)?\{)(.+?)\s*;/gs ) {
+                my $content = $1;
+                my $s       = $-[0];
+                my $e       = $+[0];
+                $content =~ s/\s+/ /g;
+                $content =~ s/^\s+|\s+$//g;
+                if ( $content =~ /^(.+?)\s*\(\*\s*(\w+)\)\s*\((.*?)\)$/ ) {
+                    my ( $ret_str, $name, $args_str ) = ( $1, $2, $3 );
+                    my $ret = Affix::Bind::Type->parse($ret_str);
+                    my @args;
+                    if ( defined $args_str && length $args_str && $args_str ne 'void' ) {
+                        my @args_raw = grep {length} map { s/^\s+|\s+$//g; $_ } split /,/, $args_str;
+                        if ( @args_raw == 1 && $args_raw[0] =~ /^void$/ ) { @args_raw = (); }
+                        for my $raw (@args_raw) {
+                            if ( $raw =~ /^(.+?)\s+(\w+(?:\[.*?\])?)$/ ) {
+                                push @args, Affix::Bind::Type->parse($1);
+                            }
+                            else {
+                                push @args, Affix::Bind::Type->parse($raw);
+                            }
+                        }
+                    }
+                    my $coderef = Affix::Bind::Type::CodeRef->new( ret => $ret, params => \@args );
+                    push @$acc,
+                        Affix::Bind::Typedef->new(
+                        name         => $name,
+                        underlying   => $coderef,
+                        file         => $f,
+                        line         => $self->_ln( $c, $s ),
+                        end_line     => $self->_ln( $c, $e ),
+                        doc          => $self->_doc( $c, $s ),
+                        start_offset => $s,
+                        end_offset   => $e
+                        );
+                }
+                elsif ( $content =~ /^(.+?)\s+(\w+)$/ ) {
+                    my ( $type_str, $name ) = ( $1, $2 );
+                    push @$acc,
+                        Affix::Bind::Typedef->new(
+                        name         => $name,
+                        underlying   => Affix::Bind::Type->parse($type_str),
+                        file         => $f,
+                        line         => $self->_ln( $c, $s ),
+                        end_line     => $self->_ln( $c, $e ),
+                        doc          => $self->_doc( $c, $s ),
+                        start_offset => $s,
+                        end_offset   => $e
+                        );
+                }
+            }
+        }
+
+        method _enum_consts($body) {
+            my @cs;
+            my $v = 0;
+            for ( split /,/, $body ) {
+                s/\/\/.*$//;
+                s/\/\*.*?\*\///s;
+                s/^\s+|\s+$//g;
+                next unless length;
+                if (/^(\w+)\s*(?:=\s*(.+?))?$/) {
+                    my $name = $1;
+                    my $val  = $2;    # Capture string or undef
+
+                    # Safe hex handling without string eval
+                    if ( defined $val && $val =~ /^(-?)0x([\da-fA-F]+)$/ ) {
+                        my $sign = $1 || '';
+                        my $num  = hex($2);
+                        $val = $sign eq '-' ? -$num : $num;
+                    }
+                    push @cs, { name => $name, value => $val };
+                }
+            }
+            return \@cs;
         }
 
         method _scan_funcs( $f, $acc ) {
@@ -576,20 +1165,51 @@ package Affix::Bind v1.0.0 {
             while ( $c
                 =~ /^\s*((?:const\s+|unsigned\s+|struct\s+|[\w:<>]+(?:\s*::\s*[\w:<>]+)*\s*\*?\s*)+?)\s*(\w+)\s*(\((?:[^()]++|(?3))*\))(?:\s*;|\s*\{)/gm
             ) {
-                next if $2 =~ /^(if|while|for|return|switch)$/ || $1 =~ /static/;
-                my $s    = $-[0];
-                my $e    = $+[0];
-                my $args = substr( $3, 1, -1 );
-                my @a    = grep {length} map { s/^\s+|\s+$//g; $_ } split /,/, $args;
+                next if $2 =~ /^(if|while|for|return|switch|typedef)$/ || $1 =~ /static/;
+                my $s = $-[0];
+                my $e = $+[0];
+                my ( $ret_str, $func_name, $args_str ) = ( $1, $2, substr( $3, 1, -1 ) );
+                #
+                $ret_str =~ s/\b[A-Z_][A-Z0-9_]*\b//g;
+                $ret_str =~ s/^\s+|\s+$//g;
+                my $ret_obj = Affix::Bind::Type->parse($ret_str);
+
+                # Split args respecting commas inside parentheses (e.g. function pointers)
+                my @args_raw = grep {length} map { s/^\s+|\s+$//g; $_ } split /,(?![^(]*\))/, $args_str;
+                if ( @args_raw == 1 && $args_raw[0] =~ /^void$/ ) { @args_raw = (); }
+                my @args;
+                for my $raw (@args_raw) {
+                    if ( $raw =~ /^(.+?)\s*\(\*\s*(\w+)\)\s*\((.*)\)$/ ) {
+                        my ( $r_type, $cb_name, $cb_args ) = ( $1, $2, $3 );
+                        my $ret = Affix::Bind::Type->parse($r_type);
+                        my @p;
+                        if ( $cb_args ne '' && $cb_args ne 'void' ) {
+                            @p = map { Affix::Bind::Type->parse($_) } split /,(?![^(]*\))/, $cb_args;
+                        }
+                        my $code_ref = Affix::Bind::Type::CodeRef->new( ret => $ret, params => \@p );
+                        push @args, Affix::Bind::Argument->new( type => $code_ref, name => $cb_name );
+                    }
+                    elsif ( $raw =~ /^(.+?)\s+(\w+(?:\[.*?\])?)$/ ) {
+                        my ( $t, $n ) = ( $1, $2 );
+                        if ( $n =~ s/(\[.*\])$// ) { $t .= $1 }
+                        push @args, Affix::Bind::Argument->new( type => Affix::Bind::Type->parse($t), name => $n );
+                    }
+                    else {
+                        push @args, Affix::Bind::Argument->new( type => Affix::Bind::Type->parse($raw) );
+                    }
+                }
                 push @$acc,
                     Affix::Bind::Function->new(
-                    name     => $2,
-                    ret      => $1,
-                    args     => \@a,
-                    file     => $f,
-                    line     => $self->_ln( $c, $s ),
-                    end_line => $self->_ln( $c, $e ),
-                    doc      => $self->_doc( $c, $s )
+                    name         => $func_name,
+                    mangled_name => $func_name,
+                    ret          => $ret_obj,
+                    args         => \@args,
+                    file         => $f,
+                    line         => $self->_ln( $c, $s ),
+                    end_line     => $self->_ln( $c, $e ),
+                    doc          => $self->_doc( $c, $s ),
+                    start_offset => $s,
+                    end_offset   => $e
                     );
             }
         }
@@ -597,9 +1217,7 @@ package Affix::Bind v1.0.0 {
         method _mem($b) {
             my @m;
             my $pending_doc = '';
-
-            # Helper to clean docs
-            my $clean = sub ($t) {
+            my $clean       = sub ($t) {
                 $t =~ s/^\s*\/\*\*?//mg;
                 $t =~ s/\s*\*\/$//mg;
                 $t =~ s/^\s*\*\s?//mg;
@@ -608,50 +1226,39 @@ package Affix::Bind v1.0.0 {
                 return length($t) ? $t : undef;
             };
             while ( length($b) > 0 ) {
-
-                # 1. Skip Whitespace
                 if ( $b =~ s/^(\s+)// ) { next; }
-
-                # 2. Capture Comments (C++ style)
-                if ( $b =~ s|^(//(.*?)\n)|| ) {
-                    $pending_doc .= "$2\n";
-                    next;
-                }
-
-                # 3. Capture Comments (C style)
-                if ( $b =~ s|^(\s*/\*(.*?)\*/)||s ) {
-                    $pending_doc .= $2;
-                    next;
-                }
-
-                # 4. Match Nested Union/Struct
+                if ( $b =~ s|^(//(.*?)\n)|| )       { $pending_doc .= "$2\n"; next; }
+                if ( $b =~ s|^(\s*/\*(.*?)\*/)||s ) { $pending_doc .= $2;     next; }
                 if ( $b =~ s/^\s*(union|struct)\s*(\{(?:[^{}]++|(?2))*\})\s*(\w+)\s*;// ) {
-                    my $d = Affix::Bind::Struct->new(
-                        name     => '',
-                        tag      => $1,
-                        members  => $self->_mem( substr( $2, 1, -1 ) ),
-                        file     => '',
-                        line     => 0,
-                        end_line => 0,
-                        doc      => undef
-                    );
+                    my $tag = $1;
+                    my $d   = Affix::Bind::Struct->new( name => '', tag => $tag, members => $self->_mem( substr( $2, 1, -1 ) ) );
                     push @m, Affix::Bind::Member->new( name => $3, definition => $d, doc => $clean->($pending_doc) );
                     $pending_doc = '';
                     next;
                 }
 
-                # 5. Match Standard Field
+                # Function Pointer: Ret (*name)(Args)
+                if ( $b =~ s/^\s*([\w\s\*]+?)\s*\(\*\s*(\w+)\)\s*\((.*?)\)\s*;// ) {
+                    my ( $ret_str, $name, $args_str ) = ( $1, $2, $3 );
+                    my $ret = Affix::Bind::Type->parse($ret_str);
+                    my @args;
+                    if ( $args_str ne '' && $args_str ne 'void' ) {
+                        @args = map { Affix::Bind::Type->parse($_) } split( /\s*,\s*/, $args_str );
+                    }
+                    my $type_obj = Affix::Bind::Type::CodeRef->new( ret => $ret, params => \@args );
+                    push @m, Affix::Bind::Member->new( name => $name, type => $type_obj, doc => $clean->($pending_doc) );
+                    $pending_doc = '';
+                    next;
+                }
                 if ( $b =~ s/^\s*([\w\s\*]+?)\s+(\w+(?:\[.*?\])?)\s*;// ) {
                     my ( $t, $n ) = ( $1, $2 );
                     $t =~ s/^\s+|\s+$//g;
                     if ( $n =~ s/(\[.*\])$// ) { $t .= $1 }
-                    push @m, Affix::Bind::Member->new( name => $n, type => $t, doc => $clean->($pending_doc) );
+                    push @m, Affix::Bind::Member->new( name => $n, type => Affix::Bind::Type->parse($t), doc => $clean->($pending_doc) );
                     $pending_doc = '';
                     next;
                 }
-
-                # 6. Safety advance if nothing matched (e.g. junk or preprocessor in struct)
-                substr( $b, 0, 1 ) = "";
+                substr( $b, 0, 1 ) = '';
                 $pending_doc = '';
             }
             return \@m;
@@ -665,10 +1272,14 @@ package Affix::Bind v1.0.0 {
             my $cap = 0;
             while ( my $l = pop @l ) {
                 next if !$cap && $l =~ /^\s*$/;
-                if    ( $l =~ /\*\// )    { $cap = 1 }
-                elsif ( $l =~ m{^\s*//} ) { $cap = 1 }
-                if    ($cap)              { unshift @d, $l; last if $l =~ /\/\*/; last if $l =~ m{^\s*//} && ( !@l || $l[-1] !~ m{^\s*//} ); }
-                else                      {last}
+                if    ( $l =~ s/\s*\*\/\s*$// ) { $cap = 1; }
+                elsif ( $l =~ m{^\s*//} )       { $cap = 1; }
+                if    ($cap) {
+                    unshift @d, $l;
+                    last if $l =~ /^\s*\/\*/;
+                    last if $l =~ m{^\s*//} && ( !@l || $l[-1] !~ m{^\s*//} );
+                }
+                else {last}
             }
             return undef unless @d;
             my $t = join "\n", @d;
@@ -678,176 +1289,38 @@ package Affix::Bind v1.0.0 {
         }
     }
 
-    # =============================================================================
-    # MAIN CLASS
-    # =============================================================================
     class Affix::Bind {
-        field $driver;
-        field $project_files : param;
-        field $include_dirs : param //= [];
+        field $driver        : param //= ();
+        field $project_files : param //= $driver->project_files;
+        field $include_dirs  : param //= [];
         ADJUST {
-            my $has_clang = 0;
-            my ( $out, $err, $exit ) = Capture::Tiny::capture { system( 'clang', '--version' ); };
-            $has_clang = 1 if $exit == 0;
-            if ($has_clang) {
-                $driver = Affix::Bind::Driver::Clang->new( project_files => $project_files );
-            }
-            else {
-                $driver = Affix::Bind::Driver::Regex->new( project_files => $project_files );
+            my $use_clang = 0;
+            unless ( defined $driver ) {
+                my ( $out, $err, $exit ) = Capture::Tiny::capture { system( 'clang', '--version' ); };
+                $use_clang = 1 if $exit == 0;
+                $driver    = $use_clang ? Affix::Bind::Driver::Clang->new( project_files => $project_files ) :
+                    Affix::Bind::Driver::Regex->new( project_files => $project_files );
             }
         }
 
-        method parse( $entry_point = undef ) {
-
-            # Default to the first project file if no entry point provided
+        method parse( $entry_point //= () ) {
             $entry_point //= $project_files->[0];
-            return $driver->parse( $entry_point, $include_dirs );
+            $driver->parse( $entry_point, $include_dirs );
         }
 
-        sub _affix_type ($t) {
-            $t =~ s/__attribute__//;
-            return 'Void' unless defined $t;
-            return '' if $t eq '*';    # Remnant from function typedef
-            state $re //= qr[
-    (?(DEFINE)
-        (?<PARENS> \( (?: [^()]+ | (?&PARENS) )* \) )
-    )
-    ^ \s* (?: [^()]+ | (?&PARENS) )+ \s* $
-]x;
-            state $type_map //= {
-
-                # Primitives (mostly)
-                void                 => 'Void',
-                bool                 => 'Bool',
-                short                => 'Short',
-                'unsigned short'     => 'UShort',
-                char                 => 'Char',
-                'signed char'        => 'SChar',
-                'unsigned char'      => 'UChar',
-                int                  => 'Int',
-                'unsigned int'       => 'UInt',
-                long                 => 'Long',
-                'unsigned long'      => 'ULong',
-                'long long'          => 'LongLong',
-                'unsigned long long' => 'ULongLong',
-                float                => 'Float',
-                double               => 'Double',
-                'long double'        => 'LongDouble',
-                #
-                int8        => 'Int8',
-                sint8       => 'SInt8',
-                uint8       => 'UInt8',
-                int16       => 'Int16',
-                sint16      => 'SInt16',
-                uint16      => 'UInt16',
-                int32       => 'Int32',
-                sint32      => 'SInt32',
-                uint32      => 'UInt32',
-                int64       => 'Int64',
-                sint64      => 'SInt64',
-                uint64      => 'UInt64',
-                int128      => 'Int128',
-                sint128     => 'SInt128',
-                uint128     => 'UInt128',
-                __int128_t  => 'Int128',
-                __uint128_t => 'UInt128',
-                #
-                size_t                 => 'Size_t',
-                wchar_t                => 'WChar',
-                '...'                  => 'VarArgs',    # unhandled for now
-                'va_list'              => 'VarArgs',    # unhandled for now
-                'struct __va_list_tag' => 'VarArgs',    # unhandled for now
-
-                # Platform dependant
-                #'void *restrict'       => 'Pointer[Void]',
-                #'char *restrict'       => 'Pointer[Char]',
-                'struct __locale_data' => 'Struct[__locale_data => Pointer[Void]]',
-                locale_t               => 'Struct[__locale_t => Pointer[Void]]',
-                wint_t                 => 'WChar'
-            };
-
-            # Cleanup
-            $t =~ s/consts?\s+//g;
-            $t =~ s/(\s+\**)const$/$1/g;
-            $t =~ s/(\s+\**)restrict$/$1/g;
-            $t =~ s/\s+$//;
-            #
-            return $type_map->{ lc $t }               if defined $type_map->{ lc $t };
-            return 'Pointer[' . _affix_type($1) . ']' if $t =~ /^(.+)\s*\*$/;
-            state $grammar //= qr{
-    (?(DEFINE)
-        (?<PARENS>
-            \(
-            (?:
-                [^()]+        # Match normal characters
-                |
-                (?&PARENS)    # Match nested parentheses recursively
-            )*
-            \)
-        )
-    )
-}x;
-
-            # Splits return value from args
-            state $splitter //= qr{
-    $grammar
-    ^
-    (?<RETURN_TYPE> .* )        # Capture everything...
-    \s*
-    (?<ARG_BLOCK> (?&PARENS) )  # ...until the final balanced group
-    \s*
-    $
-}x;
-
-            # Splits comma seperated list of args while being aware of nested groups for things like function pointers as arg types
-            state $tokenizer //= qr{
-    $grammar
-    \G\s*                       # Continue from previous match, skip whitespace
-    (?<ARG>                     # Capture the argument
-        (?:
-            [^(),]+             # Text that isn't commas or parens
-            |
-            (?&PARENS)          # Balanced parens (commas allowed inside here!)
-        )+
-    )
-    \s*
-    (?: , | $ )                 # Stop at comma or end of string
-}x;
-
-            # Apply above grammar
-            if ( $t =~ $splitter ) {
-                my $ret       = '';
-                my $ret_type  = $+{RETURN_TYPE};
-                my $arg_block = $+{ARG_BLOCK};
-
-                # Trim return type
-                $ret_type =~ s/^\s+|\s+$//g;
-
-                # Remove the outer parentheses (trust fall that clang never changes...)
-                my $inner_args = substr( $arg_block, 1, -1 );
-
-                # Tokenize the list
-                my $count = 0;
-                my @args;
-                while ( $inner_args =~ /$tokenizer/g ) {
-                    my $arg = $+{ARG};
-                    $arg =~ s/^\s+|\s+$//g;    # Trim
-                    $count++;
-                    push @args, $arg;
+        method wrap ( $lib, $target //= [caller]->[0] ) {
+            for my $node ( $self->parse ) {
+                if ( $node isa Affix::Bind::Macro ) {
+                    $node->affix( undef, $target );
                 }
-                return sprintf 'Callback[ [%s] => %s]', join( ', ', map { _affix_type($_) } @args ), _affix_type($ret_type);
+                elsif ( $node isa Affix::Bind::Variable || $node isa Affix::Bind::Function ) {
+                    $node->affix( $lib, $target );
+                }
+                elsif ( $node->can('affix') ) {
+                    $node->affix( $lib, $target );
+                }
             }
-
-            # Structs by value or typedefs
-            return $2 . '()'                                                                  if $t =~ /^(struct\s+)?(SDL_.*)$/;
-            return sprintf( 'Array[%s%s]', _affix_type($1), ( defined $2 ? ', ' . $2 : '' ) ) if $t =~ /^(.+)\[(\d+)\]$/;
-
-            # If we still see unnamed types here, the parser logic failed to link the RecordDecl in parse_record_fields
-            die 'FATAL: map_type received an raw anonymous type: ' . $t if $t =~ /unnamed/;
-
-            #warn '** Unknown type: ' . $t;    # fallback
-            return '';
         }
     }
 };
-1
+1;
