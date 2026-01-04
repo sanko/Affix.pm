@@ -221,8 +221,32 @@ package Affix::Bind v1.0.0 {
         method pod {
             my $d   = $self->parse_doc;
             my $out = '=head2 ' . $self->name . "\n\n";
-            $out .= $self->_format_pod( $d->{brief} ) . "\n\n" if $d->{brief};
-            $out .= $self->_format_pod( $d->{desc} ) . "\n\n"  if $d->{desc};
+            $out .= $self->_format_pod( $d->{brief} ) . "\n\n" if length $d->{brief};
+            $out .= $self->_format_pod( $d->{desc} ) . "\n\n"  if length $d->{desc};
+
+            # Format parameters
+            if ( keys %{ $d->{params} } ) {
+                $out .= "=over\n\n";
+                my @param_names = sort keys %{ $d->{params} };
+
+                # If we have args metadata (e.g. Function), use it for ordering
+                if ( $self->can('args') && ref( $self->args ) eq 'ARRAY' ) {
+                    @param_names = map { $_->name } grep { exists $d->{params}{ $_->name } } @{ $self->args };
+
+                    # Fallback for params documented but not in signature (rare but possible in C macros/varargs)
+                    my %seen = map { $_ => 1 } @param_names;
+                    push @param_names, grep { !$seen{$_} } sort keys %{ $d->{params} };
+                }
+                for my $name (@param_names) {
+                    $out .= "=item C<$name>\n\n" . $self->_format_pod( $d->{params}{$name} ) . "\n\n";
+                }
+                $out .= "=back\n\n";
+            }
+
+            # Format return value
+            if ( length $d->{return} ) {
+                $out .= "B<Returns:> " . $self->_format_pod( $d->{return} ) . "\n\n";
+            }
             $out;
         }
         method affix( $lib //= (), $pkg //= () ) { return undef }
