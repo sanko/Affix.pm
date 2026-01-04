@@ -108,31 +108,31 @@
          "file" : "lib/Affix.pm",
          "version" : "v1.0.2"
       },
-      "Affix::Bind" : {
-         "file" : "lib/Affix/Bind.pm",
+      "Affix::Build" : {
+         "file" : "lib/Affix/Build.pm",
+         "version" : "v1.0.3"
+      },
+      "Affix::Wrap" : {
+         "file" : "lib/Affix/Wrap.pm",
          "version" : "v1.0.0"
       },
-      "Affix::Bind::Argument" : {
-         "file" : "lib/Affix/Bind.pm"
+      "Affix::Wrap::Argument" : {
+         "file" : "lib/Affix/Wrap.pm"
       },
-      "Affix::Bind::Driver::Clang" : {
-         "file" : "lib/Affix/Bind.pm"
+      "Affix::Wrap::Driver::Clang" : {
+         "file" : "lib/Affix/Wrap.pm"
       },
-      "Affix::Bind::Driver::Regex" : {
-         "file" : "lib/Affix/Bind.pm"
+      "Affix::Wrap::Driver::Regex" : {
+         "file" : "lib/Affix/Wrap.pm"
       },
-      "Affix::Bind::Entity" : {
-         "file" : "lib/Affix/Bind.pm"
+      "Affix::Wrap::Entity" : {
+         "file" : "lib/Affix/Wrap.pm"
       },
-      "Affix::Bind::Member" : {
-         "file" : "lib/Affix/Bind.pm"
+      "Affix::Wrap::Member" : {
+         "file" : "lib/Affix/Wrap.pm"
       },
-      "Affix::Bind::Type" : {
-         "file" : "lib/Affix/Bind.pm"
-      },
-      "Affix::Compiler" : {
-         "file" : "lib/Affix/Compiler.pm",
-         "version" : "v1.0.3"
+      "Affix::Wrap::Type" : {
+         "file" : "lib/Affix/Wrap.pm"
       }
    },
    "release_status" : "stable",

@@ -1,6 +1,6 @@
 use v5.40;
 use blib;
-use Affix::Bind;
+use Affix::Wrap;
 use Test2::Tools::Affix qw[:all];
 use Path::Tiny;
 
@@ -67,10 +67,10 @@ EOF
             my @objs   = $parser->parse( $dir->child('main.c')->stringify, [ $dir->stringify ] );
 
             # Check Point (Expect Typedef -> Struct)
-            my ($pt_td) = grep { $_->name eq 'Point' && $_->isa('Affix::Bind::Typedef') } @objs;
+            my ($pt_td) = grep { $_->name eq 'Point' && $_->isa('Affix::Wrap::Typedef') } @objs;
             ok( $pt_td, 'Found Point Typedef' );
             my $pt = $pt_td->underlying;
-            isa_ok( $pt, ['Affix::Bind::Struct'], 'Underlying is Struct' );
+            isa_ok( $pt, ['Affix::Wrap::Struct'], 'Underlying is Struct' );
             like( $pt_td->doc, qr/A Point/, 'Point doc found on typedef' );
             is( $pt->members->[0]->name,             'x',   'Member x name' );
             is( $pt->members->[0]->type->affix_type, 'Int', 'Member x is Int' );
@@ -147,15 +147,15 @@ EOF
             # Variable
             my ($var) = grep { $_->name eq 'global_val' } @objs;
             ok( $var, 'Found global_val' );
-            isa_ok( $var, ['Affix::Bind::Variable'] );
+            isa_ok( $var, ['Affix::Wrap::Variable'] );
             is( $var->type->affix_type, 'Double', 'Variable is Double' );
 
             # CodeRef / Callback
             my ($cb_func) = grep { $_->name eq 'cb_test' } @objs;
             ok( $cb_func, 'Found cb_test' );
             my $arg0 = $cb_func->args->[0];
-            isa_ok( $arg0->type, ['Affix::Bind::Type::CodeRef'], 'Arg is CodeRef' );
-            if ( $arg0->type->isa('Affix::Bind::Type::CodeRef') ) {
+            isa_ok( $arg0->type, ['Affix::Wrap::Type::CodeRef'], 'Arg is CodeRef' );
+            if ( $arg0->type->isa('Affix::Wrap::Type::CodeRef') ) {
                 is( $arg0->type->ret->affix_type,         'Void',                    'Callback returns Void' );
                 is( $arg0->type->params->[0]->affix_type, 'Int',                     'Callback takes Int' );
                 is( $arg0->type->affix_type,              'Callback[[Int] => Void]', 'Signature matches' );
@@ -181,22 +181,22 @@ EOF
             my $buf = $buf_td->underlying;
             if ($buf) {
                 my $m0 = $buf->members->[0];    # int data[16]
-                isa_ok( $m0->type, ['Affix::Bind::Type::Array'], 'Member 0 is Array' );
+                isa_ok( $m0->type, ['Affix::Wrap::Type::Array'], 'Member 0 is Array' );
                 is( $m0->type->count,      16,               'Array count 16' );
                 is( $m0->type->affix_type, 'Array[Int, 16]', 'Affix Sig: Array[Int, 16]' );
                 my $m1 = $buf->members->[1];    # char* name
-                isa_ok( $m1->type, ['Affix::Bind::Type::Pointer'], 'Member 1 is Pointer' );
+                isa_ok( $m1->type, ['Affix::Wrap::Type::Pointer'], 'Member 1 is Pointer' );
                 is( $m1->type->affix_type, 'Pointer[Char]', 'Affix Sig: Pointer[Char]' );
                 my $m2 = $buf->members->[2];    # float matrix[4][4]
-                isa_ok( $m2->type, ['Affix::Bind::Type::Array'], 'Member 2 is Array' );
+                isa_ok( $m2->type, ['Affix::Wrap::Type::Array'], 'Member 2 is Array' );
                 is( $m2->type->affix_type, 'Array[Array[Float, 4], 4]', '2D Array Affix Sig' );
             }
         };
         subtest 'Compile -> Bind -> Affix' => sub {
             use v5.40;
             use Affix;
-            use Affix::Compiler;
-            use Affix::Bind;
+            use Affix::Build;
+            use Affix::Wrap;
             #
             my $src = <<~'';
                 //ext: .c
@@ -205,9 +205,9 @@ EOF
             my $dir = Path::Tiny->tempdir;
             spew_files( $dir, 'main.c' => $src );
             my $lib = compile_ok($src);
-            my $pkg = $driver_class eq 'Affix::Bind::Driver::Clang' ? 'Testing_clang' : 'Testing_regex';
+            my $pkg = $driver_class eq 'Affix::Wrap::Driver::Clang' ? 'Testing_clang' : 'Testing_regex';
             #
-            my $binder = Affix::Bind->new(
+            my $binder = Affix::Wrap->new(
                 driver       => $driver_class->new( project_files => [ $dir->child('main.c')->stringify ] ),
                 include_dirs => [ './t/src', 'src', 'C:\Users\S\Documents\GitHub\Affix.pm\t\src' ]
             );
@@ -217,6 +217,6 @@ EOF
         };
     };
 }
-run_tests_for_driver( 'Affix::Bind::Driver::Clang', 'Clang System' ) if $CLANG_AVAIL;
-run_tests_for_driver( 'Affix::Bind::Driver::Regex', 'Regex System (Fallback)' );
+run_tests_for_driver( 'Affix::Wrap::Driver::Clang', 'Clang System' ) if $CLANG_AVAIL;
+run_tests_for_driver( 'Affix::Wrap::Driver::Regex', 'Regex System (Fallback)' );
 done_testing();

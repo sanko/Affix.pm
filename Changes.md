@@ -25,10 +25,12 @@ Based on infix v0.1.3
     - `StringList`: Automatically marshals an array ref of strings to a null-terminated `char**` array (and back). This is useful in instances where `argv` or a similar list is expected.
     - `Buffer`: Allows passing a pre-allocated scalar as a mutable `char*` buffer to C (zero-copy write).
     - `SockAddr`: Safe marshalling of Perl packed socket addresses to `struct sockaddr*`.
-  - Affix::Bind: An experimental tool to introspect C header files and generate Affix bindings and documentation.
+  - Affix::Build: A polyglot shared library builder. Currently supports Ada, Assembly, C, C#, C++, Cobol, Crystal, Dlang, Eiffel, F#, Fortran, Futhark, Go, Haskell, Nim, OCaml, Odin, Pascal, Rust, Swift, Vlang, and Zig.
+  - Affix::Wrap: An experimental tool to introspect C header files and generate Affix bindings and documentation.
     - Dual-Driver Architecture:
-      - `Affix::Bind::Driver::Clang`: Uses the system `clang` executable to parse the AST for high-fidelity extraction of types, macros, and comments.
-      - `Affix::Bind::Driver::Regex`: A zero-dependency fallback driver that parses headers using heuristics.
+      - `Affix::Wrap::Driver::Clang`: Uses the system `clang` executable to parse the AST for high-fidelity extraction of types, macros, and comments.
+      - `Affix::Wrap::Driver::Regex`: A zero-dependency fallback driver that parses headers using heuristics.
+
 
 ### Changed
 

@@ -1,4 +1,4 @@
-package Affix::Bind v1.0.0 {
+package Affix::Wrap v1.0.0 {
     use v5.40;
     use feature 'class';
     no warnings 'experimental::class';
@@ -9,7 +9,7 @@ package Affix::Bind v1.0.0 {
     use File::Basename qw[basename];
     use Affix          qw[];
 
-    class Affix::Bind::Type {
+    class Affix::Wrap::Type {
         use Affix qw[Void];
         field $name : reader : param //= 'void';
         method to_string { $self->name }
@@ -32,14 +32,14 @@ package Affix::Bind v1.0.0 {
                 if ( $args_str ne '' && $args_str ne 'void' ) {
                     @args = map { $class->parse($_) } split( /\s*,\s*/, $args_str );
                 }
-                return Affix::Bind::Type::CodeRef->new( ret => $ret, params => \@args );
+                return Affix::Wrap::Type::CodeRef->new( ret => $ret, params => \@args );
             }
             if ( $t =~ /^(.*)\s*\[(\d+)\]$/ ) {
-                return Affix::Bind::Type::Array->new( of => $class->parse($1), count => $2 );
+                return Affix::Wrap::Type::Array->new( of => $class->parse($1), count => $2 );
             }
             $t =~ s/(\*)\s*(?:const|restrict)\s*$/$1/;
             if ( $t =~ /^(.+)\s*\*$/ ) {
-                return Affix::Bind::Type::Pointer->new( of => $class->parse($1) );
+                return Affix::Wrap::Type::Pointer->new( of => $class->parse($1) );
             }
             return $class->new( name => $t );
         }
@@ -106,7 +106,7 @@ package Affix::Bind v1.0.0 {
         }
     }
 
-    class Affix::Bind::Type::Pointer : isa(Affix::Bind::Type) {
+    class Affix::Wrap::Type::Pointer : isa(Affix::Wrap::Type) {
         use Affix qw[Pointer];
         field $of : reader : param;
         method name       { $of->name . '*' }
@@ -114,7 +114,7 @@ package Affix::Bind v1.0.0 {
         method affix      { Pointer [ $of->affix ] }
     }
 
-    class Affix::Bind::Type::Array : isa(Affix::Bind::Type) {
+    class Affix::Wrap::Type::Array : isa(Affix::Wrap::Type) {
         use Affix qw[Array];
         field $of    : reader : param;
         field $count : reader : param;
@@ -123,7 +123,7 @@ package Affix::Bind v1.0.0 {
         method affix      { Array [ $of->affix, $count ] }
     }
 
-    class Affix::Bind::Type::CodeRef : isa(Affix::Bind::Type) {
+    class Affix::Wrap::Type::CodeRef : isa(Affix::Wrap::Type) {
         use Affix qw[CodeRef];
         field $ret    : reader : param;
         field $params : reader : param;    # ArrayRef of Types
@@ -141,7 +141,7 @@ package Affix::Bind v1.0.0 {
         }
     }
 
-    class Affix::Bind::Argument {
+    class Affix::Wrap::Argument {
         field $type : reader : param;
         field $name : reader : param //= '';
         method to_string { length($name) ? $type->to_string . ' ' . $name : $type->to_string }
@@ -150,7 +150,7 @@ package Affix::Bind v1.0.0 {
         method affix      { $type->affix }
     }
 
-    class Affix::Bind::Entity {
+    class Affix::Wrap::Entity {
         field $name         : reader : param //= '';
         field $doc          : reader : param //= ();
         field $file         : reader : param //= '';
@@ -164,7 +164,7 @@ package Affix::Bind v1.0.0 {
         method _base($p)   { return '' unless defined $p; $p =~ s{^.*[/\\]}{}; return $p }
 
         method describe {
-            return sprintf '[%s] %s (%s:%d)', __CLASS__ =~ s/^Affix::Bind:://r, $name, $self->_base($file), $line;
+            return sprintf '[%s] %s (%s:%d)', __CLASS__ =~ s/^Affix::Wrap:://r, $name, $self->_base($file), $line;
         }
 
         # Helper to convert Doxygen/Markdown to POD
@@ -252,7 +252,7 @@ package Affix::Bind v1.0.0 {
         method affix( $lib //= (), $pkg //= () ) { return undef }
     }
 
-    class Affix::Bind::Member {
+    class Affix::Wrap::Member {
         use Affix qw[Void];
         field $name       : reader : param //= '';
         field $type       : reader : param //= '';
@@ -271,7 +271,7 @@ package Affix::Bind v1.0.0 {
         }
     }
 
-    class Affix::Bind::Macro : isa(Affix::Bind::Entity) {
+    class Affix::Wrap::Macro : isa(Affix::Wrap::Entity) {
         field $value : reader : param //= ();
 
         method affix_type {
@@ -297,7 +297,7 @@ package Affix::Bind v1.0.0 {
         }
     }
 
-    class Affix::Bind::Variable : isa(Affix::Bind::Entity) {
+    class Affix::Wrap::Variable : isa(Affix::Wrap::Entity) {
         field $type : reader : param;
         method affix_type { sprintf 'pin my $%s, $lib, %s => %s', $self->name, $self->name, $type->affix_type }
 
@@ -320,13 +320,13 @@ package Affix::Bind v1.0.0 {
         }
     }
 
-    class Affix::Bind::Typedef : isa(Affix::Bind::Entity) {
+    class Affix::Wrap::Typedef : isa(Affix::Wrap::Entity) {
         field $underlying : reader : param;
         method affix_type                         { 'typedef ' . $self->name . ' => ' . $underlying->affix_type }
         method affix ( $lib //= (), $pkg //= () ) { Affix::typedef $self->name, $underlying->affix }
     }
 
-    class Affix::Bind::Struct : isa(Affix::Bind::Entity) {
+    class Affix::Wrap::Struct : isa(Affix::Wrap::Entity) {
         field $tag     : reader : param //= 'struct';
         field $members : reader : param //= [];
 
@@ -344,7 +344,7 @@ package Affix::Bind v1.0.0 {
         }
     }
 
-    class Affix::Bind::Enum : isa(Affix::Bind::Entity) {
+    class Affix::Wrap::Enum : isa(Affix::Wrap::Entity) {
         field $constants : reader : param //= [];
 
         method affix_type {
@@ -372,7 +372,7 @@ package Affix::Bind v1.0.0 {
         }
     }
 
-    class Affix::Bind::Function : isa(Affix::Bind::Entity) {
+    class Affix::Wrap::Function : isa(Affix::Wrap::Entity) {
         use Carp  qw[];
         use Affix qw[CodeRef];
         field $ret          : reader : param;
@@ -430,7 +430,7 @@ package Affix::Bind v1.0.0 {
         }
     }
 
-    class Affix::Bind::Driver::Clang {
+    class Affix::Wrap::Driver::Clang {
         use Config;
         field $project_files : param : reader;
         field $allowed_files  = {};
@@ -578,7 +578,7 @@ package Affix::Bind v1.0.0 {
             my ( $s, $e, $l, $el ) = $self->_meta($n);
             my $val = $self->_extract_macro_val( $n, $f );
             push @$acc,
-                Affix::Bind::Macro->new(
+                Affix::Wrap::Macro->new(
                 name         => $n->{name},
                 file         => $f,
                 line         => $l,
@@ -593,12 +593,12 @@ package Affix::Bind v1.0.0 {
         method _typedef( $n, $acc, $f ) {
             my ( $s, $e, $l, $el ) = $self->_meta($n);
             push @$acc,
-                Affix::Bind::Typedef->new(
+                Affix::Wrap::Typedef->new(
                 name         => $n->{name},
                 file         => $f,
                 line         => $l,
                 end_line     => $el,
-                underlying   => Affix::Bind::Type->parse( $n->{type}{qualType} ),
+                underlying   => Affix::Wrap::Type->parse( $n->{type}{qualType} ),
                 doc          => $self->_doc_w_trail( $f, $s, $e ),
                 start_offset => $s,
                 end_offset   => $e
@@ -611,7 +611,7 @@ package Affix::Bind v1.0.0 {
             return unless ( $n->{name} || @$m_list );
             my $tag = $n->{tagUsed} // 'struct';
             push @$acc,
-                Affix::Bind::Struct->new(
+                Affix::Wrap::Struct->new(
                 name         => $n->{name} // '(anonymous)',
                 tag          => $tag,
                 file         => $f,
@@ -632,7 +632,7 @@ package Affix::Bind v1.0.0 {
                 my $kind = $child->{kind} // '';
                 if ( $kind eq 'RecordDecl' || $kind eq 'CXXRecordDecl' ) {
                     my $sub_members = $self->_extract_members( $child, $f );
-                    my $rec         = Affix::Bind::Struct->new(
+                    my $rec         = Affix::Wrap::Struct->new(
                         name     => $child->{name}    // '',
                         tag      => $child->{tagUsed} // 'struct',
                         file     => $f,
@@ -647,13 +647,13 @@ package Affix::Bind v1.0.0 {
                 elsif ( $kind eq 'FieldDecl' ) {
                     my $name     = $child->{name} // '';
                     my $raw_type = $child->{type}{qualType};
-                    my $type_obj = Affix::Bind::Type->parse($raw_type);
+                    my $type_obj = Affix::Wrap::Type->parse($raw_type);
                     my $def      = undef;
                     if (@pending_anonymous_records) { $def = pop @pending_anonymous_records; }
                     my $f_offset = $child->{range}{begin}{offset};
                     my $f_end    = $child->{range}{end}{offset};
                     my $f_doc    = $self->_doc_w_trail( $f, $f_offset, $f_end );
-                    push @members, Affix::Bind::Member->new( name => $name, type => $type_obj, doc => $f_doc, definition => $def );
+                    push @members, Affix::Wrap::Member->new( name => $name, type => $type_obj, doc => $f_doc, definition => $def );
                 }
             }
             return \@members;
@@ -693,7 +693,7 @@ package Affix::Bind v1.0.0 {
                 }
             }
             push @$acc,
-                Affix::Bind::Enum->new(
+                Affix::Wrap::Enum->new(
                 name         => $n->{name} // '(anonymous)',
                 file         => $f,
                 line         => $l,
@@ -708,12 +708,12 @@ package Affix::Bind v1.0.0 {
         method _var( $n, $acc, $f ) {
             my ( $s, $e, $l, $el ) = $self->_meta($n);
             push @$acc,
-                Affix::Bind::Variable->new(
+                Affix::Wrap::Variable->new(
                 name         => $n->{name},
                 file         => $f,
                 line         => $l,
                 end_line     => $el,
-                type         => Affix::Bind::Type->parse( $n->{type}{qualType} ),
+                type         => Affix::Wrap::Type->parse( $n->{type}{qualType} ),
                 doc          => $self->_doc_w_trail( $f, $s, $e ),
                 start_offset => $s,
                 end_offset   => $e
@@ -725,18 +725,18 @@ package Affix::Bind v1.0.0 {
             my ( $s, $e, $l, $el ) = $self->_meta($n);
             my $ret_str = $n->{type}{qualType};
             $ret_str =~ s/\(.*\)//;
-            my $ret_obj = Affix::Bind::Type->parse($ret_str);
+            my $ret_obj = Affix::Wrap::Type->parse($ret_str);
             my @args;
             for ( @{ $n->{inner} } ) {
                 if ( ( $_->{kind} // '' ) eq 'ParmVarDecl' ) {
-                    my $pt = Affix::Bind::Type->parse( $_->{type}{qualType} );
+                    my $pt = Affix::Wrap::Type->parse( $_->{type}{qualType} );
                     my $pn = $_->{name} // '';
-                    push @args, Affix::Bind::Argument->new( type => $pt, name => $pn );
+                    push @args, Affix::Wrap::Argument->new( type => $pt, name => $pn );
                 }
             }
-            if ( $n->{variadic} ) { push @args, Affix::Bind::Argument->new( type => Affix::Bind::Type->new( name => '...' ) ); }
+            if ( $n->{variadic} ) { push @args, Affix::Wrap::Argument->new( type => Affix::Wrap::Type->new( name => '...' ) ); }
             push @$acc,
-                Affix::Bind::Function->new(
+                Affix::Wrap::Function->new(
                 name         => $n->{name},
                 mangled_name => $n->{mangledName},
                 file         => $f,
@@ -829,7 +829,7 @@ package Affix::Bind v1.0.0 {
         }
 
         method _scan_macros_fallback($acc) {
-            my %seen = map { $_->name => 1 } grep { ref($_) eq 'Affix::Bind::Macro' } @$acc;
+            my %seen = map { $_->name => 1 } grep { ref($_) eq 'Affix::Wrap::Macro' } @$acc;
             for my $f ( keys %$allowed_files ) {
                 next unless $self->_is_valid_file($f);
                 my $c = $self->_get_content($f);
@@ -845,7 +845,7 @@ package Affix::Bind v1.0.0 {
                     $val =~ s/\/\*.*?\*\///g;
                     $val =~ s/^\s+|\s+$//g;
                     push @$acc,
-                        Affix::Bind::Macro->new(
+                        Affix::Wrap::Macro->new(
                         name         => $name,
                         file         => $f,
                         line         => $line,
@@ -860,18 +860,18 @@ package Affix::Bind v1.0.0 {
         }
 
         method _merge_typedefs($objs) {
-            my @tds = grep { ref($_) eq 'Affix::Bind::Typedef' } @$objs;
+            my @tds = grep { ref($_) eq 'Affix::Wrap::Typedef' } @$objs;
             for my $td (@tds) {
                 next if $td->is_merged;
                 my ($child) = grep {
                     !$_->is_merged                                                               &&
                         $_->file eq $td->file                                                    &&
                         ( $_->name eq '(anonymous)' || $_->name eq '' || $_->name eq $td->name ) &&
-                        ( ref($_) eq 'Affix::Bind::Enum' || ref($_) eq 'Affix::Bind::Struct' )   &&
+                        ( ref($_) eq 'Affix::Wrap::Enum' || ref($_) eq 'Affix::Wrap::Struct' )   &&
                         ( abs( $_->end_line - $td->line ) <= 1 || abs( $_->end_line - $td->end_line ) <= 1 )
                 } @$objs;
                 if ($child) {
-                    my $new = Affix::Bind::Typedef->new(
+                    my $new = Affix::Wrap::Typedef->new(
                         name         => $td->name,
                         underlying   => $child,
                         file         => $td->file,
@@ -894,10 +894,10 @@ package Affix::Bind v1.0.0 {
             for ( my $i = 0; $i < @$objs; $i++ ) {
                 my $node = $objs->[$i];
                 next if $node->is_merged;
-                if ( ( ref($node) eq 'Affix::Bind::Struct' || ref($node) eq 'Affix::Bind::Enum' ) &&
+                if ( ( ref($node) eq 'Affix::Wrap::Struct' || ref($node) eq 'Affix::Wrap::Enum' ) &&
                     length( $node->name ) &&
                     $node->name ne '(anonymous)' ) {
-                    my $new = Affix::Bind::Typedef->new(
+                    my $new = Affix::Wrap::Typedef->new(
                         name         => $node->name,
                         underlying   => $node,
                         file         => $node->file,
@@ -927,7 +927,7 @@ package Affix::Bind v1.0.0 {
         }
     }
 
-    class Affix::Bind::Driver::Regex {
+    class Affix::Wrap::Driver::Regex {
         field $project_files : param : reader;
         field $file_cache = {};
 
@@ -977,7 +977,7 @@ package Affix::Bind v1.0.0 {
                 $val =~ s/\/\*.*?\*\///g;
                 $val =~ s/^\s+|\s+$//g;
                 push @$acc,
-                    Affix::Bind::Macro->new(
+                    Affix::Wrap::Macro->new(
                     name         => $name,
                     value        => $val,
                     file         => $f,
@@ -994,7 +994,7 @@ package Affix::Bind v1.0.0 {
                 my $s      = $-[0];
                 my $e      = $+[0];
                 my $mem    = $self->_mem( substr( $1, 1, -1 ) );
-                my $struct = Affix::Bind::Struct->new(
+                my $struct = Affix::Wrap::Struct->new(
                     name         => '',
                     tag          => 'struct',
                     members      => $mem,
@@ -1006,7 +1006,7 @@ package Affix::Bind v1.0.0 {
                     end_offset   => $e
                 );
                 push @$acc,
-                    Affix::Bind::Typedef->new(
+                    Affix::Wrap::Typedef->new(
                     name         => $2,
                     underlying   => $struct,
                     file         => $f,
@@ -1022,7 +1022,7 @@ package Affix::Bind v1.0.0 {
             while ( $c =~ /typedef\s+enum\s*(?:\w+\s*)?(\{(?:[^{}]++|(?1))*\})\s*(\w+)\s*;/gs ) {
                 my $s    = $-[0];
                 my $e    = $+[0];
-                my $enum = Affix::Bind::Enum->new(
+                my $enum = Affix::Wrap::Enum->new(
                     name         => '',
                     constants    => $self->_enum_consts( substr( $1, 1, -1 ) ),
                     file         => $f,
@@ -1033,7 +1033,7 @@ package Affix::Bind v1.0.0 {
                     end_offset   => $e
                 );
                 push @$acc,
-                    Affix::Bind::Typedef->new(
+                    Affix::Wrap::Typedef->new(
                     name         => $2,
                     underlying   => $enum,
                     file         => $f,
@@ -1049,7 +1049,7 @@ package Affix::Bind v1.0.0 {
             while ( $c =~ /enum\s+(\w+)\s*(\{(?:[^{}]++|(?2))*\})\s*;/gs ) {
                 my $s    = $-[0];
                 my $e    = $+[0];
-                my $enum = Affix::Bind::Enum->new(
+                my $enum = Affix::Wrap::Enum->new(
                     name         => $1,
                     constants    => $self->_enum_consts( substr( $2, 1, -1 ) ),
                     file         => $f,
@@ -1060,7 +1060,7 @@ package Affix::Bind v1.0.0 {
                     end_offset   => $e
                 );
                 push @$acc,
-                    Affix::Bind::Typedef->new(
+                    Affix::Wrap::Typedef->new(
                     name         => $1,
                     underlying   => $enum,
                     file         => $f,
@@ -1096,9 +1096,9 @@ package Affix::Bind v1.0.0 {
                     $doc = defined $doc ? "$doc\n$trail" : $trail;
                 }
                 push @$acc,
-                    Affix::Bind::Variable->new(
+                    Affix::Wrap::Variable->new(
                     name         => $name,
-                    type         => Affix::Bind::Type->parse($type_str),
+                    type         => Affix::Wrap::Type->parse($type_str),
                     file         => $f,
                     line         => $self->_ln( $c, $s ),
                     end_line     => $self->_ln( $c, $e ),
@@ -1117,23 +1117,23 @@ package Affix::Bind v1.0.0 {
                 $content =~ s/^\s+|\s+$//g;
                 if ( $content =~ /^(.+?)\s*\(\*\s*(\w+)\)\s*\((.*?)\)$/ ) {
                     my ( $ret_str, $name, $args_str ) = ( $1, $2, $3 );
-                    my $ret = Affix::Bind::Type->parse($ret_str);
+                    my $ret = Affix::Wrap::Type->parse($ret_str);
                     my @args;
                     if ( defined $args_str && length $args_str && $args_str ne 'void' ) {
                         my @args_raw = grep {length} map { s/^\s+|\s+$//g; $_ } split /,/, $args_str;
                         if ( @args_raw == 1 && $args_raw[0] =~ /^void$/ ) { @args_raw = (); }
                         for my $raw (@args_raw) {
                             if ( $raw =~ /^(.+?)\s+(\w+(?:\[.*?\])?)$/ ) {
-                                push @args, Affix::Bind::Type->parse($1);
+                                push @args, Affix::Wrap::Type->parse($1);
                             }
                             else {
-                                push @args, Affix::Bind::Type->parse($raw);
+                                push @args, Affix::Wrap::Type->parse($raw);
                             }
                         }
                     }
-                    my $coderef = Affix::Bind::Type::CodeRef->new( ret => $ret, params => \@args );
+                    my $coderef = Affix::Wrap::Type::CodeRef->new( ret => $ret, params => \@args );
                     push @$acc,
-                        Affix::Bind::Typedef->new(
+                        Affix::Wrap::Typedef->new(
                         name         => $name,
                         underlying   => $coderef,
                         file         => $f,
@@ -1147,9 +1147,9 @@ package Affix::Bind v1.0.0 {
                 elsif ( $content =~ /^(.+?)\s+(\w+)$/ ) {
                     my ( $type_str, $name ) = ( $1, $2 );
                     push @$acc,
-                        Affix::Bind::Typedef->new(
+                        Affix::Wrap::Typedef->new(
                         name         => $name,
-                        underlying   => Affix::Bind::Type->parse($type_str),
+                        underlying   => Affix::Wrap::Type->parse($type_str),
                         file         => $f,
                         line         => $self->_ln( $c, $s ),
                         end_line     => $self->_ln( $c, $e ),
@@ -1197,7 +1197,7 @@ package Affix::Bind v1.0.0 {
                 #
                 $ret_str =~ s/\b[A-Z_][A-Z0-9_]*\b//g;
                 $ret_str =~ s/^\s+|\s+$//g;
-                my $ret_obj = Affix::Bind::Type->parse($ret_str);
+                my $ret_obj = Affix::Wrap::Type->parse($ret_str);
 
                 # Split args respecting commas inside parentheses (e.g. function pointers)
                 my @args_raw = grep {length} map { s/^\s+|\s+$//g; $_ } split /,(?![^(]*\))/, $args_str;
@@ -1206,25 +1206,25 @@ package Affix::Bind v1.0.0 {
                 for my $raw (@args_raw) {
                     if ( $raw =~ /^(.+?)\s*\(\*\s*(\w+)\)\s*\((.*)\)$/ ) {
                         my ( $r_type, $cb_name, $cb_args ) = ( $1, $2, $3 );
-                        my $ret = Affix::Bind::Type->parse($r_type);
+                        my $ret = Affix::Wrap::Type->parse($r_type);
                         my @p;
                         if ( $cb_args ne '' && $cb_args ne 'void' ) {
-                            @p = map { Affix::Bind::Type->parse($_) } split /,(?![^(]*\))/, $cb_args;
+                            @p = map { Affix::Wrap::Type->parse($_) } split /,(?![^(]*\))/, $cb_args;
                         }
-                        my $code_ref = Affix::Bind::Type::CodeRef->new( ret => $ret, params => \@p );
-                        push @args, Affix::Bind::Argument->new( type => $code_ref, name => $cb_name );
+                        my $code_ref = Affix::Wrap::Type::CodeRef->new( ret => $ret, params => \@p );
+                        push @args, Affix::Wrap::Argument->new( type => $code_ref, name => $cb_name );
                     }
                     elsif ( $raw =~ /^(.+?)\s+(\w+(?:\[.*?\])?)$/ ) {
                         my ( $t, $n ) = ( $1, $2 );
                         if ( $n =~ s/(\[.*\])$// ) { $t .= $1 }
-                        push @args, Affix::Bind::Argument->new( type => Affix::Bind::Type->parse($t), name => $n );
+                        push @args, Affix::Wrap::Argument->new( type => Affix::Wrap::Type->parse($t), name => $n );
                     }
                     else {
-                        push @args, Affix::Bind::Argument->new( type => Affix::Bind::Type->parse($raw) );
+                        push @args, Affix::Wrap::Argument->new( type => Affix::Wrap::Type->parse($raw) );
                     }
                 }
                 push @$acc,
-                    Affix::Bind::Function->new(
+                    Affix::Wrap::Function->new(
                     name         => $func_name,
                     mangled_name => $func_name,
                     ret          => $ret_obj,
@@ -1256,8 +1256,8 @@ package Affix::Bind v1.0.0 {
                 if ( $b =~ s|^(\s*/\*(.*?)\*/)||s ) { $pending_doc .= $2;     next; }
                 if ( $b =~ s/^\s*(union|struct)\s*(\{(?:[^{}]++|(?2))*\})\s*(\w+)\s*;// ) {
                     my $tag = $1;
-                    my $d   = Affix::Bind::Struct->new( name => '', tag => $tag, members => $self->_mem( substr( $2, 1, -1 ) ) );
-                    push @m, Affix::Bind::Member->new( name => $3, definition => $d, doc => $clean->($pending_doc) );
+                    my $d   = Affix::Wrap::Struct->new( name => '', tag => $tag, members => $self->_mem( substr( $2, 1, -1 ) ) );
+                    push @m, Affix::Wrap::Member->new( name => $3, definition => $d, doc => $clean->($pending_doc) );
                     $pending_doc = '';
                     next;
                 }
@@ -1265,13 +1265,13 @@ package Affix::Bind v1.0.0 {
                 # Function Pointer: Ret (*name)(Args)
                 if ( $b =~ s/^\s*([\w\s\*]+?)\s*\(\*\s*(\w+)\)\s*\((.*?)\)\s*;// ) {
                     my ( $ret_str, $name, $args_str ) = ( $1, $2, $3 );
-                    my $ret = Affix::Bind::Type->parse($ret_str);
+                    my $ret = Affix::Wrap::Type->parse($ret_str);
                     my @args;
                     if ( $args_str ne '' && $args_str ne 'void' ) {
-                        @args = map { Affix::Bind::Type->parse($_) } split( /\s*,\s*/, $args_str );
+                        @args = map { Affix::Wrap::Type->parse($_) } split( /\s*,\s*/, $args_str );
                     }
-                    my $type_obj = Affix::Bind::Type::CodeRef->new( ret => $ret, params => \@args );
-                    push @m, Affix::Bind::Member->new( name => $name, type => $type_obj, doc => $clean->($pending_doc) );
+                    my $type_obj = Affix::Wrap::Type::CodeRef->new( ret => $ret, params => \@args );
+                    push @m, Affix::Wrap::Member->new( name => $name, type => $type_obj, doc => $clean->($pending_doc) );
                     $pending_doc = '';
                     next;
                 }
@@ -1279,7 +1279,7 @@ package Affix::Bind v1.0.0 {
                     my ( $t, $n ) = ( $1, $2 );
                     $t =~ s/^\s+|\s+$//g;
                     if ( $n =~ s/(\[.*\])$// ) { $t .= $1 }
-                    push @m, Affix::Bind::Member->new( name => $n, type => Affix::Bind::Type->parse($t), doc => $clean->($pending_doc) );
+                    push @m, Affix::Wrap::Member->new( name => $n, type => Affix::Wrap::Type->parse($t), doc => $clean->($pending_doc) );
                     $pending_doc = '';
                     next;
                 }
@@ -1314,7 +1314,7 @@ package Affix::Bind v1.0.0 {
         }
     }
 
-    class Affix::Bind {
+    class Affix::Wrap {
         field $driver        : param //= ();
         field $project_files : param //= $driver->project_files;
         field $include_dirs  : param //= [];
@@ -1323,8 +1323,8 @@ package Affix::Bind v1.0.0 {
             unless ( defined $driver ) {
                 my ( $out, $err, $exit ) = Capture::Tiny::capture { system( 'clang', '--version' ); };
                 $use_clang = 1 if $exit == 0;
-                $driver    = $use_clang ? Affix::Bind::Driver::Clang->new( project_files => $project_files ) :
-                    Affix::Bind::Driver::Regex->new( project_files => $project_files );
+                $driver    = $use_clang ? Affix::Wrap::Driver::Clang->new( project_files => $project_files ) :
+                    Affix::Wrap::Driver::Regex->new( project_files => $project_files );
             }
         }
 
@@ -1335,10 +1335,10 @@ package Affix::Bind v1.0.0 {
 
         method wrap ( $lib, $target //= [caller]->[0] ) {
             for my $node ( $self->parse ) {
-                if ( $node isa Affix::Bind::Macro ) {
+                if ( $node isa Affix::Wrap::Macro ) {
                     $node->affix( undef, $target );
                 }
-                elsif ( $node isa Affix::Bind::Variable || $node isa Affix::Bind::Function ) {
+                elsif ( $node isa Affix::Wrap::Variable || $node isa Affix::Wrap::Function ) {
                     $node->affix( $lib, $target );
                 }
                 elsif ( $node->can('affix') ) {
@@ -1349,3 +1349,9 @@ package Affix::Bind v1.0.0 {
     }
 };
 1;
+__END__
+Copyright (C) Sanko Robinson.
+
+This library is free software; you can redistribute it and/or modify it under
+the terms found in the Artistic License 2. Other copyrights, terms, and
+conditions may apply to data transmitted through this module.

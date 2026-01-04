@@ -59,3 +59,4 @@ eg/tmp/*
 eg/ast*
 eg/*.pl
 eg/temp*
+Cookbook.md

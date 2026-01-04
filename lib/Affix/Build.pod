@@ -4,19 +4,19 @@
 
 =head1 NAME
 
-Affix::Compiler - A robust, polyglot build system for FFI extensions
+Affix::Build - A robust, polyglot build system for FFI extensions
 
 =head1 SYNOPSIS
 
-    use Affix::Compiler;
+    use Affix::Build;
 
     # Builds a shared library using Rust's native toolchain configuration.
-    my $rust = Affix::Compiler->new( name => 'my_rust_lib' );
+    my $rust = Affix::Build->new( name => 'my_rust_lib' );
     $rust->add('src/logic.rs');
     my $lib_path = $rust->compile_and_link(); # Returns path to .so/.dll (e.g., /tmp/.../my_rust_lib.dll)
 
     # Compiles C and Go separately, then links them into a single library.
-    my $mix = Affix::Compiler->new(
+    my $mix = Affix::Build->new(
         name      => 'hybrid_lib',
         build_dir => 'build/',
         flags     => { cflags => '-O3', ldflags => '-L/opt/lib' },
@@ -30,7 +30,7 @@ Affix::Compiler - A robust, polyglot build system for FFI extensions
 
 =head1 DESCRIPTION
 
-C<Affix::Compiler> is a cross-platform compilation utility designed to generate shared libraries (C<.dll>, C<.so>,
+C<Affix::Build> is a cross-platform compilation utility designed to generate shared libraries (C<.dll>, C<.so>,
 C<.dylib>) from source code in over 15 different programming languages.
 
 It is specifically engineered to support Foreign Function Interface (FFI) development. It abstracts away the complexity
@@ -49,7 +49,7 @@ The compiler automatically selects the best build strategy based on the input so
 
 =item 1. B<Native/Dynamic Strategy> (Single Language)
 
-If you provide source files for only B<one> language, C<Affix::Compiler> delegates the entire build process to that
+If you provide source files for only B<one> language, C<Affix::Build> delegates the entire build process to that
 language's native toolchain (e.g., `go build -buildmode=c-shared`, `rustc --crate-type cdylib`, `dotnet publish`).
 
 This is the preferred method as it guarantees the language's standard library and runtime environment are configured
@@ -74,7 +74,7 @@ aggregation strategy:
 
 =head1 CONSTRUCTOR
 
-    my $c = Affix::Compiler->new( %params );
+    my $c = Affix::Build->new( %params );
 
 Creates a new compiler instance.
 
@@ -148,7 +148,7 @@ An alias for L</compile_and_link( )> but only compiles and links if the state ha
 
 =head1 SUPPORTED LANGUAGES
 
-C<Affix::Compiler> attempts to locate the necessary binaries in your C<PATH>.
+C<Affix::Build> attempts to locate the necessary binaries in your C<PATH>.
 
 =head3 C / C++
 
@@ -252,7 +252,7 @@ Support is also included for:
 
 =head2 Windows (MinGW / Strawberry Perl)
 
-This environment is "Polyglot Hard Mode." C<Affix::Compiler> performs several tricks to make it work:
+This environment is "Polyglot Hard Mode." C<Affix::Build> performs several tricks to make it work:
 
 =over
 

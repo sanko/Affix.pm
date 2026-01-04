@@ -7,17 +7,17 @@ Affix - A Foreign Function Interface eXtension
 ```perl
 use Affix;
 
-# 1. Load a Library
+# Load a Library
 my $lib = load_library('m'); # libm.so / m.dll
 
-# 2. Bind a Function
+# Bind a Function
 #    double pow(double x, double y);
 affix $lib, 'pow', [Double, Double] => Double;
 
-# 3. Call it
+# Call it
 say pow(2.0, 10.0); # 1024
 
-# 4. Manual Memory Management (optional)
+# Manual Memory Management (optional)
 my $ptr = malloc(1024);
 # ... use ptr ...
 free($ptr);
@@ -31,9 +31,6 @@ and call their functions natively without writing XS code or configuring a C com
 It distinguishes itself from other FFI solutions by using **infix**, a custom lightweight JIT engine. When you bind a
 function, Affix generates machine code at runtime to handle the argument marshalling, resulting in significantly lower
 overhead than generic FFI wrappers.
-
-A Cookbook for Affix is being written. Check it out here:
-[https://github.com/sanko/Affix.pm/discussions/categories/recipes](https://github.com/sanko/Affix.pm/discussions/categories/recipes)
 
 # EXPORTS
 
@@ -55,13 +52,13 @@ Affix's API is designed to be expressive. Let's start at the beginning with the 
 Attaches a given symbol to a named perl sub in the current namespace.
 
 ```perl
-# 1. Standard: Load from library
+# Standard: Load from library
 affix $lib, 'pow', [Double, Double] => Double;
 
-# 2. Rename: Load 'pow', install as 'power'
+# Rename: Load 'pow', install as 'power'
 affix $lib, ['pow' => 'power'], [Double, Double] => Double;
 
-# 3. Raw Pointer: Bind a specific memory address
+# Raw Pointer: Bind a specific memory address
 # Useful for vtables, JIT code, or manual dlsym
 affix undef, [ $ptr => 'my_func' ], [Int] => Void;
 ```
@@ -93,13 +90,13 @@ On success, `affix( ... )` installs the subroutine and returns the generated cod
 Creates a wrapper around a given symbol but returns it as an anonymous CodeRef.
 
 ```perl
-# 1. From Library
+# From Library
 my $pow = wrap $lib, 'pow', [Double, Double] => Double;
 
 # Call the function
 my $x = $pow->(2, 5);
 
-# 2. From Raw Pointer
+# From Raw Pointer
 # Note: Library argument is undef
 my $func = wrap undef, $ptr, [Int] => Void;
 ```
@@ -509,16 +506,16 @@ Structs are the bread and butter of C APIs. In Affix, they map to **Perl Hash Re
 # C: typedef struct { int x; int y; } Point;
 #    void draw_line(Point a, Point b);
 
-# 1. Define the type (recommended for reuse)
+# Define the type (recommended for reuse)
 typedef Point => Struct [
     x => Int,
     y => Int
 ];
 
-# 2. Bind the function
+# Bind the function
 affix $lib, 'draw_line', [ Point, Point ] => Void;
 
-# 3. Call with HashRefs
+# Call with HashRefs
 draw_line( { x => 0, y => 0 }, { x => 100, y => 100 } );
 ```
 
@@ -713,12 +710,12 @@ Dumps the internal structure of a Perl scalar to STDERR. Useful for debugging Pe
 
 # COMPILER WRAPPER
 
-Affix includes a lightweight, cross-platform C compiler wrapper `Affix::Compiler`. This is useful for compiling small
-C stubs or "glue" code at runtime to bridge complex macros or inline functions that cannot be bound directly.
+Affix includes a lightweight, cross-platform C compiler wrapper `Affix::Build`. This is useful for compiling small C
+stubs or "glue" code at runtime to bridge complex macros or inline functions that cannot be bound directly.
 
 ```perl
 use Affix;
-my $compiler = Affix::Compiler->new(
+my $compiler = Affix::Build->new(
     name   => 'my_wrapper',
     source => [ 'wrapper.c' ]
 );
@@ -732,15 +729,15 @@ toolchain is installed on the system.
 
 # EXAMPLES
 
-See [Affix::Cookbook](https://metacpan.org/pod/Affix%3A%3ACookbook) for a comprehensive guide to using Affix.
+See [The Affix Cookbook](https://github.com/sanko/Affix.pm/discussions/categories/recipes) for comprehensive guides to
+using Affix.
 
 # SEE ALSO
 
-The Affix Cookbook: [https://github.com/sanko/Affix.pm/discussions/categories/recipes](https://github.com/sanko/Affix.pm/discussions/categories/recipes)
-
 [FFI::Platypus](https://metacpan.org/pod/FFI%3A%3APlatypus), [C::DynaLib](https://metacpan.org/pod/C%3A%3ADynaLib), [XS::TCC](https://metacpan.org/pod/XS%3A%3ATCC)
 
-All the heavy lifting is done by **infix** ([https://github.com/sanko/infix](https://github.com/sanko/infix)).
+All the heavy lifting is done by [infix](https://github.com/sanko/infix), my JIT compiler and type introspection
+engine.
 
 # AUTHOR
 

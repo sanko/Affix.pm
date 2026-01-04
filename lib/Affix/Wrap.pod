@@ -4,16 +4,16 @@
 
 =head1 NAME
 
-Affix::Bind - Frictionless C Header Introspection and FFI Wrapper Generation
+Affix::Wrap - Frictionless C Header Introspection and FFI Wrapper Generation
 
 =head1 SYNOPSIS
 
     use v5.40;
     use Affix;
-    use Affix::Bind;
+    use Affix::Wrap;
 
     # Parse headers and install symbols into the current package
-    Affix::Bind->new(
+    Affix::Wrap->new(
         project_files => [ 'include/mylib.h' ],
         include_dirs  => [ '/usr/local/include' ]
     )->wrap( 'libdemo.so' );
@@ -23,7 +23,7 @@ Affix::Bind - Frictionless C Header Introspection and FFI Wrapper Generation
 
 =head1 DESCRIPTION
 
-C<Affix::Bind> acts as a bridge between C/C++ header files and L<Affix>. It parses C header files to produce a
+C<Affix::Wrap> acts as a bridge between C/C++ header files and L<Affix>. It parses C header files to produce a
 structured object model (AST) representing functions, structs, enums, typedefs, macros, and variables.
 
 This module is designed to facilitate two primary workflows:
@@ -46,7 +46,7 @@ Please be aware that this is experimental software!
 
 =head2 Drivers
 
-Affix::Bind utilizes a dual-driver approach to parsing:
+Affix::Wrap utilizes a dual-driver approach to parsing:
 
 =over
 
@@ -66,7 +66,7 @@ struggle with heavily macro-laden code or complex C++ templates.
 
 =head2 C<new( ... )>
 
-    my $binder = Affix::Bind->new(
+    my $binder = Affix::Wrap->new(
         project_files => [ 'lib.h' ],
         include_dirs  => [ '/usr/include' ],
         driver        => 'Clang'
@@ -85,7 +85,7 @@ C<project_files> is automatically added to this list.
 
 =item C<driver>
 
-Optional. Explicitly select the parser driver. Values are C<'Clang'> or C<'Regex'>. If omitted, C<Affix::Bind> attempts
+Optional. Explicitly select the parser driver. Values are C<'Clang'> or C<'Regex'>. If omitted, C<Affix::Wrap> attempts
 to find the C<clang> executable and falls back to Regex if unavailable.
 
 =back
@@ -126,7 +126,7 @@ Optional. The specific file to start parsing from. Defaults to the first file in
 
 =head1 Data Model
 
-The C<parse()> method returns a list of objects inheriting from C<Affix::Bind::Entity>.
+The C<parse()> method returns a list of objects inheriting from C<Affix::Wrap::Entity>.
 
 All nodes provide at least two key methods:
 
@@ -138,19 +138,19 @@ All nodes provide at least two key methods:
 
 =back
 
-=head2 Affix::Bind::Type
+=head2 Affix::Wrap::Type
 
 Represents a generic C type (e.g., C<int>, C<void>, C<size_t>).
 
-=head2 Affix::Bind::Type::Pointer
+=head2 Affix::Wrap::Type::Pointer
 
 Represents C<T*> types. Wraps another type object.
 
-=head2 Affix::Bind::Type::Array
+=head2 Affix::Wrap::Type::Array
 
 Represents C<T[N]> fixed-size arrays. Wraps a type object and a count.
 
-=head2 Affix::Bind::Type::CodeRef
+=head2 Affix::Wrap::Type::CodeRef
 
 Represents function pointers (callbacks), e.g., C<void (*)(int)>.
 
@@ -164,11 +164,11 @@ Represents function pointers (callbacks), e.g., C<void (*)(int)>.
 
 =back
 
-=head2 Affix::Bind::Argument
+=head2 Affix::Wrap::Argument
 
 Function arguments. Stringifies to "Type Name".
 
-=head2 Affix::Bind::Member
+=head2 Affix::Wrap::Member
 
 Struct/Union members.
 
@@ -180,7 +180,7 @@ Struct/Union members.
 
 =back
 
-=head2 Affix::Bind::Function
+=head2 Affix::Wrap::Function
 
 A C function declaration.
 
@@ -192,7 +192,7 @@ A C function declaration.
 
 =back
 
-=head2 Affix::Bind::Struct
+=head2 Affix::Wrap::Struct
 
 A C struct or union definition.
 
@@ -204,7 +204,7 @@ A C struct or union definition.
 
 =back
 
-=head2 Affix::Bind::Typedef
+=head2 Affix::Wrap::Typedef
 
 A name alias for another type.
 
@@ -219,7 +219,7 @@ A name alias for another type.
 B<Note:> In C, C<typedef struct { ... } Name;> results in a C<Typedef> object where B<underlying> is the C<Struct>
 object.
 
-=head2 Affix::Bind::Enum
+=head2 Affix::Wrap::Enum
 
 An enumeration.
 
@@ -229,7 +229,7 @@ An enumeration.
 
 =back
 
-=head2 Affix::Bind::Variable
+=head2 Affix::Wrap::Variable
 
 A global C<extern> variable.
 
@@ -241,7 +241,7 @@ A global C<extern> variable.
 
 =back
 
-=head2 Affix::Bind::Macro
+=head2 Affix::Wrap::Macro
 
 A preprocessor C<#define>. Only simple value macros are captured.
 
@@ -260,13 +260,13 @@ A preprocessor C<#define>. Only simple value macros are captured.
 If you want to use a C library immediately without creating a separate Perl module file, use the C<wrap> method.
 
     use Affix;
-    use Affix::Bind;
+    use Affix::Wrap;
 
     my $lib = Affix::load('libdemo.so');
 
     # This parses demo.h and installs subroutines, constants,
     # and types directly into the calling package.
-    Affix::Bind->new( project_files => ['demo.h'] )->wrap($lib);
+    Affix::Wrap->new( project_files => ['demo.h'] )->wrap($lib);
 
     # Now you can use them:
     my $obj = Demo_CreateStruct();
@@ -276,7 +276,7 @@ If you want to use a C library immediately without creating a separate Perl modu
 If you need to filter which functions are bound or rename them, you can iterate over the AST manually instead of
 calling C<wrap>:
 
-    my $binder = Affix::Bind->new( project_files => ['demo.h'] );
+    my $binder = Affix::Wrap->new( project_files => ['demo.h'] );
     for my $node ( $binder->parse ) {
         next if $node->name =~ m[^Internal_]; # Skip internal functions
         # Manually bind
@@ -290,10 +290,10 @@ calling C<wrap>:
 To create a distributable module (e.g., C<My::Lib.pm>), use the C<affix_type> method. This returns Perl source code
 strings.
 
-    use Affix::Bind;
+    use Affix::Wrap;
     use Path::Tiny;
 
-    my $binder = Affix::Bind->new( project_files => ['mylib.h'] );
+    my $binder = Affix::Wrap->new( project_files => ['mylib.h'] );
     my $ast    = $binder->parse;
 
     my $code = <<~'PERL';
@@ -314,19 +314,19 @@ strings.
         }
 
         # Generate Perl code
-        if ( $node isa Affix::Bind::Function ) {
+        if ( $node isa Affix::Wrap::Function ) {
             # e.g. "affix $lib, 'my_func', [Int], Void;"
             $code .= $node->affix_type . "\n";
         }
-        elsif ( $node isa Affix::Bind::Typedef ) {
+        elsif ( $node isa Affix::Wrap::Typedef ) {
             # e.g. "typedef MyStruct => Struct[ ... ];"
             $code .= $node->affix_type . ";\n";
         }
-        elsif ( $node isa Affix::Bind::Macro ) {
+        elsif ( $node isa Affix::Wrap::Macro ) {
             # e.g. "use constant MAX_VAL => 100;"
             $code .= $node->affix_type . ";\n";
         }
-        elsif ( $node isa Affix::Bind::Variable ) {
+        elsif ( $node isa Affix::Wrap::Variable ) {
             # e.g. "pin my $var, $lib, ..."
             $code .= $node->affix_type . ";\n";
         }
@@ -335,5 +335,15 @@ strings.
     $code .= "\n1;\n";
 
     path('lib/My/Lib.pm')->spew_utf8($code);
+
+=head1 AUTHOR
+
+Sanko Robinson E<lt>sanko@cpan.orgE<gt>
+
+=head1 COPYRIGHT
+
+Copyright (C) 2026 by Sanko Robinson.
+
+This library is free software; you can redistribute it and/or modify it under the same terms as Perl itself.
 
 =cut

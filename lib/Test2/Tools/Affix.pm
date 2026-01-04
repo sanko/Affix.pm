@@ -3,7 +3,7 @@ package    #
     use v5.40;
     use blib;
     use Affix;
-    use Affix::Compiler;
+    use Affix::Build;
     use Test2::API qw[context run_subtest];
     use Test2::V0 -no_srand => 1, '!subtest';
     use Test2::Util::Importer 'Test2::Tools::Subtest' => ( subtest_streamed => { -as => 'subtest' } );
@@ -72,7 +72,7 @@ package    #
             return ();
         }
         $aggs->{cflags} .= ' -I' . $Inc;
-        my $compiler = Affix::Compiler->new( debug => 0, name => 'testing', version => '1.0', flags => $aggs );
+        my $compiler = Affix::Build->new( debug => 0, name => 'testing', version => '1.0', flags => $aggs );
         $compiler->add( $opt->canonpath );
         $compiler->link;
         push @cleanup, $opt->canonpath, $compiler->link unless $keep;

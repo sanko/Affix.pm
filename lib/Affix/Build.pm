@@ -1,4 +1,4 @@
-package Affix::Compiler v1.0.3 {
+package Affix::Build v1.0.3 {
     use v5.40;
     use experimental qw[class try];
     use Config;
@@ -9,7 +9,7 @@ package Affix::Compiler v1.0.3 {
     use ExtUtils::MakeMaker;
     use Text::ParseWords;
 
-    class Affix::Compiler {
+    class Affix::Build {
 
         # Public Parameters
         field $os        : param : reader //= $^O;

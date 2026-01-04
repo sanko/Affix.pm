@@ -1,7 +1,7 @@
 use v5.40;
 use blib;
 use Affix qw[wrap Int32];
-use Affix::Compiler;
+use Affix::Build;
 use Test2::Tools::Affix qw[:all];
 use Path::Tiny;
 use DynaLoader;
@@ -12,7 +12,7 @@ my $TMP_DIR = Path::Tiny->tempdir( CLEANUP => 1 );
 #
 subtest 'Inline Source' => sub {
     skip_all 'No CC' unless bin_path( $Config{cc} );
-    my $c = Affix::Compiler->new( build_dir => $TMP_DIR, name => 'inline_lib' );
+    my $c = Affix::Build->new( build_dir => $TMP_DIR, name => 'inline_lib' );
     $c->add( \<<~'', lang => 'c' );
         #include <stdio.h>
         #ifdef _WIN32
@@ -104,7 +104,7 @@ sub run_test ( $lang, $name, $code, $sym, $bin_req, $validator //= () ) {
         my $src = $TMP_DIR->child("test_$lang.$ext");
         $src->spew_utf8($code);
         #
-        my $c = Affix::Compiler->new( build_dir => $TMP_DIR, name => "${lang}_lib" );
+        my $c = Affix::Build->new( build_dir => $TMP_DIR, name => "${lang}_lib" );
         $c->add($src);
         try { $c->compile_and_link() }
         catch ($err) {
@@ -344,7 +344,7 @@ subtest 'Polyglot: Number Cruncher (C + Fortran + ASM)' => sub {
     my $asm_file = $TMP_DIR->child($asm_file_name);
     $asm_file->spew_utf8($asm_src);
     #
-    my $compiler = Affix::Compiler->new( name => 'number_cruncher', build_dir => $TMP_DIR );
+    my $compiler = Affix::Build->new( name => 'number_cruncher', build_dir => $TMP_DIR );
     $compiler->add($c_src);
     $compiler->add($f_src);
     $compiler->add($asm_file);
@@ -384,7 +384,7 @@ subtest 'Polyglot: Modern Stack (C++ + Rust + Zig)' => sub {
         }
 
     #
-    my $compiler = Affix::Compiler->new( name => 'modern_stack', build_dir => $TMP_DIR );
+    my $compiler = Affix::Build->new( name => 'modern_stack', build_dir => $TMP_DIR );
     $compiler->add($cpp_src);
     $compiler->add($rs_src);
     $compiler->add($zig_src);
@@ -400,7 +400,7 @@ subtest 'Polyglot: Kitchen Sink (C, C++, Rust, Zig, Dlang, Fortran, ASM)' => sub
         skip_all "Missing $bin" unless bin_path($bin);
     }
     skip_all 'Rust/MinGW target missing' unless check_rust_gnu();
-    my $c = Affix::Compiler->new( name => 'mega_lib', build_dir => $TMP_DIR );
+    my $c = Affix::Build->new( name => 'mega_lib', build_dir => $TMP_DIR );
     #
     my $f1 = $TMP_DIR->child('f1.c');
     $f1->spew_utf8(<<~'');

@@ -3,7 +3,7 @@ use lib '../lib', 'lib';
 use blib;
 use Test2::Tools::Affix qw[:all];
 use Affix               qw[:all];
-use Affix::Compiler;
+use Affix::Build;
 use Config;
 use ExtUtils::Embed;
 #
