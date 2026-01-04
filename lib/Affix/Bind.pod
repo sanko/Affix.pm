@@ -12,14 +12,11 @@ Affix::Bind - Frictionless C Header Introspection and FFI Wrapper Generation
     use Affix;
     use Affix::Bind;
 
-    # Load the library binary
-    my $lib = Affix::load('libdemo.so');
-
     # Parse headers and install symbols into the current package
     Affix::Bind->new(
         project_files => [ 'include/mylib.h' ],
         include_dirs  => [ '/usr/local/include' ]
-    )->wrap( $lib );
+    )->wrap( 'libdemo.so' );
 
     # Use the C functions immediately
     my $val = mylib_function(10);

@@ -95,11 +95,12 @@ package Affix::Bind v1.0.0 {
 
         method affix {
             use Affix qw[Void];
-            my $func_name = $self->affix_type;
-            if ( $func_name =~ /^(\w+)$/ ) {
+            my $type_str = $self->affix_type;
+            if ( $type_str =~ /^(\w+)$/ ) {
                 no strict 'refs';
-                my $fn = "Affix::$func_name";
+                my $fn = "Affix::$type_str";
                 return $fn->() if defined &{$fn};
+                return '@' . $type_str;
             }
             Void;
         }
@@ -224,15 +225,15 @@ package Affix::Bind v1.0.0 {
             $out .= $self->_format_pod( $d->{desc} ) . "\n\n"  if $d->{desc};
             $out;
         }
-        method affix( $lib = undef, $pkg = undef ) { return undef }
+        method affix( $lib //= (), $pkg //= () ) { return undef }
     }
 
     class Affix::Bind::Member {
         use Affix qw[Void];
         field $name       : reader : param //= '';
         field $type       : reader : param //= '';
-        field $doc        : reader : param //= undef;
-        field $definition : reader : param //= undef;
+        field $doc        : reader : param //= ();
+        field $definition : reader : param //= ();
 
         method affix_type {
             return $definition->affix_type if defined $definition;
@@ -261,7 +262,7 @@ package Affix::Bind v1.0.0 {
             sprintf 'use constant %s => %s', $self->name, $v;
         }
 
-        method affix ( $lib = undef, $pkg = undef ) {
+        method affix ( $lib //= (), $pkg //= () ) {
             if ( $pkg && defined $value && length $value ) {
                 my $val = $value;
                 if ( $val =~ /^"(.*)"$/ || $val =~ /^'(.*)'$/ ) { $val = $1; }
@@ -297,8 +298,8 @@ package Affix::Bind v1.0.0 {
 
     class Affix::Bind::Typedef : isa(Affix::Bind::Entity) {
         field $underlying : reader : param;
-        method affix_type                           { 'typedef ' . $self->name . ' => ' . $underlying->affix_type }
-        method affix ( $lib = undef, $pkg = undef ) { Affix::typedef $self->name, $underlying->affix }
+        method affix_type                         { 'typedef ' . $self->name . ' => ' . $underlying->affix_type }
+        method affix ( $lib //= (), $pkg //= () ) { Affix::typedef $self->name, $underlying->affix }
     }
 
     class Affix::Bind::Struct : isa(Affix::Bind::Entity) {
@@ -310,7 +311,7 @@ package Affix::Bind v1.0.0 {
             sprintf '%s[ %s ]', $type_name, join( ', ', map { $_->name . ' => ' . $_->affix_type } @$members );
         }
 
-        method affix ( $lib = undef, $pkg = undef ) {
+        method affix ( $lib //= (), $pkg //= () ) {
             use Affix qw[Struct Union];
             if ( $tag eq 'union' ) {
                 return Union [ map { $_->name, $_->affix } @$members ];
@@ -336,7 +337,7 @@ package Affix::Bind v1.0.0 {
             return sprintf 'Enum[ %s ]', join( ', ', @defs );
         }
 
-        method affix ( $lib = undef, $pkg = undef ) {
+        method affix ( $lib //= (), $pkg //= () ) {
             use Affix qw[Enum];
             my @defs;
             for my $c (@$constants) {
