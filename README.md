@@ -67,7 +67,7 @@ Parameters:
 
 - `$lib`
 
-    A library handle returned by ["load\_library( $path )"](#load_library-path), a path string, or `undef` (main executable).
+    A library handle returned by ["load\_library( $path )" in load\_library](https://metacpan.org/pod/load_library#load_library-path), a path string, or `undef` (main executable).
 
 - `$symbol_name`
 

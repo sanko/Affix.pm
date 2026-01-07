@@ -67,7 +67,7 @@ Parameters:
 
 =item C<$lib>
 
-A library handle returned by L</load_library( $path )>, a path string, or C<undef> (main executable).
+A library handle returned by L<load_library/load_library( $path )>, a path string, or C<undef> (main executable).
 
 =item C<$symbol_name>
 
