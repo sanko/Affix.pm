@@ -59,4 +59,5 @@ eg/tmp/*
 eg/ast*
 eg/*.pl
 eg/temp*
+eg/test*
 Cookbook.md

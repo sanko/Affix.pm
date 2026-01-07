@@ -17,7 +17,7 @@ package Affix::Build v1.0.3 {
         field $build_dir : param : reader //= Path::Tiny->tempdir( CLEANUP => $clean );
         field $name      : param : reader //= 'affix_lib';
         field $debug     : param : reader //= 0;
-        field $version   : param : reader //= 1;
+        field $version   : param : reader //= ();
 
         # Global flags applied to all compilations of that type
         # cflags, cxxflags, ldflags, rustflags, etc.
