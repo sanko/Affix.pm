@@ -792,7 +792,7 @@ using Affix.
 
 =head1 SEE ALSO
 
-L<FFI::Platypus>, L<C::DynaLib>, L<XS::TCC>
+L<FFI::Platypus>, L<C::DynaLib>, L<XS::TCC>, L<C::Blocks>
 
 All the heavy lifting is done by L<infix|https://github.com/sanko/infix>, my JIT compiler and type introspection
 engine.

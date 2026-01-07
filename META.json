@@ -106,7 +106,7 @@
    "provides" : {
       "Affix" : {
          "file" : "lib/Affix.pm",
-         "version" : "v1.0.2"
+         "version" : "v1.0.3"
       },
       "Affix::Build" : {
          "file" : "lib/Affix/Build.pm",
@@ -114,25 +114,7 @@
       },
       "Affix::Wrap" : {
          "file" : "lib/Affix/Wrap.pm",
-         "version" : "v1.0.0"
-      },
-      "Affix::Wrap::Argument" : {
-         "file" : "lib/Affix/Wrap.pm"
-      },
-      "Affix::Wrap::Driver::Clang" : {
-         "file" : "lib/Affix/Wrap.pm"
-      },
-      "Affix::Wrap::Driver::Regex" : {
-         "file" : "lib/Affix/Wrap.pm"
-      },
-      "Affix::Wrap::Entity" : {
-         "file" : "lib/Affix/Wrap.pm"
-      },
-      "Affix::Wrap::Member" : {
-         "file" : "lib/Affix/Wrap.pm"
-      },
-      "Affix::Wrap::Type" : {
-         "file" : "lib/Affix/Wrap.pm"
+         "version" : "v1.0.3"
       }
    },
    "release_status" : "stable",
@@ -150,7 +132,7 @@
          "web" : "https://github.com/sanko/Affix.pm"
       }
    },
-   "version" : "v1.0.2",
+   "version" : "v1.0.3",
    "x_help_wanted" : [
       "Tester",
       "Documenter"

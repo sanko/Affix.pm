@@ -1022,11 +1022,15 @@ static void plan_step_push_pointer(pTHX_ Affix * affix,
         *(void **)c_arg_ptr = dest_c_ptr;
         return;
     }
-    if (SvPOK(sv) && pointee_type->category == INFIX_TYPE_PRIMITIVE &&
-        (pointee_type->meta.primitive_id == INFIX_PRIMITIVE_SINT8 ||
-         pointee_type->meta.primitive_id == INFIX_PRIMITIVE_UINT8)) {
-        *(const char **)c_arg_ptr = SvPV_nolen(sv);
-        return;
+    if (SvPOK(sv)) {
+        bool is_char_ptr = (pointee_type->category == INFIX_TYPE_PRIMITIVE &&
+                            (pointee_type->meta.primitive_id == INFIX_PRIMITIVE_SINT8 ||
+                             pointee_type->meta.primitive_id == INFIX_PRIMITIVE_UINT8));
+        bool is_void_ptr = (pointee_type->category == INFIX_TYPE_VOID);
+        if (is_char_ptr || is_void_ptr) {
+            *(const char **)c_arg_ptr = SvPV_nolen(sv);
+            return;
+        }
     }
     PING;
     sv_dump(sv);
