@@ -7,6 +7,8 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ## [Unreleased]
 
+This should just be a documentation cleanup cycle.
+
 ## [v1.0.3] - 2026-01-07
 
 Based on infix v0.1.3

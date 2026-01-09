@@ -4,7 +4,7 @@
 
 =head1 NAME
 
-Affix::Build - A robust, polyglot build system for FFI extensions
+Affix::Build - Robust, Polyglot Build System for FFI Extensions
 
 =head1 SYNOPSIS
 

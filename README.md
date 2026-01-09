@@ -745,6 +745,6 @@ Sanko Robinson <sanko@cpan.org>
 
 # COPYRIGHT
 
-Copyright (C) 2023-2025 by Sanko Robinson.
+Copyright (C) 2023-2026 by Sanko Robinson.
 
-This library is free software; you can redistribute it and/or modify it under the same terms as Perl itself.
+This library is free software; you can redistribute it and/or modify it under the terms of the Artistic License 2.0.
