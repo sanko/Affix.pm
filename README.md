@@ -28,9 +28,9 @@ free($ptr);
 **Affix** is a Foreign Function Interface (FFI) for Perl. It allows you to load dynamic libraries (DLLs, shared objects)
 and call their functions natively without writing XS code or configuring a C compiler.
 
-It distinguishes itself from other FFI solutions by using **infix**, a custom lightweight JIT engine. When you bind a
-function, Affix generates machine code at runtime to handle the argument marshalling, resulting in significantly lower
-overhead than generic FFI wrappers.
+It distinguishes itself from other FFI solutions by using [**infix**](https://github.com/sanko/infix/), a custom
+lightweight JIT engine. When you bind a function, Affix generates machine code at runtime to handle the argument
+marshalling, resulting in significantly lower overhead than generic FFI wrappers.
 
 # EXPORTS
 
@@ -67,7 +67,7 @@ Parameters:
 
 - `$lib`
 
-    A library handle returned by ["load\_library( $path )" in load\_library](https://metacpan.org/pod/load_library#load_library-path), a path string, or `undef` (main executable).
+    A library handle returned by ["load\_library( $path )"](#load_library-path), a path string, or `undef` (main executable).
 
 - `$symbol_name`
 
@@ -745,6 +745,6 @@ Sanko Robinson <sanko@cpan.org>
 
 # COPYRIGHT
 
-Copyright (C) 2023-2025 by Sanko Robinson.
+Copyright (C) 2023-2026 by Sanko Robinson.
 
-This library is free software; you can redistribute it and/or modify it under the same terms as Perl itself.
+This library is free software; you can redistribute it and/or modify it under the terms of the Artistic License 2.0.
