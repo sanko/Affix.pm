@@ -338,8 +338,22 @@ package Affix::Wrap v1.0.4 {
         } class    #
         Affix::Wrap::Typedef : isa(Affix::Wrap::Entity) {
         field $underlying : reader : param;
-        method affix_type                         { 'typedef ' . $self->name . ' => ' . $underlying->affix_type }
-        method affix ( $lib //= (), $pkg //= () ) { Affix::typedef $self->name, $underlying->affix }
+        method affix_type { 'typedef ' . $self->name . ' => ' . $underlying->affix_type }
+
+        method affix ( $lib //= (), $pkg //= () ) {
+            my $t = $underlying->affix;
+            Affix::typedef $self->name, $t;
+
+            # If the underlying type is an Enum, we must manually export the constants to the target package.
+            # Affix::typedef only installs them into the *caller* (which is this class).
+            if ( $pkg && builtin::blessed($t) && $t->isa('Affix::Type::Enum') ) {
+                my ( $const_map, $val_map ) = $t->resolve();
+                no strict 'refs';
+                while ( my ( $const_name, $val ) = each %$const_map ) {
+                    *{"${pkg}::${const_name}"} = sub () {$val};
+                }
+            }
+        }
         } class Affix::Wrap::Struct : isa(Affix::Wrap::Entity) {
         field $tag     : reader : param //= 'struct';
         field $members : reader : param //= [];
@@ -381,7 +395,17 @@ package Affix::Wrap v1.0.4 {
                 if ( !defined $c->{value} ) { push @defs, $c->{name}; next }
                 push @defs, [ $c->{name}, $c->{value} ];
             }
-            Enum [@defs];
+            my $type = Enum [@defs];
+
+            # Manual export if this is a bare enum (not typedef'd)
+            if ($pkg) {
+                my ( $const_map, $val_map ) = $type->resolve();
+                no strict 'refs';
+                while ( my ( $const_name, $val ) = each %$const_map ) {
+                    *{"${pkg}::${const_name}"} = sub () {$val};
+                }
+            }
+            return $type;
         }
         } class    #
         Affix::Wrap::Function : isa(Affix::Wrap::Entity) {
@@ -1331,11 +1355,15 @@ package Affix::Wrap v1.0.4 {
         field $project_files : param //= $driver->project_files;
         field $include_dirs  : param //= [];
         ADJUST {
-            my $use_clang = 0;
-            unless ( defined $driver ) {
+            if ( defined $driver && !builtin::blessed($driver) ) {
+                if    ( $driver eq 'Clang' ) { $driver = Affix::Wrap::Driver::Clang->new( project_files => $project_files ); }
+                elsif ( $driver eq 'Regex' ) { $driver = Affix::Wrap::Driver::Regex->new( project_files => $project_files ); }
+                else                         { die "Unknown driver '$driver'"; }
+            }
+            elsif ( !defined $driver ) {
                 my ( $out, $err, $exit ) = Capture::Tiny::capture { system( 'clang', '--version' ); };
-                $use_clang = 1 if $exit == 0;
-                $driver    = $use_clang ? Affix::Wrap::Driver::Clang->new( project_files => $project_files ) :
+                my $use_clang = $exit == 0;
+                $driver = $use_clang ? Affix::Wrap::Driver::Clang->new( project_files => $project_files ) :
                     Affix::Wrap::Driver::Regex->new( project_files => $project_files );
             }
         }
