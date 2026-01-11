@@ -1,4 +1,4 @@
-package Affix::Wrap v1.0.4 {
+package Affix::Wrap v1.0.5 {
     use v5.40;
     use feature 'class';
     no warnings 'experimental::class';
@@ -89,12 +89,15 @@ package Affix::Wrap v1.0.4 {
                 time_t               => 'Int64',
                 '...'                => 'VarArgs',
                 'va_list'            => 'VarArgs',
-                '__builtin_va_list'  => 'VarArgs',      # Clang specific
-                'FILE*'              => 'File',
-                'FILE'               => 'Void',         # Fixes FILE* -> Pointer[Void]
-                'time_t'             => 'Int64',        # Standard timestamp
-                'jmp_buf'            => 'Void',         # Opaque handle for setjmp
-                '_JBTYPE'            => 'Void',         # Internal jmp_buf typedef
+                '__builtin_va_list'  => 'VarArgs',      # Clang
+
+                #
+                'char[]'  => 'String',
+                'file*'   => 'File',
+                file      => 'Void',                    # Fixes FILE* -> Pointer[Void]
+                'time_t'  => 'Int64',                   # Standard timestamp
+                'jmp_buf' => 'Void',                    # Opaque handle for setjmp
+                '_jbtype' => 'Void',                    # Internal jmp_buf typedef
 
                 # 'tm' (struct tm) is undefined because we skip system headers.
                 # Mapping to Void ensures 'struct tm *' becomes 'Pointer[Void]'
@@ -104,7 +107,7 @@ package Affix::Wrap v1.0.4 {
 
             # Case-insensitive lookup (handled by existing code)
             return $type_map->{ lc $t } if defined $type_map->{ lc $t };
-            return $t                   if $t =~ /^[a-zA-Z_]\w*$/;
+            return $t                   if $t =~ /^[a-z_]\w*$/i;
             warn "WARNING: Unknown C type '$t' mapped to Void\n";
             'Void';
         }
@@ -477,7 +480,7 @@ package Affix::Wrap v1.0.4 {
         method _basename ($path) { return '' unless defined $path; $path =~ s{^.*[/\\]}{}; return lc($path); }
 
         method _normalize ($path) {
-            return '' unless defined $path;
+            return '' unless defined $path && length $path;
             my $abs = Path::Tiny::path($path)->absolute->stringify;
             $abs =~ s{\\}{/}g;
             return $abs;
@@ -485,7 +488,9 @@ package Affix::Wrap v1.0.4 {
         ADJUST {
             my %seen_dirs;
             for my $f (@$project_files) {
+                next unless defined $f && length $f;
                 my $abs = $self->_normalize($f);
+                next unless length $abs;
                 $allowed_files->{$abs} = 1;
                 my $dir = Path::Tiny::path($abs)->parent->stringify;
                 $dir =~ s{\\}{/}g;
@@ -494,12 +499,18 @@ package Affix::Wrap v1.0.4 {
         }
 
         method parse ( $entry_point, $include_dirs //= [] ) {
+            if ( !defined $entry_point || !length $entry_point ) {
+                ($entry_point) = grep { defined $_ && length $_ } @$project_files;
+            }
+            return () unless defined $entry_point && length $entry_point;
             my $ep_abs = $self->_normalize($entry_point);
+            return () unless length $ep_abs;
             $allowed_files->{$ep_abs} = 1;
             $last_seen_file = $ep_abs;
             my $ep_dir = Path::Tiny::path($ep_abs)->parent->stringify;
             $ep_dir =~ s{\\}{/}g;
             my $found = 0;
+
             for my $pd (@$project_dirs) {
                 if ( $ep_dir eq $pd ) { $found = 1; last; }
             }
@@ -968,7 +979,7 @@ package Affix::Wrap v1.0.4 {
         field $file_cache = {};
 
         method _normalize ($path) {
-            return '' unless defined $path;
+            return '' unless defined $path && length $path;
             my $abs = Path::Tiny::path($path)->absolute->stringify;
             $abs =~ s{\\}{/}g;
             return $abs;
@@ -982,10 +993,11 @@ package Affix::Wrap v1.0.4 {
             return 1;
         }
 
-        method parse( $entry_point, $ids = [] ) {
+        method parse( $entry_point, $ids //= [] ) {
             my @objs;
             for my $f (@$project_files) {
                 my $abs = $self->_normalize($f);
+                next unless length $abs;
                 next unless $self->_is_valid_file($abs);
                 if ( $f =~ /\.h(pp|xx)?$/i ) { $self->_scan( $f, \@objs ); $self->_scan_funcs( $f, \@objs ); }
                 else                         { $self->_scan_funcs( $f, \@objs ); }
@@ -1288,8 +1300,8 @@ package Affix::Wrap v1.0.4 {
             };
             while ( length($b) > 0 ) {
                 if ( $b =~ s/^(\s+)// ) { next; }
-                if ( $b =~ s|^(//(.*?)\n)|| )       { $pending_doc .= "$2\n"; next; }
                 if ( $b =~ s|^(\s*/\*(.*?)\*/)||s ) { $pending_doc .= $2;     next; }
+                if ( $b =~ s|^(//(.*?)\n)|| )       { $pending_doc .= "$2\n"; next; }
                 if ( $b =~ s/^\s*(union|struct)\s*(\{(?:[^{}]++|(?2))*\})\s*(\w+)\s*;// ) {
                     my $tag = $1;
                     my $d   = Affix::Wrap::Struct->new( name => '', tag => $tag, members => $self->_mem( substr( $2, 1, -1 ) ) );
@@ -1354,6 +1366,8 @@ package Affix::Wrap v1.0.4 {
         field $driver        : param //= ();
         field $project_files : param //= $driver->project_files;
         field $include_dirs  : param //= [];
+        field $types         : param //= {};
+        #
         ADJUST {
             if ( defined $driver && !builtin::blessed($driver) ) {
                 if    ( $driver eq 'Clang' ) { $driver = Affix::Wrap::Driver::Clang->new( project_files => $project_files ); }
@@ -1374,6 +1388,15 @@ package Affix::Wrap v1.0.4 {
         }
 
         method wrap ( $lib, $target //= [caller]->[0] ) {
+
+            # Pre-register User Types
+            # This ensures they are available in the Affix registry before signatures are parsed,
+            # and allows using them in recursive definitions or opaque handles.
+            for my $name ( keys %$types ) {
+                my $type     = $types->{$name};
+                my $type_str = builtin::blessed($type) ? $type : "$type";
+                Affix::typedef( $name, $type_str );
+            }
             my @nodes = $self->parse;
 
             #  Macro resolution pass
@@ -1396,12 +1419,8 @@ package Affix::Wrap v1.0.4 {
                 $token =~ s/^\s+|\s+$//g;    # Trim whitespace
 
                 # Is it a literal number?
-                if ( $token =~ /^0x[\da-fA-F]+$/i ) {
-                    return oct($token);      # Hex -> Int
-                }
-                if ( $token =~ /^-?\d+$/ ) {
-                    return int($token);      # Dec -> Int
-                }
+                return oct($token) if $token =~ /^0x[\da-fA-F]+$/i;    # Hex -> Int
+                return int($token) if $token =~ /^-?\d+$/;             # Dec -> Int
 
                 # Check cache (recursion guard)
                 return $cache{$token} if exists $cache{$token};
@@ -1409,7 +1428,7 @@ package Affix::Wrap v1.0.4 {
 
                 # Look up definition
                 my $expr = $macros{$token};
-                return undef unless defined $expr;    # Not found (maybe a string or unknown)
+                return undef unless defined $expr;                     # Not found (maybe a string or unknown)
 
                 # Parse expression
                 # Strip outer parentheses recursively: ((A|B)) -> A|B
@@ -1431,7 +1450,14 @@ package Affix::Wrap v1.0.4 {
             };
 
             # Generation pass
+            my @installed;
             for my $node (@nodes) {
+
+                # Skip definitions if the user provided a manual type override
+                if ( ( $node isa Affix::Wrap::Typedef || $node isa Affix::Wrap::Struct || $node isa Affix::Wrap::Enum ) &&
+                    exists $types->{ $node->name } ) {
+                    next;
+                }
                 if ( $node isa Affix::Wrap::Macro ) {
 
                     # Attempt to resolve value to a pure number
@@ -1442,23 +1468,28 @@ package Affix::Wrap v1.0.4 {
                         no strict 'refs';
                         no warnings 'redefine';
                         *{ "${target}::" . $node->name } = sub () {$val};
+                        push @installed, $node;
                     }
                     else {
                         # It's complex or a string. Fallback to original behavior
                         # This preserves definitions like: #define VER "1.2.3"
                         $node->affix( undef, $target );
+                        push @installed, $node;
                     }
                 }
                 elsif ( $node isa Affix::Wrap::Variable || $node isa Affix::Wrap::Function ) {
                     $node->affix( $lib, $target );
+                    push @installed, $node;
                 }
                 elsif ( $node->can('affix') ) {
                     $node->affix( $lib, $target );
+                    push @installed, $node;
                 }
                 else {
                     # use Data::Printer; p $node;
                 }
             }
+            @installed;
         }
     }
 };
