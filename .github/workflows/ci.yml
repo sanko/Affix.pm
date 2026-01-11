@@ -21,7 +21,7 @@ jobs:
         perl:
           - "5.40"
       max-parallel: 5
-    uses: ./.github/workflows/affix-cross.yml
+    uses: ./.github/workflows/cross.yml
     with:
       arch: '${{ matrix.os.architecture }}'
       host: '${{ matrix.os.host }}'
@@ -46,7 +46,7 @@ jobs:
           - ubuntu-22.04
         perl: '${{ fromJSON(needs.setup.outputs.matrix).perl }}'
       max-parallel: 25
-    uses: ./.github/workflows/affix-unix.yml
+    uses: ./.github/workflows/unix.yml
     with:
       flags: '${{ matrix.flags }}'
       os: '${{ matrix.os }}'
@@ -67,7 +67,7 @@ jobs:
           - macos-latest
         perl: '${{ fromJSON(needs.setup.outputs.matrix).perl }}'
       max-parallel: 25
-    uses: ./.github/workflows/affix-unix.yml
+    uses: ./.github/workflows/unix.yml
     with:
       flags: '${{ matrix.flags }}'
       os: '${{ matrix.os }}'
@@ -140,7 +140,7 @@ jobs:
           - windows-2022
         perl: '${{ fromJSON(needs.setup.outputs.matrix).perl }}'
       max-parallel: 25
-    uses: ./.github/workflows/affix-win32.yml
+    uses: ./.github/workflows/win32.yml
     with:
       flags: '${{ matrix.flags }}'
       os: '${{ matrix.os }}'
