@@ -1,4 +1,4 @@
-package Affix::Build v1.0.5 {
+package Affix::Build v1.0.6 {
     use v5.40;
     use experimental qw[class try];
     use Config;

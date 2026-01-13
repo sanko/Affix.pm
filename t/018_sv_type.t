@@ -7,7 +7,6 @@ use Affix::Build;
 use Config;
 use ExtUtils::Embed;
 #
-diag $Config{shrpenv};
 diag '$Config{useshrplib} claims to be ' . $Config{useshrplib};
 $Config{useshrplib} eq 'true' || exit skip_all 'Cannot embed perl in a shared lib without building a shared libperl.';
 eval {
@@ -95,4 +94,5 @@ eval {
     };
     is $caller->( $cb, 5 ), 10, 'Roundtrip SV through Callback';
 };
+skip_all 'Failed to embed perl: ' . $@ if $@;
 done_testing;
