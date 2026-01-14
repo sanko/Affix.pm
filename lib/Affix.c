@@ -4230,7 +4230,7 @@ void _affix_callback_handler_entry(infix_context_t * ctx, void * retval, void **
     }
     PUTBACK;
     const infix_type * ret_type = infix_reverse_get_return_type(ctx);
-    U32 call_flags = G_EVAL | G_KEEPERR | ((ret_type->category == INFIX_TYPE_VOID) ? G_VOID : G_SCALAR);
+    U32 call_flags = /* G_EVAL |*/ G_KEEPERR | ((ret_type->category == INFIX_TYPE_VOID) ? G_VOID : G_SCALAR);
     size_t count = call_sv(cb_data->coderef_rv, call_flags);
     if (SvTRUE(ERRSV)) {
         Perl_warn(aTHX_ "Perl callback died: %" SVf, ERRSV);

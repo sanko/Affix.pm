@@ -3,7 +3,22 @@ use lib '../lib', 'lib';
 use blib;
 use Test2::Tools::Affix qw[:all];
 use Affix               qw[:all];
+$|++;
 #
+typedef Callback_t => Callback [ [Int] => Void ];
+typedef ThreadTask => Struct [ cb   => Callback_t(), val  => Int ];
+typedef TaskNode   => Struct [ task => ThreadTask(), next => Pointer [ ThreadTask() ] ];
+typedef TaskQueue =>
+    Struct [ head => Pointer [ TaskNode() ], tail => Pointer [ TaskNode() ], lock => Pointer [Void], cond => Pointer [Void], stop => Int ];
+typedef ThreadPool => Struct [
+    threads         => Pointer [Void],
+    thread_count    => Int,
+    task_queue      => TaskQueue(),
+    pool_lock       => Pointer [Void],
+    task_available  => Pointer [Void],
+    active_threads  => Int,
+    tasks_remaining => Int
+];
 my $c_source = <<~'C';
         #include "std.h"
         //ext: .c
@@ -65,8 +80,7 @@ my $c_source = <<~'C';
 my $lib = compile_ok($c_source);
 ok $lib && -e $lib, 'Compiled a threaded test library';
 #
-typedef IntCb => Callback [ [Int] => Void ];
-ok affix( $lib, 'run_in_foreign_thread', [ IntCb(), Int ] => Void ), 'affix run_in_foreign_thread';
+ok affix( $lib, 'run_in_foreign_thread', [ Callback_t(), Int ] => Void ), 'affix run_in_foreign_thread';
 #
 my $ok_flag = 0;
 my $str;
@@ -83,4 +97,5 @@ run_in_foreign_thread(
 );
 is $ok_flag, 123, 'Callback executed successfully from foreign thread without crashing';
 diag $str;
+#
 done_testing();
