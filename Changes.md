@@ -5,6 +5,20 @@ All notable changes to Affix.pm will be documented in this file.
 The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.0.0/),
 and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0.html).
 
+## [Unreleased]
+
+Perl's internals aren't built for thread real, OS threads; it leads to unpredictable behavior, data corruption, and other neat stuff. It's a relentless struggle to maintain state consistency.
+
+But you shouldn't let that stop you.
+
+### Fixed
+
+  - Thread safety: Fixed a crash when callbacks are invoked from foreign threads. Affix now correctly injects the Perl interpreter context into the TLS before executing the callback.
+  - Type resolution: Fixed a logic bug where `Pointer[SV]` types were incorrectly treated as generic pointers if `typedef`'d. They are now correctly unwrapped into Perl CODE refs or blessed objects.
+  - Process exit: Disabled explicit library unloading (`dlclose`/`FreeLibrary`) during global destruction. This prevents segmentation faults when background threads from loaded libraries try to execute code that has been unmapped from memory during shutdown.
+
+    I tried to just limit it to Go lang libs but it's just more trouble than it's worth until I resolve a few more things.
+
 ## [v1.0.5] - 2026-01-11
 
 ### Changed
@@ -158,7 +172,8 @@ Based on infix v0.1.3
 
   - Affix.pm is born
 
-[Unreleased]: https://github.com/sanko/Affix.pm/compare/v1.0.5...HEAD
+[Unreleased]: https://github.com/sanko/Affix.pm/compare/v1.0.6...HEAD
+[v1.0.6]: https://github.com/sanko/Affix.pm/compare/v1.0.5...v1.0.6
 [v1.0.5]: https://github.com/sanko/Affix.pm/compare/v1.0.4...v1.0.5
 [v1.0.4]: https://github.com/sanko/Affix.pm/compare/v1.0.3...v1.0.4
 [v1.0.3]: https://github.com/sanko/Affix.pm/compare/v1.0.2...v1.0.3
