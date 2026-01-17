@@ -5,7 +5,7 @@ All notable changes to Affix.pm will be documented in this file.
 The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.0.0/),
 and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0.html).
 
-## [Unreleased]
+## [v1.0.6] - 2026-01-17
 
 Perl's internals aren't built for thread real, OS threads; it leads to unpredictable behavior, data corruption, and other neat stuff. It's a relentless struggle to maintain state consistency.
 

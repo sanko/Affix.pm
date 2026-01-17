@@ -8,25 +8,28 @@ use Config;
 use ExtUtils::Embed;
 #
 diag '$Config{useshrplib} claims to be ' . $Config{useshrplib};
+diag '$Config{libperl} is ' . $Config{libperl};
 
 #~ $Config{useshrplib} eq 'true' || exit skip_all 'Cannot embed perl in a shared lib without building a shared libperl.';
 eval {
     # See https://metacpan.org/release/RJBS/perl-5.36.0/view/INSTALL#Building-a-shared-Perl-library
     #
     # Compile C Library 1 (Basic Operations)
-    my $cflags  = $Config{ccflags} . ' -I' . $Config{archlib} . '/CORE';
+    my $cflags  = ccopts(); #$Config{ccflags} . ' -I' . $Config{archlib} . '\CORE';
     my $ldflags = '';
     if ( $^O eq 'MSWin32' ) {
-        $ldflags = '"' . $Config{archlib} . '/CORE/' . $Config{libperl} . '"';
+        $ldflags .= ' "' . $Config{archlib} . '/CORE/' . $Config{libperl} . '"';
     }
     elsif ( $^O eq 'darwin' ) {    # macOS/ARM64 requires ignoring undefined symbols from the host Perl
-        $ldflags = '-Wl,-undefined,dynamic_lookup';
+        $ldflags .= ' -Wl,-undefined,dynamic_lookup';
     }
     else {
         if ( $Config{useshrplib} && $Config{useshrplib} ne 'false' ) {
-            $ldflags = '-L"' . $Config{archlib} . '/CORE" -lperl';
+            $ldflags .= '-L"' . $Config{archlib} . '/CORE" -l' .( $Config{libperl} =~ s/^(?:lib)?([^.]+).*$/-l$1/r);
         }
     }
+    diag $cflags;
+    diag $ldflags;
     my $lib = compile_ok( <<~'END', { cflags => $cflags, ldflags => $ldflags } );
         #include "std.h"
         //ext: .c
