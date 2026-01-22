@@ -1,4 +1,3 @@
 use v5.40;
-use lib 'builder';
-use Affix::Builder;
-Affix::Builder->new->Build_PL();
+use Dist::Build 0.003;
+Build_PL(\@ARGV, \%ENV);
