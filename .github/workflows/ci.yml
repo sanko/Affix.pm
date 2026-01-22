@@ -137,7 +137,7 @@ jobs:
           - -Dusethreads
           - ''
         os:
-          - windows-2025
+          - windows-2022
         perl: '${{ fromJSON(needs.setup.outputs.matrix).perl }}'
       max-parallel: 25
     uses: ./.github/workflows/win32.yml
