@@ -117,7 +117,7 @@
          "version" : "v1.0.6"
       }
    },
-   "release_status" : "testing",
+   "release_status" : "stable",
    "resources" : {
       "bugtracker" : {
          "web" : "https://github.com/sanko/Affix.pm/issues"
