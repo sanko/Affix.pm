@@ -1049,7 +1049,10 @@ static void plan_step_push_pointer(pTHX_ Affix * affix,
     PING;
     sv_dump(sv);
     char signature_buf[256];
-    (void)infix_type_print(signature_buf, sizeof(signature_buf), (infix_type *)type, INFIX_DIALECT_SIGNATURE);
+    if (infix_type_print(signature_buf, sizeof(signature_buf), (infix_type *)type, INFIX_DIALECT_SIGNATURE) !=
+        INFIX_SUCCESS) {
+        strncpy(signature_buf, "[error printing type]", sizeof(signature_buf));
+    }
     croak("Don't know how to handle this type of scalar as a pointer argument yet: %s", signature_buf);
 }
 
@@ -1579,8 +1582,8 @@ static void rebuild_affix_data(pTHX_ Affix * affix);
         /* ALLOCATION STRATEGY */                                                                            \
         size_t arena_mark = affix->args_arena->current_offset;                                               \
         void * args_buffer;                                                                                  \
-        if (USE_STACK_ALLOC)                                                                                 \
-            /* Fast path: Stack allocation */                                                                \
+        if (USE_STACK_ALLOC && affix->total_args_size <= 2048)                                               \
+            /* Fast path: Stack allocation if under 2k */                                                    \
             args_buffer = alloca(affix->total_args_size);                                                    \
         else {                                                                                               \
             /* Slow path: Arena allocation */                                                                \
@@ -3619,8 +3622,11 @@ void sv2ptr(pTHX_ Affix * affix, SV * perl_sv, void * c_ptr, const infix_type * 
             }
             else {
                 char signature_buf[256];
-                (void)infix_type_print(
-                    signature_buf, sizeof(signature_buf), (infix_type *)type, INFIX_DIALECT_SIGNATURE);
+                if (infix_type_print(
+                        signature_buf, sizeof(signature_buf), (infix_type *)type, INFIX_DIALECT_SIGNATURE) !=
+                    INFIX_SUCCESS) {
+                    strncpy(signature_buf, "[error printing type]", sizeof(signature_buf));
+                }
                 croak("sv2ptr cannot handle this kind of pointer conversion yet: %s", signature_buf);
             }
         }
@@ -5275,16 +5281,32 @@ XS_INTERNAL(Affix_CLONE) {
     // Initialize the new thread's context (copies bitwise from parent)
     MY_CXT_CLONE;
 
+    // Capture the parent's registry pointer.
+    // After MY_CXT_CLONE, MY_CXT refers to the new thread's context,
+    // which has been initialized as a bitwise copy of the parent's context.
+    infix_registry_t * parent_registry = MY_CXT.registry;
+
     // Overwrite shared pointers with fresh objects for the new thread
     MY_CXT.lib_registry = newHV();
     MY_CXT.callback_registry = newHV();
     MY_CXT.enum_registry = newHV();
     MY_CXT.coercion_cache = newHV();
-    MY_CXT.registry = infix_registry_create();
+
+    // Deep copy the type registry.
+    // This ensures typedefs and structs defined in the parent thread exist in the child thread,
+    // but the child owns its own memory arena, making it thread-safe.
+    if (parent_registry)
+        MY_CXT.registry = infix_registry_clone(parent_registry);
+    else
+        MY_CXT.registry = infix_registry_create();
+
     if (!MY_CXT.registry)
         warn("Failed to initialize the global type registry in new thread");
-    else
+
+    // Don't ccall _register_core_types here if we cloned, because the clone already contains @SV, @File, etc.
+    if (!parent_registry)
         _register_core_types(MY_CXT.registry);
+
     XSRETURN_EMPTY;
 }
 

@@ -15,7 +15,7 @@ eval {
     # See https://metacpan.org/release/RJBS/perl-5.36.0/view/INSTALL#Building-a-shared-Perl-library
     #
     # Compile C Library 1 (Basic Operations)
-    my $cflags  = ccopts(); #$Config{ccflags} . ' -I' . $Config{archlib} . '\CORE';
+    my $cflags  = ccopts();    #$Config{ccflags} . ' -I' . $Config{archlib} . '\CORE';
     my $ldflags = '';
     if ( $^O eq 'MSWin32' ) {
         $ldflags .= ' "' . $Config{archlib} . '/CORE/' . $Config{libperl} . '"';
@@ -25,7 +25,7 @@ eval {
     }
     else {
         if ( $Config{useshrplib} && $Config{useshrplib} ne 'false' ) {
-            $ldflags .= '-L"' . $Config{archlib} . '/CORE" -l' .( $Config{libperl} =~ s/^(?:lib)?([^.]+).*$/-l$1/r);
+            $ldflags .= '-L"' . $Config{archlib} . '/CORE" -l' . ( $Config{libperl} =~ s/^(?:lib)?([^.]+).*$/-l$1/r );
         }
     }
     diag $cflags;
