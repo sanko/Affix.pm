@@ -43,7 +43,7 @@ jobs:
           - -Duselongdouble
           - -Dusequadmath
         os:
-          - ubuntu-22.04
+          - ubuntu-24.04
         perl: '${{ fromJSON(needs.setup.outputs.matrix).perl }}'
       max-parallel: 25
     uses: ./.github/workflows/unix.yml
@@ -52,7 +52,7 @@ jobs:
       os: '${{ matrix.os }}'
       perl: '${{ matrix.perl }}'
   macos:
-    name: "[${{ matrix.os == 'macos-14' && 'M1' || 'Intel' }}] macOS/v${{matrix.perl}}"
+    name: "[${{ matrix.os == 'macos-15-intel' && 'Intel' || 'M1' }}] macOS/v${{matrix.perl}}"
     needs:
       - setup
     strategy:
@@ -63,8 +63,8 @@ jobs:
           - flags: -Dusethreads
         flags: '${{ fromJSON(needs.setup.outputs.matrix).flags }}'
         os:
-          - macos-14
-          - macos-latest
+          - macos-15-intel
+          - macos-15
         perl: '${{ fromJSON(needs.setup.outputs.matrix).perl }}'
       max-parallel: 25
     uses: ./.github/workflows/unix.yml
@@ -118,7 +118,7 @@ jobs:
       - env:
           DATA: |
             {
-              "perl":  ["5.40.0"],
+              "perl":  ["5.40.2", "5.42.0"],
               "flags": ["", "-Dusethreads", "-Duselongdouble", "-Dusequadmath"]
             }
         id: matrix
