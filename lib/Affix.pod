@@ -36,6 +36,7 @@ Affix - A Foreign Function Interface eXtension
 
     # Release the memory
     Affix::free($ptr);
+
 =head1 DESCRIPTION
 
 B<Affix> is a high-performance Foreign Function Interface (FFI) for Perl. It allows you to load dynamic libraries

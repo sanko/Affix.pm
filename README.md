@@ -33,8 +33,9 @@ Affix::dump( $ptr, 32 );
 
 # Release the memory
 Affix::free($ptr);
-=head1 DESCRIPTION
 ```
+
+# DESCRIPTION
 
 **Affix** is a high-performance Foreign Function Interface (FFI) for Perl. It allows you to load dynamic libraries
 (DLLs, shared objects) and call their functions natively without writing XS code or configuring a C compiler.
