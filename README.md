@@ -33,8 +33,9 @@ Affix::dump( $ptr, 32 );
 
 # Release the memory
 Affix::free($ptr);
-=head1 DESCRIPTION
 ```
+
+# DESCRIPTION
 
 **Affix** is a high-performance Foreign Function Interface (FFI) for Perl. It allows you to load dynamic libraries
 (DLLs, shared objects) and call their functions natively without writing XS code or configuring a C compiler.
@@ -393,6 +394,7 @@ Primitives map to native C types.
             <tr><td>ULong</td><td>unsigned long</td></tr>
             <tr><td>LongLong</td><td>signed long long (guaranteed 64-bit)</td></tr>
             <tr><td>ULongLong</td><td>unsigned long long</td></tr>
+            <tr><td>Float16</td><td>Half-precision (16-bit) float</td></tr>
             <tr><td>Float</td><td>32-bit float</td></tr>
             <tr><td>Double</td><td>64-bit float</td></tr>
             <tr><td>LongDouble</td><td>Platform specific (80-bit or 128-bit)</td></tr>
@@ -412,6 +414,7 @@ Int16, UInt16
 Int32, UInt32
 Int64, UInt64
 Int128, UInt128 (Passed as Decimal Strings)
+Float16 (Half-precision float)
 ```
 
 128-bit integers, if supported by the compiler, must be passed as strings to/from Perl.
@@ -563,6 +566,29 @@ draw_rect({
 });
 ```
 
+#### Bitfields
+
+Affix supports C-style bitfields using a natural pipe (`|`) syntax. This allows you to specify the number of bits for
+a member.
+
+```perl
+# C: typedef struct {
+#        uint32_t enabled : 1;
+#        uint32_t mode    : 3;
+#        uint32_t value   : 12;
+#    } Config;
+
+typedef Config => Struct [
+    enabled => UInt32 | 1,
+    mode    => UInt32 | 3,
+    value   => UInt32 | 12
+];
+```
+
+When marshalling to C, Affix automatically handles bitmasking and shifting to ensure that only the specified bits are
+modified, preserving other fields in the same memory slot. When marshalling back to Perl, the values are automatically
+extracted and returned as standard integers.
+
 ### Unions
 
 Maps to Perl hash references with a single key.
@@ -619,8 +645,8 @@ handle_event( { pressure => 0.5 } );
 
 ## SIMD Vectors
 
-Vectors (e.g. `__m128` on x86, `float32x4_t` on ARM) are first-class types in Affix. You can interact with them in
-two ways:
+Vectors (e.g. `__m128`, `__m256`, `__m512` on x86; `float32x4_t` on ARM) are first-class types in Affix.
+You can interact with them in two ways:
 
 - 1. **Array References**: Simplest to read and write.
 - 2. **Packed Strings**: Highest performance (avoids marshalling overhead).
@@ -629,7 +655,14 @@ two ways:
 # C: typedef float v4f __attribute__((vector_size(16)));
 #    v4f add_vecs(v4f a, v4f b);
 affix $lib, 'add_vecs', [ Vector[4, Float], Vector[4, Float] ] => Vector[4, Float];
+```
 
+Affix provides several convenience aliases for common SIMD types:
+
+- **`M256`**, **`M256d`**: 256-bit vectors (AVX)
+- **`M512`**, **`M512d`**, **`M512i`**: 512-bit vectors (AVX-512)
+
+```perl
 # Option 1: Array References (Convenient)
 my $res = add_vecs( [1, 2, 3, 4], [10, 20, 30, 40] );
 # $res is [11.0, 22.0, 33.0, 44.0]
@@ -713,6 +746,67 @@ set_handler(sub ($status, $msg) {
 **Note:** The callback is valid only as long as the C function holds onto it. If the C library stores the function
 pointer globally, ensure your Perl code keeps the reference alive if necessary (though Affix handles the trampoline
 lifecycle automatically for the duration of the call).
+
+# Usage Examples
+
+Full examples can be found in the `eg/` directory, Affix based modules are on CPAN ([SDL3](https://metacpan.org/pod/SDL3)) but here are a few to get you started.
+
+## Working with Complex Types
+
+Defining a recursive data structure like a linked list:
+
+```perl
+use Affix qw[:all];
+
+# Forward declare the named type
+typedef 'Node';
+
+# Define the struct using the named reference
+typedef Node => Struct [
+    value => Int,
+    next  => Pointer[ Node() ]
+];
+
+# Use it in a function signature
+affix $lib, 'process_list', [ Pointer[ Node() ] ] => Int;
+
+# Create and pass a linked list from Perl
+my $list = {
+    value => 1,
+    next  => {
+        value => 2,
+        next  => {
+            value => 3,
+            next  => undef # NULL pointer
+        }
+    }
+};
+
+my $sum = process_list($list);
+```
+
+## Wrapping vs Affixing
+
+Use `affix` when you want to install a function directly into your current package:
+
+```perl
+package MyLib;
+use Affix qw[:all];
+affix 'libc', 'puts', [String] => Int;
+
+# Called as a normal sub
+puts("Hello world");
+```
+
+Use `wrap` when you want a scoped, anonymous code reference:
+
+```perl
+use Affix qw[:all];
+my $puts = wrap 'libc', 'puts', [String] => Int;
+
+# Called via the reference
+$puts->("Hello world");
+```
 
 # Utilities
 

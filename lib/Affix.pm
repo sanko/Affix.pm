@@ -55,7 +55,7 @@ package Affix v1.0.6 {    # 'FFI' is my middle name!
             Int UInt
             Long ULong
             LongLong ULongLong
-            Float Double LongDouble
+            Float16 Float Double LongDouble
             Int8 SInt8 UInt8 Int16 SInt16 UInt16 Int32 SInt32 UInt32 Int64 SInt64 UInt64 Int128 SInt128 UInt128
             Float32 Float64
             Size_t SSize_t
@@ -239,54 +239,55 @@ package Affix v1.0.6 {    # 'FFI' is my middle name!
     }x;
 
     # Abstract
-    sub Void ()       {'void'}
-    sub Bool ()       {'bool'}
-    sub Char ()       {'char'}
-    sub UChar()       {'uchar'}
-    sub SChar()       {'char'}
-    sub WChar()       {'uint16'}
-    sub Short ()      {'short'}
-    sub UShort ()     {'ushort'}
-    sub Int ()        {'int'}
-    sub UInt ()       {'uint'}
-    sub Long ()       {'long'}
-    sub ULong ()      {'ulong'}
-    sub LongLong ()   {'longlong'}
-    sub ULongLong ()  {'ulonglong'}
-    sub Float ()      {'float'}
-    sub Double ()     {'double'}
-    sub LongDouble () {'longdouble'}
-    sub Size_t ()     {'size_t'}
-    sub SSize_t ()    {'ssize_t'}
+    sub Void ()       { Affix::Type::Primitive->new( name => 'void' ) }
+    sub Bool ()       { Affix::Type::Primitive->new( name => 'bool' ) }
+    sub Char ()       { Affix::Type::Primitive->new( name => 'char' ) }
+    sub UChar()       { Affix::Type::Primitive->new( name => 'uchar' ) }
+    sub SChar()       { Affix::Type::Primitive->new( name => 'char' ) }
+    sub WChar()       { Affix::Type::Primitive->new( name => 'uint16' ) }
+    sub Short ()      { Affix::Type::Primitive->new( name => 'short' ) }
+    sub UShort ()     { Affix::Type::Primitive->new( name => 'ushort' ) }
+    sub Int ()        { Affix::Type::Primitive->new( name => 'int' ) }
+    sub UInt ()       { Affix::Type::Primitive->new( name => 'uint' ) }
+    sub Long ()       { Affix::Type::Primitive->new( name => 'long' ) }
+    sub ULong ()      { Affix::Type::Primitive->new( name => 'ulong' ) }
+    sub LongLong ()   { Affix::Type::Primitive->new( name => 'longlong' ) }
+    sub ULongLong ()  { Affix::Type::Primitive->new( name => 'ulonglong' ) }
+    sub Float ()      { Affix::Type::Primitive->new( name => 'float' ) }
+    sub Double ()     { Affix::Type::Primitive->new( name => 'double' ) }
+    sub LongDouble () { Affix::Type::Primitive->new( name => 'longdouble' ) }
+    sub Size_t ()     { Affix::Type::Primitive->new( name => 'size_t' ) }
+    sub SSize_t ()    { Affix::Type::Primitive->new( name => 'ssize_t' ) }
 
     # Fixed-width
-    sub SInt8()    {'sint8'}
-    sub Int8()     {'sint8'}
-    sub UInt8()    {'uint8'}
-    sub SInt16()   {'sint16'}
-    sub Int16()    {'sint16'}
-    sub UInt16()   {'uint16'}
-    sub SInt32()   {'sint32'}
-    sub Int32()    {'sint32'}
-    sub UInt32()   {'uint32'}
-    sub SInt64()   {'sint64'}
-    sub Int64()    {'sint64'}
-    sub UInt64()   {'uint64'}
-    sub SInt128()  {'sint128'}
-    sub Int128()   {'sint128'}
-    sub UInt128()  {'uint128'}
-    sub Float32()  {'float32'}
-    sub Float64 () {'float64'}
-    sub Char8()    {'char8_t'}
-    sub Char16()   {'char16_t'}
-    sub Char32()   {'char32_t'}
+    sub SInt8()    { Affix::Type::Primitive->new( name => 'sint8' ) }
+    sub Int8()     { Affix::Type::Primitive->new( name => 'sint8' ) }
+    sub UInt8()    { Affix::Type::Primitive->new( name => 'uint8' ) }
+    sub SInt16()   { Affix::Type::Primitive->new( name => 'sint16' ) }
+    sub Int16()    { Affix::Type::Primitive->new( name => 'sint16' ) }
+    sub UInt16()   { Affix::Type::Primitive->new( name => 'uint16' ) }
+    sub SInt32()   { Affix::Type::Primitive->new( name => 'sint32' ) }
+    sub Int32()    { Affix::Type::Primitive->new( name => 'sint32' ) }
+    sub UInt32()   { Affix::Type::Primitive->new( name => 'uint32' ) }
+    sub SInt64()   { Affix::Type::Primitive->new( name => 'sint64' ) }
+    sub Int64()    { Affix::Type::Primitive->new( name => 'sint64' ) }
+    sub UInt64()   { Affix::Type::Primitive->new( name => 'uint64' ) }
+    sub SInt128()  { Affix::Type::Primitive->new( name => 'sint128' ) }
+    sub Int128()   { Affix::Type::Primitive->new( name => 'sint128' ) }
+    sub UInt128()  { Affix::Type::Primitive->new( name => 'uint128' ) }
+    sub Float16()  { Affix::Type::Primitive->new( name => 'float16' ) }
+    sub Float32()  { Affix::Type::Primitive->new( name => 'float32' ) }
+    sub Float64 () { Affix::Type::Primitive->new( name => 'float64' ) }
+    sub Char8()    { Affix::Type::Primitive->new( name => 'char8_t' ) }
+    sub Char16()   { Affix::Type::Primitive->new( name => 'char16_t' ) }
+    sub Char32()   { Affix::Type::Primitive->new( name => 'char32_t' ) }
 
     # SIMD aliases
-    sub M256 ()  {'m256'}
-    sub M256d () {'m256d'}
-    sub M512 ()  {'m512'}
-    sub M512d () {'m512d'}
-    sub M512i () {'m512i'}
+    sub M256 ()  { Affix::Type::Primitive->new( name => 'm256' ) }
+    sub M256d () { Affix::Type::Primitive->new( name => 'm256d' ) }
+    sub M512 ()  { Affix::Type::Primitive->new( name => 'm512' ) }
+    sub M512d () { Affix::Type::Primitive->new( name => 'm512d' ) }
+    sub M512i () { Affix::Type::Primitive->new( name => 'm512i' ) }
 
     # Composites
     sub Pointer : prototype($) {
@@ -448,6 +449,24 @@ package Affix v1.0.6 {    # 'FFI' is my middle name!
         class Affix::Type::Reference : isa(Affix::Type) {
             field $name : param;
             method signature { '@' . $name }
+        };
+
+        class Affix::Type::Primitive : isa(Affix::Type) {
+            field $name : param;
+            use overload
+                '|'      => sub { Affix::Type::Bitfield->new( type => $_[0], width => $_[1] ) },
+                '""'     => sub { shift->signature() },
+                fallback => 1;
+            method signature() {$name}
+        };
+
+        class Affix::Type::Bitfield : isa(Affix::Type) {
+            field $type : param;
+            field $width : param;
+            use overload
+                '""'     => sub { shift->signature() },
+                fallback => 1;
+            method signature() { $type->signature . ':' . $width }
         };
 
         class Affix::Type::Enum : isa(Affix::Type) {
@@ -686,7 +705,7 @@ package Affix v1.0.6 {    # 'FFI' is my middle name!
             method signature() {
                 my @parts;
 
-                # Iterate pairs
+                # Iterate
                 for ( my $i = 0; $i < @$members; $i++ ) {
                     my $curr = $members->[$i];
                     my $next = $members->[ $i + 1 ];
@@ -694,8 +713,19 @@ package Affix v1.0.6 {    # 'FFI' is my middle name!
                     # Heuristic: Key => Value detection
                     # If $next looks like a type (or is a Type object), treat $curr as name
                     if ( defined $next && $self->_is_type($next) && !$self->_is_type($curr) ) {
-                        push @parts, "$curr:$next";
+                        my $name = $curr;
+                        my $type = $next;
                         $i++;
+
+                        # Check for bitfield width: [ name => type, width ]
+                        my $width = $members->[ $i + 1 ];
+                        if ( defined $width && !ref($width) && $width =~ /^\d+$/ ) {
+                            push @parts, "$name:$type:$width";
+                            $i++;
+                        }
+                        else {
+                            push @parts, "$name:$type";
+                        }
                     }
                     else {
                         push @parts, "$curr";
