@@ -6,6 +6,59 @@ All notable changes to Affix.pm will be documented in this file.
 The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.0.0/),
 and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0.html).
 
+## [Unreleased]
+
+Valgrind directed the work in Affix itself but infix got a lot of platform stability fixes which found their way into Affix by way of new Float16 support, bitfield width support, and SIMD improvements.
+
+### Fixed
+
+- Anonymous wrapper functions created via wrap() were leaking because of a redundant SvREFCNT_inc call and the use of newRV_inc instead of newRV_noinc. This prevented the underlying CV and its associated Affix struct (including its memory arenas) from being destroyed until global destruction.
+- Implicitly loaded libraries (by path) were not having their reference counts decremented because the handle was not stored in the Affix struct. Additionally, using Affix::Lib objects did not increment the registry reference count, potentially leading to premature closing or double-decrements.
+- Passing Pointer[SV] arguments to C functions caused a reference count leak of 1 per call because SvREFCNT_inc was called without a corresponding decrement.
+- The library registry cleanup logic was missing from the main CV destructor and had a potential crash-inducing bug in the bundled destructor.
+- [infix] Corrected an ARM64 bug in `emit_arm64_ldr_vpr` and `emit_arm64_str_vpr` where boolean conditions were being passed instead of actual byte sizes, causing data truncation for floating-point values in the direct marshalling path.
+- [infix] Fixed MSVC ARM: SEH XDATA layout to follow the architecture's specification exactly, enabling reliable exception handling on Windows on ARM.
+- [infix] Hardened instruction cache invalidation on ARM64 Linux/BSD with a robust manual fallback using assembly (`dc cvau`, `ic ivau`, etc.), ensuring generated code is immediately visible to the CPU.
+- [infix] Fixed the DWARF `.eh_frame` generation for ARM64 Linux `FORWARD` trampolines, correcting the instruction sequence and offsets to enable reliable C++ exception propagation.
+- [infix] Corrected a performance issue on x64 by adding `vzeroupper` calls in epilogues when AVX instructions are potentially used, avoiding transition penalties.
+- [infix] Fixed bitfield parsing logic to correctly handle colons in namespaces vs bitfield widths.
+- [infix] Fixed missing support for 256-bit and 512-bit vectors in SysV reverse trampolines.
+- [infix] Rewrote `_layout_struct` in `src/core/types.c` to correctly handle bitfields larger than 8 bits and ensures `bit_offset` is always within the correct byte, matching standard C (well, GNU) compiler packing behavior.
+- [infix] Fixed a bug in the SysV recursive classifier that was incorrectly applying strict natural alignment checks to bitfield members. This was causing structs containing bitfields to be unnecessarily passed on the stack instead of in registers.
+- [infix] Trampolines allocated in a user-managed "shared arena" were being added to the internal global cache. When the user destroyed the arena, the cache retained dangling pointers to the trampoline signatures.
+
+### Added
+
+- Float16 support
+ - Added the Float16 keyword to Affix.pm.
+ - Implemented float_to_half and half_to_float conversion logic in Affix.c (IEEE 754).
+ - Added optimized opcodes (OP_PUSH_FLOAT16, OP_RET_FLOAT16) to the internal VM dispatcher for high-performance marshalling.
+
+- Bitfield Support:
+ - Enhanced Struct [...] syntax in Affix.pm to support bitfield widths (e.g., a => UInt32, 3).
+ - Implemented bitmask-based marshalling in Affix.c to correctly pack and unpack C-style bitfields within structs.
+
+- SIMD Vector Improvements:
+ - Added M512, M512d, and M512i type helpers.
+ - Ensured compatibility with infix's refined vector alignment and passing rules.
+- [infix] Added support for half-precision floating-point (`float16`).
+- [infix] Implemented C++ exception propagation through JIT frames on Linux (x86-64 and ARM64) using manual DWARF `.eh_frame` generation and `__register_frame`.
+- [infix] Implemented Structured Exception Handling (SEH) for Windows x64 and ARM64 for C++ exception propagation through trampolines.
+- [infix] Added `infix_forward_create_safe` API to establish an exception boundary that catches native exceptions and returns a dedicated error code (`INFIX_CODE_NATIVE_EXCEPTION`).
+- [infix] Added support for 256-bit (AVX) and 512-bit (AVX-512) vectors in the System V ABI.
+- [infix] Added support for receiving bitfield structs in reverse call trampolines.
+- [infix] Added trampoline caching. Identical signatures and targets now share the same JIT-compiled code and metadata via internal reference counting, significantly reducing memory overhead and initialization time.
+- [infix] Added a new opt-in build mode (`--sanity`) that emits extra JIT instructions to verify stack pointer consistency around user-provided marshaller calls, making it easier to debug corrupting language bindings.
+
+### Changed
+
+- Pull infix v0.1.6.
+- [infix] Explicitly enabled 16-byte stack alignment in Windows x64 trampolines to ensure SIMD compatibility.
+- [infix] Updated `infix_type_create_vector` to use the vector's full size for its natural alignment (e.g., 32-byte alignment for `__m256`).
+- [infix] Refined the Windows x64 ABI to pass all vector types by reference (pointer in GPR). This ensures compatibility with MSVC which expects even 128-bit vectors to be passed via pointer in many scenarios, while still returning them by value in `XMM0`.
+- [infix] Move to a pre-calculated hash field in `_infix_registry_entry_t`. Lookups and rehashing now use this stored hash, significantly reducing string hashing overhead during type resolution and registry scaling.
+- [infix] Optimized Type Registry memory management: Internal hash table buckets are now heap-allocated and freed during rehashes, preventing memory "leaks" within the registry's arena.
+
 ## [v1.0.6] - 2026-01-22
 
 Most of this version's work went into threading stability, ABI correctness, and security within the JIT engine.
