@@ -701,8 +701,8 @@ first null terminator or the array limit.
 
 =head2 SIMD Vectors
 
-Vectors (e.g. C<__m128>, C<__m256>, C<__m512> on x86; C<float32x4_t> on ARM) are first-class types in Affix.
-You can interact with them in two ways:
+Vectors (e.g. C<__m128>, C<__m256>, C<__m512> on x86; C<float32x4_t> on ARM) are first-class types in Affix. You can
+interact with them in two ways:
 
 =over
 
@@ -819,7 +819,8 @@ lifecycle automatically for the duration of the call).
 
 =head1 Usage Examples
 
-Full examples can be found in the C<eg/> directory, Affix based modules are on CPAN (L<SDL3>) but here are a few to get you started.
+Full examples can be found in the C<eg/> directory, Affix based modules are on CPAN (L<SDL3>) but here are a few to get
+you started.
 
 =head2 Working with Complex Types
 

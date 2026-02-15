@@ -1,4 +1,4 @@
-package Affix::Wrap v1.0.6 {
+package Affix::Wrap v1.0.7 {
     use v5.40;
     use feature 'class';
     no warnings 'experimental::class';
@@ -136,7 +136,8 @@ package Affix::Wrap v1.0.6 {
         method name       { $of->name . '*' }
         method affix_type { 'Pointer[' . $of->affix_type . ']' }
         method affix      { Pointer [ $of->affix ] }
-        } class    #
+        };
+    class    #
         Affix::Wrap::Type::Array : isa(Affix::Wrap::Type) {
         use Affix qw[Array];
         field $of    : reader : param;
@@ -144,7 +145,8 @@ package Affix::Wrap v1.0.6 {
         method name       { $of->name . "[" . $count . "]" }
         method affix_type { sprintf( 'Array[%s, %d]', $of->affix_type, $count ) }
         method affix      { Array [ $of->affix, $count ] }
-        } class    #
+        };
+    class    #
         Affix::Wrap::Type::CodeRef : isa(Affix::Wrap::Type) {
         use Affix qw[Callback];
         field $ret    : reader : param;
@@ -161,7 +163,8 @@ package Affix::Wrap v1.0.6 {
         method affix {
             Callback [ [ map { $_->affix } @$params ], $ret->affix ];
         }
-        } class    #
+        };
+    class    #
         Affix::Wrap::Argument {
         field $type : reader : param;
         field $name : reader : param //= '';
@@ -170,7 +173,7 @@ package Affix::Wrap v1.0.6 {
         method affix_type { $type->affix_type }
         method affix      { $type->affix }
     }
-    class          #
+    class    #
         Affix::Wrap::Entity {
         field $name         : reader : param //= '';
         field $doc          : reader : param //= ();
@@ -410,7 +413,8 @@ package Affix::Wrap v1.0.6 {
             }
             return $type;
         }
-        } class    #
+        };
+    class    #
         Affix::Wrap::Function : isa(Affix::Wrap::Entity) {
         use Carp qw[];
         use Affix qw[CodeRef];

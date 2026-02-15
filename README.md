@@ -645,8 +645,8 @@ handle_event( { pressure => 0.5 } );
 
 ## SIMD Vectors
 
-Vectors (e.g. `__m128`, `__m256`, `__m512` on x86; `float32x4_t` on ARM) are first-class types in Affix.
-You can interact with them in two ways:
+Vectors (e.g. `__m128`, `__m256`, `__m512` on x86; `float32x4_t` on ARM) are first-class types in Affix. You can
+interact with them in two ways:
 
 - 1. **Array References**: Simplest to read and write.
 - 2. **Packed Strings**: Highest performance (avoids marshalling overhead).
@@ -749,7 +749,8 @@ lifecycle automatically for the duration of the call).
 
 # Usage Examples
 
-Full examples can be found in the `eg/` directory, Affix based modules are on CPAN ([SDL3](https://metacpan.org/pod/SDL3)) but here are a few to get you started.
+Full examples can be found in the `eg/` directory, Affix based modules are on CPAN ([SDL3](https://metacpan.org/pod/SDL3)) but here are a few to get
+you started.
 
 ## Working with Complex Types
 

@@ -1,4 +1,4 @@
-package Affix v1.0.6 {    # 'FFI' is my middle name!
+package Affix v1.0.7 {    # 'FFI' is my middle name!
 
     #~ |-----------------------------------|-----------------------------------||
     #~ |--------------------------4---5~---|--4--------------------------------||
@@ -461,7 +461,7 @@ package Affix v1.0.6 {    # 'FFI' is my middle name!
         };
 
         class Affix::Type::Bitfield : isa(Affix::Type) {
-            field $type : param;
+            field $type  : param;
             field $width : param;
             use overload
                 '""'     => sub { shift->signature() },

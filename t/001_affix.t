@@ -149,28 +149,27 @@ subtest 'Forward Calls: Comprehensive Primitives' => sub {
         isa_ok my $fn = wrap( $lib_path, $name, $sig ), ['Affix'], $sig;
         is $fn->($value), $value == int $value ? $value : float( $value, tolerance => 0.01 ), "Correctly passed and returned type '$type'";
     }
-
     subtest 'Float16 (via pointer)' => sub {
         isa_ok my $fn = wrap( $lib_path, 'echo_float16_ptr', [ Pointer [Float16], Pointer [Float16] ], Void ), ['Affix'];
-        my $in = 3.14;
+        my $in  = 3.14;
         my $out = 0.0;
         $fn->( \$out, \$in );
-        is $out, float($in, tolerance => 0.01), 'Float16 passed correctly via pointer';
+        is $out, float( $in, tolerance => 0.01 ), 'Float16 passed correctly via pointer';
     };
 };
 subtest 'Bitfields' => sub {
+
     # Syntax: name : type : width
     my $struct = Struct [
-        a => UInt32, 3,    # a : uint32 : 3
+        a => UInt32,
+        3,                 # a : uint32 : 3
         b => UInt32, 5,    # b : uint32 : 5
         c => UInt32, 8,    # c : uint32 : 8
         d => UInt32, 16    # d : uint32 : 16
     ];
-
     isa_ok my $sum = wrap( $lib_path, 'sum_bitfield', [$struct] => UInt32 ), ['Affix'];
     is $sum->( { a => 7, b => 31, c => 255, d => 65535 } ), 7 + 31 + 255 + 65535, 'sum_bitfield (max values)';
-    is $sum->( { a => 1, b => 2,  c => 3,   d => 4 } ),     1 + 2 + 3 + 4,         'sum_bitfield (small values)';
-
+    is $sum->( { a => 1, b => 2,  c => 3,   d => 4 } ),     1 + 2 + 3 + 4,        'sum_bitfield (small values)';
     isa_ok my $make = wrap( $lib_path, 'make_bitfield', [ UInt32, UInt32, UInt32, UInt32 ] => $struct ), ['Affix'];
     my $res = $make->( 2, 4, 8, 16 );
     is $res, { a => 2, b => 4, c => 8, d => 16 }, 'make_bitfield returns correct hash';
