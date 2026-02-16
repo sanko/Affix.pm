@@ -174,18 +174,21 @@ static int Affix_pin_dup(pTHX_ MAGIC * mg, CLONE_PARAMS * param) {
 
     // Copy metadata
     new_pin->size = old_pin->size;
-    new_pin->managed = old_pin->managed;
+    // new_pin->managed = old_pin->managed;
 
     // Handle data ownership
     if (old_pin->managed && old_pin->pointer && old_pin->size > 0) {
         // Deep copy managed memory so new thread owns its own block.
         // This prevents double-free and context violations.
-        new_pin->pointer = safemalloc(new_pin->size);
+        new_pin->pointer = safemalloc(new_pin->size); // Allocates on heap
         memcpy(new_pin->pointer, old_pin->pointer, new_pin->size);
+        new_pin->managed = true; // Explicitly set to true: pointer is heap-allocated and managed by safefree.
     }
-    else
+    else {
         // Unmanaged/Global/Null: Shallow copy pointer.
         new_pin->pointer = old_pin->pointer;
+        new_pin->managed = false; // Explicitly set to false: pointer is not managed by safefree.
+    }
 
     // Handle type arena (Deep Copy)
     if (old_pin->type_arena && old_pin->type) {
