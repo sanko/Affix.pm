@@ -95,7 +95,17 @@ class    #
 
     method step_install() {
         $self->step_build() unless -d 'blib';
-        install( $install_paths->install_map, $verbose, $dry_run, $uninst );
+        my %res;
+        install(
+            [   from_to     => $install_paths->install_map,
+                verbose     => $verbose,
+                always_copy => 1,
+                dry_run     => $dry_run,
+                uninst      => $uninst,
+                result      => \%res
+            ]
+        );
+        # In the future, I might check the values of %res according to https://metacpan.org/pod/ExtUtils::Install#install
         0;
     }
     method step_realclean () { rmtree( $_, $verbose ) for qw[blib temp Build _build_params MYMETA.yml MYMETA.json]; 0 }
