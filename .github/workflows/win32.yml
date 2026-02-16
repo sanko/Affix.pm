@@ -15,6 +15,7 @@ jobs:
           install-modules-with: cpanm
           multi-thread: "${{ inputs.flags == '-Dusethreads' && true || false }}"
           perl-version: '${{ inputs.perl }}'
+          enable-modules-cache: 'false'
       - name: Install prereqs
         run: cpanm --installdeps --notest -v .
       - name: Run tests
