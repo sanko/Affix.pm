@@ -37,11 +37,7 @@ jobs:
     strategy:
       fail-fast: false
       matrix:
-        flags:
-          - ''
-          - -Dusethreads
-          - -Duselongdouble
-          - -Dusequadmath
+        flags: '${{ fromJSON(needs.setup.outputs.matrix).flags }}'
         os:
           - ubuntu-24.04
         perl: '${{ fromJSON(needs.setup.outputs.matrix).perl }}'
@@ -119,7 +115,7 @@ jobs:
           DATA: |
             {
               "perl":  ["5.40.2", "5.42.0"],
-              "flags": ["", "-Dusethreads", "-Duselongdouble", "-Dusequadmath"]
+              "flags": ["", "-Dusethreads", "-Duselongdouble", "-Dusequadmath", "--debug", "-DDEBUGGING=both", "-DDEBUGGING=-g", "-Doptimize=-g", "-DDEBUGGING=none", "-UDEBUGGING"]
             }
         id: matrix
         run: "jq -rn 'env.DATA | fromjson | @json \"matrix=\\(.)\"' > $GITHUB_OUTPUT\n"
