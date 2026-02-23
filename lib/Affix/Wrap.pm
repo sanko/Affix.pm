@@ -1126,13 +1126,13 @@ package Affix::Wrap v1.0.7 {
 
             # Global variables
             while ( $c
-                =~ /^\s*extern\s+((?:const\s+|unsigned\s+|struct\s+|[\w:<>]+(?:\s*::\s*[\w:<>]+)*\s*\*?\s*)+?)\s*(\w+(?:\[.*?\])?)\s*(?:=\s*[^;]+)?\s*;\s*(?:\/\/([^\r\n]*))?/gm
+                =~ /^\s*extern\s+((?:const\s+|unsigned\s+|struct\s+|[\w:<>]+(?:\s*::\s*[\w:<>]+)*\s*\*?\s*)+?)([\s\*]+)([a-zA-Z_]\w*(?:\[.*?\])?)\s*(?:=\s*[^;]+)?\s*;\s*(?:\/\/([^\r\n]*))?/gm
             ) {
                 my $s        = $-[0];
                 my $e        = $+[0];
-                my $type_str = $1;
-                my $name     = $2;
-                my $trail    = $3;
+                my $type_str = $1 . $2;
+                my $name     = $3;
+                my $trail    = $4;
 
                 # Strip likely API macros (uppercase words) from the type definition
                 $type_str =~ s/\b[A-Z_][A-Z0-9_]*\b//g;
@@ -1172,11 +1172,14 @@ package Affix::Wrap v1.0.7 {
                     my $ret = Affix::Wrap::Type->parse($ret_str);
                     my @args;
                     if ( defined $args_str && length $args_str && $args_str ne 'void' ) {
-                        my @args_raw = grep {length} map { s/^\s+|\s+$//g; $_ } split /,/, $args_str;
+                        my @args_raw = grep {length} map { s/^\s+|\s+$//g; $_ } split /,(?![^(]*\))/, $args_str;
                         if ( @args_raw == 1 && $args_raw[0] =~ /^void$/ ) { @args_raw = (); }
                         for my $raw (@args_raw) {
-                            if ( $raw =~ /^(.+?)\s+(\w+(?:\[.*?\])?)$/ ) {
-                                push @args, Affix::Wrap::Type->parse($1);
+                            if ( $raw =~ /^(.+?)([\s\*]+)([a-zA-Z_]\w*(?:\[.*?\])?)$/ ) {
+                                my ( $t, $sep, $n ) = ( $1, $2, $3 );
+                                $t .= $sep;
+                                if ( $n =~ s/(\[.*\])$// ) { $t .= $1 }
+                                push @args, Affix::Wrap::Type->parse($t);
                             }
                             else {
                                 push @args, Affix::Wrap::Type->parse($raw);
@@ -1196,8 +1199,10 @@ package Affix::Wrap v1.0.7 {
                         end_offset   => $e
                         );
                 }
-                elsif ( $content =~ /^(.+?)\s+(\w+)$/ ) {
-                    my ( $type_str, $name ) = ( $1, $2 );
+                elsif ( $content =~ /^(.+?)([\s\*]+)([a-zA-Z_]\w*(?:\[.*?\])?)$/ ) {
+                    my ( $type_str, $sep, $name ) = ( $1, $2, $3 );
+                    $type_str .= $sep;
+                    if ( $name =~ s/(\[.*\])$// ) { $type_str .= $1; }
                     push @$acc,
                         Affix::Wrap::Typedef->new(
                         name         => $name,
@@ -1266,8 +1271,9 @@ package Affix::Wrap v1.0.7 {
                         my $code_ref = Affix::Wrap::Type::CodeRef->new( ret => $ret, params => \@p );
                         push @args, Affix::Wrap::Argument->new( type => $code_ref, name => $cb_name );
                     }
-                    elsif ( $raw =~ /^(.+?)\s+(\w+(?:\[.*?\])?)$/ ) {
-                        my ( $t, $n ) = ( $1, $2 );
+                    elsif ( $raw =~ /^(.+?)([\s\*]+)([a-zA-Z_]\w*(?:\[.*?\])?)$/ ) {
+                        my ( $t, $sep, $n ) = ( $1, $2, $3 );
+                        $t .= $sep;
                         if ( $n =~ s/(\[.*\])$// ) { $t .= $1 }
                         push @args, Affix::Wrap::Argument->new( type => Affix::Wrap::Type->parse($t), name => $n );
                     }
@@ -1327,8 +1333,9 @@ package Affix::Wrap v1.0.7 {
                     $pending_doc = '';
                     next;
                 }
-                if ( $b =~ s/^\s*([\w\s\*]+?)\s+(\w+(?:\[.*?\])?)\s*;// ) {
-                    my ( $t, $n ) = ( $1, $2 );
+                if ( $b =~ s/^\s*(.+?)([\s\*]+)([a-zA-Z_]\w*(?:\[.*?\])?)\s*;// ) {
+                    my ( $t, $sep, $n ) = ( $1, $2, $3 );
+                    $t .= $sep;
                     $t =~ s/^\s+|\s+$//g;
                     if ( $n =~ s/(\[.*\])$// ) { $t .= $1 }
                     push @m, Affix::Wrap::Member->new( name => $n, type => Affix::Wrap::Type->parse($t), doc => $clean->($pending_doc) );
