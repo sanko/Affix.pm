@@ -105,6 +105,7 @@ class    #
                 result      => \%res
             ]
         );
+
         # In the future, I might check the values of %res according to https://metacpan.org/pod/ExtUtils::Install#install
         0;
     }

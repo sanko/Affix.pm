@@ -107,7 +107,7 @@ package Affix::Wrap v1.0.7 {
 
             # Case-insensitive lookup (handled by existing code)
             return $type_map->{ lc $t } if defined $type_map->{ lc $t };
-            return $t                   if $t =~ /^[a-z_]\w*$/i;
+            return "'$t'"               if $t =~ /^[a-z_]\w*$/i;
             warn "WARNING: Unknown C type '$t' mapped to Void\n";
             'Void';
         }
@@ -298,16 +298,21 @@ package Affix::Wrap v1.0.7 {
         Affix::Wrap::Macro : isa(Affix::Wrap::Entity) {
         field $value : reader : param //= ();
 
+        method set_value ($v) { $value = $v }
+
         method affix_type {
             $value // return '';
             my $v = $value // '';
             $v =~ s/^\s+|\s+$//g;
             return '' unless length $v;
-            if ( $v =~ /^-?(?:0x[\da-fA-F]+|\d+(?:\.\d+)?)$/ || $v =~ /^".*"$/ || $v =~ /^'.*'$/ ) {
-                return $v;
+            if ( $v =~ /^-?(?:0x[\da-fA-F]+|\d+(?:\.\d+)?)$/ ) {
+                return sprintf 'use constant %s => %s', $self->name, $v;
+            }
+            if ( $v =~ /^".*"$/ || $v =~ /^'.*'$/ ) {
+                return sprintf 'use constant %s => %s', $self->name, $v;
             }
             $v =~ s/'/\\'/g;
-            sprintf 'use constant %s => %s', $self->name, $v;
+            sprintf 'use constant %s => \'%s\'', $self->name, $v;
         }
 
         method affix ( $lib //= (), $pkg //= () ) {
@@ -322,7 +327,7 @@ package Affix::Wrap v1.0.7 {
         }
         } class Affix::Wrap::Variable : isa(Affix::Wrap::Entity) {
         field $type : reader : param;
-        method affix_type { sprintf 'pin my $%s, $lib, %s => %s', $self->name, $self->name, $type->affix_type }
+        method affix_type { sprintf 'pin my $%s, $lib, \'%s\' => %s', $self->name, $self->name, $type->affix_type }
 
         method affix ( $lib, $pkg //= () ) {
             if ($lib) {
@@ -344,7 +349,7 @@ package Affix::Wrap v1.0.7 {
         } class    #
         Affix::Wrap::Typedef : isa(Affix::Wrap::Entity) {
         field $underlying : reader : param;
-        method affix_type { 'typedef ' . $self->name . ' => ' . $underlying->affix_type }
+        method affix_type { 'typedef \'' . $self->name . '\' => ' . $underlying->affix_type }
 
         method affix ( $lib //= (), $pkg //= () ) {
             my $t = $underlying->affix;
@@ -423,8 +428,8 @@ package Affix::Wrap v1.0.7 {
         field $mangled_name : reader : param //= ();
 
         method affix_type {
-            sprintf 'affix $lib, %s => [%s], %s;',
-                ( $self->mangled_name ne $self->name ? ( sprintf q[[%s => '%s']], $self->mangled_name, $self->name ) : $self->name ),
+            sprintf 'affix $lib, %s => [%s], %s',
+                ( $self->mangled_name ne $self->name ? ( sprintf q[[%s => '%s']], $self->mangled_name, $self->name ) : ( sprintf q['%s'], $self->name ) ),
                 join( ', ', @{ $self->affix_args } ), $self->affix_ret;
         }
 
@@ -580,7 +585,6 @@ package Affix::Wrap v1.0.7 {
             return 0 unless defined $f && length $f;
             return 0 if $f =~ m{^/usr/(include|lib|share|local/include)};
             return 0 if $f =~ m{^/System/Library};
-            return 0 if $f =~ m{(Program Files|Strawberry|MinGW|Windows|cygwin|msys)}i;
             return 1 if $allowed_files->{$f};
             for my $dir (@$project_dirs) { return 1 if index( $f, $dir ) == 0; }
             return 0;
@@ -919,7 +923,7 @@ package Affix::Wrap v1.0.7 {
                         $_->file eq $td->file                                                    &&
                         ( $_->name eq '(anonymous)' || $_->name eq '' || $_->name eq $td->name ) &&
                         ( ref($_) eq 'Affix::Wrap::Enum' || ref($_) eq 'Affix::Wrap::Struct' )   &&
-                        ( abs( $_->end_line - $td->line ) <= 1 || abs( $_->end_line - $td->end_line ) <= 1 )
+                        ( abs( $_->end_line - $td->line ) <= 2 || abs( $_->end_line - $td->end_line ) <= 2 )
                 } @$objs;
                 if ($child) {
                     my $new = Affix::Wrap::Typedef->new(
@@ -948,6 +952,10 @@ package Affix::Wrap v1.0.7 {
                 if ( ( ref($node) eq 'Affix::Wrap::Struct' || ref($node) eq 'Affix::Wrap::Enum' ) &&
                     length( $node->name ) &&
                     $node->name ne '(anonymous)' ) {
+
+                    # If there's already a typedef for this name, skip it
+                    next if grep { $_ isa Affix::Wrap::Typedef && $_->name eq $node->name } @$objs;
+
                     my $new = Affix::Wrap::Typedef->new(
                         name         => $node->name,
                         underlying   => $node,
@@ -991,10 +999,7 @@ package Affix::Wrap v1.0.7 {
 
         method _is_valid_file ($f) {
             return 0 unless defined $f && length $f;
-            return 0 if $f =~ m{^/usr/(include|lib|share|local/include)};
-            return 0 if $f =~ m{^/System/Library};
-            return 0 if $f =~ m{(Program Files|Strawberry|MinGW|Windows|cygwin|msys)};
-            return 1;
+            return $f !~ m{^/usr/(include|lib|share|local/include)} && $f !~ m{^/System/Library} && $f !~ m{(Program Files|Strawberry|MinGW|Windows|cygwin|msys)}i;
         }
 
         method parse( $entry_point, $ids //= [] ) {
@@ -1398,26 +1403,11 @@ package Affix::Wrap v1.0.7 {
             $driver->parse( $entry_point, $include_dirs );
         }
 
-        method wrap ( $lib, $target //= [caller]->[0] ) {
-
-            # Pre-register User Types
-            # This ensures they are available in the Affix registry before signatures are parsed,
-            # and allows using them in recursive definitions or opaque handles.
-            for my $name ( keys %$types ) {
-                my $type     = $types->{$name};
-                my $type_str = builtin::blessed($type) ? $type : "$type";
-                Affix::typedef( $name, $type_str );
-            }
-            my @nodes = $self->parse;
-
-            #  Macro resolution pass
+        method _resolve_macros ($nodes) {
             my %macros;
-            for my $node (@nodes) {
+            for my $node (@$nodes) {
                 if ( $node isa Affix::Wrap::Macro ) {
                     my $val = $node->value // '';
-
-                    # Strip C suffixes (U, L, UL, LL) from hex/decimal numbers
-                    # e.g. 0x01U -> 0x01
                     $val =~ s/(?<=\d)[Uu][Ll]{0,2}//g;
                     $macros{ $node->name } = $val;
                 }
@@ -1460,6 +1450,53 @@ package Affix::Wrap v1.0.7 {
                 return $cache{$token} = $resolve->($expr);
             };
 
+            for my $node (@$nodes) {
+                if ( $node isa Affix::Wrap::Macro ) {
+                    my $val = $resolve->( $node->name );
+                    if ( defined $val ) {
+                        $node->set_value($val);
+                    }
+                }
+            }
+        }
+
+        method generate ( $lib, $pkg, $file ) {
+            my @nodes = $self->parse;
+            $self->_resolve_macros( \@nodes );
+            my $out = "package $pkg;\nuse v5.36;\nuse Affix;\n\n";
+            $out .= "my \$lib = '$lib';\n\n";
+            for my $name ( keys %$types ) {
+                my $type     = $types->{$name};
+                my $type_str = builtin::blessed($type) ? $type : "'$type'";    # Quote user types
+                $out .= "typedef '$name' => $type_str;\n";
+            }
+            for my $node (@nodes) {
+                if ( ( $node isa Affix::Wrap::Typedef || $node isa Affix::Wrap::Struct || $node isa Affix::Wrap::Enum ) &&
+                    exists $types->{ $node->name } ) {
+                    next;
+                }
+                my $code = $node->affix_type;
+                if ($code) { $out .= "$code;\n"; }
+            }
+            $out .= "\n1;\n";
+            Path::Tiny::path($file)->spew_utf8($out);
+        }
+
+        method wrap ( $lib, $target //= [caller]->[0] ) {
+
+            # Pre-register User Types
+            # This ensures they are available in the Affix registry before signatures are parsed,
+            # and allows using them in recursive definitions or opaque handles.
+            for my $name ( keys %$types ) {
+                my $type     = $types->{$name};
+                my $type_str = builtin::blessed($type) ? $type : "$type";
+                Affix::typedef( $name, $type_str );
+            }
+            my @nodes = $self->parse;
+
+            #  Macro resolution pass
+            $self->_resolve_macros( \@nodes );
+
             # Generation pass
             my @installed;
             for my $node (@nodes) {
@@ -1469,41 +1506,15 @@ package Affix::Wrap v1.0.7 {
                     exists $types->{ $node->name } ) {
                     next;
                 }
-                if ( $node isa Affix::Wrap::Macro ) {
-
-                    # Attempt to resolve value to a pure number
-                    my $val = $resolve->( $node->name );
-                    if ( defined $val ) {
-
-                        # It's a number. Inject constant sub returning integer
-                        no strict 'refs';
-                        no warnings 'redefine';
-                        *{ "${target}::" . $node->name } = sub () {$val};
-                        push @installed, $node;
-                    }
-                    else {
-                        # It's complex or a string. Fallback to original behavior
-                        # This preserves definitions like: #define VER "1.2.3"
-                        $node->affix( undef, $target );
-                        push @installed, $node;
-                    }
-                }
-                elsif ( $node isa Affix::Wrap::Variable || $node isa Affix::Wrap::Function ) {
+                if ( $node->can('affix') ) {
                     $node->affix( $lib, $target );
                     push @installed, $node;
-                }
-                elsif ( $node->can('affix') ) {
-                    $node->affix( $lib, $target );
-                    push @installed, $node;
-                }
-                else {
-                    # use Data::Printer; p $node;
                 }
             }
             @installed;
         }
     }
-};
+}
 1;
 __END__
 Copyright (C) Sanko Robinson.

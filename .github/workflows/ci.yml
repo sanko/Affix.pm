@@ -28,8 +28,8 @@ jobs:
       os: '${{ matrix.os.name }}'
       perl: '${{ matrix.perl }}'
       pkg: '${{ matrix.os.pkg }}'
-      version: '${{ matrix.os.version }}'
       setup: '${{ matrix.os.setup }}'
+      version: '${{ matrix.os.version }}'
   linux:
     name: 'Linux/v${{matrix.perl}}'
     needs:
@@ -141,18 +141,13 @@ jobs:
       flags: '${{ matrix.flags }}'
       os: '${{ matrix.os }}'
       perl: '${{ matrix.perl }}'
-
 name: CI Matrix
-
 on:
   pull_request: ~
   push: ~
   schedule:
     - cron: 42 5 * * 0
   workflow_dispatch: ~
-
 permissions:
-  contents: read
-  # actions: read is required to list artifacts via the API
   actions: read
-
+  contents: read

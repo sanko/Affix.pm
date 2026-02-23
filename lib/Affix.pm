@@ -1,4 +1,4 @@
-package Affix v1.0.7 {    # 'FFI' is my middle name!
+package Affix v1.0.8 {    # 'FFI' is my middle name!
 
     #~ |-----------------------------------|-----------------------------------||
     #~ |--------------------------4---5~---|--4--------------------------------||
@@ -439,37 +439,38 @@ package Affix v1.0.7 {    # 'FFI' is my middle name!
             }
             return 1;
         }
-        class Affix::Type v0.12.0 {
+        class    #
+            Affix::Type v0.12.0 {
             use overload
                 '""' => sub { shift->signature() },
             fallback => 1;
             method signature {...}
-        };
-
-        class Affix::Type::Reference : isa(Affix::Type) {
+            };
+        class    #
+            Affix::Type::Reference : isa(Affix::Type) {
             field $name : param;
             method signature { '@' . $name }
-        };
-
-        class Affix::Type::Primitive : isa(Affix::Type) {
+            };
+        class    #
+            Affix::Type::Primitive : isa(Affix::Type) {
             field $name : param;
             use overload
-                '|'      => sub { Affix::Type::Bitfield->new( type => $_[0], width => $_[1] ) },
-                '""'     => sub { shift->signature() },
-                fallback => 1;
+                '|' => sub { Affix::Type::Bitfield->new( type => $_[0], width => $_[1] ) },
+            '""'     => sub { shift->signature() },
+            fallback => 1;
             method signature() {$name}
-        };
-
-        class Affix::Type::Bitfield : isa(Affix::Type) {
+            };
+        class    #
+            Affix::Type::Bitfield : isa(Affix::Type) {
             field $type  : param;
             field $width : param;
             use overload
-                '""'     => sub { shift->signature() },
-                fallback => 1;
+                '""' => sub { shift->signature() },
+            fallback => 1;
             method signature() { $type->signature . ':' . $width }
-        };
-
-        class Affix::Type::Enum : isa(Affix::Type) {
+            };
+        class    #
+            Affix::Type::Enum : isa(Affix::Type) {
             use Carp;
             field $elements : param;
             field $type : param //= Affix::Int();
@@ -696,9 +697,8 @@ package Affix v1.0.7 {    # 'FFI' is my middle name!
                 }
                 return $stack[0];
             }
-        }
-
-        class Affix::Type::Aggregate : isa(Affix::Type) {
+            } class    #
+            Affix::Type::Aggregate : isa(Affix::Type) {
             field $members : param;                      # ArrayRef of [ Name => Type, ... ]
             field $kind : param //= __CLASS__->_KIND;    # '{%s}' or '<%s>'
 
@@ -758,17 +758,14 @@ package Affix v1.0.7 {    # 'FFI' is my middle name!
                     )
                 }x;
             }
-        }
-
-        class Affix::Type::Struct : isa(Affix::Type::Aggregate) {
+            } class    #
+            Affix::Type::Struct : isa(Affix::Type::Aggregate) {
             use constant _KIND => '{%s}';
-        }
-
-        class Affix::Type::Union : isa(Affix::Type::Aggregate) {
+            } class    #
+            Affix::Type::Union : isa(Affix::Type::Aggregate) {
             use constant _KIND => '<%s>';
-        }
-
-        class Affix::Type::Array : isa(Affix::Type) {
+            } class    #
+            Affix::Type::Array : isa(Affix::Type) {
             field $type  : param;
             field $count : param;
 
@@ -776,17 +773,15 @@ package Affix v1.0.7 {    # 'FFI' is my middle name!
                 my $c = $count // '?';
                 return "[$c:$type]";
             }
-        }
-
-        class Affix::Type::Pointer : isa(Affix::Type) {
+            } class    #
+            Affix::Type::Pointer : isa(Affix::Type) {
             field $subtype : param;
 
             method signature() {
                 return '*' . ( $subtype // 'void' );
             }
-        }
-
-        class Affix::Type::Callback : isa(Affix::Type) {
+            } class    #
+            Affix::Type::Callback : isa(Affix::Type) {
             field $params : param;    # ArrayRef
             field $ret    : param;
 
@@ -798,9 +793,9 @@ package Affix v1.0.7 {    # 'FFI' is my middle name!
                 $args =~ s/,\;$/;/;
                 return "*(($args)->$ret)";
             }
-        }
+            }
     }
-}
+};
 1;
 __END__
 Copyright (C) Sanko Robinson.

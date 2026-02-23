@@ -8,6 +8,15 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ## [Unreleased]
 
+### Added
+
+- Added `Affix::Wrap->generate( $lib, $pkg, $file )` for static binding generation. This emits standalone Perl modules that depend only on `Affix`, eliminating the need for `Clang` or header files at runtime.
+- Recursive macro resolution support in Affix::Wrap for bitwise OR expressions like `(FLAG_A | FLAG_B)`.
+
+### Fixed
+
+- Affix::Wrap's regex driver should now parse complex pointers and array based function arguments.
+
 ## [v1.0.7] - 2026-02-15
 
 Valgrind directed the work in Affix itself but infix got a lot of platform stability fixes which found their way into Affix by way of new Float16 support, bitfield width support, and SIMD improvements.
@@ -248,7 +257,8 @@ Based on infix v0.1.3
 
   - Affix.pm is born
 
-[Unreleased]: https://github.com/sanko/Affix.pm/compare/v1.0.7...HEAD
+[Unreleased]: https://github.com/sanko/Affix.pm/compare/v1.0.8...HEAD
+[v1.0.8]: https://github.com/sanko/Affix.pm/compare/v1.0.7...v1.0.8
 [v1.0.7]: https://github.com/sanko/Affix.pm/compare/v1.0.6...v1.0.7
 [v1.0.6]: https://github.com/sanko/Affix.pm/compare/v1.0.5...v1.0.6
 [v1.0.5]: https://github.com/sanko/Affix.pm/compare/v1.0.4...v1.0.5

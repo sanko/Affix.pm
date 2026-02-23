@@ -1,10 +1,9 @@
 use v5.40;
-use blib;
 use Affix::Wrap;
 use Test2::Tools::Affix qw[:all];
 use Path::Tiny;
+use Capture::Tiny qw[capture];
 
-#~ use Capture::Tiny qw[capture];
 # Determine if Clang is available
 my $CLANG_AVAIL = do {
     my ( undef, undef, $exit ) = capture { system 'clang', '--version' };
@@ -236,6 +235,32 @@ EOF
             $binder->wrap( $lib, $pkg );
             #
             is $pkg->can('return_six')->(), 6, 'returned 6';
+        };
+        subtest 'Static Generation' => sub {
+            my $dir = Path::Tiny->tempdir;
+            spew_files(
+                $dir,
+                'static.h' => <<'EOF',
+#define STATIC_VAL 42
+typedef struct { int x; } StaticStruct;
+int static_func(int i);
+EOF
+                'main.c' => '#include "static.h"'
+            );
+            my $parser  = $driver_class->new( project_files => [ $dir->child('static.h')->stringify ] );
+            my $binder  = Affix::Wrap->new( driver => $parser );
+            my $pm_file = $dir->child('StaticLib.pm');
+            $binder->generate( 'dummy_lib', 'StaticLib', $pm_file->stringify );
+            ok( -e $pm_file, 'Generated .pm file' );
+            my $content = $pm_file->slurp_utf8;
+            like( $content, qr/package StaticLib;/,                              'Package decl' );
+            like( $content, qr/use constant STATIC_VAL => 42;/,                  'Constant generated' );
+            like( $content, qr/typedef 'StaticStruct' => Struct\[ x => Int \];/, 'Struct typedef generated' );
+            like( $content, qr/affix \$lib, 'static_func' => \[Int\], Int;/,     'Function affix generated' );
+
+            # Syntax check
+            my ( undef, undef, $exit ) = capture { system( $^X, '-Ilib', '-c', $pm_file->stringify ) };
+            is( $exit >> 8, 0, 'Generated code syntax check OK' );
         };
     };
 }

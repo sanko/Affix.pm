@@ -139,6 +139,29 @@ Optional. The package name to install symbols into. Defaults to the B<calling pa
 
 =back
 
+=head2 generate( $lib, $pkg, $file )
+
+    $binder->generate( 'mylib', 'My::Lib', 'lib/My/Lib.pm' );
+
+A convenience method that performs the "Static Generation" workflow. It parses the headers, resolves macros, and emits
+a complete Perl module file to the specified path.
+
+The generated module will:
+
+=over
+
+=item 1. Declare the package C<$pkg>.
+
+=item 2. Load L<Affix>.
+
+=item 3. Define types, constants, and functions found in the headers.
+
+=item 4. Attempt to bind to library C<$lib> (which is passed as a string literal to the generated code).
+
+=back
+
+This method handles macro resolution and ensures types are properly quoted.
+
 =head2 parse( [$entry_point] )
 
     my @nodes = $binder->parse;
@@ -319,54 +342,18 @@ calling C<wrap>:
 
 =head2 Generating Affix Modules for CPAN
 
-To create a distributable module (e.g., C<My::Lib.pm>), use the C<affix_type> method. This returns Perl source code
-strings.
+To create a distributable module (e.g., C<My::Lib.pm>) without requiring your users to have C<Clang> or C<Affix::Wrap>
+installed at runtime, use the C<generate> method:
 
     use Affix::Wrap;
-    use Path::Tiny;
 
     my $binder = Affix::Wrap->new( project_files => ['mylib.h'] );
-    my @ast    = $binder->parse;
 
-    my $code = <<~'PERL';
-        package My::Lib;
-        use v5.40;
-        use Affix;
+    # Creates 'lib/My/Lib.pm' which depends only on 'Affix'
+    $binder->generate( 'mylib', 'My::Lib', 'lib/My/Lib.pm' );
 
-        # Load the library (user must ensure this exists)
-        my $lib = load_library('mylib');
-
-        PERL
-
-    for my $node (@ast) {
-        # Add POD documentation derived from C comments
-        if ( defined $node->doc ) {
-            $code .= "\n=head2 " . $node->name . "\n\n";
-            $code .= $node->doc . "\n\n=cut\n";
-        }
-
-        # Generate Perl code
-        if ( $node isa Affix::Wrap::Function ) {
-            # e.g. "affix $lib, 'my_func', [Int], Void;"
-            $code .= $node->affix_type . "\n";
-        }
-        elsif ( $node isa Affix::Wrap::Typedef ) {
-            # e.g. "typedef MyStruct => Struct[ ... ];"
-            $code .= $node->affix_type . ";\n";
-        }
-        elsif ( $node isa Affix::Wrap::Macro ) {
-            # e.g. "use constant MAX_VAL => 100;"
-            $code .= $node->affix_type . ";\n";
-        }
-        elsif ( $node isa Affix::Wrap::Variable ) {
-            # e.g. "pin my $var, $lib, ..."
-            $code .= $node->affix_type . ";\n";
-        }
-    }
-
-    $code .= "\n1;\n";
-
-    path('lib/My/Lib.pm')->spew_utf8($code);
+If you need custom behaviors (like filtering functions or adding custom POD), you can iterate over the AST manually as
+described in L<parse()>.
 
 =head1 AUTHOR
 
