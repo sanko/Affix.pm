@@ -1644,6 +1644,8 @@ static void rebuild_affix_data(pTHX_ Affix * affix);
 // We use a macro to generate two variants (Stack vs Arena) to ensure logic sync.
 #define GENERATE_TRIGGER_XSUB(NAME, USE_STACK_ALLOC)                                                         \
     void NAME(pTHX_ CV * cv) {                                                                               \
+        if (UNLIKELY(PL_dirty))                                                                              \
+            return;                                                                                          \
         dSP;                                                                                                 \
         dAXMARK;                                                                                             \
         dXSTARG;                                                                                             \
@@ -1657,27 +1659,29 @@ static void rebuild_affix_data(pTHX_ Affix * affix);
             croak("Wrong number of arguments. Expected %d, got %d", (int)affix->num_args, (int)(SP - MARK)); \
                                                                                                              \
         register Affix_Plan_Step * step = affix->plan;                                                       \
-        register SV ** perl_stack_frame = &ST(0);                                                            \
                                                                                                              \
         /* ALLOCATION STRATEGY */                                                                            \
         size_t arena_mark = affix->args_arena->current_offset;                                               \
         void * args_buffer;                                                                                  \
-        if (USE_STACK_ALLOC && affix->total_args_size <= 2048)                                               \
+        if (USE_STACK_ALLOC && affix->total_args_size <= 2048) {                                             \
             /* Fast path: Stack allocation if under 2k */                                                    \
             args_buffer = alloca(affix->total_args_size);                                                    \
+            memset(args_buffer, 0, affix->total_args_size);                                                  \
+        }                                                                                                    \
         else {                                                                                               \
             /* Slow path: Arena allocation */                                                                \
             arena_mark = affix->args_arena->current_offset;                                                  \
             /* Alignment 64 is safe for AVX-512 vectors */                                                   \
-            args_buffer = infix_arena_alloc(affix->args_arena, affix->total_args_size, 64);                  \
+            args_buffer = infix_arena_calloc(affix->args_arena, 1, affix->total_args_size, 64);              \
         }                                                                                                    \
                                                                                                              \
         register void ** c_args = (void **)alloca(affix->num_args * sizeof(void *));                         \
+        memset(c_args, 0, affix->num_args * sizeof(void *));                                                 \
                                                                                                              \
         size_t ret_align = affix->ret_type->alignment;                                                       \
         if (ret_align < 1)                                                                                   \
             ret_align = 1;                                                                                   \
-        void * ret_buffer = infix_arena_alloc(affix->ret_arena, affix->ret_type->size, ret_align);           \
+        void * ret_buffer = infix_arena_calloc(affix->ret_arena, 1, affix->ret_type->size, ret_align);       \
                                                                                                              \
         DEFINE_DISPATCH_TABLE();                                                                             \
                                                                                                              \
@@ -1685,7 +1689,7 @@ static void rebuild_affix_data(pTHX_ Affix * affix);
                                                                                                              \
 CASE_OP_PUSH_BOOL:                                                                                           \
         {                                                                                                    \
-            SV * sv = perl_stack_frame[step->data.index];                                                    \
+            SV * sv = ST(step->data.index);                                                                  \
             void * ptr = (char *)args_buffer + step->data.c_arg_offset;                                      \
             *(bool *)ptr = SvTRUE(sv);                                                                       \
             c_args[step->data.index] = ptr;                                                                  \
@@ -1693,7 +1697,7 @@ CASE_OP_PUSH_BOOL:                                                              
         }                                                                                                    \
 CASE_OP_PUSH_SINT8:                                                                                          \
         {                                                                                                    \
-            SV * sv = perl_stack_frame[step->data.index];                                                    \
+            SV * sv = ST(step->data.index);                                                                  \
             void * ptr = (char *)args_buffer + step->data.c_arg_offset;                                      \
             *(int8_t *)ptr = (int8_t)SvIV(sv);                                                               \
             c_args[step->data.index] = ptr;                                                                  \
@@ -1701,7 +1705,7 @@ CASE_OP_PUSH_SINT8:                                                             
         }                                                                                                    \
 CASE_OP_PUSH_UINT8:                                                                                          \
         {                                                                                                    \
-            SV * sv = perl_stack_frame[step->data.index];                                                    \
+            SV * sv = ST(step->data.index);                                                                  \
             void * ptr = (char *)args_buffer + step->data.c_arg_offset;                                      \
             *(uint8_t *)ptr = (uint8_t)SvUV(sv);                                                             \
             c_args[step->data.index] = ptr;                                                                  \
@@ -1709,7 +1713,7 @@ CASE_OP_PUSH_UINT8:                                                             
         }                                                                                                    \
 CASE_OP_PUSH_SINT16:                                                                                         \
         {                                                                                                    \
-            SV * sv = perl_stack_frame[step->data.index];                                                    \
+            SV * sv = ST(step->data.index);                                                                  \
             void * ptr = (char *)args_buffer + step->data.c_arg_offset;                                      \
             *(int16_t *)ptr = (int16_t)SvIV(sv);                                                             \
             c_args[step->data.index] = ptr;                                                                  \
@@ -1717,7 +1721,7 @@ CASE_OP_PUSH_SINT16:                                                            
         }                                                                                                    \
 CASE_OP_PUSH_UINT16:                                                                                         \
         {                                                                                                    \
-            SV * sv = perl_stack_frame[step->data.index];                                                    \
+            SV * sv = ST(step->data.index);                                                                  \
             void * ptr = (char *)args_buffer + step->data.c_arg_offset;                                      \
             *(uint16_t *)ptr = (uint16_t)SvUV(sv);                                                           \
             c_args[step->data.index] = ptr;                                                                  \
@@ -1725,7 +1729,7 @@ CASE_OP_PUSH_UINT16:                                                            
         }                                                                                                    \
 CASE_OP_PUSH_SINT32:                                                                                         \
         {                                                                                                    \
-            SV * sv = perl_stack_frame[step->data.index];                                                    \
+            SV * sv = ST(step->data.index);                                                                  \
             void * ptr = (char *)args_buffer + step->data.c_arg_offset;                                      \
             *(int32_t *)ptr = (int32_t)SvIV(sv);                                                             \
             c_args[step->data.index] = ptr;                                                                  \
@@ -1733,7 +1737,7 @@ CASE_OP_PUSH_SINT32:                                                            
         }                                                                                                    \
 CASE_OP_PUSH_UINT32:                                                                                         \
         {                                                                                                    \
-            SV * sv = perl_stack_frame[step->data.index];                                                    \
+            SV * sv = ST(step->data.index);                                                                  \
             void * ptr = (char *)args_buffer + step->data.c_arg_offset;                                      \
             *(uint32_t *)ptr = (uint32_t)SvUV(sv);                                                           \
             c_args[step->data.index] = ptr;                                                                  \
@@ -1741,7 +1745,7 @@ CASE_OP_PUSH_UINT32:                                                            
         }                                                                                                    \
 CASE_OP_PUSH_SINT64:                                                                                         \
         {                                                                                                    \
-            SV * sv = perl_stack_frame[step->data.index];                                                    \
+            SV * sv = ST(step->data.index);                                                                  \
             void * ptr = (char *)args_buffer + step->data.c_arg_offset;                                      \
             *(int64_t *)ptr = (int64_t)SvIV(sv);                                                             \
             c_args[step->data.index] = ptr;                                                                  \
@@ -1749,7 +1753,7 @@ CASE_OP_PUSH_SINT64:                                                            
         }                                                                                                    \
 CASE_OP_PUSH_UINT64:                                                                                         \
         {                                                                                                    \
-            SV * sv = perl_stack_frame[step->data.index];                                                    \
+            SV * sv = ST(step->data.index);                                                                  \
             void * ptr = (char *)args_buffer + step->data.c_arg_offset;                                      \
             *(uint64_t *)ptr = (uint64_t)SvUV(sv);                                                           \
             c_args[step->data.index] = ptr;                                                                  \
@@ -1757,7 +1761,7 @@ CASE_OP_PUSH_UINT64:                                                            
         }                                                                                                    \
 CASE_OP_PUSH_FLOAT16:                                                                                        \
         {                                                                                                    \
-            SV * sv = perl_stack_frame[step->data.index];                                                    \
+            SV * sv = ST(step->data.index);                                                                  \
             void * ptr = (char *)args_buffer + step->data.c_arg_offset;                                      \
             *(infix_float16_t *)ptr = float_to_half((float)SvNV(sv));                                        \
             c_args[step->data.index] = ptr;                                                                  \
@@ -1765,7 +1769,7 @@ CASE_OP_PUSH_FLOAT16:                                                           
         }                                                                                                    \
 CASE_OP_PUSH_FLOAT:                                                                                          \
         {                                                                                                    \
-            SV * sv = perl_stack_frame[step->data.index];                                                    \
+            SV * sv = ST(step->data.index);                                                                  \
             void * ptr = (char *)args_buffer + step->data.c_arg_offset;                                      \
             U32 flags = SvFLAGS(sv);                                                                         \
             if (LIKELY(flags & SVf_NOK))                                                                     \
@@ -1779,7 +1783,7 @@ CASE_OP_PUSH_FLOAT:                                                             
         }                                                                                                    \
 CASE_OP_PUSH_DOUBLE:                                                                                         \
         {                                                                                                    \
-            SV * sv = perl_stack_frame[step->data.index];                                                    \
+            SV * sv = ST(step->data.index);                                                                  \
             void * ptr = (char *)args_buffer + step->data.c_arg_offset;                                      \
             U32 flags = SvFLAGS(sv);                                                                         \
             if (LIKELY(flags & SVf_NOK))                                                                     \
@@ -1793,7 +1797,7 @@ CASE_OP_PUSH_DOUBLE:                                                            
         }                                                                                                    \
 CASE_OP_PUSH_LONGDOUBLE:                                                                                     \
         {                                                                                                    \
-            SV * sv = perl_stack_frame[step->data.index];                                                    \
+            SV * sv = ST(step->data.index);                                                                  \
             void * ptr = (char *)args_buffer + step->data.c_arg_offset;                                      \
             U32 flags = SvFLAGS(sv);                                                                         \
             if (LIKELY(flags & SVf_NOK))                                                                     \
@@ -1807,7 +1811,7 @@ CASE_OP_PUSH_LONGDOUBLE:                                                        
         }                                                                                                    \
 CASE_OP_PUSH_SINT128:                                                                                        \
         {                                                                                                    \
-            SV * sv = perl_stack_frame[step->data.index];                                                    \
+            SV * sv = ST(step->data.index);                                                                  \
             void * ptr = (char *)args_buffer + step->data.c_arg_offset;                                      \
             sv_to_int128_safe(sv, ptr);                                                                      \
             c_args[step->data.index] = ptr;                                                                  \
@@ -1815,7 +1819,7 @@ CASE_OP_PUSH_SINT128:                                                           
         }                                                                                                    \
 CASE_OP_PUSH_UINT128:                                                                                        \
         {                                                                                                    \
-            SV * sv = perl_stack_frame[step->data.index];                                                    \
+            SV * sv = ST(step->data.index);                                                                  \
             void * ptr = (char *)args_buffer + step->data.c_arg_offset;                                      \
             sv_to_uint128_safe(sv, ptr);                                                                     \
             c_args[step->data.index] = ptr;                                                                  \
@@ -1823,7 +1827,7 @@ CASE_OP_PUSH_UINT128:                                                           
         }                                                                                                    \
 CASE_OP_PUSH_PTR_CHAR:                                                                                       \
         {                                                                                                    \
-            SV * sv = perl_stack_frame[step->data.index];                                                    \
+            SV * sv = ST(step->data.index);                                                                  \
             void * ptr = (char *)args_buffer + step->data.c_arg_offset;                                      \
             c_args[step->data.index] = ptr;                                                                  \
             if (SvPOK(sv))                                                                                   \
@@ -1833,12 +1837,12 @@ CASE_OP_PUSH_PTR_CHAR:                                                          
             else if (is_pin(aTHX_ sv))                                                                       \
                 *(void **)ptr = _get_pin_from_sv(aTHX_ sv)->pointer;                                         \
             else                                                                                             \
-                step->executor(aTHX_ affix, step, perl_stack_frame, args_buffer, c_args, ret_buffer);        \
+                step->executor(aTHX_ affix, step, &ST(0), args_buffer, c_args, ret_buffer);                  \
             DISPATCH();                                                                                      \
         }                                                                                                    \
 CASE_OP_PUSH_PTR_WCHAR:                                                                                      \
         {                                                                                                    \
-            SV * sv = perl_stack_frame[step->data.index];                                                    \
+            SV * sv = ST(step->data.index);                                                                  \
             void * ptr = (char *)args_buffer + step->data.c_arg_offset;                                      \
             c_args[step->data.index] = ptr;                                                                  \
             if (SvPOK(sv)) {                                                                                 \
@@ -1866,12 +1870,12 @@ CASE_OP_PUSH_PTR_WCHAR:                                                         
             else if (is_pin(aTHX_ sv))                                                                       \
                 *(void **)ptr = _get_pin_from_sv(aTHX_ sv)->pointer;                                         \
             else                                                                                             \
-                step->executor(aTHX_ affix, step, perl_stack_frame, args_buffer, c_args, ret_buffer);        \
+                step->executor(aTHX_ affix, step, &ST(0), args_buffer, c_args, ret_buffer);                  \
             DISPATCH();                                                                                      \
         }                                                                                                    \
 CASE_OP_PUSH_POINTER:                                                                                        \
         {                                                                                                    \
-            SV * sv = perl_stack_frame[step->data.index];                                                    \
+            SV * sv = ST(step->data.index);                                                                  \
             void * ptr = (char *)args_buffer + step->data.c_arg_offset;                                      \
             c_args[step->data.index] = ptr;                                                                  \
             if (is_pin(aTHX_ sv))                                                                            \
@@ -1879,12 +1883,12 @@ CASE_OP_PUSH_POINTER:                                                           
             else if (!SvOK(sv) && SvREADONLY(sv))                                                            \
                 *(void **)ptr = nullptr;                                                                     \
             else                                                                                             \
-                step->executor(aTHX_ affix, step, perl_stack_frame, args_buffer, c_args, ret_buffer);        \
+                step->executor(aTHX_ affix, step, &ST(0), args_buffer, c_args, ret_buffer);                  \
             DISPATCH();                                                                                      \
         }                                                                                                    \
 CASE_OP_PUSH_SV:                                                                                             \
         {                                                                                                    \
-            SV * sv = perl_stack_frame[step->data.index];                                                    \
+            SV * sv = ST(step->data.index);                                                                  \
             void * ptr = (char *)args_buffer + step->data.c_arg_offset;                                      \
             c_args[step->data.index] = ptr;                                                                  \
             *(SV **)ptr = sv;                                                                                \
@@ -1892,7 +1896,7 @@ CASE_OP_PUSH_SV:                                                                
         }                                                                                                    \
 CASE_OP_PUSH_VECTOR:                                                                                         \
         {                                                                                                    \
-            SV * sv = perl_stack_frame[step->data.index];                                                    \
+            SV * sv = ST(step->data.index);                                                                  \
             void * ptr = (char *)args_buffer + step->data.c_arg_offset;                                      \
             c_args[step->data.index] = ptr;                                                                  \
             if (SvPOK(sv)) {                                                                                 \
@@ -1904,7 +1908,7 @@ CASE_OP_PUSH_VECTOR:                                                            
                     DISPATCH();                                                                              \
                 }                                                                                            \
             }                                                                                                \
-            step->executor(aTHX_ affix, step, perl_stack_frame, args_buffer, c_args, ret_buffer);            \
+            step->executor(aTHX_ affix, step, &ST(0), args_buffer, c_args, ret_buffer);                      \
             DISPATCH();                                                                                      \
         }                                                                                                    \
 CASE_OP_PUSH_STRUCT:                                                                                         \
@@ -1914,7 +1918,7 @@ CASE_OP_PUSH_CALLBACK:                                                          
 CASE_OP_PUSH_ENUM:                                                                                           \
 CASE_OP_PUSH_COMPLEX:                                                                                        \
         {                                                                                                    \
-            step->executor(aTHX_ affix, step, perl_stack_frame, args_buffer, c_args, ret_buffer);            \
+            step->executor(aTHX_ affix, step, &ST(0), args_buffer, c_args, ret_buffer);                      \
             DISPATCH();                                                                                      \
         }                                                                                                    \
 CASE_OP_DONE:                                                                                                \
@@ -1998,7 +2002,7 @@ CASE_OP_DONE:                                                                   
         if (UNLIKELY(affix->num_out_params > 0)) {                                                           \
             for (size_t i = 0; i < affix->num_out_params; ++i) {                                             \
                 const OutParamInfo * info = &affix->out_param_info[i];                                       \
-                SV * arg_sv = perl_stack_frame[info->perl_stack_index];                                      \
+                SV * arg_sv = ST(info->perl_stack_index);                                                    \
                 if (SvROK(arg_sv) && !is_pin(aTHX_ arg_sv)) {                                                \
                     SV * rsv = SvRV(arg_sv);                                                                 \
                     info->writer(aTHX_ affix, info, rsv, c_args[info->perl_stack_index]);                    \
@@ -2012,7 +2016,7 @@ CASE_OP_DONE:                                                                   
         affix->ret_arena->current_offset = 0;                                                                \
                                                                                                              \
         ST(0) = TARG;                                                                                        \
-        PL_stack_sp = PL_stack_base + ax;                                                                    \
+        XSRETURN(1);                                                                                         \
     }
 
 // Generate the two XSUBs
@@ -3737,7 +3741,7 @@ void sv2ptr(pTHX_ Affix * affix, SV * perl_sv, void * c_ptr, const infix_type * 
                     size_t element_size = infix_type_get_size(pointee_type);
                     size_t total_size = len * element_size;
                     char * c_array;
-                    Newx(c_array, total_size, char);
+                    Newxz(c_array, total_size, char);
                     for (size_t i = 0; i < len; ++i) {
                         SV ** elem_sv_ptr = av_fetch(av, i, 0);
                         if (elem_sv_ptr)

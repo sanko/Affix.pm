@@ -251,16 +251,16 @@ EOF
             my $binder  = Affix::Wrap->new( driver => $parser );
             my $pm_file = $dir->child('StaticLib.pm');
             $binder->generate( 'dummy_lib', 'StaticLib', $pm_file->stringify );
-            ok( -e $pm_file, 'Generated .pm file' );
+            ok -e $pm_file, 'Generated .pm file';
             my $content = $pm_file->slurp_utf8;
-            like( $content, qr/package StaticLib;/,                              'Package decl' );
-            like( $content, qr/use constant STATIC_VAL => 42;/,                  'Constant generated' );
-            like( $content, qr/typedef 'StaticStruct' => Struct\[ x => Int \];/, 'Struct typedef generated' );
-            like( $content, qr/affix \$lib, 'static_func' => \[Int\], Int;/,     'Function affix generated' );
+            like $content, qr/package\s+StaticLib\s*{/,                                                         'Package decl';
+            like $content, qr/use constant STATIC_VAL => 42;/,                                                  'Constant generated';
+            like $content, qr/typedef 'StaticStruct' => Struct\[ x => Int \];/,                                 'Struct typedef generated';
+            like $content, qr/affix \$lib, ('static_func'|\[_static_func => 'static_func'\]) => \[Int\], Int;/, 'Function affix generated';
 
             # Syntax check
-            my ( undef, undef, $exit ) = capture { system( $^X, '-Ilib', '-c', $pm_file->stringify ) };
-            is( $exit >> 8, 0, 'Generated code syntax check OK' );
+            my ( undef, undef, $exit ) = capture { system $^X, '-Ilib', '-c', $pm_file->stringify };
+            is $exit >> 8, 0, 'Generated code syntax check OK';
         };
     };
 }

@@ -297,7 +297,6 @@ package Affix::Wrap v1.0.7 {
     class    #
         Affix::Wrap::Macro : isa(Affix::Wrap::Entity) {
         field $value : reader : param //= ();
-
         method set_value ($v) { $value = $v }
 
         method affix_type {
@@ -429,8 +428,8 @@ package Affix::Wrap v1.0.7 {
 
         method affix_type {
             sprintf 'affix $lib, %s => [%s], %s',
-                ( $self->mangled_name ne $self->name ? ( sprintf q[[%s => '%s']], $self->mangled_name, $self->name ) : ( sprintf q['%s'], $self->name ) ),
-                join( ', ', @{ $self->affix_args } ), $self->affix_ret;
+                ( $self->mangled_name ne $self->name ? ( sprintf q[[%s => '%s']], $self->mangled_name, $self->name ) :
+                    ( sprintf q['%s'], $self->name ) ), join( ', ', @{ $self->affix_args } ), $self->affix_ret;
         }
 
         method affix ( $lib, $pkg //= () ) {
@@ -955,7 +954,6 @@ package Affix::Wrap v1.0.7 {
 
                     # If there's already a typedef for this name, skip it
                     next if grep { $_ isa Affix::Wrap::Typedef && $_->name eq $node->name } @$objs;
-
                     my $new = Affix::Wrap::Typedef->new(
                         name         => $node->name,
                         underlying   => $node,
@@ -999,7 +997,9 @@ package Affix::Wrap v1.0.7 {
 
         method _is_valid_file ($f) {
             return 0 unless defined $f && length $f;
-            return $f !~ m{^/usr/(include|lib|share|local/include)} && $f !~ m{^/System/Library} && $f !~ m{(Program Files|Strawberry|MinGW|Windows|cygwin|msys)}i;
+            return $f !~ m{^/usr/(include|lib|share|local/include)} &&
+                $f !~ m{^/System/Library} &&
+                $f !~ m{(Program Files|Strawberry|MinGW|Windows|cygwin|msys)}i;
         }
 
         method parse( $entry_point, $ids //= [] ) {
@@ -1449,7 +1449,6 @@ package Affix::Wrap v1.0.7 {
                 # Fallback: Treat as simple alias (A -> B)
                 return $cache{$token} = $resolve->($expr);
             };
-
             for my $node (@$nodes) {
                 if ( $node isa Affix::Wrap::Macro ) {
                     my $val = $resolve->( $node->name );
@@ -1463,8 +1462,13 @@ package Affix::Wrap v1.0.7 {
         method generate ( $lib, $pkg, $file ) {
             my @nodes = $self->parse;
             $self->_resolve_macros( \@nodes );
-            my $out = "package $pkg;\nuse v5.36;\nuse Affix;\n\n";
-            $out .= "my \$lib = '$lib';\n\n";
+            my $out =<<~"";
+            package $pkg {
+                use v5.36;
+                use Affix;
+                #
+                my \$lib = '$lib';
+
             for my $name ( keys %$types ) {
                 my $type     = $types->{$name};
                 my $type_str = builtin::blessed($type) ? $type : "'$type'";    # Quote user types
@@ -1478,7 +1482,7 @@ package Affix::Wrap v1.0.7 {
                 my $code = $node->affix_type;
                 if ($code) { $out .= "$code;\n"; }
             }
-            $out .= "\n1;\n";
+            $out .= "\n};\n1;\n";
             Path::Tiny::path($file)->spew_utf8($out);
         }
 
