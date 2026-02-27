@@ -315,7 +315,6 @@ END_C
         my @dirs;
         push @dirs, '../';
         my $has_cxx = !1;
-
         my @sources = $cwd->child('lib/Affix.c');
         warn "Sources to process: @sources\n";
 
@@ -328,7 +327,8 @@ END_C
             my $version = $meta->version;
             my $obj     = $builder->object_file($source);
             warn "Checking obj: $obj\n";
-            my $should_compile = ( $force ||
+            my $should_compile
+                = ( $force ||
                     ( !-f $obj ) ||
                     ( $source->stat->mtime >= path($obj)->stat->mtime ) ||
                     ( path(__FILE__)->stat->mtime > path($obj)->stat->mtime ) );

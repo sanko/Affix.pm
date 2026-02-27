@@ -1,67 +1,60 @@
 use v5.40;
 use lib 'lib', 'blib/arch', 'blib/lib';
-use Affix qw[:all];
-use Test2::V0;
-
+use blib;
+use Affix               qw[:all];
+use Test2::Tools::Affix qw[:all];
 subtest 'Objectification' => sub {
     my $ptr = malloc(32);
     isa_ok $ptr, ['Affix::Pointer'], 'malloc return is blessed';
     ok ref($ptr), 'malloc returns a reference';
     is ref($ptr), 'Affix::Pointer', 'malloc return ref type is Affix::Pointer';
-    
     can_ok $ptr, [qw(address type element_type size count cast)], 'Pointer methods exist';
-    
     ok $ptr->address > 0, 'address() works';
-    is $ptr->type, '*void', 'type() works for void*';
-    is $ptr->element_type, 'void', 'element_type() works for void*';
+    is $ptr->type,         '*void', 'type() works for void*';
+    is $ptr->element_type, 'void',  'element_type() works for void*';
 };
-
 subtest 'Indexing (Primitives)' => sub {
-    my $ptr = calloc(4, Int);
+    my $ptr = calloc( 4, Int );
     isa_ok $ptr, ['Affix::Pointer'], 'calloc return is blessed';
-    like $ptr->type, qr/^\[4:(s?int(32)?)\]$/, 'type() works for Array[Int, 4]';
-    like $ptr->element_type, qr/^(s?int(32)?)$/, 'element_type() works for Array[Int, 4]';
+    like $ptr->type,         qr/^\[4:(s?int(32)?)\]$/, 'type() works for Array[Int, 4]';
+    like $ptr->element_type, qr/^(s?int(32)?)$/,       'element_type() works for Array[Int, 4]';
     is $ptr->count, 4, 'count() works for fixed array';
-    
+
     # Test FETCH
     is $ptr->[0], 0, 'FETCH index 0';
     is $ptr->[3], 0, 'FETCH index 3';
-    
+
     # Test STORE
     $ptr->[0] = 42;
     $ptr->[3] = 123;
-    
-    is $ptr->[0], 42, 'Read back index 0';
+    is $ptr->[0], 42,  'Read back index 0';
     is $ptr->[3], 123, 'Read back index 3';
-    
+
     # Compatibility: $$ptr should still work (points to index 0 usually)
     # Wait, $$ptr for Array[T, N] currently returns an arrayref in Affix?
     # Let's check.
     is ref($$ptr), 'ARRAY', '$$ptr for Array returns an arrayref';
-    is $$ptr->[0], 42, 'Value in arrayref matches';
+    is $$ptr->[0], 42,      'Value in arrayref matches';
 };
-
 subtest 'Indexing (Void*)' => sub {
     my $ptr = malloc(8);
+
     #decided byte-indexed for void*
     is $ptr->count, 8, 'count() for void* pin returns size';
-    
-    $ptr->[0] = 65; # 'A'
-    $ptr->[1] = 66; # 'B'
-    
+    $ptr->[0] = 65;    # 'A'
+    $ptr->[1] = 66;    # 'B'
     is $ptr->[0], 65, 'Read byte 0';
     is $ptr->[1], 66, 'Read byte 1';
-    
+
     # Compatibility: $$ptr for void* pin returns address
     ok $$ptr == $ptr->address, '$$ptr for void* returns address';
 };
-
 subtest 'Compatibility' => sub {
+
     # Existing code uses $$ptr
-    my $int_p = cast(malloc(4), Pointer[Int]);
+    my $int_p = cast( malloc(4), Pointer [Int] );
     $$int_p = 99;
-    is $$int_p, 99, '$$ptr still works for simple pointers';
+    is $$int_p,     99, '$$ptr still works for simple pointers';
     is $int_p->[0], 99, '$ptr->[0] also works';
 };
-
 done_testing;

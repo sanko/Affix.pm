@@ -240,7 +240,7 @@ void push_reverse_trampoline(pTHX_ Affix * affix, const infix_type * type, SV * 
 
 // Marshalling (Perl <- C)
 void ptr2sv(pTHX_ Affix * affix, void * c_ptr, SV * perl_sv, const infix_type * type);
-void _populate_hv_from_c_struct(pTHX_ Affix * affix, HV * hv, const infix_type * type, void * p);
+void _populate_hv_from_c_struct(pTHX_ Affix * affix, HV * hv, const infix_type * type, void * p, bool live);
 
 // Handler resolution
 Affix_Step_Executor get_plan_step_executor(const infix_type * type);

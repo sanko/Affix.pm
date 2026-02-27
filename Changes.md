@@ -20,6 +20,9 @@ This release introduces a modernization of pointer handling, turning "Pins" into
     - `count()`: Returns the element count for Arrays, or byte size for Void pointers.
     - `size()`: Returns the total allocated size (for managed pointers).
     - `cast($type)`: Reinterprets the pointer.
+- Zero-Copy "Live" Aggregates:
+    - `LiveStruct`: Added a new helper to return zero-copy, live views of C structs. Modifications to the returned blessed hash reflect immediately in C memory.
+    - `LiveArray`: Added a new helper to return live `Affix::Pointer` objects instead of deep-copied array references.
 - 128-bit Integer Support:
     - Fully implemented marshalling for `Int128` and `UInt128` (sint128/uint128) primitive types.
     - Support includes forward calls, return values, and Pins.

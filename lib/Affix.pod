@@ -520,8 +520,8 @@ Used for opaque handles or generic data.
 =head3 Pins (Managed Pointers)
 
 For manual memory management, use C<malloc>, C<calloc>, or C<cast>. These return B<Pins>, which are objects of the
-C<Affix::Pointer> class. A Pin is a reference to a scalar holding the memory address, blessed with magic and
-overloaded for array-like access.
+C<Affix::Pointer> class. A Pin is a reference to a scalar holding the memory address, blessed with magic and overloaded
+for array-like access.
 
     my $ptr = malloc(1024);     # Allocate 1024 bytes (Pointer[Void])
     my $view = cast($ptr, Int); # Treat it as an integer (Pointer[Int])
@@ -570,8 +570,8 @@ Reinterprets the pointer as a new type. See L<C<cast( ... )>|/cast( $ptr, $type 
 
 =head4 Array Indexing
 
-C<Affix::Pointer> objects overload array dereferencing (C<@$ptr>). This allows you to use standard Perl array syntax
-to access C memory without manual casting or pointer arithmetic.
+C<Affix::Pointer> objects overload array dereferencing (C<@$ptr>). This allows you to use standard Perl array syntax to
+access C memory without manual casting or pointer arithmetic.
 
     my $array = calloc(10, Double);
     $array->[5] = 3.14;
@@ -659,6 +659,17 @@ Structs are the bread and butter of C APIs. In Affix, they map to B<Perl Hash Re
     # Call with HashRefs
     draw_line( { x => 0, y => 0 }, { x => 100, y => 100 } );
 
+=head4 C<LiveStruct>
+
+Standard C<Struct> returns are deep-copied into Perl hashes. Modifying the hash does not affect the original C memory.
+C<LiveStruct> returns a zero-copy "live" view of the struct.
+
+    typedef MyStruct => LiveStruct[ id => Int, value => Double ];
+    my $live = get_struct(); # Returns blessed Affix::Live hash
+    $live->{id} = 42;        # Writes directly to C memory
+
+Live structs are blessed into the C<Affix::Live> class.
+
 B<Nested Structs:> Affix handles deep structures automatically.
 
     typedef Rect => Struct [
@@ -739,6 +750,16 @@ back changes to your Perl array.
 
     # Pass a reference to a Perl array
     process_matrix( [1..9] );
+
+=item B<Live Arrays (C<LiveArray[Type, N]>)>
+
+Standard C<Array> returns are deep-copied into Perl Array References. C<LiveArray> returns a live C<Affix::Pointer>
+object that allows direct indexing into C memory.
+
+    # C: int* get_buffer();
+    affix $lib, 'get_buffer', [] => LiveArray[Int, 1024];
+    my $buf = get_buffer();
+    $buf->[0] = 123; # Writes directly to C memory
 
 =item B<Binary Data>
 

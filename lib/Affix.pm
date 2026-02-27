@@ -60,7 +60,7 @@ package Affix v1.0.8 {    # 'FFI' is my middle name!
             Float32 Float64
             Size_t SSize_t
             String WString
-            Pointer Array Struct Union Enum Callback CodeRef Complex Vector
+            Pointer Array LiveArray Struct LiveStruct Union Enum Callback CodeRef Complex Vector
             Packed VarArgs
             SV
             File PerlIO
@@ -298,12 +298,22 @@ package Affix v1.0.8 {    # 'FFI' is my middle name!
     # Struct[ id => Int, score => Double ] -> {id:int,score:double}
     sub Struct : prototype($) { Affix::Type::Struct->new( members => $_[0] ) }
 
+    sub LiveStruct : prototype($) {
+        my $s = Struct( $_[0] );
+        return '+' . $s;
+    }
+
     # Union[ i => Int, f => Float ] -> <i:int,f:float>
     sub Union : prototype($) { Affix::Type::Union->new( members => $_[0] ) }
 
     sub Array : prototype($) {
         my ( $type, $size ) = @{ $_[0] };
         Affix::Type::Array->new( type => $type, count => $size );
+    }
+
+    sub LiveArray : prototype($) {
+        my ( $type, $size ) = @{ $_[0] };
+        return Pointer [ Array [ $type, $size ] ];
     }
 
     # Callback[ [Int, Int] => Void ] -> (int,int)->void
@@ -843,6 +853,13 @@ package Affix v1.0.8 {    # 'FFI' is my middle name!
         }
         sub DELETE { die "Cannot delete elements from a C array" }
         sub CLEAR  { die "Cannot clear a C array" }
+    }
+    package Affix::Live {
+        use v5.40;
+        sub new {
+            my ( $class, $ref ) = @_;
+            return bless $ref // {}, $class;
+        }
     }
 };
 1;

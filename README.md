@@ -455,16 +455,71 @@ Pointers are the glue of C. Affix provides distinct ways to handle them based on
 
 ### Pins (Managed Pointers)
 
-For manual memory management, use `malloc`, `calloc`, or `cast`. These return **Pins**. A Pin is a reference to a
-scalar holding the memory address, blessed with magic.
+For manual memory management, use `malloc`, `calloc`, or `cast`. These return **Pins**, which are objects of the
+`Affix::Pointer` class. A Pin is a reference to a scalar holding the memory address, blessed with magic and
+overloaded for array-like access.
 
 ```perl
-my $ptr = malloc(1024);   # Allocate 1024 bytes
-my $view = cast($ptr, Int); # Treat it as an integer
+my $ptr = malloc(1024);     # Allocate 1024 bytes (Pointer[Void])
+my $view = cast($ptr, Int); # Treat it as an integer (Pointer[Int])
 
-$$view = 123;             # Write 123 to the memory
-free($ptr);               # Free it manually (optional, GC handles it otherwise)
+$$view = 123;               # Write 123 to the memory (Compatibility)
+$view->[0] = 456;           # Write 456 via array indexing
+say $view->[0];             # Read back 456
+
+free($ptr);                 # Release the memory
 ```
+
+#### `Affix::Pointer` Methods
+
+- `address()`
+
+    Returns the virtual memory address as a `UInt64`.
+
+    ```
+    say $ptr->address;
+    ```
+
+- `type()`
+
+    Returns the [infix](https://github.com/sanko/infix/) signature of the pointer type.
+
+    ```
+    say $ptr->type; # e.g. "[4:sint32]"
+    ```
+
+- `element_type()`
+
+    Returns the signature of the pointed-to element type.
+
+    ```
+    say $ptr->element_type; # e.g. "sint32"
+    ```
+
+- `count()`
+
+    Returns the number of elements if the pin is an `Array` type. For `Void` pointers, returns the byte size if known.
+
+- `size()`
+
+    Returns the total size of the allocated memory in bytes (only for managed pointers).
+
+- `cast( $type )`
+
+    Reinterprets the pointer as a new type. See [`cast( ... )`](#cast-ptr-type).
+
+#### Array Indexing
+
+`Affix::Pointer` objects overload array dereferencing (`@$ptr`). This allows you to use standard Perl array syntax
+to access C memory without manual casting or pointer arithmetic.
+
+```perl
+my $array = calloc(10, Double);
+$array->[5] = 3.14;
+say $array->[5];
+```
+
+For `Void` pointers, indexing is byte-based (equivalent to `char*`).
 
 ## Special Types
 
@@ -550,6 +605,19 @@ affix $lib, 'draw_line', [ Point, Point ] => Void;
 draw_line( { x => 0, y => 0 }, { x => 100, y => 100 } );
 ```
 
+#### `LiveStruct`
+
+Standard `Struct` returns are deep-copied into Perl hashes. Modifying the hash does not affect the original C memory.
+`LiveStruct` returns a zero-copy "live" view of the struct.
+
+```perl
+typedef MyStruct => LiveStruct[ id => Int, value => Double ];
+my $live = get_struct(); # Returns blessed Affix::Live hash
+$live->{id} = 42;        # Writes directly to C memory
+```
+
+Live structs are blessed into the `Affix::Live` class.
+
 **Nested Structs:** Affix handles deep structures automatically.
 
 ```perl
@@ -633,6 +701,18 @@ handle_event( { pressure => 0.5 } );
 
     # Pass a reference to a Perl array
     process_matrix( [1..9] );
+    ```
+
+- **Live Arrays (`LiveArray[Type, N]`)**
+
+    Standard `Array` returns are deep-copied into Perl Array References.
+    `LiveArray` returns a live `Affix::Pointer` object that allows direct indexing into C memory.
+
+    ```perl
+    # C: int* get_buffer();
+    affix $lib, 'get_buffer', [] => LiveArray[Int, 1024];
+    my $buf = get_buffer();
+    $buf->[0] = 123; # Writes directly to C memory
     ```
 
 - **Binary Data**

@@ -17,7 +17,7 @@ build_requires:
   Test2::Tools::Compare: '0'
   Test2::V0: '0'
 configure_requires:
-  CPAN::Meta: '0'
+  CPAN::Meta: '2.150012'
   Exporter: '5.57'
   ExtUtils::Helpers: '0.028'
   ExtUtils::Install: '0'
@@ -67,6 +67,12 @@ provides:
   Affix::Build:
     file: lib/Affix/Build.pm
     version: v1.0.7
+  Affix::Live:
+    file: lib/Affix.pm
+  Affix::Pointer:
+    file: lib/Affix.pm
+  Affix::Pointer::TiedArray:
+    file: lib/Affix.pm
   Affix::Wrap:
     file: lib/Affix/Wrap.pm
     version: v1.0.7

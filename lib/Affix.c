@@ -1514,15 +1514,18 @@ static void writeback_struct(pTHX_ Affix * affix, const OutParamInfo * info, SV 
         for (size_t i = 0; i < count; ++i) {
             SV ** item_ptr = av_fetch(av, i, 0);
             if (item_ptr && SvROK(*item_ptr) && SvTYPE(SvRV(*item_ptr)) == SVt_PVHV) {
-                _populate_hv_from_c_struct(
-                    aTHX_ affix, (HV *)SvRV(*item_ptr), info->pointee_type, (char *)struct_ptr + (i * elem_size));
+                _populate_hv_from_c_struct(aTHX_ affix,
+                                           (HV *)SvRV(*item_ptr),
+                                           info->pointee_type,
+                                           (char *)struct_ptr + (i * elem_size),
+                                           false);
             }
         }
         return;
     }
 
     if (SvTYPE(perl_sv) == SVt_PVHV) {
-        _populate_hv_from_c_struct(aTHX_ affix, (HV *)perl_sv, info->pointee_type, struct_ptr);
+        _populate_hv_from_c_struct(aTHX_ affix, (HV *)perl_sv, info->pointee_type, struct_ptr, false);
     }
     else if (SvROK(perl_sv) && SvTYPE(SvRV(perl_sv)) == SVt_PVAV) {
         // Array of structs decay
@@ -1532,8 +1535,11 @@ static void writeback_struct(pTHX_ Affix * affix, const OutParamInfo * info, SV 
         for (size_t i = 0; i < count; ++i) {
             SV ** item_ptr = av_fetch(av, i, 0);
             if (item_ptr && SvROK(*item_ptr) && SvTYPE(SvRV(*item_ptr)) == SVt_PVHV) {
-                _populate_hv_from_c_struct(
-                    aTHX_ affix, (HV *)SvRV(*item_ptr), info->pointee_type, (char *)struct_ptr + (i * elem_size));
+                _populate_hv_from_c_struct(aTHX_ affix,
+                                           (HV *)SvRV(*item_ptr),
+                                           info->pointee_type,
+                                           (char *)struct_ptr + (i * elem_size),
+                                           false);
             }
         }
     }
@@ -2709,8 +2715,26 @@ XS_INTERNAL(Affix_affix) {
         infix_function_argument * args = nullptr;
         size_t num_args = 0, num_fixed = 0;
 
+        const char * sig_to_parse = signature;
+        char * clean_sig = nullptr;
+        if (strstr(signature, "+")) {
+            clean_sig = savepv(signature);
+            char * p = clean_sig;
+            char * d = clean_sig;
+            while (*p)
+                if (*p == '+')
+                    p++;
+                else
+                    *d++ = *p++;
+            *d = '\0';
+            sig_to_parse = clean_sig;
+        }
+
         infix_status status =
-            infix_signature_parse(signature, &parse_arena, &ret_type, &args, &num_args, &num_fixed, MY_CXT.registry);
+            infix_signature_parse(sig_to_parse, &parse_arena, &ret_type, &args, &num_args, &num_fixed, MY_CXT.registry);
+
+        if (clean_sig)
+            safefree(clean_sig);
 
         if (status != INFIX_SUCCESS) {
             safefree(backend);
@@ -2775,8 +2799,26 @@ XS_INTERNAL(Affix_affix) {
     infix_function_argument * args = NULL;
     size_t num_args = 0, num_fixed = 0;
 
+    const char * sig_to_parse = signature;
+    char * clean_sig = nullptr;
+    if (strstr(signature, "+")) {
+        clean_sig = savepv(signature);
+        char * p = clean_sig;
+        char * d = clean_sig;
+        while (*p)
+            if (*p == '+')
+                p++;
+            else
+                *d++ = *p++;
+        *d = '\0';
+        sig_to_parse = clean_sig;
+    }
+
     infix_status status =
-        infix_signature_parse(signature, &parse_arena, &ret_type, &args, &num_args, &num_fixed, MY_CXT.registry);
+        infix_signature_parse(sig_to_parse, &parse_arena, &ret_type, &args, &num_args, &num_fixed, MY_CXT.registry);
+
+    if (clean_sig)
+        safefree(clean_sig);
 
     if (status != INFIX_SUCCESS) {
         infix_error_details_t err = infix_get_last_error();
@@ -3106,23 +3148,21 @@ static void pull_bool(pTHX_ Affix * affix, SV * sv, const infix_type * t, void *
 static void pull_void(pTHX_ Affix * affix, SV * sv, const infix_type * t, void * p) { sv_setsv(sv, &PL_sv_undef); }
 
 #if !defined(INFIX_COMPILER_MSVC)
-static void pull_sint128(pTHX_ Affix * affix, SV * sv, const infix_type * t, void * p) {
-    croak("128-bit integer marshalling not yet implemented");
-}
-static void pull_uint128(pTHX_ Affix * affix, SV * sv, const infix_type * t, void * p) {
-    croak("128-bit integer marshalling not yet implemented");
-}
+static void pull_sint128(pTHX_ Affix * affix, SV * sv, const infix_type * t, void * p) { sv_from_int128_safe(sv, p); }
+static void pull_uint128(pTHX_ Affix * affix, SV * sv, const infix_type * t, void * p) { sv_from_uint128_safe(sv, p); }
 #endif
 
 static void pull_struct(pTHX_ Affix * affix, SV * sv, const infix_type * type, void * p) {
     HV * hv;
+    bool live = sv_isobject(sv) && sv_derived_from(sv, "Affix::Live");
+
     if (SvROK(sv) && SvTYPE(SvRV(sv)) == SVt_PVHV)
         hv = (HV *)SvRV(sv);
     else {
         hv = newHV();
         sv_setsv(sv, sv_2mortal(newRV_noinc(MUTABLE_SV(hv))));
     }
-    _populate_hv_from_c_struct(aTHX_ affix, hv, type, p);
+    _populate_hv_from_c_struct(aTHX_ affix, hv, type, p, live);
 }
 
 static void pull_union(pTHX_ Affix * affix, SV * sv, const infix_type * type, void * p) {
@@ -3321,6 +3361,21 @@ static void pull_pointer_as_struct(pTHX_ Affix * affix, SV * sv, const infix_typ
         const infix_type * pointee_type = type->meta.pointer_info.pointee_type;
         pull_struct(aTHX_ affix, sv, pointee_type, c_ptr);
     }
+}
+
+static void pull_struct_as_live(pTHX_ Affix * affix, SV * sv, const infix_type * type, void * ptr) {
+    void * c_ptr = *(void **)ptr;
+    if (c_ptr == nullptr) {
+        sv_setsv(sv, &PL_sv_undef);
+        return;
+    }
+    const infix_type * pointee_type = type->meta.pointer_info.pointee_type;
+    HV * hv = newHV();
+    SV * rv = newRV_noinc(MUTABLE_SV(hv));
+    sv_bless(rv, gv_stashpv("Affix::Live", GV_ADD));
+    _populate_hv_from_c_struct(aTHX_ affix, hv, pointee_type, c_ptr, true);
+    sv_setsv(sv, rv);
+    SvREFCNT_dec(rv);
 }
 
 static void pull_pointer_as_array(pTHX_ Affix * affix, SV * sv, const infix_type * type, void * ptr) {
@@ -3564,12 +3619,14 @@ static const Affix_Pull pull_handlers[] = {[INFIX_PRIMITIVE_BOOL] = pull_bool,
 };
 
 Affix_Pull get_pull_handler(pTHX_ const infix_type * type) {
+    const char * name = infix_type_get_name(type);
+    bool live_hint = name && name[0] == '+';
+
     switch (type->category) {
     case INFIX_TYPE_PRIMITIVE:
         return pull_handlers[type->meta.primitive_id];
     case INFIX_TYPE_POINTER:
         {
-            const char * name = infix_type_get_name(type);
             if (name) {
                 if (strEQ(name, "Buffer") || strEQ(name, "@Buffer"))
                     return pull_pointer_as_pin;  // Fallback: Return pin to buffer
@@ -3607,7 +3664,7 @@ Affix_Pull get_pull_handler(pTHX_ const infix_type * type) {
 #endif
             }
             if (pointee_type->category == INFIX_TYPE_STRUCT)
-                return pull_pointer_as_pin;
+                return live_hint ? pull_struct_as_live : pull_pointer_as_pin;
             if (pointee_type->category == INFIX_TYPE_ARRAY)
                 return pull_pointer_as_pin;
 
@@ -4305,15 +4362,34 @@ XS_INTERNAL(Affix_pin) {
     }
     infix_type * type = nullptr;
     infix_arena_t * arena = nullptr;
-    if (infix_type_from_signature(&type, &arena, signature, MY_CXT.registry) != INFIX_SUCCESS) {
-        SV * err_sv = _format_parse_error(aTHX_ "for pin", signature, infix_get_last_error());
+    const char * sig_to_parse = signature;
+    char * clean_sig = nullptr;
+    if (strstr(signature, "+")) {
+        clean_sig = savepv(signature);
+        char * p = clean_sig;
+        char * d = clean_sig;
+        while (*p)
+            if (*p == '+')
+                p++;
+            else
+                *d++ = *p++;
+        *d = '\0';
+        sig_to_parse = clean_sig;
+    }
+
+    if (infix_type_from_signature(&type, &arena, sig_to_parse, MY_CXT.registry) != INFIX_SUCCESS) {
+        SV * err_sv = _format_parse_error(aTHX_ "for pin", sig_to_parse, infix_get_last_error());
         warn_sv(err_sv);
         if (arena)
             infix_arena_destroy(arena);
+        if (clean_sig)
+            safefree(clean_sig);
         XSRETURN_UNDEF;
     }
     _pin_sv(aTHX_ target_sv, type, ptr, false);
     infix_arena_destroy(arena);
+    if (clean_sig)
+        safefree(clean_sig);
     XSRETURN_YES;
 }
 
@@ -4967,6 +5043,10 @@ XS_INTERNAL(Affix_cast) {
     if (!signature)
         signature = SvPV_nolen(type_sv);
 
+    bool live_hint = (signature[0] == '+');
+    if (live_hint)
+        signature++;
+
     infix_type * new_type = nullptr;
     infix_arena_t * parse_arena = nullptr;
 
@@ -5018,6 +5098,19 @@ XS_INTERNAL(Affix_cast) {
              * The handler reads *(&ptr_val) -> ptr_val, then reads the string.
              */
             ptr2sv(aTHX_ nullptr, &ptr_val, ret_val, new_type);
+        }
+        else if (live_hint && new_type->category == INFIX_TYPE_STRUCT) {
+            // Live struct return from cast: bypass ptr2sv and create blessed HV
+            HV * hv = newHV();
+            SV * rv = newRV_noinc(MUTABLE_SV(hv));
+            sv_bless(rv, gv_stashpv("Affix::Live", GV_ADD));
+            _populate_hv_from_c_struct(aTHX_ nullptr, hv, new_type, ptr_val, true);
+            sv_setsv(ret_val, rv);
+            SvREFCNT_dec(rv);
+        }
+        else if (new_type->category == INFIX_TYPE_UNION) {
+            // Unions are always live!
+            pull_union(aTHX_ nullptr, ret_val, new_type, ptr_val);
         }
         else {
             /*
@@ -5432,14 +5525,19 @@ XS_INTERNAL(Affix_is_null) {
     XSRETURN(1);
 }
 
-void _populate_hv_from_c_struct(pTHX_ Affix * affix, HV * hv, const infix_type * type, void * p) {
+void _populate_hv_from_c_struct(pTHX_ Affix * affix, HV * hv, const infix_type * type, void * p, bool live) {
     hv_clear(hv);
     for (size_t i = 0; i < type->meta.aggregate_info.num_members; ++i) {
         const infix_struct_member * member = &type->meta.aggregate_info.members[i];
         if (member->name) {
             void * member_ptr = (char *)p + member->offset;
             SV * member_sv = newSV(0);
-            if (member->is_bitfield) {
+
+            if (live && !member->is_bitfield) {
+                // Live mode: Create a Pin for this member so modifications reflect in C memory
+                _pin_sv(aTHX_ member_sv, member->type, member_ptr, false);
+            }
+            else if (member->is_bitfield) {
                 // Bitfield pull: mask and shift
                 size_t sz = infix_type_get_size(member->type);
                 uint64_t raw = 0;
@@ -5571,7 +5669,7 @@ XS_INTERNAL(Affix_pin_get_at) {
 
     size_t elem_size = infix_type_get_size(elem_type);
     if (elem_size == 0 && elem_type->category == INFIX_TYPE_VOID) {
-        elem_size = 1; // Byte-indexed for void*
+        elem_size = 1;  // Byte-indexed for void*
         elem_type = infix_type_create_primitive(INFIX_PRIMITIVE_UINT8);
     }
     if (elem_size == 0)
