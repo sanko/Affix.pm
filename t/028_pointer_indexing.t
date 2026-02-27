@@ -3,6 +3,8 @@ use lib 'lib', 'blib/arch', 'blib/lib';
 use blib;
 use Affix               qw[:all];
 use Test2::Tools::Affix qw[:all];
+use Config;
+#
 subtest 'Objectification' => sub {
     my $ptr = malloc(32);
     isa_ok $ptr, ['Affix::Pointer'], 'malloc return is blessed';
@@ -14,7 +16,9 @@ subtest 'Objectification' => sub {
     is $ptr->element_type, 'void',  'element_type() works for void*';
 };
 subtest 'Indexing (Primitives)' => sub {
-    my $ptr = calloc( 4, Int );
+    my $ptr = calloc(4, Int);
+    diag "calloc pointer type: " . $ptr->type();
+    diag "calloc pointer element_type: " . $ptr->element_type();
     isa_ok $ptr, ['Affix::Pointer'], 'calloc return is blessed';
     like $ptr->type,         qr/^\[4:(s?int(32)?)\]$/, 'type() works for Array[Int, 4]';
     like $ptr->element_type, qr/^(s?int(32)?)$/,       'element_type() works for Array[Int, 4]';
@@ -50,11 +54,20 @@ subtest 'Indexing (Void*)' => sub {
     ok $$ptr == $ptr->address, '$$ptr for void* returns address';
 };
 subtest 'Compatibility' => sub {
-
     # Existing code uses $$ptr
-    my $int_p = cast( malloc(4), Pointer [Int] );
-    $$int_p = 99;
-    is $$int_p,     99, '$$ptr still works for simple pointers';
-    is $int_p->[0], 99, '$ptr->[0] also works';
+    my $int_p = cast(malloc(4), Pointer[Int]);
+    $$int_p = 12345;
+    is $$int_p, 12345, '$$ptr still works for simple pointers';
+
+    # $int_p->[0] should now FAIL because it's not an array or void*
+    my $ok = eval { my $val = $int_p->[0]; 1 };
+    my $err = $@;
+    ok !$ok, '$ptr->[0] fails for non-array pointers';
+    like $err, qr/Cannot index into non-aggregate type/, 'Error message matches';
+
+    # But it works for void*
+    my $v_p = malloc(4);
+    $v_p->[0] = 42;
+    is $v_p->[0], 42, '$ptr->[0] works for Pointer[Void] (byte-indexed)';
 };
 done_testing;

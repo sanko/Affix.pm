@@ -109,7 +109,7 @@ class    #
         # In the future, I might check the values of %res according to https://metacpan.org/pod/ExtUtils::Install#install
         0;
     }
-    method step_realclean () { rmtree( $_, $verbose ) for qw[blib temp Build _build_params MYMETA.yml MYMETA.json]; 0 }
+    method step_realclean () { remove_tree( $_, { verbose => $verbose } ) for qw[blib temp Build _build_params MYMETA.yml MYMETA.json]; 0 }
 
     method step_test() {
         $self->step_build() unless -d 'blib';

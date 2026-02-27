@@ -195,6 +195,8 @@ typedef struct {
     bool managed;                ///< If true, Perl owns the 'pointer' and will safefree() it on DESTROY.
     UV ref_count;                ///< Refcount to prevent premature freeing when SVs are copied.
     size_t size;                 ///< Size of malloc'd void pointers.
+    void (*destructor)(void *);  ///< Custom destructor function (e.g. SDL_DestroyWindow).
+    SV * destructor_lib_sv;      ///< Perl object (Affix::Lib) to keep alive for the destructor.
 } Affix_Pin;
 /// Holds the necessary data for a callback, specifically the Perl subroutine to call.
 typedef struct {
@@ -251,6 +253,7 @@ Affix_Out_Param_Writer get_out_param_writer(const infix_type * type);
 void _pin_sv(pTHX_ SV * sv, const infix_type * type, void * pointer, bool managed);
 bool is_pin(pTHX_ SV * sv);
 Affix_Pin * _get_pin_from_sv(pTHX_ SV * sv);
+SV * _new_pointer_obj(pTHX_ Affix_Pin * pin);
 
 // Reverse trampolines
 void _affix_callback_handler_entry(infix_context_t *, void *, void **);

@@ -1286,7 +1286,7 @@ static void plan_step_push_enum(pTHX_ Affix * affix,
     SV * sv = perl_stack_frame[step->data.index];
     void * c_arg_ptr = (char *)args_buffer + step->data.c_arg_offset;
     c_args[step->data.index] = c_arg_ptr;
-    sv2ptr(aTHX_ affix, sv, c_arg_ptr, type->meta.enum_info.underlying_type);
+    sv2ptr(aTHX_ affix, sv, c_arg_ptr, type);
 }
 
 static void plan_step_push_complex(pTHX_ Affix * affix,
@@ -2095,10 +2095,10 @@ static infix_library_t * _get_lib_from_registry(pTHX_ const char * path) {
 }
 
 static int Affix_cv_free(pTHX_ SV * sv, MAGIC * mg) {
-    dMY_CXT;
     Affix * affix = (Affix *)mg->mg_ptr;
     if (affix) {
-        if (affix->lib_handle != nullptr && MY_CXT.lib_registry != nullptr) {
+        dMY_CXT;
+        if (!PL_dirty && affix->lib_handle != nullptr && MY_CXT.lib_registry != nullptr) {
             hv_iterinit(MY_CXT.lib_registry);
             HE * he;
             while ((he = hv_iternext(MY_CXT.lib_registry))) {
@@ -3154,7 +3154,7 @@ static void pull_uint128(pTHX_ Affix * affix, SV * sv, const infix_type * t, voi
 
 static void pull_struct(pTHX_ Affix * affix, SV * sv, const infix_type * type, void * p) {
     HV * hv;
-    bool live = sv_isobject(sv) && sv_derived_from(sv, "Affix::Live");
+    bool live = (sv_isobject(sv) && sv_derived_from(sv, "Affix::Live")) || (SvROK(sv) && sv_isobject(SvRV(sv)) && sv_derived_from(SvRV(sv), "Affix::Live"));
 
     if (SvROK(sv) && SvTYPE(SvRV(sv)) == SVt_PVHV)
         hv = (HV *)SvRV(sv);
@@ -3173,19 +3173,11 @@ static void pull_union(pTHX_ Affix * affix, SV * sv, const infix_type * type, vo
     }
     else {
         hv = newHV();
-        sv_setsv(sv, sv_2mortal(newRV_noinc(MUTABLE_SV(hv))));
+        SV * rv = newRV_noinc(MUTABLE_SV(hv));
+        sv_bless(rv, gv_stashpv("Affix::Live", GV_ADD));
+        sv_setsv(sv, sv_2mortal(rv));
     }
-
-    // Iterate over union members
-    for (size_t i = 0; i < type->meta.aggregate_info.num_members; ++i) {
-        const infix_struct_member * member = &type->meta.aggregate_info.members[i];
-        if (member->name) {
-            // Create a pin for this member (reference to magic scalar)
-            SV * val_sv = newSV(0);
-            _pin_sv(aTHX_ val_sv, member->type, (char *)p + member->offset, false);
-            hv_store(hv, member->name, strlen(member->name), val_sv, 0);
-        }
-    }
+    _populate_hv_from_c_struct(aTHX_ affix, hv, type, p, true);
 }
 
 // Helper for portability if strnlen isn't available
@@ -3278,26 +3270,30 @@ static void pull_enum_dualvar(pTHX_ Affix * affix, SV * sv, const infix_type * t
     const char * type_name = infix_type_get_name(type);
 
     if (type_name) {
-        SV ** enum_map_ptr = hv_fetch(MY_CXT.enum_registry, type_name, strlen(type_name), 0);
-        if (enum_map_ptr) {
-            HV * enum_map = (HV *)SvRV(*enum_map_ptr);
+        SV ** enum_info_ptr = hv_fetch(MY_CXT.enum_registry, type_name, strlen(type_name), 0);
+        if (enum_info_ptr) {
+            HV * enum_info = (HV *)SvRV(*enum_info_ptr);
+            SV ** enum_map_ptr = hv_fetch(enum_info, "vals", 4, 0);
+            if (enum_map_ptr) {
+                HV * enum_map = (HV *)SvRV(*enum_map_ptr);
 
-            // Look up the integer value in the hash
-            // Keys in Perl hashes are strings, so we format the IV.
-            char key[64];
-            snprintf(key, 64, "%" IVdf, val);
+                // Look up the integer value in the hash
+                // Keys in Perl hashes are strings, so we format the IV.
+                char key[64];
+                snprintf(key, 64, "%" IVdf, val);
 
-            SV ** name_sv = hv_fetch(enum_map, key, strlen(key), 0);
-            if (name_sv && SvPOK(*name_sv)) {
-                // Set the String Value (creating Dualvar)
-                // sv_setpv overwrites the IV. We need to set PV while keeping IOK.
-                const char * name_str = SvPV_nolen(*name_sv);
-                sv_setpv(sv, name_str);  // Sets PV, clears IV? No, usually clears flags, right?
+                SV ** name_sv = hv_fetch(enum_map, key, strlen(key), 0);
+                if (name_sv && SvPOK(*name_sv)) {
+                    // Set the String Value (creating Dualvar)
+                    // sv_setpv overwrites the IV. We need to set PV while keeping IOK.
+                    const char * name_str = SvPV_nolen(*name_sv);
+                    sv_setpv(sv, name_str);  // Sets PV, clears IV? No, usually clears flags, right?
 
-                // Force dualvar state by manually reinstating the IV
-                SvIV_set(sv, val);
-                SvIOK_on(sv);  // It is valid Integer
-                // SvPOK is on from sv_setpv
+                    // Force dualvar state by manually reinstating the IV
+                    SvIV_set(sv, val);
+                    SvIOK_on(sv);  // It is valid Integer
+                    // SvPOK is on from sv_setpv
+                }
             }
         }
     }
@@ -3903,6 +3899,27 @@ void sv2ptr(pTHX_ Affix * affix, SV * perl_sv, void * c_ptr, const infix_type * 
         push_reverse_trampoline(aTHX_ affix, type, perl_sv, c_ptr);
         break;
     case INFIX_TYPE_ENUM:
+        if (SvPOK(perl_sv)) {
+            dMY_CXT;
+            const char * type_name = infix_type_get_name(type);
+            if (type_name) {
+                SV ** enum_info_ptr = hv_fetch(MY_CXT.enum_registry, type_name, strlen(type_name), 0);
+                if (enum_info_ptr) {
+                    HV * enum_info = (HV *)SvRV(*enum_info_ptr);
+                    SV ** enum_map_ptr = hv_fetch(enum_info, "consts", 6, 0);
+                    if (enum_map_ptr) {
+                        HV * enum_map = (HV *)SvRV(*enum_map_ptr);
+                        STRLEN len;
+                        const char * str = SvPV(perl_sv, len);
+                        SV ** val_sv = hv_fetch(enum_map, str, len, 0);
+                        if (val_sv) {
+                            sv2ptr(aTHX_ affix, *val_sv, c_ptr, type->meta.enum_info.underlying_type);
+                            return;
+                        }
+                    }
+                }
+            }
+        }
         sv2ptr(aTHX_ affix, perl_sv, c_ptr, type->meta.enum_info.underlying_type);
         break;
     default:
@@ -4101,18 +4118,22 @@ XS_INTERNAL(Affix_Lib_DESTROY) {
     if (MY_CXT.lib_registry) {
         hv_iterinit(MY_CXT.lib_registry);
         HE * he;
+        SV * key_to_delete = nullptr;
         while ((he = hv_iternext(MY_CXT.lib_registry))) {
             SV * entry_sv = HeVAL(he);
             LibRegistryEntry * entry = INT2PTR(LibRegistryEntry *, SvIV(entry_sv));
             if (entry->lib == lib) {
                 entry->ref_count--;
                 if (entry->ref_count == 0) {
+                    key_to_delete = sv_2mortal(newSVsv(HeKEY_sv(he)));
                     infix_library_close(entry->lib);
                     safefree(entry);
-                    hv_delete_ent(MY_CXT.lib_registry, HeKEY_sv(he), G_DISCARD, 0);
                 }
                 break;
             }
+        }
+        if (key_to_delete) {
+            hv_delete_ent(MY_CXT.lib_registry, key_to_delete, G_DISCARD, 0);
         }
     }
     XSRETURN_EMPTY;
@@ -4219,8 +4240,17 @@ static int Affix_free_pin(pTHX_ SV * sv, MAGIC * mg) {
     Affix_Pin * pin = (Affix_Pin *)mg->mg_ptr;
     if (pin == nullptr)
         return 0;
-    if (pin->managed && pin->pointer)
+    if (pin->destructor && pin->pointer) {
+        pin->destructor(pin->pointer);
+    }
+    else if (pin->managed && pin->pointer)
         safefree(pin->pointer);
+
+    if (pin->destructor_lib_sv) {
+        if (!PL_dirty)
+            SvREFCNT_dec(pin->destructor_lib_sv);
+    }
+
     if (pin->type_arena != nullptr)
         infix_arena_destroy(pin->type_arena);
     safefree(pin);
@@ -4249,15 +4279,37 @@ static int Affix_get_pin(pTHX_ SV * sv, MAGIC * mg) {
 
             return 0;
         }
+
+        if (pointee->category == INFIX_TYPE_VOID) {
+            sv_setuv(sv, PTR2UV(pin->pointer));
+            return 0;
+        }
+
+        if (pointee->category == INFIX_TYPE_STRUCT || pointee->category == INFIX_TYPE_UNION) {
+            HV * hv = newHV();
+            SV * rv = newRV_noinc(MUTABLE_SV(hv));
+            sv_bless(rv, gv_stashpv("Affix::Live", GV_ADD));
+            _populate_hv_from_c_struct(aTHX_ nullptr, hv, pointee, pin->pointer, true);
+            sv_setsv(sv, rv);
+            SvREFCNT_dec(rv);
+            return 0;
+        }
+
+        if (pointee->category == INFIX_TYPE_ARRAY) {
+            Affix_Pin * new_pin;
+            Newxz(new_pin, 1, Affix_Pin);
+            new_pin->pointer = pin->pointer;
+            new_pin->managed = false;
+            new_pin->type_arena = infix_arena_create(256);
+            new_pin->type = _copy_type_graph_to_arena(new_pin->type_arena, pointee);
+
+            sv_setsv(sv, sv_2mortal(_new_pointer_obj(aTHX_ new_pin)));
+            return 0;
+        }
     }
 
     if (pin->type) {
-        if (pin->type->category == INFIX_TYPE_POINTER &&
-            pin->type->meta.pointer_info.pointee_type->category == INFIX_TYPE_VOID) {
-            sv_setuv(sv, PTR2UV(pin->pointer));
-        }
-        else
-            ptr2sv(aTHX_ nullptr, pin->pointer, sv, pin->type);
+        ptr2sv(aTHX_ nullptr, pin->pointer, sv, pin->type);
     }
     return 0;
 }
@@ -4664,19 +4716,23 @@ XS_INTERNAL(Affix_END) {
 XS_INTERNAL(Affix_register_enum_values) {
     dXSARGS;
     dMY_CXT;
-    if (items != 2)
-        croak_xs_usage(cv, "name, values_hashref");
+    if (items != 3)
+        croak_xs_usage(cv, "name, values_hashref, consts_hashref");
 
     const char * name = SvPV_nolen(ST(0));
     SV * values_rv = ST(1);
+    SV * consts_rv = ST(2);
 
     if (!SvROK(values_rv) || SvTYPE(SvRV(values_rv)) != SVt_PVHV)
         croak("Enum values must be a Hash Reference { Int => String }");
+    if (!SvROK(consts_rv) || SvTYPE(SvRV(consts_rv)) != SVt_PVHV)
+        croak("Enum constants must be a Hash Reference { String => Int }");
 
-    // Store in registry. We create a copy or ref?
-    // Let's store a new Reference to the HV to keep it alive.
-    SV * hv_ref = newRV_inc(SvRV(values_rv));
+    HV * enum_info = newHV();
+    (void)hv_store(enum_info, "vals", 4, newRV_inc(SvRV(values_rv)), 0);
+    (void)hv_store(enum_info, "consts", 6, newRV_inc(SvRV(consts_rv)), 0);
 
+    SV * hv_ref = newRV_noinc(MUTABLE_SV(enum_info));
     if (!hv_store(MY_CXT.enum_registry, name, strlen(name), hv_ref, 0))
         SvREFCNT_dec(hv_ref);
     XSRETURN_EMPTY;
@@ -4709,6 +4765,7 @@ XS_INTERNAL(Affix_typedef) {
     }
     sv_catpv(def_sv, ";");
     PING;
+    warn("Affix: Registering types: %s", SvPV_nolen(def_sv));
     if (infix_register_types(MY_CXT.registry, SvPV_nolen(def_sv)) != INFIX_SUCCESS) {
         SV * err_sv = _format_parse_error(aTHX_ "in typedef", SvPV_nolen(def_sv), infix_get_last_error());
         warn_sv(err_sv);
@@ -4870,7 +4927,7 @@ XS_INTERNAL(Affix_sv_dump) {
     XSRETURN_EMPTY;
 }
 
-static SV * _new_pointer_obj(pTHX_ Affix_Pin * pin) {
+SV * _new_pointer_obj(pTHX_ Affix_Pin * pin) {
     SV * data_sv = newSV(0);
     sv_setiv(data_sv, PTR2IV(pin));
     SvUPGRADE(data_sv, SVt_PVMG);
@@ -4915,7 +4972,7 @@ XS_INTERNAL(Affix_malloc) {
 
     void * ptr = safemalloc(size);
     Affix_Pin * pin;
-    Newx(pin, 1, Affix_Pin);
+    Newxz(pin, 1, Affix_Pin);
     pin->size = size;
     pin->pointer = ptr;
     pin->managed = true;
@@ -5105,8 +5162,7 @@ XS_INTERNAL(Affix_cast) {
             SV * rv = newRV_noinc(MUTABLE_SV(hv));
             sv_bless(rv, gv_stashpv("Affix::Live", GV_ADD));
             _populate_hv_from_c_struct(aTHX_ nullptr, hv, new_type, ptr_val, true);
-            sv_setsv(ret_val, rv);
-            SvREFCNT_dec(rv);
+            ret_val = sv_2mortal(rv);
         }
         else if (new_type->category == INFIX_TYPE_UNION) {
             // Unions are always live!
@@ -5167,6 +5223,40 @@ XS_INTERNAL(Affix_own) {
     // Return current state as fast booleans (PL_sv_yes/no are essentially singletons)
     ST(0) = pin->managed ? &PL_sv_yes : &PL_sv_no;
     XSRETURN(1);
+}
+
+XS_INTERNAL(Affix_attach_destructor) {
+    dXSARGS;
+    if (items < 2)
+        croak_xs_usage(cv, "pin, destructor_ptr, [lib_obj]");
+
+    Affix_Pin * pin = _get_pin_from_sv(aTHX_ ST(0));
+    if (!pin) {
+        warn("First argument to attach_destructor must be a pinned pointer");
+        XSRETURN_UNDEF;
+    }
+
+    void * destructor_ptr = nullptr;
+    if (SvIOK(ST(1)))
+        destructor_ptr = INT2PTR(void *, SvUV(ST(1)));
+    else {
+        Affix_Pin * dpin = _get_pin_from_sv(aTHX_ ST(1));
+        if (dpin)
+            destructor_ptr = dpin->pointer;
+    }
+
+    if (!destructor_ptr) {
+        warn("Destructor pointer cannot be null");
+        XSRETURN_UNDEF;
+    }
+
+    pin->destructor = (void (*)(void *))destructor_ptr;
+
+    if (items > 2 && sv_isobject(ST(2)) && sv_derived_from(ST(2), "Affix::Lib")) {
+        pin->destructor_lib_sv = newSVsv(ST(2));
+    }
+
+    XSRETURN_YES;
 }
 
 XS_INTERNAL(Affix_errno) {
@@ -5479,7 +5569,7 @@ XS_INTERNAL(Affix_strdup) {
     dup[len] = '\0';
 
     Affix_Pin * pin;
-    Newx(pin, 1, Affix_Pin);
+    Newxz(pin, 1, Affix_Pin);
     pin->pointer = dup;
     pin->managed = true;
     pin->size = len + 1;
@@ -5531,14 +5621,34 @@ void _populate_hv_from_c_struct(pTHX_ Affix * affix, HV * hv, const infix_type *
         const infix_struct_member * member = &type->meta.aggregate_info.members[i];
         if (member->name) {
             void * member_ptr = (char *)p + member->offset;
-            SV * member_sv = newSV(0);
+            SV * member_sv = nullptr;
 
             if (live && !member->is_bitfield) {
-                // Live mode: Create a Pin for this member so modifications reflect in C memory
-                _pin_sv(aTHX_ member_sv, member->type, member_ptr, false);
+                // Live mode: Create a Pin or Live view for this member
+                if (member->type->category == INFIX_TYPE_STRUCT || member->type->category == INFIX_TYPE_UNION) {
+                    HV * sub_hv = newHV();
+                    SV * sub_rv = newRV_noinc(MUTABLE_SV(sub_hv));
+                    sv_bless(sub_rv, gv_stashpv("Affix::Live", GV_ADD));
+                    _populate_hv_from_c_struct(aTHX_ affix, sub_hv, member->type, member_ptr, true);
+                    member_sv = sub_rv;
+                }
+                else if (member->type->category == INFIX_TYPE_ARRAY) {
+                    Affix_Pin * sub_pin;
+                    Newxz(sub_pin, 1, Affix_Pin);
+                    sub_pin->pointer = member_ptr;
+                    sub_pin->managed = false;
+                    sub_pin->type_arena = infix_arena_create(256);
+                    sub_pin->type = _copy_type_graph_to_arena(sub_pin->type_arena, member->type);
+                    member_sv = _new_pointer_obj(aTHX_ sub_pin);
+                }
+                else {
+                    member_sv = newSV(0);
+                    _pin_sv(aTHX_ member_sv, member->type, member_ptr, false);
+                }
             }
             else if (member->is_bitfield) {
                 // Bitfield pull: mask and shift
+                member_sv = newSV(0);
                 size_t sz = infix_type_get_size(member->type);
                 uint64_t raw = 0;
                 memcpy(&raw, member_ptr, sz);
@@ -5547,9 +5657,12 @@ void _populate_hv_from_c_struct(pTHX_ Affix * affix, HV * hv, const infix_type *
                 sv_setuv(member_sv, val);
             }
             else {
+                member_sv = newSV(0);
                 ptr2sv(aTHX_ affix, member_ptr, member_sv, member->type);
             }
-            hv_store(hv, member->name, strlen(member->name), member_sv, 0);
+
+            if (member_sv)
+                hv_store(hv, member->name, strlen(member->name), member_sv, 0);
         }
     }
 }
@@ -5661,11 +5774,14 @@ XS_INTERNAL(Affix_pin_get_at) {
     IV index = SvIV(ST(1));
     if (!pin || !pin->type)
         croak("Not a valid pinned pointer");
-    const infix_type * elem_type = pin->type;
-    if (elem_type->category == INFIX_TYPE_ARRAY)
-        elem_type = elem_type->meta.array_info.element_type;
-    else if (elem_type->category == INFIX_TYPE_POINTER)
-        elem_type = elem_type->meta.pointer_info.pointee_type;
+    const infix_type * type = pin->type;
+    const infix_type * elem_type = type;
+    if (type->category == INFIX_TYPE_ARRAY)
+        elem_type = type->meta.array_info.element_type;
+    else if (type->category == INFIX_TYPE_POINTER && type->meta.pointer_info.pointee_type->category == INFIX_TYPE_VOID)
+        elem_type = type->meta.pointer_info.pointee_type;
+    else
+        croak("Cannot index into non-aggregate type");
 
     size_t elem_size = infix_type_get_size(elem_type);
     if (elem_size == 0 && elem_type->category == INFIX_TYPE_VOID) {
@@ -5675,9 +5791,31 @@ XS_INTERNAL(Affix_pin_get_at) {
     if (elem_size == 0)
         croak("Cannot index into zero-sized type");
     void * target = (char *)pin->pointer + (index * elem_size);
-    SV * res = sv_newmortal();
-    ptr2sv(aTHX_ nullptr, target, res, elem_type);
-    ST(0) = res;
+
+    if (elem_type->category == INFIX_TYPE_STRUCT || elem_type->category == INFIX_TYPE_UNION) {
+        HV * hv = newHV();
+        SV * rv = newRV_noinc(MUTABLE_SV(hv));
+        sv_bless(rv, gv_stashpv("Affix::Live", GV_ADD));
+        _populate_hv_from_c_struct(aTHX_ nullptr, hv, elem_type, target, true);
+        ST(0) = sv_2mortal(rv);
+    }
+    else if (elem_type->category == INFIX_TYPE_ARRAY) {
+        // Return a new Affix::Pointer for this sub-array (LiveArray view)
+        Affix_Pin * new_pin;
+        Newxz(new_pin, 1, Affix_Pin);
+        new_pin->pointer = target;
+        new_pin->managed = false;
+        // We need to keep the type info alive. For now, copy it.
+        new_pin->type_arena = infix_arena_create(256);
+        new_pin->type = _copy_type_graph_to_arena(new_pin->type_arena, elem_type);
+
+        ST(0) = sv_2mortal(_new_pointer_obj(aTHX_ new_pin));
+    }
+    else {
+        SV * res = sv_newmortal();
+        ptr2sv(aTHX_ nullptr, target, res, elem_type);
+        ST(0) = res;
+    }
     XSRETURN(1);
 }
 
@@ -5690,11 +5828,14 @@ XS_INTERNAL(Affix_pin_set_at) {
     SV * val_sv = ST(2);
     if (!pin || !pin->type)
         croak("Not a valid pinned pointer");
-    const infix_type * elem_type = pin->type;
-    if (elem_type->category == INFIX_TYPE_ARRAY)
-        elem_type = elem_type->meta.array_info.element_type;
-    else if (elem_type->category == INFIX_TYPE_POINTER)
-        elem_type = elem_type->meta.pointer_info.pointee_type;
+    const infix_type * type = pin->type;
+    const infix_type * elem_type = type;
+    if (type->category == INFIX_TYPE_ARRAY)
+        elem_type = type->meta.array_info.element_type;
+    else if (type->category == INFIX_TYPE_POINTER && type->meta.pointer_info.pointee_type->category == INFIX_TYPE_VOID)
+        elem_type = type->meta.pointer_info.pointee_type;
+    else
+        croak("Cannot index into non-aggregate type");
 
     size_t elem_size = infix_type_get_size(elem_type);
     if (elem_size == 0 && elem_type->category == INFIX_TYPE_VOID) {
@@ -5842,7 +5983,7 @@ void boot_Affix(pTHX_ CV * cv) {
 
         // Type registry
         (void)newXSproto_portable("Affix::_typedef", Affix_typedef, __FILE__, "$;$");
-        (void)newXSproto_portable("Affix::_register_enum_values", Affix_register_enum_values, __FILE__, "$;$");
+        (void)newXSproto_portable("Affix::_register_enum_values", Affix_register_enum_values, __FILE__, "$$$");
         (void)newXSproto_portable("Affix::types", Affix_defined_types, __FILE__, "");
 
         // Debugging
@@ -5879,6 +6020,7 @@ void boot_Affix(pTHX_ CV * cv) {
         (void)newXSproto_portable("Affix::_pin_size", Affix_pin_size, __FILE__, "$");
         (void)newXSproto_portable("Affix::_pin_get_at", Affix_pin_get_at, __FILE__, "$$");
         (void)newXSproto_portable("Affix::_pin_set_at", Affix_pin_set_at, __FILE__, "$$$");
+        (void)newXSproto_portable("Affix::_attach_destructor", Affix_attach_destructor, __FILE__, "$$;$");
     }
 
     XSUB_EXPORT(coerce, "$$", "core");

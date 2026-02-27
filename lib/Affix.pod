@@ -190,9 +190,32 @@ Registers a named type alias. This is required for:
 
 =item 2. B<Reusability>: Defining a complex signature once and using it in multiple functions.
 
-=item 3. B<Smart Enums>: Generating Perl constants in your package.
+=item 3. B<Smart Enums>: Generating Perl constants in your package and enabling dualvar marshalling (string names and integer values).
 
 =back
+
+=head2 C<attach_destructor( $pin, $destructor, [$lib] )>
+
+    my $p = malloc(16);
+    my $free_ptr = find_symbol(libc(), 'free');
+    attach_destructor($p, $free_ptr, libc());
+
+Attaches a custom C function as a destructor to a managed pin. When the pin goes out of scope, the destructor will be
+called with the pointer address as its only argument.
+
+This is useful for C libraries that require specific cleanup functions (e.g. C<SDL_DestroyWindow>, C<free>, etc.).
+
+=head2 C<ThisCall( $callback_or_signature )>
+
+    # Prepend 'this' pointer to a callback signature
+    my $cb = ThisCall Callback[ [Int] => Void ];
+    # signature is now: *((*void,int)->void)
+
+    # Also works on raw signatures
+    my $sig = ThisCall '*((int)->void)';
+
+A helper for C++ C<__thiscall> style callbacks. It prepends a C<Pointer[Void]> (the C<this> pointer) to the argument
+list of a callback definition or signature string.
 
 =head2 C<coerce( $type, $value )>
 
@@ -661,14 +684,18 @@ Structs are the bread and butter of C APIs. In Affix, they map to B<Perl Hash Re
 
 =head4 C<LiveStruct>
 
-Standard C<Struct> returns are deep-copied into Perl hashes. Modifying the hash does not affect the original C memory.
-C<LiveStruct> returns a zero-copy "live" view of the struct.
+Standard C<Struct> returns are deep-copied into Perl hashes. Modifying the hash does not affect the original C memory. C<LiveStruct> returns a zero-copy "live" view of the
+struct or union.
 
     typedef MyStruct => LiveStruct[ id => Int, value => Double ];
     my $live = get_struct(); # Returns blessed Affix::Live hash
     $live->{id} = 42;        # Writes directly to C memory
 
-Live structs are blessed into the C<Affix::Live> class.
+Live aggregates are blessed into the C<Affix::Live> class and implement the C<TIEHASH> interface, meaning they
+behave like standard Perl hashes (C<keys>, C<each>, etc. all work).
+
+B<Recursive Liveness:> When accessing a nested struct member within a live view, Affix automatically returns another
+live view (an C<Affix::Live> hash) instead of a copy, allowing deep modifications to C memory.
 
 B<Nested Structs:> Affix handles deep structures automatically.
 
@@ -884,6 +911,14 @@ You can pass Perl subroutines to C functions that expect function pointers.
     set_handler(sub ($status, $msg) {
         say "Received status $status: $msg";
     });
+
+=head3 C<params()>
+
+Callback objects returned by C<Callback[ ... ]> have a C<params()> method that returns an array reference of the
+parameter type objects. This can be used to introspect or modify the callback signature before it is used.
+
+    my $cb = Callback[ [Int] => Void ];
+    push @{ $cb->params }, String; # Add an argument manually
 
 B<Note:> The callback is valid only as long as the C function holds onto it. If the C library stores the function
 pointer globally, ensure your Perl code keeps the reference alive if necessary (though Affix handles the trampoline

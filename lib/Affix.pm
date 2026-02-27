@@ -5,6 +5,7 @@ package Affix v1.0.8 {    # 'FFI' is my middle name!
     #~ |--7~\-----4---44-/777--------------|------7/4~-------------------------||
     #~ |-----------------------------------|-----------------------------------||
     use v5.40;
+    use Exporter           qw[import];
     use vars               qw[@EXPORT_OK @EXPORT %EXPORT_TAGS];
     use warnings::register qw[Type];
     use feature            qw[class];
@@ -61,6 +62,7 @@ package Affix v1.0.8 {    # 'FFI' is my middle name!
             Size_t SSize_t
             String WString
             Pointer Array LiveArray Struct LiveStruct Union Enum Callback CodeRef Complex Vector
+            ThisCall attach_destructor
             Packed VarArgs
             SV
             File PerlIO
@@ -83,6 +85,10 @@ package Affix v1.0.8 {    # 'FFI' is my middle name!
     #
     sub libm() { CORE::state $m //= find_library('m'); $m }
     sub libc() { CORE::state $c //= find_library('c'); $c }
+
+    sub attach_destructor ( $pin, $destructor, $lib //= () ) {
+        Affix::_attach_destructor( $pin, $destructor, $lib );
+    }
     #
     our $OS = $^O;
     my $is_win = $OS eq 'MSWin32';
@@ -238,6 +244,16 @@ package Affix v1.0.8 {    # 'FFI' is my middle name!
         )
     }x;
 
+    sub _is_type ($thing) {
+        return 1 if builtin::blessed($thing) && $thing->isa('Affix::Type');
+        return 0 if !defined $thing || ref $thing;
+        # Strictly check for signature characters
+        return 1 if $thing =~ /^[\*\[\{\!<@]/;
+        # Primitive types must match exactly or be followed by a delimiter
+        return 1 if $thing =~ /^(?:void|bool|[usw]?char|u?short|u?int|u?long(?:long)?|float|double|longdouble|s?size_t|s?int\d+|uint\d+|float\d+|m\d+[a-z]*)$/;
+        return 0;
+    }
+
     # Abstract
     sub Void ()       { Affix::Type::Primitive->new( name => 'void' ) }
     sub Bool ()       { Affix::Type::Primitive->new( name => 'bool' ) }
@@ -296,10 +312,18 @@ package Affix v1.0.8 {    # 'FFI' is my middle name!
     }
 
     # Struct[ id => Int, score => Double ] -> {id:int,score:double}
-    sub Struct : prototype($) { Affix::Type::Struct->new( members => $_[0] ) }
+    sub Struct : prototype($) {
+        Affix::Type::Struct->new( members => $_[0] );
+    }
 
     sub LiveStruct : prototype($) {
-        my $s = Struct( $_[0] );
+        my $s = $_[0];
+        $s = $s->() if ref($s) eq 'CODE';
+        if ( ref($s) eq 'ARRAY' ) {
+            $s = Struct($s);
+        }
+        # If it's a Type object, stringify it
+        $s = "$s" if builtin::blessed($s) && $s->isa('Affix::Type');
         return '+' . $s;
     }
 
@@ -308,7 +332,7 @@ package Affix v1.0.8 {    # 'FFI' is my middle name!
 
     sub Array : prototype($) {
         my ( $type, $size ) = @{ $_[0] };
-        Affix::Type::Array->new( type => $type, count => $size );
+        return Affix::Type::Array->new( type => $type, count => $size );
     }
 
     sub LiveArray : prototype($) {
@@ -333,6 +357,21 @@ package Affix v1.0.8 {    # 'FFI' is my middle name!
     sub Vector : prototype($) {
         my ( $size, $type ) = @{ $_[0] };
         return "v[$size:$type]";
+    }
+
+    sub ThisCall : prototype($) {
+        my $cb = $_[0];
+        if ( builtin::blessed($cb) && $cb->isa('Affix::Type::Callback') ) {
+            # Prepend 'this' pointer
+            unshift @{ $cb->params }, Pointer [Void];
+            return $cb;
+        }
+        elsif ( !ref $cb && $cb =~ /^\*\(\((.*)\)->(.*)\)$/ ) {
+            my ( $args, $ret ) = ( $1, $2 );
+            $args = $args ? "*void,$args" : "*void";
+            return "*(($args)->$ret)";
+        }
+        return $cb;
     }
 
     # Enum[ Int ] -> e:int
@@ -391,14 +430,14 @@ package Affix v1.0.8 {    # 'FFI' is my middle name!
             my $curr = $args->[$i];
             my $next = $args->[ $i + 1 ];
 
-            # Heuristic: If current is NOT a type, and next IS a type, treat as Key => Value
-            if ( defined $next && $curr !~ $IS_TYPE && $next =~ $IS_TYPE ) {
+            # Key => Value detection: Strictly require next to be a blessed Type object, AND curr NOT to be one.
+            if ( defined $next && ( !ref($curr) || !builtin::blessed($curr) || !$curr->isa('Affix::Type') ) && builtin::blessed($next) && $next->isa('Affix::Type') ) {
                 push @parts, "$curr:$next";
                 $i++;    # Skip the type
             }
             else {
-                # Anonymous member
-                push @parts, $curr;
+                # Anonymous member (including when $curr itself is a Type object but not followed by another Type object)
+                push @parts, "$curr";
             }
         }
         my $content = join( ',', @parts );
@@ -427,12 +466,23 @@ package Affix v1.0.8 {    # 'FFI' is my middle name!
                     }
 
                     # Register values map for Dualvar support in XS
-                    Affix::_register_enum_values( $clean_name, $val_map );
+                    Affix::_register_enum_values( $clean_name, $val_map, $const_map );
                 }
 
                 # Register Definition with XS
                 # The object stringifies to its signature (e.g. "e:int" or "{...}")
-                Affix::_typedef("$clean_name = $type");
+                if ( builtin::blessed($type) && $type->isa('Affix::Type') ) {
+                    Affix::_typedef("$clean_name = $type");
+                }
+                else {
+                    # Handle raw strings or names starting with @
+                    if ( $type =~ /^@/ ) {
+                        Affix::_typedef($type);
+                    }
+                    else {
+                        Affix::_typedef("$clean_name = $type");
+                    }
+                }
             }
 
             # Install Type Constructor: MachineState() -> Ref object
@@ -443,7 +493,7 @@ package Affix v1.0.8 {    # 'FFI' is my middle name!
                 # Avoid redefining if it exists (though arguably typedef SHOULD redefine)
                 if ( !defined &{"${pkg}::${name}"} ) {
                     *{"${pkg}::${name}"} = sub {
-                        return '@' . $clean_name;
+                        return Affix::Type::Reference->new( name => $clean_name );
                     };
                 }
             }
@@ -721,8 +771,8 @@ package Affix v1.0.8 {    # 'FFI' is my middle name!
                     my $next = $members->[ $i + 1 ];
 
                     # Heuristic: Key => Value detection
-                    # If $next looks like a type (or is a Type object), treat $curr as name
-                    if ( defined $next && $self->_is_type($next) && !$self->_is_type($curr) ) {
+                    # If $next is a Type object, treat $curr as name (unless $curr is also a Type object)
+                    if ( defined $next && builtin::blessed($next) && $next->isa('Affix::Type') && ( !builtin::blessed($curr) || !$curr->isa('Affix::Type') ) ) {
                         my $name = $curr;
                         my $type = $next;
                         $i++;
@@ -778,6 +828,9 @@ package Affix v1.0.8 {    # 'FFI' is my middle name!
             Affix::Type::Array : isa(Affix::Type) {
             field $type  : param;
             field $count : param;
+            use overload
+                '""'     => sub { shift->signature() },
+                fallback => 1;
 
             method signature() {
                 my $c = $count // '?';
@@ -786,6 +839,9 @@ package Affix v1.0.8 {    # 'FFI' is my middle name!
             } class    #
             Affix::Type::Pointer : isa(Affix::Type) {
             field $subtype : param;
+            use overload
+                '""'     => sub { shift->signature() },
+                fallback => 1;
 
             method signature() {
                 return '*' . ( $subtype // 'void' );
@@ -794,14 +850,21 @@ package Affix v1.0.8 {    # 'FFI' is my middle name!
             Affix::Type::Callback : isa(Affix::Type) {
             field $params : param;    # ArrayRef
             field $ret    : param;
+            use overload
+                '""'     => sub { shift->signature() },
+                fallback => 1;
+
+            method params() { $params }
 
             method signature() {
-                my $args = join( ',', @$params );
+                my @args = map { builtin::blessed($_) ? $_->signature : $_ } @$params;
+                my $args = join( ',', @args );
 
                 # Handle varargs marker placement if present
                 $args =~ s/,\;,/;/g;
                 $args =~ s/,\;$/;/;
-                return "*(($args)->$ret)";
+                my $r = builtin::blessed($ret) ? $ret->signature : $ret;
+                return "*(($args)->$r)";
             }
             }
     }
@@ -810,6 +873,7 @@ package Affix v1.0.8 {    # 'FFI' is my middle name!
         use overload
             '""'  => \&address,
             '@{}' => \&_as_array,
+            '%{}' => \&_as_hash,
             fallback => 1;
 
         sub address { Affix::address(shift) }
@@ -824,6 +888,53 @@ package Affix v1.0.8 {    # 'FFI' is my middle name!
             my @proxy;
             tie @proxy, 'Affix::Pointer::TiedArray', $self;
             return \@proxy;
+        }
+
+        sub _as_hash {
+            my $self = shift;
+            my %proxy;
+            tie %proxy, 'Affix::Pointer::TiedHash', $self;
+            return \%proxy;
+        }
+
+        sub attach_destructor {
+            my ( $self, $destructor, $lib ) = @_;
+            Affix::attach_destructor( $self, $destructor, $lib );
+        }
+    }
+
+    package Affix::Pointer::TiedHash {
+        use v5.40;
+        sub TIEHASH {
+            my ( $class, $ptr ) = @_;
+            # Return a blessed LiveStruct view
+            my $obj = $ptr->cast( "+" . $ptr->element_type );
+            return $obj;
+        }
+        sub FETCH {
+            my ( $self, $key ) = @_;
+            return $self->{$key};
+        }
+        sub STORE {
+            my ( $self, $key, $val ) = @_;
+            $self->{$key} = $val;
+        }
+        sub EXISTS {
+            my ( $self, $key ) = @_;
+            return exists $self->{$key};
+        }
+        sub FIRSTKEY {
+            my ($self) = @_;
+            keys %$self;
+            return each %$self;
+        }
+        sub NEXTKEY {
+            my ( $self, $last ) = @_;
+            return each %$self;
+        }
+        sub SCALAR {
+            my ($self) = @_;
+            return scalar %$self;
         }
     }
     package Affix::Pointer::TiedArray {
@@ -859,6 +970,31 @@ package Affix v1.0.8 {    # 'FFI' is my middle name!
         sub new {
             my ( $class, $ref ) = @_;
             return bless $ref // {}, $class;
+        }
+        sub FETCH {
+            my ( $self, $key ) = @_;
+            return $self->{$key};
+        }
+        sub STORE {
+            my ( $self, $key, $val ) = @_;
+            $self->{$key} = $val;
+        }
+        sub EXISTS {
+            my ( $self, $key ) = @_;
+            return exists $self->{$key};
+        }
+        sub FIRSTKEY {
+            my ($self) = @_;
+            keys %$self;
+            return each %$self;
+        }
+        sub NEXTKEY {
+            my ( $self, $last ) = @_;
+            return each %$self;
+        }
+        sub SCALAR {
+            my ($self) = @_;
+            return scalar %$self;
         }
     }
 };

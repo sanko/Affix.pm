@@ -7,8 +7,8 @@ typedef MyUnion => Union [ i => Int, f => Float ];
 my $mem = malloc( sizeof( MyUnion() ) );
 my $u   = cast( $mem, MyUnion() );
 
-# $u should be a hashref with Pins
-ok ref($u) eq 'HASH',  'Union is a HASH';
+# $u should be an Affix::Live object
+isa_ok $u, ['Affix::Live'], 'Union is an Affix::Live object';
 ok is_pin( \$u->{i} ), 'member i is a Pin';
 ok is_pin( \$u->{f} ), 'member f is a Pin';
 

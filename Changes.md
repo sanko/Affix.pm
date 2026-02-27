@@ -29,6 +29,8 @@ This release introduces a modernization of pointer handling, turning "Pins" into
     - Values are passed between Perl and C as decimal strings to maintain precision.
 - Added `Affix::Wrap->generate( $lib, $pkg, $file )` for static binding generation. This emits standalone Perl modules that depend only on `Affix`, eliminating the need for `Clang` or header files at runtime.
 - Recursive macro resolution support in Affix::Wrap for bitwise OR expressions like `(FLAG_A | FLAG_B)`.
+- Implemented the `TIEHASH` interface for `Affix::Live`. Zero-copy live views of C structs and unions can now be treated as standard Perl hashes (e.g., `keys %$live`, `each %$live`).
+- Added `params()` method to `Affix::Type::Callback` to allow inspecting and modifying callback parameters.
 
 ### Fixed
 
@@ -36,6 +38,16 @@ This release introduces a modernization of pointer handling, turning "Pins" into
 - Improved `_get_pin_from_sv` and `is_pin` in XS to safely handle both references to Pins and direct magical scalars (like those found in Unions).
 - Fixed an issue where blessing a return value could prematurely trigger 'set' magic on the underlying SV.
 - Fixed `Affix_pin_count` to correctly return the byte size for `Void*` pointers when known.
+- Fixed `typedef` parsing: Named types now return proper `Affix::Type::Reference` objects instead of strings, ensuring they are correctly resolved when nested in other aggregates.
+- Corrected a memory corruption bug in `Affix_malloc` and `Affix_strdup` caused by uninitialized `Affix_Pin` structures.
+- Fixed `Affix_cast` to correctly return blessed `Affix::Live` objects when the `+` hint is used for live struct views.
+- Improved Enum Marshalling:
+    - Fixed string-to-integer conversion when passing Perl strings to C functions expecting enums.
+    - Fixed `dualvar` behavior for enums returned from C, ensuring they correctly function as both strings and integers in Perl.
+- Hardened pointer indexing: Added strict type checks to `$ptr->[$i]` to ensure indexing is only performed on `Array` types or `Void*` (byte-indexed), preventing accidental memory corruption on simple pointers.
+- Fixed `ThisCall` to correctly handle `Corinna`-based callback objects.
+- Fixed missing exports: Added `use Exporter 'import'` and ensured `attach_destructor` is correctly exported.
+- Recursive Liveness: Nested struct members in a live view are now correctly returned as `Affix::Live` hash views rather than generic pointers.
 
 ## [v1.0.7] - 2026-02-15
 
