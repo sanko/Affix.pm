@@ -20,6 +20,10 @@ This release introduces a modernization of pointer handling, turning "Pins" into
     - `count()`: Returns the element count for Arrays, or byte size for Void pointers.
     - `size()`: Returns the total allocated size (for managed pointers).
     - `cast($type)`: Reinterprets the pointer.
+- 128-bit Integer Support:
+    - Fully implemented marshalling for `Int128` and `UInt128` (sint128/uint128) primitive types.
+    - Support includes forward calls, return values, and Pins.
+    - Values are passed between Perl and C as decimal strings to maintain precision.
 - Added `Affix::Wrap->generate( $lib, $pkg, $file )` for static binding generation. This emits standalone Perl modules that depend only on `Affix`, eliminating the need for `Clang` or header files at runtime.
 - Recursive macro resolution support in Affix::Wrap for bitwise OR expressions like `(FLAG_A | FLAG_B)`.
 

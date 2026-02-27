@@ -753,6 +753,20 @@ static void pull_uint128(pTHX_ Affix *, SV *, const infix_type *, void *);
         return;                                                                   \
     }
 
+#define DEFINE_I128_PUSH_HANDLER(name)                                            \
+    static void push_handler_##name(pTHX_ Affix * affix, SV * sv, void * c_ptr) { \
+        PERL_UNUSED_VAR(affix);                                                   \
+        sv_to_int128_safe(sv, c_ptr);                                             \
+        return;                                                                   \
+    }
+
+#define DEFINE_U128_PUSH_HANDLER(name)                                            \
+    static void push_handler_##name(pTHX_ Affix * affix, SV * sv, void * c_ptr) { \
+        PERL_UNUSED_VAR(affix);                                                   \
+        sv_to_uint128_safe(sv, c_ptr);                                            \
+        return;                                                                   \
+    }
+
 static Affix_Opcode get_opcode_for_type(const infix_type * type) {
     switch (type->category) {
     case INFIX_TYPE_PRIMITIVE:
@@ -911,6 +925,10 @@ DEFINE_IV_PUSH_HANDLER(sint32, int32_t)
 DEFINE_UV_PUSH_HANDLER(uint32, uint32_t)
 DEFINE_IV_PUSH_HANDLER(sint64, int64_t)
 DEFINE_UV_PUSH_HANDLER(uint64, uint64_t)
+#ifdef __SIZEOF_INT128__
+DEFINE_I128_PUSH_HANDLER(sint128)
+DEFINE_U128_PUSH_HANDLER(uint128)
+#endif
 static void push_handler_float16(pTHX_ Affix * affix, SV * sv, void * c_ptr) {
     PERL_UNUSED_VAR(affix);
     *(infix_float16_t *)c_ptr = float_to_half((float)SvNV(sv));
@@ -956,7 +974,10 @@ static void plan_step_push_sint128(pTHX_ Affix * affix,
                                    void * args_buffer,
                                    void ** c_args,
                                    void * ret_buffer) {
-    croak("128-bit integer marshalling not yet implemented");
+    SV * sv = perl_stack_frame[step->data.index];
+    void * ptr = (char *)args_buffer + step->data.c_arg_offset;
+    sv_to_int128_safe(sv, ptr);
+    c_args[step->data.index] = ptr;
 }
 static void plan_step_push_uint128(pTHX_ Affix * affix,
                                    Affix_Plan_Step * step,
@@ -964,7 +985,10 @@ static void plan_step_push_uint128(pTHX_ Affix * affix,
                                    void * args_buffer,
                                    void ** c_args,
                                    void * ret_buffer) {
-    croak("128-bit integer marshalling not yet implemented");
+    SV * sv = perl_stack_frame[step->data.index];
+    void * ptr = (char *)args_buffer + step->data.c_arg_offset;
+    sv_to_uint128_safe(sv, ptr);
+    c_args[step->data.index] = ptr;
 }
 #endif
 
@@ -1005,6 +1029,10 @@ static const Affix_Push_Handler primitive_push_handlers[] = {
     [INFIX_PRIMITIVE_FLOAT] = push_handler_float,
     [INFIX_PRIMITIVE_DOUBLE] = push_handler_double,
     [INFIX_PRIMITIVE_LONG_DOUBLE] = push_handler_long_double,
+#ifdef __SIZEOF_INT128__
+    [INFIX_PRIMITIVE_SINT128] = push_handler_sint128,
+    [INFIX_PRIMITIVE_UINT128] = push_handler_uint128,
+#endif
 };
 static void plan_step_push_pointer(pTHX_ Affix * affix,
                                    Affix_Plan_Step * step,
@@ -1759,6 +1787,22 @@ CASE_OP_PUSH_UINT64:                                                            
             c_args[step->data.index] = ptr;                                                                  \
             DISPATCH();                                                                                      \
         }                                                                                                    \
+CASE_OP_PUSH_SINT128:                                                                                        \
+        {                                                                                                    \
+            SV * sv = ST(step->data.index);                                                                  \
+            void * ptr = (char *)args_buffer + step->data.c_arg_offset;                                      \
+            sv_to_int128_safe(sv, ptr);                                                                      \
+            c_args[step->data.index] = ptr;                                                                  \
+            DISPATCH();                                                                                      \
+        }                                                                                                    \
+CASE_OP_PUSH_UINT128:                                                                                        \
+        {                                                                                                    \
+            SV * sv = ST(step->data.index);                                                                  \
+            void * ptr = (char *)args_buffer + step->data.c_arg_offset;                                      \
+            sv_to_uint128_safe(sv, ptr);                                                                     \
+            c_args[step->data.index] = ptr;                                                                  \
+            DISPATCH();                                                                                      \
+        }                                                                                                    \
 CASE_OP_PUSH_FLOAT16:                                                                                        \
         {                                                                                                    \
             SV * sv = ST(step->data.index);                                                                  \
@@ -1806,22 +1850,6 @@ CASE_OP_PUSH_LONGDOUBLE:                                                        
                 *(long double *)ptr = (long double)((flags & SVf_IVisUV) ? SvUVX(sv) : SvIVX(sv));           \
             else                                                                                             \
                 *(long double *)ptr = (long double)SvNV(sv);                                                 \
-            c_args[step->data.index] = ptr;                                                                  \
-            DISPATCH();                                                                                      \
-        }                                                                                                    \
-CASE_OP_PUSH_SINT128:                                                                                        \
-        {                                                                                                    \
-            SV * sv = ST(step->data.index);                                                                  \
-            void * ptr = (char *)args_buffer + step->data.c_arg_offset;                                      \
-            sv_to_int128_safe(sv, ptr);                                                                      \
-            c_args[step->data.index] = ptr;                                                                  \
-            DISPATCH();                                                                                      \
-        }                                                                                                    \
-CASE_OP_PUSH_UINT128:                                                                                        \
-        {                                                                                                    \
-            SV * sv = ST(step->data.index);                                                                  \
-            void * ptr = (char *)args_buffer + step->data.c_arg_offset;                                      \
-            sv_to_uint128_safe(sv, ptr);                                                                     \
             c_args[step->data.index] = ptr;                                                                  \
             DISPATCH();                                                                                      \
         }                                                                                                    \
@@ -1957,6 +1985,12 @@ CASE_OP_DONE:                                                                   
         case OP_RET_UINT64:                                                                                  \
             sv_setuv(TARG, *(uint64_t *)ret_buffer);                                                         \
             break;                                                                                           \
+        case OP_RET_SINT128:                                                                                 \
+            sv_from_int128_safe(TARG, ret_buffer);                                                           \
+            break;                                                                                           \
+        case OP_RET_UINT128:                                                                                 \
+            sv_from_uint128_safe(TARG, ret_buffer);                                                          \
+            break;                                                                                           \
         case OP_RET_FLOAT:                                                                                   \
             sv_setnv(TARG, (double)*(float *)ret_buffer);                                                    \
             break;                                                                                           \
@@ -1987,12 +2021,6 @@ CASE_OP_DONE:                                                                   
                     sv_setsv(TARG, &PL_sv_undef);                                                            \
                 break;                                                                                       \
             }                                                                                                \
-        case OP_RET_SINT128:                                                                                 \
-            sv_from_int128_safe(TARG, ret_buffer);                                                           \
-            break;                                                                                           \
-        case OP_RET_UINT128:                                                                                 \
-            sv_from_uint128_safe(TARG, ret_buffer);                                                          \
-            break;                                                                                           \
         case OP_RET_CUSTOM:                                                                                  \
         default:                                                                                             \
             if (affix->ret_pull_handler)                                                                     \
