@@ -1,4 +1,3 @@
-
 # Changelog
 
 All notable changes to Affix.pm will be documented in this file.
@@ -8,14 +7,28 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ## [Unreleased]
 
+This release introduces a modernization of pointer handling, turning "Pins" into first-class objects with native indexing support. In other words, you can now use `$ptr->[$n]` to access the nth element.
+
 ### Added
 
+- All pointers (Pins) returned by `malloc`, `calloc`, `cast`, etc., are now blessed into the `Affix::Pointer` class.
+- Added support for native Perl array indexing on pointers and arrays. You can now use `$ptr->[$i]` to read or write memory at an offset without manual casting.
+- Added several useful methods to `Affix::Pointer`:
+    - `address()`: Returns the virtual memory address.
+    - `type()`: Returns the L<infix> signature of the pointer.
+    - `element_type()`: Returns the signature of the pointed-to elements.
+    - `count()`: Returns the element count for Arrays, or byte size for Void pointers.
+    - `size()`: Returns the total allocated size (for managed pointers).
+    - `cast($type)`: Reinterprets the pointer.
 - Added `Affix::Wrap->generate( $lib, $pkg, $file )` for static binding generation. This emits standalone Perl modules that depend only on `Affix`, eliminating the need for `Clang` or header files at runtime.
 - Recursive macro resolution support in Affix::Wrap for bitwise OR expressions like `(FLAG_A | FLAG_B)`.
 
 ### Fixed
 
-- Affix::Wrap's regex driver should now parse complex pointers and array based function arguments.
+- Fixed the `clean` action in `Affix::Builder` which was failing due to an undefined `rmtree` call.
+- Improved `_get_pin_from_sv` and `is_pin` in XS to safely handle both references to Pins and direct magical scalars (like those found in Unions).
+- Fixed an issue where blessing a return value could prematurely trigger 'set' magic on the underlying SV.
+- Fixed `Affix_pin_count` to correctly return the byte size for `Void*` pointers when known.
 
 ## [v1.0.7] - 2026-02-15
 

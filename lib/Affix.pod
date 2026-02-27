@@ -519,14 +519,65 @@ Used for opaque handles or generic data.
 
 =head3 Pins (Managed Pointers)
 
-For manual memory management, use C<malloc>, C<calloc>, or C<cast>. These return B<Pins>. A Pin is a reference to a
-scalar holding the memory address, blessed with magic.
+For manual memory management, use C<malloc>, C<calloc>, or C<cast>. These return B<Pins>, which are objects of the
+C<Affix::Pointer> class. A Pin is a reference to a scalar holding the memory address, blessed with magic and
+overloaded for array-like access.
 
-    my $ptr = malloc(1024);   # Allocate 1024 bytes
-    my $view = cast($ptr, Int); # Treat it as an integer
+    my $ptr = malloc(1024);     # Allocate 1024 bytes (Pointer[Void])
+    my $view = cast($ptr, Int); # Treat it as an integer (Pointer[Int])
 
-    $$view = 123;             # Write 123 to the memory
-    free($ptr);               # Free it manually (optional, GC handles it otherwise)
+    $$view = 123;               # Write 123 to the memory (Compatibility)
+    $view->[0] = 456;           # Write 456 via array indexing
+    say $view->[0];             # Read back 456
+
+    free($ptr);                 # Release the memory
+
+=head4 C<Affix::Pointer> Methods
+
+=over
+
+=item C<address()>
+
+Returns the virtual memory address as a C<UInt64>.
+
+    say $ptr->address;
+
+=item C<type()>
+
+Returns the L<infix|https://github.com/sanko/infix/> signature of the pointer type.
+
+    say $ptr->type; # e.g. "[4:sint32]"
+
+=item C<element_type()>
+
+Returns the signature of the pointed-to element type.
+
+    say $ptr->element_type; # e.g. "sint32"
+
+=item C<count()>
+
+Returns the number of elements if the pin is an C<Array> type. For C<Void> pointers, returns the byte size if known.
+
+=item C<size()>
+
+Returns the total size of the allocated memory in bytes (only for managed pointers).
+
+=item C<cast( $type )>
+
+Reinterprets the pointer as a new type. See L<C<cast( ... )>|/cast( $ptr, $type )>.
+
+=back
+
+=head4 Array Indexing
+
+C<Affix::Pointer> objects overload array dereferencing (C<@$ptr>). This allows you to use standard Perl array syntax
+to access C memory without manual casting or pointer arithmetic.
+
+    my $array = calloc(10, Double);
+    $array->[5] = 3.14;
+    say $array->[5];
+
+For C<Void> pointers, indexing is byte-based (equivalent to C<char*>).
 
 =head2 Special Types
 

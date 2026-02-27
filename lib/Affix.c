@@ -3326,6 +3326,10 @@ static void pull_pointer_as_pin(pTHX_ Affix * affix, SV * sv, const infix_type *
 
     // Create the Reference
     SV * rv = sv_2mortal(newRV_noinc(obj_data));
+
+    // Bless into Affix::Pointer BEFORE attaching magic to avoid triggering 'set' during blessing
+    (void)sv_bless(rv, gv_stashpv("Affix::Pointer", GV_ADD));
+
     MAGIC * mg = sv_magicext(obj_data, nullptr, PERL_MAGIC_ext, &Affix_pin_vtbl, nullptr, 0);
     mg->mg_ptr = (char *)pin;
 
@@ -4239,6 +4243,10 @@ XS_INTERNAL(Affix_find_symbol) {
         SV * obj_data = newSV(0);
         sv_setiv(obj_data, PTR2IV(pin));
         SV * rv = newRV_inc(obj_data);
+
+        // Bless into Affix::Pointer BEFORE attaching magic to avoid triggering 'set' during blessing
+        (void)sv_bless(rv, gv_stashpv("Affix::Pointer", GV_ADD));
+
         MAGIC * mg = sv_magicext(obj_data, nullptr, PERL_MAGIC_ext, &Affix_pin_vtbl, nullptr, 0);
         mg->mg_ptr = (char *)pin;
         ST(0) = sv_2mortal(rv);
@@ -4760,12 +4768,17 @@ XS_INTERNAL(Affix_sv_dump) {
 
 static SV * _new_pointer_obj(pTHX_ Affix_Pin * pin) {
     SV * data_sv = newSV(0);
-    SV * rv = newRV_noinc(data_sv);
-
     sv_setiv(data_sv, PTR2IV(pin));
     SvUPGRADE(data_sv, SVt_PVMG);
+
+    SV * rv = newRV_noinc(data_sv);
+
+    // Bless into Affix::Pointer
+    (void)sv_bless(rv, gv_stashpv("Affix::Pointer", GV_ADD));
+
     MAGIC * mg = sv_magicext(data_sv, nullptr, PERL_MAGIC_ext, &Affix_pin_vtbl, nullptr, 0);
     mg->mg_ptr = (char *)pin;
+
     return rv;
 }
 
@@ -5443,6 +5456,132 @@ XS_INTERNAL(Affix_address) {
     XSRETURN(1);
 }
 
+XS_INTERNAL(Affix_pin_type) {
+    dXSARGS;
+    if (items != 1)
+        croak_xs_usage(cv, "pin");
+    Affix_Pin * pin = _get_pin_from_sv(aTHX_ ST(0));
+    if (!pin || !pin->type)
+        XSRETURN_UNDEF;
+    char buffer[256];
+    if (infix_type_print(buffer, sizeof(buffer), pin->type, INFIX_DIALECT_SIGNATURE) == INFIX_SUCCESS)
+        ST(0) = sv_2mortal(newSVpv(buffer, 0));
+    else
+        XSRETURN_UNDEF;
+    XSRETURN(1);
+}
+
+XS_INTERNAL(Affix_pin_element_type) {
+    dXSARGS;
+    if (items != 1)
+        croak_xs_usage(cv, "pin");
+    Affix_Pin * pin = _get_pin_from_sv(aTHX_ ST(0));
+    if (!pin || !pin->type)
+        XSRETURN_UNDEF;
+    const infix_type * elem_type = pin->type;
+    if (elem_type->category == INFIX_TYPE_ARRAY)
+        elem_type = elem_type->meta.array_info.element_type;
+    else if (elem_type->category == INFIX_TYPE_POINTER)
+        elem_type = elem_type->meta.pointer_info.pointee_type;
+
+    char buffer[256];
+    if (infix_type_print(buffer, sizeof(buffer), elem_type, INFIX_DIALECT_SIGNATURE) == INFIX_SUCCESS)
+        ST(0) = sv_2mortal(newSVpv(buffer, 0));
+    else
+        XSRETURN_UNDEF;
+    XSRETURN(1);
+}
+
+XS_INTERNAL(Affix_pin_count) {
+    dXSARGS;
+    if (items != 1)
+        croak_xs_usage(cv, "pin");
+    Affix_Pin * pin = _get_pin_from_sv(aTHX_ ST(0));
+    if (pin && pin->type) {
+        if (pin->type->category == INFIX_TYPE_ARRAY) {
+            ST(0) = sv_2mortal(newSVuv(pin->type->meta.array_info.num_elements));
+            XSRETURN(1);
+        }
+        else if (pin->type->category == INFIX_TYPE_VOID ||
+                 (pin->type->category == INFIX_TYPE_POINTER &&
+                  pin->type->meta.pointer_info.pointee_type->category == INFIX_TYPE_VOID)) {
+            // For void pointers, count is the byte size if known
+            if (pin->size > 0) {
+                ST(0) = sv_2mortal(newSVuv(pin->size));
+                XSRETURN(1);
+            }
+        }
+    }
+    XSRETURN_UNDEF;
+}
+
+XS_INTERNAL(Affix_pin_size) {
+    dXSARGS;
+    if (items != 1)
+        croak_xs_usage(cv, "pin");
+    Affix_Pin * pin = _get_pin_from_sv(aTHX_ ST(0));
+    if (pin) {
+        ST(0) = sv_2mortal(newSVuv(pin->size));
+        XSRETURN(1);
+    }
+    XSRETURN_UNDEF;
+}
+
+XS_INTERNAL(Affix_pin_get_at) {
+    dXSARGS;
+    if (items != 2)
+        croak_xs_usage(cv, "pin, index");
+    Affix_Pin * pin = _get_pin_from_sv(aTHX_ ST(0));
+    IV index = SvIV(ST(1));
+    if (!pin || !pin->type)
+        croak("Not a valid pinned pointer");
+    const infix_type * elem_type = pin->type;
+    if (elem_type->category == INFIX_TYPE_ARRAY)
+        elem_type = elem_type->meta.array_info.element_type;
+    else if (elem_type->category == INFIX_TYPE_POINTER)
+        elem_type = elem_type->meta.pointer_info.pointee_type;
+
+    size_t elem_size = infix_type_get_size(elem_type);
+    if (elem_size == 0 && elem_type->category == INFIX_TYPE_VOID) {
+        elem_size = 1; // Byte-indexed for void*
+        elem_type = infix_type_create_primitive(INFIX_PRIMITIVE_UINT8);
+    }
+    if (elem_size == 0)
+        croak("Cannot index into zero-sized type");
+    void * target = (char *)pin->pointer + (index * elem_size);
+    SV * res = sv_newmortal();
+    ptr2sv(aTHX_ nullptr, target, res, elem_type);
+    ST(0) = res;
+    XSRETURN(1);
+}
+
+XS_INTERNAL(Affix_pin_set_at) {
+    dXSARGS;
+    if (items != 3)
+        croak_xs_usage(cv, "pin, index, value");
+    Affix_Pin * pin = _get_pin_from_sv(aTHX_ ST(0));
+    IV index = SvIV(ST(1));
+    SV * val_sv = ST(2);
+    if (!pin || !pin->type)
+        croak("Not a valid pinned pointer");
+    const infix_type * elem_type = pin->type;
+    if (elem_type->category == INFIX_TYPE_ARRAY)
+        elem_type = elem_type->meta.array_info.element_type;
+    else if (elem_type->category == INFIX_TYPE_POINTER)
+        elem_type = elem_type->meta.pointer_info.pointee_type;
+
+    size_t elem_size = infix_type_get_size(elem_type);
+    if (elem_size == 0 && elem_type->category == INFIX_TYPE_VOID) {
+        elem_size = 1;
+        elem_type = infix_type_create_primitive(INFIX_PRIMITIVE_UINT8);
+    }
+    if (elem_size == 0)
+        croak("Cannot index into zero-sized type");
+    void * target = (char *)pin->pointer + (index * elem_size);
+    sv2ptr(aTHX_ nullptr, val_sv, target, elem_type);
+    XSRETURN_EMPTY;
+}
+
 // Helper to register core internal types
 static void _register_core_types(infix_registry_t * registry) {
     // Register SV as a named type (dummy struct ensures it keeps the name in the registry).
@@ -5606,6 +5745,14 @@ void boot_Affix(pTHX_ CV * cv) {
         XSUB_EXPORT(strdup, "$", "memory");
         XSUB_EXPORT(strnlen, "$$", "memory");
         XSUB_EXPORT(is_null, "$", "memory");
+
+        // Pin internals (for Affix::Pointer)
+        (void)newXSproto_portable("Affix::_pin_type", Affix_pin_type, __FILE__, "$");
+        (void)newXSproto_portable("Affix::_pin_element_type", Affix_pin_element_type, __FILE__, "$");
+        (void)newXSproto_portable("Affix::_pin_count", Affix_pin_count, __FILE__, "$");
+        (void)newXSproto_portable("Affix::_pin_size", Affix_pin_size, __FILE__, "$");
+        (void)newXSproto_portable("Affix::_pin_get_at", Affix_pin_get_at, __FILE__, "$$");
+        (void)newXSproto_portable("Affix::_pin_set_at", Affix_pin_set_at, __FILE__, "$$$");
     }
 
     XSUB_EXPORT(coerce, "$$", "core");

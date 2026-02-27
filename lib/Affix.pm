@@ -795,6 +795,55 @@ package Affix v1.0.8 {    # 'FFI' is my middle name!
             }
             }
     }
+    package Affix::Pointer {
+        use v5.40;
+        use overload
+            '""'  => \&address,
+            '@{}' => \&_as_array,
+            fallback => 1;
+
+        sub address { Affix::address(shift) }
+        sub type    { Affix::_pin_type(shift) }
+        sub element_type { Affix::_pin_element_type(shift) }
+        sub size    { Affix::_pin_size(shift) }
+        sub count   { Affix::_pin_count(shift) }
+        sub cast    { Affix::cast(shift, shift) }
+
+        sub _as_array {
+            my $self = shift;
+            my @proxy;
+            tie @proxy, 'Affix::Pointer::TiedArray', $self;
+            return \@proxy;
+        }
+    }
+    package Affix::Pointer::TiedArray {
+        use v5.40;
+        sub TIEARRAY { bless { pin => $_[1] }, $_[0] }
+
+        sub FETCH {
+            my ( $self, $index ) = @_;
+            Affix::_pin_get_at( $self->{pin}, $index );
+        }
+
+        sub STORE {
+            my ( $self, $index, $value ) = @_;
+            Affix::_pin_set_at( $self->{pin}, $index, $value );
+        }
+
+        sub FETCHSIZE {
+            my $self = shift;
+            Affix::_pin_count( $self->{pin} ) // 0x7FFFFFFF;    # Large number for unknown size
+        }
+        sub STORESIZE { }                                       # No-op
+
+        sub EXISTS {
+            my ( $self, $index ) = @_;
+            my $count = Affix::_pin_count( $self->{pin} );
+            return defined($count) ? ( $index < $count ) : 1;
+        }
+        sub DELETE { die "Cannot delete elements from a C array" }
+        sub CLEAR  { die "Cannot clear a C array" }
+    }
 };
 1;
 __END__
