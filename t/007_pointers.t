@@ -330,5 +330,22 @@ subtest 'deep pointers' => sub {
     libc_free($heap_ptr);
     pass 'Freed C memory';
 };
+subtest 'Custom Destructors' => sub {
+
+    # Get library object for libc
+    my $libc       = load_library( libc() );
+    my $malloc_ptr = find_symbol( $libc, 'malloc' );
+    my $free_ptr   = find_symbol( $libc, 'free' );
+    {
+        # Allocate memory using libc's malloc, not Affix's managed malloc
+        my $malloc = wrap( undef, $malloc_ptr, [Size_t] => Pointer [Void] );
+        my $p      = $malloc->(16);
+
+        # Attaching free() as a destructor.
+        # When $p goes out of scope, Affix will call free($p).
+        attach_destructor( $p, $free_ptr, $libc );
+    }
+    pass 'Pin with custom destructor went out of scope without crashing';
+};
 #
 done_testing;

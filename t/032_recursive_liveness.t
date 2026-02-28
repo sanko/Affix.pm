@@ -51,4 +51,34 @@ subtest 'Recursive Liveness (Array in Struct)' => sub {
     $arr->[0] = 999;
     is $arr->[0], 999, 'Modified nested array via live view';
 };
+subtest 'Recursive Liveness: LiveArray of Structs' => sub {
+    my $Point    = Struct [ x => Int, y => Int ];
+    my $ptr      = malloc( sizeof($Point) * 2 );
+    my $live_arr = cast( $ptr, Pointer [ Array [ $Point, 2 ] ] );
+
+    # Set values
+    $live_arr->[0]{x} = 10;
+    $live_arr->[0]{y} = 20;
+
+    # Accessing $live_arr->[0] returns an Affix::Live blessed hash
+    my $p0 = $live_arr->[0];
+    isa_ok $p0, ['Affix::Live'], 'Element of live array should be Affix::Live';
+    $p0->{x} = 30;
+    is $live_arr->[0]{x}, 30, 'Changes to live element reflect in original memory';
+    free($ptr);
+};
+subtest 'Recursive Liveness: LiveStruct with Array' => sub {
+
+    # Using typedef to ensure member names are preserved in the infix registry
+    typedef ListStruct => Struct [ items => Array [ Int, 3 ] ];
+    my $ptr         = malloc( sizeof( ListStruct() ) );
+    my $live_struct = cast( $ptr, LiveStruct( ListStruct() ) );
+
+    # Accessing $live_struct->{items} returns an Affix::Pointer object (LiveArray)
+    my $items = $live_struct->{items};
+    isa_ok $items, ['Affix::Pointer'], 'Array field of live struct should be Affix::Pointer';
+    $items->[0] = 100;
+    is $live_struct->{items}[0], 100, 'Changes to live array field reflect in struct';
+    free($ptr);
+};
 done_testing;

@@ -1,5 +1,4 @@
 use v5.40;
-use lib '../lib', 'lib';
 use blib;
 use Test2::Tools::Affix qw[:all];
 use Affix               qw[:all];
@@ -143,7 +142,7 @@ END_RAW
         # Behavior for unknown strings depends on impl, usually just the number as string
         # or undef string slot. Usually sv_setiv sets the IV, sv_setpv is skipped.
         # So "$val" should be "555".
-        is "$val", "555", 'Stringification of unknown enum value falls back to number';
+        is "$val", '555', 'Stringification of unknown enum value falls back to number';
     };
 };
 {
@@ -206,22 +205,16 @@ subtest 'Passing Strings as Enum Values' => sub {
     is identify_fruit( BANANA() ), 2, 'Passed constant BANANA (2)';
 
     # This is the feature: passing the string name of the enum element
-    is identify_fruit("APPLE"),  1, 'Passed string "APPLE" -> maps to 1';
-    is identify_fruit("BANANA"), 2, 'Passed string "BANANA" -> maps to 2';
-    is identify_fruit("CHERRY"), 3, 'Passed string "CHERRY" -> maps to 3';
-
-    # Unknown strings should probably fail or map to 0
-    # Let's see current behavior
-    my $val;
-    eval { $val = identify_fruit("DURIAN") };
-    diag "Unknown string 'DURIAN' result: $val" if defined $val;
-    diag "Unknown string 'DURIAN' error: $@"    if $@;
+    is identify_fruit('APPLE'),  1, 'Passed string "APPLE" -> maps to 1';
+    is identify_fruit('BANANA'), 2, 'Passed string "BANANA" -> maps to 2';
+    is identify_fruit('CHERRY'), 3, 'Passed string "CHERRY" -> maps to 3';
+    like warning { identify_fruit('DURIAN') }, qr[numeric], 'Unknown string "DURIAN" for enum';
 };
 subtest 'Dualvar Roundtrip' => sub {
     affix $lib, 'get_fruit', [Int] => Fruit();
     my $f = get_fruit(2);
     is 0 + $f, 2,        'Numeric value is 2';
-    is "$f",   "BANANA", 'String value is "BANANA"';
+    is "$f",   'BANANA', 'String value is "BANANA"';
 
     # Passing the returned dualvar back to C
     is identify_fruit($f), 2, 'Passed dualvar $f back to C';
