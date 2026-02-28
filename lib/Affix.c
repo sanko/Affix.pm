@@ -2721,13 +2721,17 @@ XS_INTERNAL(Affix_affix) {
         char * clean_sig = nullptr;
         if (strstr(signature, "+")) {
             clean_sig = savepv(signature);
-            char * p = clean_sig;
+            const char * p = signature;
             char * d = clean_sig;
-            while (*p)
-                if (*p == '+')
+            while (*p) {
+                // Strip '+' only if it precedes a signature character: * [ { ! < ( @
+                if (*p == '+' &&
+                    (p[1] == '*' || p[1] == '[' || p[1] == '{' || p[1] == '!' || p[1] == '<' || p[1] == '(' ||
+                     p[1] == '@'))
                     p++;
                 else
                     *d++ = *p++;
+            }
             *d = '\0';
             sig_to_parse = clean_sig;
         }
@@ -2805,13 +2809,16 @@ XS_INTERNAL(Affix_affix) {
     char * clean_sig = nullptr;
     if (strstr(signature, "+")) {
         clean_sig = savepv(signature);
-        char * p = clean_sig;
+        const char * p = signature;
         char * d = clean_sig;
-        while (*p)
-            if (*p == '+')
+        while (*p) {
+            // Strip '+' only if it precedes a signature character: * [ { ! < ( @
+            if (*p == '+' &&
+                (p[1] == '*' || p[1] == '[' || p[1] == '{' || p[1] == '!' || p[1] == '<' || p[1] == '(' || p[1] == '@'))
                 p++;
             else
                 *d++ = *p++;
+        }
         *d = '\0';
         sig_to_parse = clean_sig;
     }
@@ -3156,7 +3163,8 @@ static void pull_uint128(pTHX_ Affix * affix, SV * sv, const infix_type * t, voi
 
 static void pull_struct(pTHX_ Affix * affix, SV * sv, const infix_type * type, void * p) {
     HV * hv;
-    bool live = (sv_isobject(sv) && sv_derived_from(sv, "Affix::Live")) || (SvROK(sv) && sv_isobject(SvRV(sv)) && sv_derived_from(SvRV(sv), "Affix::Live"));
+    bool live = (sv_isobject(sv) && sv_derived_from(sv, "Affix::Live")) ||
+        (SvROK(sv) && sv_isobject(SvRV(sv)) && sv_derived_from(SvRV(sv), "Affix::Live"));
 
     if (SvROK(sv) && SvTYPE(SvRV(sv)) == SVt_PVHV)
         hv = (HV *)SvRV(sv);
@@ -4134,9 +4142,8 @@ XS_INTERNAL(Affix_Lib_DESTROY) {
                 break;
             }
         }
-        if (key_to_delete) {
+        if (key_to_delete)
             hv_delete_ent(MY_CXT.lib_registry, key_to_delete, G_DISCARD, 0);
-        }
     }
     XSRETURN_EMPTY;
 }
@@ -4242,9 +4249,8 @@ static int Affix_free_pin(pTHX_ SV * sv, MAGIC * mg) {
     Affix_Pin * pin = (Affix_Pin *)mg->mg_ptr;
     if (pin == nullptr)
         return 0;
-    if (pin->destructor && pin->pointer) {
+    if (pin->destructor && pin->pointer)
         pin->destructor(pin->pointer);
-    }
     else if (pin->managed && pin->pointer)
         safefree(pin->pointer);
 
@@ -4296,7 +4302,8 @@ static int Affix_get_pin(pTHX_ SV * sv, MAGIC * mg) {
             HV * hv = newHV();
             SV * rv = newRV_noinc(MUTABLE_SV(hv));
             sv_bless(rv, gv_stashpv("Affix::Live", GV_ADD));
-            _populate_hv_from_c_struct(aTHX_ nullptr, hv, pointee, pin->pointer, true, pin->owner_sv ? pin->owner_sv : sv);
+            _populate_hv_from_c_struct(
+                aTHX_ nullptr, hv, pointee, pin->pointer, true, pin->owner_sv ? pin->owner_sv : sv);
             sv_setsv(sv, rv);
             SvREFCNT_dec(rv);
             return 0;
@@ -4317,9 +4324,8 @@ static int Affix_get_pin(pTHX_ SV * sv, MAGIC * mg) {
         }
     }
 
-    if (pin->type) {
+    if (pin->type)
         ptr2sv(aTHX_ nullptr, pin->pointer, sv, pin->type);
-    }
     return 0;
 }
 bool is_pin(pTHX_ SV * sv) {
@@ -4439,13 +4445,16 @@ XS_INTERNAL(Affix_pin) {
     char * clean_sig = nullptr;
     if (strstr(signature, "+")) {
         clean_sig = savepv(signature);
-        char * p = clean_sig;
+        const char * p = signature;
         char * d = clean_sig;
-        while (*p)
-            if (*p == '+')
+        while (*p) {
+            // Strip '+' only if it precedes a signature character: * [ { ! < ( @
+            if (*p == '+' &&
+                (p[1] == '*' || p[1] == '[' || p[1] == '{' || p[1] == '!' || p[1] == '<' || p[1] == '(' || p[1] == '@'))
                 p++;
             else
                 *d++ = *p++;
+        }
         *d = '\0';
         sig_to_parse = clean_sig;
     }
@@ -4782,11 +4791,14 @@ XS_INTERNAL(Affix_typedef) {
         const char * type_str = _get_string_from_type_obj(aTHX_ type_sv);
         if (!type_str)
             type_str = SvPV_nolen(type_sv);
+        // LiveStruct prepends '+' to signatures. Infix doesn't support this character.
+        if (type_str[0] == '+')
+            type_str++;
         sv_catpv(def_sv, type_str);
     }
     sv_catpv(def_sv, ";");
     PING;
-    warn("Affix: Registering types: %s", SvPV_nolen(def_sv));
+    //~ warn("Affix: Registering types: %s", SvPV_nolen(def_sv));
     if (infix_register_types(MY_CXT.registry, SvPV_nolen(def_sv)) != INFIX_SUCCESS) {
         SV * err_sv = _format_parse_error(aTHX_ "in typedef", SvPV_nolen(def_sv), infix_get_last_error());
         warn_sv(err_sv);
@@ -5182,7 +5194,8 @@ XS_INTERNAL(Affix_cast) {
             HV * hv = newHV();
             SV * rv = newRV_noinc(MUTABLE_SV(hv));
             sv_bless(rv, gv_stashpv("Affix::Live", GV_ADD));
-            _populate_hv_from_c_struct(aTHX_ nullptr, hv, new_type, ptr_val, true, pin ? (pin->owner_sv ? pin->owner_sv : arg) : nullptr);
+            _populate_hv_from_c_struct(
+                aTHX_ nullptr, hv, new_type, ptr_val, true, pin ? (pin->owner_sv ? pin->owner_sv : arg) : nullptr);
             ret_val = sv_2mortal(rv);
         }
         else if (new_type->category == INFIX_TYPE_UNION) {
@@ -5278,9 +5291,8 @@ XS_INTERNAL(Affix_attach_destructor) {
 
     pin->destructor = (void (*)(void *))destructor_ptr;
 
-    if (items > 2 && sv_isobject(ST(2)) && sv_derived_from(ST(2), "Affix::Lib")) {
+    if (items > 2 && sv_isobject(ST(2)) && sv_derived_from(ST(2), "Affix::Lib"))
         pin->destructor_lib_sv = newSVsv(ST(2));
-    }
 
     XSRETURN_YES;
 }
@@ -5651,7 +5663,8 @@ XS_INTERNAL(Affix_is_null) {
     XSRETURN(1);
 }
 
-void _populate_hv_from_c_struct(pTHX_ Affix * affix, HV * hv, const infix_type * type, void * p, bool live, SV * owner_sv) {
+void _populate_hv_from_c_struct(
+    pTHX_ Affix * affix, HV * hv, const infix_type * type, void * p, bool live, SV * owner_sv) {
     hv_clear(hv);
     for (size_t i = 0; i < type->meta.aggregate_info.num_members; ++i) {
         const infix_struct_member * member = &type->meta.aggregate_info.members[i];
