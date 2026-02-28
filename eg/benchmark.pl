@@ -1,5 +1,6 @@
 use v5.40;
 no warnings 'experimental';
+use blib;
 use Affix               qw[:all];
 use Test2::Tools::Affix qw[:all];
 use Config;
@@ -70,7 +71,7 @@ END_C
 my $lib  = compile_ok($C_CODE);
 my $libm = '' . libm();
 
-# Bindings (Affix)
+# affix Bindings
 affix $lib, 'fast_pow',      [ Double, Double ] => Double;
 affix $lib, 'benchmark_sin', [Double]           => Double;
 affix $lib, 'get_ptr',       []                 => Pointer [Int];
@@ -81,11 +82,11 @@ typedef Color => Enum [ [ RED => 1 ], [ GREEN => 2 ], [ BLUE => 3 ] ];
 affix $lib, 'take_enum',   [ Color() ] => Int;
 affix $lib, 'return_enum', [Int]       => Color();
 
-# Affix Wrap Variants
+# Affix wrap Variants
 my $wrap_sin   = wrap $lib,        'benchmark_sin', [Double], Double;
 my $direct_sin = direct_wrap $lib, 'benchmark_sin', [Double], Double;
 
-# Bindings (FFI::Platypus)
+# FFI::Platypus Bindings
 my ( $ffi, $platypus_sin_func );
 if ($has_platypus) {
     $ffi = FFI::Platypus->new( api => 2, lib => "$lib" );
@@ -105,13 +106,11 @@ if ($has_platypus) {
     $ffi->attach( [ get_struct => 'platypus_get_struct' ], [] => 'BenchStruct' );
 }
 
-# Bindings (Inline::C)
-if ($has_inline_c) {
-    Inline->import( C => <<'END_OF_C' );
+# Inline::C Bindings
+Inline->import( C => <<'END_OF_C' ) if $has_inline_c;
 #include <math.h>
 double inline_sin(double x) { return sin(x); }
 END_OF_C
-}
 
 # Verification
 my $num = 1.5;
@@ -129,20 +128,19 @@ subtest verify => sub {
 };
 
 # Benchmarks
-my $bench_count = -0.5;
+my $bench_count = -5;
 my $ptr         = malloc(4);
 $$ptr = 123;
 subtest 'Core Overhead: Primitives' => sub {
-    say "Comparing Primitive Call Overhead (double + double -> double)...";
+    diag 'Comparing Primitive Call Overhead (double + double -> double)...';
     my %marks = ( 'Affix' => sub { fast_pow( 1.5, 2.5 ) }, );
-    if ($has_platypus) {
-        $marks{'Platypus'} = sub { platypus_fast_pow( 1.5, 2.5 ) };
-    }
+    $marks{'Platypus'} = sub { platypus_fast_pow( 1.5, 2.5 ) }
+        if $has_platypus;
     cmpthese( $bench_count, \%marks );
     pass 'finished';
 };
 subtest 'Math Functions (sin)' => sub {
-    say "\nComparing Math Function Overhead (sin)...";
+    diag 'Comparing Math Function Overhead (sin)...';
     my %marks = (
         'Affix: affix'       => sub { benchmark_sin(0.5) },
         'Affix: wrap'        => sub { $wrap_sin->(0.5) },
@@ -160,7 +158,7 @@ subtest 'Math Functions (sin)' => sub {
     pass 'finished';
 };
 subtest 'Pointer Marshalling' => sub {
-    say "\nComparing Pointer Marshalling (Return pointer, Pass pointer)...";
+    diag 'Comparing Pointer Marshalling (Return pointer, Pass pointer)...';
     my %marks = ( 'Affix: return' => sub { get_ptr() }, 'Affix: pass' => sub { take_ptr($ptr) }, );
     if ($has_platypus) {
         $marks{'Platypus: return'} = sub { platypus_get_ptr() };
@@ -170,7 +168,7 @@ subtest 'Pointer Marshalling' => sub {
     pass 'finished';
 };
 subtest 'Aggregate Marshalling (Copying)' => sub {
-    say "\nComparing Struct Marshalling (Returned by value, deep-copied to Hash/Record)...";
+    diag 'Comparing Struct Marshalling (Returned by value, deep-copied to Hash/Record)...';
     my %marks = ( 'Affix: struct_copy' => sub { get_struct() }, );
     if ($has_platypus) {
         $marks{'Platypus: struct_copy'} = sub { platypus_get_struct() };
@@ -179,9 +177,9 @@ subtest 'Aggregate Marshalling (Copying)' => sub {
     pass 'finished';
 };
 subtest 'Enum Marshalling' => sub {
-    say "\nComparing Enum Marshalling (Dualvars vs Integers)...";
+    diag 'Comparing Enum Marshalling (Dualvars vs Integers)...';
     my %marks
-        = ( 'Affix: pass_int' => sub { take_enum(2) }, 'Affix: pass_str' => sub { take_enum("GREEN") }, 'Affix: return' => sub { return_enum(3) }, );
+        = ( 'Affix: pass_int' => sub { take_enum(2) }, 'Affix: pass_str' => sub { take_enum('GREEN') }, 'Affix: return' => sub { return_enum(3) }, );
     if ($has_platypus) {
         $marks{'Platypus: pass_int'} = sub { platypus_take_enum(2) };
         $marks{'Platypus: return'}   = sub { platypus_return_enum(3) };
@@ -192,11 +190,11 @@ subtest 'Enum Marshalling' => sub {
 subtest 'Affix-Specific: "Live" vs "Copy" Aggregates' => sub {
     my $has_live = eval { LiveStruct( [ a => Int ] ); 1 };
     if ($has_live) {
-        say "\nBenchmarking Affix-only Features: 'Live' vs 'Copy' Aggregates...";
+        diag 'Benchmarking Affix-only Features: "Live" vs "Copy" Aggregates...';
         my $Inner = Struct [ a => Int, b => Int, c => Int, d => Int ];
-        diag "LiveStruct signature: " . LiveStruct($Inner);
-        eval "affix \$lib, [ get_struct => 'get_struct_live' ], [] => LiveStruct \$Inner";
-        eval "affix \$lib, [ get_outer  => 'get_outer_live'  ], [] => LiveStruct [ nested => \$Inner, id => Int ]";
+        diag 'LiveStruct signature: ' . LiveStruct($Inner);
+        eval 'affix $lib, [ get_struct => "get_struct_live" ], [] => LiveStruct $Inner';
+        eval 'affix $lib, [ get_outer  => "get_outer_live"  ], [] => LiveStruct [ nested => $Inner, id => Int ]';
         my $live_struct = get_struct_live();
         my $copy_struct = get_struct();
         cmpthese(
@@ -208,7 +206,7 @@ subtest 'Affix-Specific: "Live" vs "Copy" Aggregates' => sub {
                 'member_write_live'  => sub { $live_struct->{a} = 100 },
             }
         );
-        say "\nBenchmarking Affix-only Features: Recursive Liveness...";
+        diag 'Benchmarking Affix-only Features: Recursive Liveness...';
         my $outer_live = get_outer_live();
         cmpthese(
             $bench_count,
@@ -222,7 +220,7 @@ subtest 'Affix-Specific: "Live" vs "Copy" Aggregates' => sub {
     }
 };
 subtest 'Affix-Specific: Pointer and Array Indexing' => sub {
-    say "\nBenchmarking Affix-only Features: Pointer and Array Indexing...";
+    diag 'Benchmarking Affix-only Features: Pointer and Array Indexing...';
     my $live_ptr   = get_ptr();
     my $live_array = calloc( 10, Int );
     cmpthese(
@@ -250,9 +248,9 @@ subtest 'Affix-Specific: 128-bit Integers' => sub {
         };
     }
     if ($has_128) {
-        say "\nBenchmarking Affix-only Features: 128-bit Integers (passed as strings)...";
-        my $a = "170141183460469231731687303715884105727";    # max int128
-        my $b = "1";
+        diag 'Benchmarking Affix-only Features: 128-bit Integers (passed as strings)...';
+        my $a = '170141183460469231731687303715884105727';    # max int128
+        my $b = '1';
         cmpthese(
             $bench_count / 5,
             {   'add128' => sub { add128( $a, $b ) }

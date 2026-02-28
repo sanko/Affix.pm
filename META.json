@@ -121,6 +121,9 @@
       "Affix::Pointer::TiedArray" : {
          "file" : "lib/Affix.pm"
       },
+      "Affix::Pointer::TiedHash" : {
+         "file" : "lib/Affix.pm"
+      },
       "Affix::Wrap" : {
          "file" : "lib/Affix/Wrap.pm",
          "version" : "v1.0.7"
