@@ -197,6 +197,7 @@ typedef struct {
     size_t size;                 ///< Size of malloc'd void pointers.
     void (*destructor)(void *);  ///< Custom destructor function (e.g. SDL_DestroyWindow).
     SV * destructor_lib_sv;      ///< Perl object (Affix::Lib) to keep alive for the destructor.
+    SV * owner_sv;               ///< Perl object that owns the memory, kept alive by this pin.
 } Affix_Pin;
 /// Holds the necessary data for a callback, specifically the Perl subroutine to call.
 typedef struct {
@@ -242,7 +243,7 @@ void push_reverse_trampoline(pTHX_ Affix * affix, const infix_type * type, SV * 
 
 // Marshalling (Perl <- C)
 void ptr2sv(pTHX_ Affix * affix, void * c_ptr, SV * perl_sv, const infix_type * type);
-void _populate_hv_from_c_struct(pTHX_ Affix * affix, HV * hv, const infix_type * type, void * p, bool live);
+void _populate_hv_from_c_struct(pTHX_ Affix * affix, HV * hv, const infix_type * type, void * p, bool live, SV * owner_sv);
 
 // Handler resolution
 Affix_Step_Executor get_plan_step_executor(const infix_type * type);
@@ -250,7 +251,7 @@ Affix_Pull get_pull_handler(pTHX_ const infix_type * type);
 Affix_Out_Param_Writer get_out_param_writer(const infix_type * type);
 
 // Pin management
-void _pin_sv(pTHX_ SV * sv, const infix_type * type, void * pointer, bool managed);
+void _pin_sv(pTHX_ SV * sv, const infix_type * type, void * pointer, bool managed, SV * owner_sv);
 bool is_pin(pTHX_ SV * sv);
 Affix_Pin * _get_pin_from_sv(pTHX_ SV * sv);
 SV * _new_pointer_obj(pTHX_ Affix_Pin * pin);

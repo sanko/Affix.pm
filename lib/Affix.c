@@ -604,7 +604,7 @@ static int Affix_get_pin(pTHX_ SV * sv, MAGIC * mg);
 static int Affix_set_pin(pTHX_ SV * sv, MAGIC * mg);
 static U32 Affix_len_pin(pTHX_ SV * sv, MAGIC * mg);
 static int Affix_free_pin(pTHX_ SV * sv, MAGIC * mg);
-void _pin_sv(pTHX_ SV * sv, const infix_type * type, void * pointer, bool managed);
+void _pin_sv(pTHX_ SV * sv, const infix_type * type, void * pointer, bool managed, SV * owner_sv);
 
 static void push_union(pTHX_ Affix * affix, const infix_type * type, SV * sv, void * p);
 
@@ -1518,14 +1518,15 @@ static void writeback_struct(pTHX_ Affix * affix, const OutParamInfo * info, SV 
                                            (HV *)SvRV(*item_ptr),
                                            info->pointee_type,
                                            (char *)struct_ptr + (i * elem_size),
-                                           false);
+                                           false,
+                                           nullptr);
             }
         }
         return;
     }
 
     if (SvTYPE(perl_sv) == SVt_PVHV) {
-        _populate_hv_from_c_struct(aTHX_ affix, (HV *)perl_sv, info->pointee_type, struct_ptr, false);
+        _populate_hv_from_c_struct(aTHX_ affix, (HV *)perl_sv, info->pointee_type, struct_ptr, false, nullptr);
     }
     else if (SvROK(perl_sv) && SvTYPE(SvRV(perl_sv)) == SVt_PVAV) {
         // Array of structs decay
@@ -1539,7 +1540,8 @@ static void writeback_struct(pTHX_ Affix * affix, const OutParamInfo * info, SV 
                                            (HV *)SvRV(*item_ptr),
                                            info->pointee_type,
                                            (char *)struct_ptr + (i * elem_size),
-                                           false);
+                                           false,
+                                           nullptr);
             }
         }
     }
@@ -3162,7 +3164,7 @@ static void pull_struct(pTHX_ Affix * affix, SV * sv, const infix_type * type, v
         hv = newHV();
         sv_setsv(sv, sv_2mortal(newRV_noinc(MUTABLE_SV(hv))));
     }
-    _populate_hv_from_c_struct(aTHX_ affix, hv, type, p, live);
+    _populate_hv_from_c_struct(aTHX_ affix, hv, type, p, live, nullptr);
 }
 
 static void pull_union(pTHX_ Affix * affix, SV * sv, const infix_type * type, void * p) {
@@ -3177,7 +3179,7 @@ static void pull_union(pTHX_ Affix * affix, SV * sv, const infix_type * type, vo
         sv_bless(rv, gv_stashpv("Affix::Live", GV_ADD));
         sv_setsv(sv, sv_2mortal(rv));
     }
-    _populate_hv_from_c_struct(aTHX_ affix, hv, type, p, true);
+    _populate_hv_from_c_struct(aTHX_ affix, hv, type, p, true, nullptr);
 }
 
 // Helper for portability if strnlen isn't available
@@ -3369,7 +3371,7 @@ static void pull_struct_as_live(pTHX_ Affix * affix, SV * sv, const infix_type *
     HV * hv = newHV();
     SV * rv = newRV_noinc(MUTABLE_SV(hv));
     sv_bless(rv, gv_stashpv("Affix::Live", GV_ADD));
-    _populate_hv_from_c_struct(aTHX_ affix, hv, pointee_type, c_ptr, true);
+    _populate_hv_from_c_struct(aTHX_ affix, hv, pointee_type, c_ptr, true, nullptr);
     sv_setsv(sv, rv);
     SvREFCNT_dec(rv);
 }
@@ -4251,6 +4253,11 @@ static int Affix_free_pin(pTHX_ SV * sv, MAGIC * mg) {
             SvREFCNT_dec(pin->destructor_lib_sv);
     }
 
+    if (pin->owner_sv) {
+        if (!PL_dirty)
+            SvREFCNT_dec(pin->owner_sv);
+    }
+
     if (pin->type_arena != nullptr)
         infix_arena_destroy(pin->type_arena);
     safefree(pin);
@@ -4289,7 +4296,7 @@ static int Affix_get_pin(pTHX_ SV * sv, MAGIC * mg) {
             HV * hv = newHV();
             SV * rv = newRV_noinc(MUTABLE_SV(hv));
             sv_bless(rv, gv_stashpv("Affix::Live", GV_ADD));
-            _populate_hv_from_c_struct(aTHX_ nullptr, hv, pointee, pin->pointer, true);
+            _populate_hv_from_c_struct(aTHX_ nullptr, hv, pointee, pin->pointer, true, pin->owner_sv ? pin->owner_sv : sv);
             sv_setsv(sv, rv);
             SvREFCNT_dec(rv);
             return 0;
@@ -4300,6 +4307,8 @@ static int Affix_get_pin(pTHX_ SV * sv, MAGIC * mg) {
             Newxz(new_pin, 1, Affix_Pin);
             new_pin->pointer = pin->pointer;
             new_pin->managed = false;
+            new_pin->owner_sv = pin->owner_sv ? pin->owner_sv : sv;
+            SvREFCNT_inc(new_pin->owner_sv);
             new_pin->type_arena = infix_arena_create(256);
             new_pin->type = _copy_type_graph_to_arena(new_pin->type_arena, pointee);
 
@@ -4318,7 +4327,7 @@ bool is_pin(pTHX_ SV * sv) {
         return false;
     return mg_findext(SvRV(sv), PERL_MAGIC_ext, &Affix_pin_vtbl) != nullptr;
 }
-void _pin_sv(pTHX_ SV * sv, const infix_type * type, void * pointer, bool managed) {
+void _pin_sv(pTHX_ SV * sv, const infix_type * type, void * pointer, bool managed, SV * owner_sv) {
     if (SvREADONLY(sv))
         return;
     SvUPGRADE(sv, SVt_PVMG);
@@ -4332,6 +4341,10 @@ void _pin_sv(pTHX_ SV * sv, const infix_type * type, void * pointer, bool manage
             infix_arena_destroy(pin->type_arena);
             pin->type_arena = nullptr;
         }
+        if (pin && pin->owner_sv) {
+            SvREFCNT_dec(pin->owner_sv);
+            pin->owner_sv = nullptr;
+        }
     }
     else {
         Newxz(pin, 1, Affix_Pin);
@@ -4342,6 +4355,12 @@ void _pin_sv(pTHX_ SV * sv, const infix_type * type, void * pointer, bool manage
 
     pin->pointer = pointer;
     pin->managed = managed;
+
+    if (owner_sv) {
+        pin->owner_sv = owner_sv;
+        SvREFCNT_inc(pin->owner_sv);
+    }
+
     pin->type_arena = infix_arena_create(2048);
     if (!pin->type_arena) {
         safefree(pin);
@@ -4369,6 +4388,8 @@ XS_INTERNAL(Affix_find_symbol) {
         Newxz(pin, 1, Affix_Pin);
         pin->pointer = symbol;
         pin->managed = false;
+        pin->owner_sv = ST(0);
+        SvREFCNT_inc(pin->owner_sv);
         pin->type_arena = infix_arena_create(256);
         infix_type * void_ptr_type = nullptr;
         if (infix_type_create_pointer_to(pin->type_arena, &void_ptr_type, infix_type_create_void()) != INFIX_SUCCESS) {
@@ -4438,7 +4459,7 @@ XS_INTERNAL(Affix_pin) {
             safefree(clean_sig);
         XSRETURN_UNDEF;
     }
-    _pin_sv(aTHX_ target_sv, type, ptr, false);
+    _pin_sv(aTHX_ target_sv, type, ptr, false, nullptr);
     infix_arena_destroy(arena);
     if (clean_sig)
         safefree(clean_sig);
@@ -5161,7 +5182,7 @@ XS_INTERNAL(Affix_cast) {
             HV * hv = newHV();
             SV * rv = newRV_noinc(MUTABLE_SV(hv));
             sv_bless(rv, gv_stashpv("Affix::Live", GV_ADD));
-            _populate_hv_from_c_struct(aTHX_ nullptr, hv, new_type, ptr_val, true);
+            _populate_hv_from_c_struct(aTHX_ nullptr, hv, new_type, ptr_val, true, pin ? (pin->owner_sv ? pin->owner_sv : arg) : nullptr);
             ret_val = sv_2mortal(rv);
         }
         else if (new_type->category == INFIX_TYPE_UNION) {
@@ -5187,6 +5208,11 @@ XS_INTERNAL(Affix_cast) {
         new_pin->pointer = ptr_val;
         new_pin->managed = false;
         new_pin->type_arena = parse_arena;
+
+        if (pin) {
+            new_pin->owner_sv = pin->owner_sv ? pin->owner_sv : arg;
+            SvREFCNT_inc(new_pin->owner_sv);
+        }
 
         if (new_type->category == INFIX_TYPE_POINTER)
             new_pin->type = _unwrap_pin_type(new_type);
@@ -5460,6 +5486,11 @@ XS_INTERNAL(Affix_memchr) {
         Newxz(new_pin, 1, Affix_Pin);
         new_pin->pointer = res;
         new_pin->managed = false;
+
+        Affix_Pin * pin = _get_pin_from_sv(aTHX_ ST(0));
+        new_pin->owner_sv = pin ? (pin->owner_sv ? pin->owner_sv : ST(0)) : ST(0);
+        SvREFCNT_inc(new_pin->owner_sv);
+
         new_pin->type_arena = infix_arena_create(128);
         new_pin->type =
             _copy_type_graph_to_arena(new_pin->type_arena, infix_type_create_primitive(INFIX_PRIMITIVE_SINT8));
@@ -5499,6 +5530,11 @@ XS_INTERNAL(Affix_ptr_add) {
     new_pin->pointer = new_addr;
     new_pin->managed = false;  // Aliases are never managed
     new_pin->type_arena = infix_arena_create(256);
+
+    if (pin) {
+        new_pin->owner_sv = pin->owner_sv ? pin->owner_sv : ST(0);
+        SvREFCNT_inc(new_pin->owner_sv);
+    }
 
     if (type) {
         if (type->category == INFIX_TYPE_ARRAY) {
@@ -5615,7 +5651,7 @@ XS_INTERNAL(Affix_is_null) {
     XSRETURN(1);
 }
 
-void _populate_hv_from_c_struct(pTHX_ Affix * affix, HV * hv, const infix_type * type, void * p, bool live) {
+void _populate_hv_from_c_struct(pTHX_ Affix * affix, HV * hv, const infix_type * type, void * p, bool live, SV * owner_sv) {
     hv_clear(hv);
     for (size_t i = 0; i < type->meta.aggregate_info.num_members; ++i) {
         const infix_struct_member * member = &type->meta.aggregate_info.members[i];
@@ -5629,7 +5665,7 @@ void _populate_hv_from_c_struct(pTHX_ Affix * affix, HV * hv, const infix_type *
                     HV * sub_hv = newHV();
                     SV * sub_rv = newRV_noinc(MUTABLE_SV(sub_hv));
                     sv_bless(sub_rv, gv_stashpv("Affix::Live", GV_ADD));
-                    _populate_hv_from_c_struct(aTHX_ affix, sub_hv, member->type, member_ptr, true);
+                    _populate_hv_from_c_struct(aTHX_ affix, sub_hv, member->type, member_ptr, true, owner_sv);
                     member_sv = sub_rv;
                 }
                 else if (member->type->category == INFIX_TYPE_ARRAY) {
@@ -5637,13 +5673,19 @@ void _populate_hv_from_c_struct(pTHX_ Affix * affix, HV * hv, const infix_type *
                     Newxz(sub_pin, 1, Affix_Pin);
                     sub_pin->pointer = member_ptr;
                     sub_pin->managed = false;
+
+                    if (owner_sv) {
+                        sub_pin->owner_sv = owner_sv;
+                        SvREFCNT_inc(sub_pin->owner_sv);
+                    }
+
                     sub_pin->type_arena = infix_arena_create(256);
                     sub_pin->type = _copy_type_graph_to_arena(sub_pin->type_arena, member->type);
                     member_sv = _new_pointer_obj(aTHX_ sub_pin);
                 }
                 else {
                     member_sv = newSV(0);
-                    _pin_sv(aTHX_ member_sv, member->type, member_ptr, false);
+                    _pin_sv(aTHX_ member_sv, member->type, member_ptr, false, owner_sv);
                 }
             }
             else if (member->is_bitfield) {
@@ -5796,7 +5838,8 @@ XS_INTERNAL(Affix_pin_get_at) {
         HV * hv = newHV();
         SV * rv = newRV_noinc(MUTABLE_SV(hv));
         sv_bless(rv, gv_stashpv("Affix::Live", GV_ADD));
-        _populate_hv_from_c_struct(aTHX_ nullptr, hv, elem_type, target, true);
+        // We might need to pass the owner here too, but let's start with pins
+        _populate_hv_from_c_struct(aTHX_ nullptr, hv, elem_type, target, true, pin->owner_sv ? pin->owner_sv : ST(0));
         ST(0) = sv_2mortal(rv);
     }
     else if (elem_type->category == INFIX_TYPE_ARRAY) {
@@ -5805,6 +5848,10 @@ XS_INTERNAL(Affix_pin_get_at) {
         Newxz(new_pin, 1, Affix_Pin);
         new_pin->pointer = target;
         new_pin->managed = false;
+
+        new_pin->owner_sv = pin->owner_sv ? pin->owner_sv : ST(0);
+        SvREFCNT_inc(new_pin->owner_sv);
+
         // We need to keep the type info alive. For now, copy it.
         new_pin->type_arena = infix_arena_create(256);
         new_pin->type = _copy_type_graph_to_arena(new_pin->type_arena, elem_type);
