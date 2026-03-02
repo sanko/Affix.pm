@@ -2160,6 +2160,75 @@ static infix_library_t * _get_lib_from_registry(pTHX_ const char * path) {
     return nullptr;
 }
 
+static void _affix_destroy(pTHX_ Affix * affix) {
+    if (!affix)
+        return;
+
+    dMY_CXT;
+    if (affix->lib_handle != nullptr && MY_CXT.lib_registry != nullptr) {
+        hv_iterinit(MY_CXT.lib_registry);
+        HE * he;
+        while ((he = hv_iternext(MY_CXT.lib_registry))) {
+            SV * entry_sv = HeVAL(he);
+            LibRegistryEntry * entry = INT2PTR(LibRegistryEntry *, SvIV(entry_sv));
+            if (entry->lib == affix->lib_handle) {
+                entry->ref_count--;
+                if (entry->ref_count == 0) {
+                    STRLEN klen;
+                    const char * kstr = HePV(he, klen);
+                    SV * key_sv = newSVpvn(kstr, klen);
+                    if (HeKUTF8(he))
+                        SvUTF8_on(key_sv);
+
+                    // On Linux, dlclose() is notoriously dangerous for libraries that
+                    // spawn background threads or register global handlers (Go, .NET, Audio, etc.)
+                    // unmapping the code while these threads are active causes a SEGV.
+#if defined(__linux__) || defined(__linux)
+                    // Leak the library handle but free our wrapper
+                    infix_free(entry->lib);
+#else
+                    infix_library_close(entry->lib);
+#endif
+                    safefree(entry);
+                    hv_delete_ent(MY_CXT.lib_registry, key_sv, G_DISCARD, 0);
+                    SvREFCNT_dec(key_sv);
+                }
+                break;
+            }
+        }
+    }
+    if (affix->variadic_cache) {
+        // Destroy all cached JIT trampolines
+        hv_iterinit(affix->variadic_cache);
+        HE * he;
+        while ((he = hv_iternext(affix->variadic_cache))) {
+            SV * val = HeVAL(he);
+            infix_forward_t * t = INT2PTR(infix_forward_t *, SvIV(val));
+            infix_forward_destroy(t);
+        }
+        SvREFCNT_dec(affix->variadic_cache);
+    }
+    if (affix->infix)
+        infix_forward_destroy(affix->infix);
+    if (affix->args_arena)
+        infix_arena_destroy(affix->args_arena);
+    if (affix->ret_arena)
+        infix_arena_destroy(affix->ret_arena);
+    if (affix->plan)
+        safefree(affix->plan);
+    if (affix->out_param_info)
+        safefree(affix->out_param_info);
+    if (affix->c_args)
+        safefree(affix->c_args);
+    if (affix->sig_str)
+        safefree(affix->sig_str);
+    if (affix->sym_name)
+        safefree(affix->sym_name);
+    if (affix->return_sv)
+        SvREFCNT_dec(affix->return_sv);
+    safefree(affix);
+}
+
 static int Affix_cv_free(pTHX_ SV * sv, MAGIC * mg) {
     Affix * affix = (Affix *)mg->mg_ptr;
     if (affix) {
@@ -2169,71 +2238,7 @@ static int Affix_cv_free(pTHX_ SV * sv, MAGIC * mg) {
             return 0;
         }
 #endif
-        // warn("Affix_cv_free: %p", affix);
-
-        dMY_CXT;
-        if (!PL_dirty && affix->lib_handle != nullptr && MY_CXT.lib_registry != nullptr) {
-            hv_iterinit(MY_CXT.lib_registry);
-            HE * he;
-            while ((he = hv_iternext(MY_CXT.lib_registry))) {
-                SV * entry_sv = HeVAL(he);
-                LibRegistryEntry * entry = INT2PTR(LibRegistryEntry *, SvIV(entry_sv));
-                if (entry->lib == affix->lib_handle) {
-                    entry->ref_count--;
-                    if (entry->ref_count == 0) {
-                        STRLEN klen;
-                        const char * kstr = HePV(he, klen);
-                        SV * key_sv = newSVpvn(kstr, klen);
-                        if (HeKUTF8(he))
-                            SvUTF8_on(key_sv);
-
-                        // On Linux, dlclose() is notoriously dangerous for libraries that
-                        // spawn background threads or register global handlers (Go, .NET, Audio, etc.)
-                        // unmapping the code while these threads are active causes a SEGV.
-#if defined(__linux__) || defined(__linux)
-                        // Leak the library handle but free our wrapper
-                        infix_free(entry->lib);
-#else
-                        infix_library_close(entry->lib);
-#endif
-                        safefree(entry);
-                        hv_delete_ent(MY_CXT.lib_registry, key_sv, G_DISCARD, 0);
-                        SvREFCNT_dec(key_sv);
-                    }
-                    break;
-                }
-            }
-        }
-        if (affix->variadic_cache) {
-            // Destroy all cached JIT trampolines
-            hv_iterinit(affix->variadic_cache);
-            HE * he;
-            while ((he = hv_iternext(affix->variadic_cache))) {
-                SV * val = HeVAL(he);
-                infix_forward_t * t = INT2PTR(infix_forward_t *, SvIV(val));
-                infix_forward_destroy(t);
-            }
-            SvREFCNT_dec(affix->variadic_cache);
-        }
-        if (affix->infix)
-            infix_forward_destroy(affix->infix);
-        if (affix->args_arena)
-            infix_arena_destroy(affix->args_arena);
-        if (affix->ret_arena)
-            infix_arena_destroy(affix->ret_arena);
-        if (affix->plan)
-            safefree(affix->plan);
-        if (affix->out_param_info)
-            safefree(affix->out_param_info);
-        if (affix->c_args)
-            safefree(affix->c_args);
-        if (affix->sig_str)
-            safefree(affix->sig_str);
-        if (affix->sym_name)
-            safefree(affix->sym_name);
-        if (affix->return_sv)
-            SvREFCNT_dec(affix->return_sv);
-        safefree(affix);
+        _affix_destroy(aTHX_ affix);
     }
     return 0;
 }
@@ -2966,12 +2971,7 @@ XS_INTERNAL(Affix_affix) {
     if (status != INFIX_SUCCESS) {
         infix_error_details_t err = infix_get_last_error();
         warn("Failed to create trampoline: %s", err.message);
-        SvREFCNT_dec(affix->return_sv);
-        SvREFCNT_dec(affix->variadic_cache);
-        safefree(affix->sig_str);
-        if (affix->sym_name)
-            safefree(affix->sym_name);
-        safefree(affix);
+        _affix_destroy(aTHX_ affix);
         infix_arena_destroy(parse_arena);
         XSRETURN_UNDEF;
     }
@@ -2986,13 +2986,7 @@ XS_INTERNAL(Affix_affix) {
     affix->ret_opcode = get_ret_opcode_for_type(affix->ret_type);
 
     if (affix->ret_pull_handler == nullptr) {
-        infix_forward_destroy(affix->infix);
-        SvREFCNT_dec(affix->return_sv);
-        SvREFCNT_dec(affix->variadic_cache);
-        safefree(affix->sig_str);
-        if (affix->sym_name)
-            safefree(affix->sym_name);
-        safefree(affix);
+        _affix_destroy(aTHX_ affix);
         warn("Unsupported return type");
         infix_arena_destroy(parse_arena);
         XSRETURN_UNDEF;
@@ -3181,40 +3175,8 @@ XS_INTERNAL(Affix_DESTROY) {
         affix = (Affix *)CvXSUBANY(cv_ptr).any_ptr;
     }
     STMT_END;
-    if (affix != nullptr) {
-        if (affix->lib_handle != nullptr && MY_CXT.lib_registry != nullptr) {
-            hv_iterinit(MY_CXT.lib_registry);
-            HE * he;
-            while ((he = hv_iternext(MY_CXT.lib_registry))) {
-                SV * entry_sv = HeVAL(he);
-                LibRegistryEntry * entry = INT2PTR(LibRegistryEntry *, SvIV(entry_sv));
-                if (entry->lib == affix->lib_handle) {
-                    entry->ref_count--;
-                    if (entry->ref_count == 0) {
-                        infix_library_close(entry->lib);
-                        safefree(entry);
-                        hv_delete_ent(MY_CXT.lib_registry, HeKEY_sv(he), G_DISCARD, 0);
-                    }
-                    break;
-                }
-            }
-        }
-        if (affix->return_sv)
-            SvREFCNT_dec(affix->return_sv);
-        if (affix->args_arena != nullptr)
-            infix_arena_destroy(affix->args_arena);
-        if (affix->ret_arena != nullptr)
-            infix_arena_destroy(affix->ret_arena);
-        if (affix->infix != nullptr)
-            infix_forward_destroy(affix->infix);
-        if (affix->plan != nullptr)
-            safefree(affix->plan);
-        if (affix->out_param_info != nullptr)
-            safefree(affix->out_param_info);
-        if (affix->c_args != nullptr)
-            safefree(affix->c_args);
-        safefree(affix);
-    }
+    if (affix != nullptr)
+        _affix_destroy(aTHX_ affix);
     XSRETURN_EMPTY;
 }
 
@@ -4764,7 +4726,11 @@ XS_INTERNAL(Affix_END) {
                 //
                 // Since the process is ending, the OS will reclaim file handles and memory
                 // automatically. It's (in my opinion) safer to leak the handle than to crash the process.
-#if 0
+#if defined(__linux__) || defined(__linux)
+                // Leak the library handle but free our wrapper
+                if (entry->lib)
+                    infix_free(entry->lib);
+#else
                 // This extra symbol check is here to prevent shared libs written in Go from crashing Affix.
                 // The issue is that Go inits the full Go runtime when the lib is loaded but DOES NOT STOP
                 // IT when the lib is unloaded. Threads and everything else still run and we crash when perl
@@ -4812,6 +4778,7 @@ XS_INTERNAL(Affix_END) {
         infix_registry_destroy(MY_CXT.registry);
         MY_CXT.registry = nullptr;
     }
+    _infix_cache_clear();
     if (MY_CXT.enum_registry) {
         // Values are HVs, we need to dec ref them?
         // hv_undef decreases refcounts of values automatically.
