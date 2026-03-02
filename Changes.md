@@ -1,10 +1,53 @@
-
 # Changelog
 
 All notable changes to Affix.pm will be documented in this file.
 
 The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.0.0/),
 and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0.html).
+
+## [Unreleased]
+
+This release introduces a modernization of pointer handling, turning "Pins" into first-class objects with native indexing support. In other words, you can now use `$ptr->[$n]` to access the nth element.
+
+### Added
+
+- All pointers (Pins) returned by `malloc`, `calloc`, `cast`, etc., are now blessed into the `Affix::Pointer` class.
+- Added support for native Perl array indexing on pointers and arrays. You can now use `$ptr->[$i]` to read or write memory at an offset without manual casting.
+- Added several useful methods to `Affix::Pointer`:
+    - `address()`: Returns the virtual memory address.
+    - `type()`: Returns the L<infix> signature of the pointer.
+    - `element_type()`: Returns the signature of the pointed-to elements.
+    - `count()`: Returns the element count for Arrays, or byte size for Void pointers.
+    - `size()`: Returns the total allocated size (for managed pointers).
+    - `cast($type)`: Reinterprets the pointer.
+- Zero-Copy "Live" Aggregates:
+    - `LiveStruct`: Added a new helper to return zero-copy, live views of C structs. Modifications to the returned blessed hash reflect immediately in C memory.
+    - `LiveArray`: Added a new helper to return live `Affix::Pointer` objects instead of deep-copied array references.
+- 128-bit Integer Support:
+    - Fully implemented marshalling for `Int128` and `UInt128` (sint128/uint128) primitive types.
+    - Support includes forward calls, return values, and Pins.
+    - Values are passed between Perl and C as decimal strings to maintain precision.
+- Added `Affix::Wrap->generate( $lib, $pkg, $file )` for static binding generation. This emits standalone Perl modules that depend only on `Affix`, eliminating the need for `Clang` or header files at runtime.
+- Recursive macro resolution support in Affix::Wrap for bitwise OR expressions like `(FLAG_A | FLAG_B)`.
+- Implemented the `TIEHASH` interface for `Affix::Live`. Zero-copy live views of C structs and unions can now be treated as standard Perl hashes (e.g., `keys %$live`, `each %$live`).
+- Added `params()` method to `Affix::Type::Callback` to allow inspecting and modifying callback parameters.
+
+### Fixed
+
+- Fixed the `clean` action in `Affix::Builder` which was failing due to an undefined `rmtree` call.
+- Improved `_get_pin_from_sv` and `is_pin` in XS to safely handle both references to Pins and direct magical scalars (like those found in Unions).
+- Fixed an issue where blessing a return value could prematurely trigger 'set' magic on the underlying SV.
+- Fixed `Affix_pin_count` to correctly return the byte size for `Void*` pointers when known.
+- Fixed `typedef` parsing: Named types now return proper `Affix::Type::Reference` objects instead of strings, ensuring they are correctly resolved when nested in other aggregates.
+- Corrected a memory corruption bug in `Affix_malloc` and `Affix_strdup` caused by uninitialized `Affix_Pin` structures.
+- Fixed `Affix_cast` to correctly return blessed `Affix::Live` objects when the `+` hint is used for live struct views.
+- Improved Enum Marshalling:
+    - Fixed string-to-integer conversion when passing Perl strings to C functions expecting enums.
+    - Fixed `dualvar` behavior for enums returned from C, ensuring they correctly function as both strings and integers in Perl.
+- Hardened pointer indexing: Added strict type checks to `$ptr->[$i]` to ensure indexing is only performed on `Array` types or `Void*` (byte-indexed), preventing accidental memory corruption on simple pointers.
+- Fixed `ThisCall` to correctly handle `Corinna`-based callback objects.
+- Fixed missing exports: Added `use Exporter 'import'` and ensured `attach_destructor` is correctly exported.
+- Recursive Liveness: Nested struct members in a live view are now correctly returned as `Affix::Live` hash views rather than generic pointers.
 
 ## [v1.0.7] - 2026-02-15
 
@@ -246,7 +289,8 @@ Based on infix v0.1.3
 
   - Affix.pm is born
 
-[Unreleased]: https://github.com/sanko/Affix.pm/compare/v1.0.7...HEAD
+[Unreleased]: https://github.com/sanko/Affix.pm/compare/v1.0.8...HEAD
+[v1.0.8]: https://github.com/sanko/Affix.pm/compare/v1.0.7...v1.0.8
 [v1.0.7]: https://github.com/sanko/Affix.pm/compare/v1.0.6...v1.0.7
 [v1.0.6]: https://github.com/sanko/Affix.pm/compare/v1.0.5...v1.0.6
 [v1.0.5]: https://github.com/sanko/Affix.pm/compare/v1.0.4...v1.0.5

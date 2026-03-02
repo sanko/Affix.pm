@@ -45,9 +45,9 @@ jobs:
             fi
           shell: bash
           version: '${{ inputs.version }}'
-      - name: Upload results as artifact
+      - continue-on-error: true
+        name: Upload results as artifact
         uses: actions/upload-artifact@v5.0.0
-        continue-on-error: true
         with:
           if-no-files-found: error
           name: 'test-output-${{ inputs.os }}-${{ inputs.version }}-perl${{ inputs.perl }}.${{inputs.perl_subversion}}-${{ inputs.arch }}'
@@ -69,16 +69,16 @@ on:
         required: true
         type: string
       perl_subversion:
+        default: 2
         required: false
         type: string
-        default: "2"
       pkg:
         required: true
+        type: string
+      setup:
+        default: ''
+        required: false
         type: string
       version:
         required: true
         type: string
-      setup:
-        required: false
-        type: string
-        default: ""

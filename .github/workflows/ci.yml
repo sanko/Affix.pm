@@ -28,8 +28,8 @@ jobs:
       os: '${{ matrix.os.name }}'
       perl: '${{ matrix.perl }}'
       pkg: '${{ matrix.os.pkg }}'
-      version: '${{ matrix.os.version }}'
       setup: '${{ matrix.os.setup }}'
+      version: '${{ matrix.os.version }}'
   linux:
     name: 'Linux/v${{matrix.perl}}'
     needs:
@@ -37,11 +37,7 @@ jobs:
     strategy:
       fail-fast: false
       matrix:
-        flags:
-          - ''
-          - -Dusethreads
-          - -Duselongdouble
-          - -Dusequadmath
+        flags: '${{ fromJSON(needs.setup.outputs.matrix).flags }}'
         os:
           - ubuntu-24.04
         perl: '${{ fromJSON(needs.setup.outputs.matrix).perl }}'
@@ -119,7 +115,7 @@ jobs:
           DATA: |
             {
               "perl":  ["5.40.2", "5.42.0"],
-              "flags": ["", "-Dusethreads", "-Duselongdouble", "-Dusequadmath"]
+              "flags": ["", "-Dusethreads", "-Duselongdouble", "-Dusequadmath", "--debug", "-DDEBUGGING=both", "-DDEBUGGING=-g", "-Doptimize=-g", "-DDEBUGGING=none", "-UDEBUGGING"]
             }
         id: matrix
         run: "jq -rn 'env.DATA | fromjson | @json \"matrix=\\(.)\"' > $GITHUB_OUTPUT\n"
@@ -145,18 +141,13 @@ jobs:
       flags: '${{ matrix.flags }}'
       os: '${{ matrix.os }}'
       perl: '${{ matrix.perl }}'
-
 name: CI Matrix
-
 on:
   pull_request: ~
   push: ~
   schedule:
     - cron: 42 5 * * 0
   workflow_dispatch: ~
-
 permissions:
-  contents: read
-  # actions: read is required to list artifacts via the API
   actions: read
-
+  contents: read
