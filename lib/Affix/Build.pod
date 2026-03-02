@@ -38,43 +38,41 @@ Affix::Build - Robust, Polyglot Build System for FFI Extensions
 =head1 DESCRIPTION
 
 C<Affix::Build> is a cross-platform compilation utility designed to generate shared libraries (C<.dll>, C<.so>,
-C<.dylib>) from source code in over 15 different programming languages.
+C<.dylib>) from source code in over 20 different programming languages.
 
-It is specifically engineered to support Foreign Function Interface (FFI) development. It abstracts away the complexity
-of invoking various compilers, normalizing object file extensions, handling platform-specific linker flags (such as
-MinGW vs. MSVC on Windows), and ensuring that language runtimes (like the Go GC or .NET Runtime) are correctly
-initialized.
+While originally developed to compile test fixtures for the Affix suite, it has evolved into a robust tool for creating
+polyglot extensions. It abstracts away the complexity of invoking various compilers, normalizing object file
+extensions, handling platform-specific linker flags (such as MinGW vs. MSVC on Windows), and ensuring that language
+runtimes (like the Go GC or .NET Runtime) are correctly initialized.
 
-While originally written to compile test fixtures for the Affix test suite, it serves as an incredibly powerful
-backdoor alternative to C<Inline::*> modules—allowing you to write inline code in almost any language and instantly
-bind to it natively in Perl.
+It serves as a powerful, polyglot alternative to C<Inline::*> modules—allowing you to write native code in your
+language of choice and instantly bind to it from Perl using L<Affix>.
 
 =head2 Build Strategies
 
-The compiler automatically selects the best build strategy based on the input sources:
+The builder automatically selects the optimal strategy based on the input sources:
 
 =over
 
-=item 1. B<Native/Dynamic Strategy> (Single Language)
+=item 1. B<Native Toolchain Strategy> (Single Language)
 
 If you provide source files for only B<one> language, C<Affix::Build> delegates the entire build process to that
 language's native toolchain (e.g., C<go build -buildmode=c-shared>, C<rustc --crate-type cdylib>, C<dotnet publish>).
+This ensures that the language's standard library and runtime environment are configured exactly as intended by its
+maintainers.
 
-This is the preferred method, as it guarantees the language's standard library and runtime environment are configured
-exactly as the language maintainers intended.
+=item 2. B<Polyglot Aggregation Strategy> (Mixed Languages)
 
-=item 2. B<Polyglot/Static Strategy> (Mixed Languages)
-
-If you provide source files from B<multiple> languages (e.g., C calling into Rust), the compiler switches to an
-aggregation strategy:
+If you provide source files from B<multiple> languages (e.g., C code calling into a Rust library), the builder switches
+to an aggregation strategy:
 
 =over
 
-=item 1. It instructs every compiler to output a B<Static Library> (C<.a> / C<.lib>) or B<Object File> (C<.o> / C<.obj>).
+=item 1. It instructs each language's compiler to output a B<Static Library> (C<.a> / C<.lib>) or B<Object File> (C<.o> / C<.obj>).
 
-=item 2. It aggregates these intermediate artifacts.
+=item 2. It aggregates these intermediate artifacts into a unified build context.
 
-=item 3. It invokes the system C/C++ linker (usually C<cc> or C<g++>) to securely link them all into a final shared library, bridging their differing ABIs.
+=item 3. It invokes the system C/C++ linker (usually C<cc> or C<g++>) to securely link them into a final shared library, bridging their differing ABIs.
 
 =back
 

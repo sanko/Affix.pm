@@ -23,6 +23,7 @@ draw_point( { x => 10, y => 20 } );
 
 # We can also allocate and manage raw memory and write data to it
 my $ptr = Affix::malloc(1024);
+$ptr->[0] = ord('t'); # Direct byte-level access
 memcpy( $ptr, 'test', 4 );
 
 # We can also do pointer arithmetic to create new references
@@ -40,19 +41,22 @@ Affix::free($ptr);
 
 Affix is a high-performance, developer friendly Foreign Function Interface (FFI) extension for Perl. It serves as a
 universal bridge to the vast ecosystem of native software including those written in C, Rust, Zig, C++, Go, Fortran,
-and more without writing XS code, managing a compiler, or compromising on execution speed. Affix also comes with an extensive type system including native support for primitives (including half-width floats and 128bit integers), nested C style structs, union, fixed size arrays,
-smart handling of enums, SIMD vector types, and, of course, pointers.
+and more without writing XS code, managing a compiler, or compromising on execution speed. Affix also comes with an
+extensive type system including native support for primitives (including half-width floats and 128bit integers), nested
+C style structs, union, fixed size arrays, smart handling of enums, SIMD vector types, and, of course, pointers.
 
 At its core, Affix is powered by [infix](https://github.com/sanko/infix/), a lightweight JIT (Just-In-Time) compilation
-engine designed with speed and portability as its primary objectives. Unlike traditional FFI solutions
-that rely on generic, per-call dispatch loops, Affix generates optimized machine code trampolines at runtime. These
-trampolines handle argument marshalling and return value processing directly, significantly reducing the overhead of
-crossing the boundary between Perl and native code. The underlying infix engine is [rigorously tested across a diverse range of environments](https://github.com/sanko/infix/actions/workflows/ci.yml), ensuring reliable performance on Linux, Windows,
+engine designed with speed and portability as its primary objectives. Unlike traditional FFI solutions that rely on
+generic, per-call dispatch loops, Affix generates optimized machine code trampolines at runtime. These trampolines
+handle argument marshalling and return value processing directly, significantly reducing the overhead of crossing the
+boundary between Perl and native code. The underlying infix engine is [rigorously tested across a diverse range of
+environments](https://github.com/sanko/infix/actions/workflows/ci.yml), ensuring reliable performance on Linux, Windows,
 macOS, Solaris, and various BSD flavors. It supports multiple CPU architectures including `x86_64` and `AArch64`
 (ARM64).
 
 Affix serves as a universal bridge to the vast ecosystem of native software. Whether you're tapping into a legacy
-Fortran math routine, a modern Rust crate, or a system-level C library, Affix makes the integration safe, idiomatic, and exceptionally fast.
+Fortran math routine, a modern Rust crate, or a system-level C library, Affix makes the integration safe, idiomatic,
+and exceptionally fast.
 
 # EXPORTS
 
@@ -312,13 +316,42 @@ $p->{y} = 50; # Writes directly to C memory.
 
 ## Variadic Functions (VarArgs)
 
-Affix supports C functions that take a variable number of arguments.
+Affix supports C functions that take a variable number of arguments (e.g., `printf`, `ioctl`). When defining a
+signature, use the `VarArgs` token at the end of the argument list.
+
+### Basic Usage
 
 ```perl
 # C: int printf(const char* format, ...);
-affix libc, 'printf', [ String, VarArgs ] => Int;
-printf("String: %s, Int: %d\n", "Hello", 123);
+affix libc(), ['printf' => 'my_printf'], [ String, VarArgs ] => Int;
+
+# Basic types are marshalled automatically based on Perl's internal state
+my_printf("Integer: %d, String: %s\n", 42, "Hello");
 ```
+
+### Explicit Type Control with `coerce()`
+
+In variadic functions, C relies on the caller to pass data in the exact format the function expects. While Affix
+attempts to guess the correct C type for Perl scalars, these guesses might not always match the library's expectations
+like passing a 64-bit integer where a 32-bit one is expected, or a float instead of a double.
+
+Use `coerce( $type, $value )` to explicitly tell Affix how to marshal a variadic argument.
+
+```perl
+# Suppose we have a variadic log function that expects specific bit-widths
+# C: void custom_log(int level, ...);
+affix $lib, 'custom_log', [ Int, VarArgs ] => Void;
+
+custom_log(
+    1,
+    coerce(Short, 10),    # Explicitly pass as a 16-bit signed int
+    coerce(Float, 1.5),    # Explicitly pass as a 32-bit float
+    coerce(ULong, 1000)    # Explicitly pass as a platform-native unsigned long
+);
+```
+
+Note: Standard C default argument promotions still apply. For example, passing a `Float` to a variadic function will
+typically be promoted to a `Double` by the C runtime unless the receiving function specifically handles raw floats.
 
 ## Enumerations
 

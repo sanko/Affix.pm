@@ -316,23 +316,26 @@ END_C
         push @dirs, '../';
         my $has_cxx = !1;
         my @sources = $cwd->child('lib/Affix.c');
-        warn "Sources to process: @sources\n";
 
+        #~ warn "Sources to process: @sources\n";
         for my $source (@sources) {
-            warn "Processing source: $source\n";
+
+            #~ warn "Processing source: $source\n";
             my $cxx       = $source =~ /cx+$/;
             my $file_base = $source->basename(qr[.c$]);
             my $tempdir   = path('lib');
             $tempdir->mkdir( { verbose => $verbose, mode => oct '755' } );
             my $version = $meta->version;
             my $obj     = $builder->object_file($source);
-            warn "Checking obj: $obj\n";
+
+            #~ warn "Checking obj: $obj\n";
             my $should_compile
                 = ( $force ||
                     ( !-f $obj ) ||
                     ( $source->stat->mtime >= path($obj)->stat->mtime ) ||
                     ( path(__FILE__)->stat->mtime > path($obj)->stat->mtime ) );
-            warn "Should compile: $should_compile\n";
+
+            #~ warn "Should compile: $should_compile\n";
             push @dirs, $source->dirname();
             $has_cxx = 1 if $cxx;
             push @objs,

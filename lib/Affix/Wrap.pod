@@ -28,39 +28,42 @@ Affix::Wrap - Frictionless C/C++ Binding Generator for Affix
 
 =head1 DESCRIPTION
 
-C<Affix::Wrap> acts as a bridge between C/C++ header files and L<Affix>. It parses C and C++ header files and extracts
-functions, structs, enums, typedefs, macros, and variables and automatically converts this AST into L<Affix>
-definitions.
+C<Affix::Wrap> is a frictionless binding generator that bridges C/C++ header files and L<Affix>. It parses headers to
+extract functions, structs, enums, typedefs, macros, and global variables, automatically converting this information
+into L<Affix> definitions.
 
-This module is designed to facilitate two primary workflows:
+It is designed to facilitate two primary developer workflows:
 
 =over
 
-=item 1. B<Runtime Wrapping>
+=item 1. B<Rapid Prototyping (Runtime Wrapping)>
 
-Parsing headers on the fly to wrap libraries dynamically via C<wrap()>. This is ideal for rapid prototyping, private
-tooling, or when you don't want to maintain a separate XS/FFI module file.
+Parse headers on the fly and inject bindings directly into your running Perl environment via C<wrap()>. This is perfect
+for private tooling, experimental scripts, or whenever you want to avoid the boilerplate of a dedicated FFI module.
 
-=item 2. B<Static Generation>
+=item 2. B<Distribution (Static Generation)>
 
-Creating F<.pm> files to be distributed on CPAN via C<parse()>. This provides the fastest load times for end users, as
-the parsing happens only once during development.
+Generate standalone F<.pm> files for CPAN via C<generate()>. This produces a pure-Perl module that depends only on
+L<Affix>, ensuring fast load times and zero development dependencies (like C<Clang> or C<Affix::Wrap> itself) for your
+end users.
 
 =back
 
-=head2 Drivers
+=head2 Parsing Drivers
 
-Affix::Wrap utilizes a dual-driver approach to parsing:
+C<Affix::Wrap> employs a dual-driver strategy:
 
 =over
 
-=item * B<Clang driver>
+=item * B<Clang Driver (Recommended)>
 
-The preferred driver. Shells out to C<clang -Xclang -ast-dump=json> for highly accurate, compiler-grade parsing.
+The primary driver. It leverages C<clang -Xclang -ast-dump=json> to perform compiler-grade analysis of your headers. It
+is highly accurate and handles complex C++ templates, macros, and deep inclusion chains with ease.
 
-=item * B<Regex driver>
+=item * B<Regex Driver (Fallback)>
 
-A fallback driver implemented in pure Perl. It scans headers using regular expressions
+A pure-Perl heuristic parser. While less capable than the Clang driver (it may struggle with complex macros or nested
+C++ constructs), it requires no external dependencies and is sufficient for many straightforward C headers.
 
 =back
 

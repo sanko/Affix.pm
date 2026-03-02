@@ -26,6 +26,7 @@ Affix - A Foreign Function Interface eXtension
 
     # We can also allocate and manage raw memory and write data to it
     my $ptr = Affix::malloc(1024);
+    $ptr->[0] = ord('t'); # Direct byte-level access
     memcpy( $ptr, 'test', 4 );
 
     # We can also do pointer arithmetic to create new references
@@ -358,11 +359,38 @@ C<Affix::Pointer> objects for aggregates allow direct field access (C<< $p->{fie
 
 =head2 Variadic Functions (VarArgs)
 
-Affix supports C functions that take a variable number of arguments.
+Affix supports C functions that take a variable number of arguments (e.g., C<printf>, C<ioctl>). When defining a
+signature, use the C<VarArgs> token at the end of the argument list.
+
+=head3 Basic Usage
 
     # C: int printf(const char* format, ...);
-    affix libc, 'printf', [ String, VarArgs ] => Int;
-    printf("String: %s, Int: %d\n", "Hello", 123);
+    affix libc(), ['printf' => 'my_printf'], [ String, VarArgs ] => Int;
+
+    # Basic types are marshalled automatically based on Perl's internal state
+    my_printf("Integer: %d, String: %s\n", 42, "Hello");
+
+=head3 Explicit Type Control with C<coerce()>
+
+In variadic functions, C relies on the caller to pass data in the exact format the function expects. While Affix
+attempts to guess the correct C type for Perl scalars, these guesses might not always match the library's expectations
+like passing a 64-bit integer where a 32-bit one is expected, or a float instead of a double.
+
+Use C<coerce( $type, $value )> to explicitly tell Affix how to marshal a variadic argument.
+
+    # Suppose we have a variadic log function that expects specific bit-widths
+    # C: void custom_log(int level, ...);
+    affix $lib, 'custom_log', [ Int, VarArgs ] => Void;
+
+    custom_log(
+        1,
+        coerce(Short, 10),    # Explicitly pass as a 16-bit signed int
+        coerce(Float, 1.5),    # Explicitly pass as a 32-bit float
+        coerce(ULong, 1000)    # Explicitly pass as a platform-native unsigned long
+    );
+
+Note: Standard C default argument promotions still apply. For example, passing a C<Float> to a variadic function will
+typically be promoted to a C<Double> by the C runtime unless the receiving function specifically handles raw floats.
 
 =head2 Enumerations
 
