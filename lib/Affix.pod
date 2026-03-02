@@ -9,42 +9,55 @@ Affix - A Foreign Function Interface eXtension
 =head1 SYNOPSIS
 
     use v5.40;
-    use Affix;
+    use Affix qw[:all];
 
-    # Load a Library
-    my $lib = load_library(libm());    # libm.so / msvcrt.dll
-
-    # Bind a Function
+    # Bind a function and call it natively.
+    # Here, we use libm which might be in libm.so, msvcrt.dll, etc.
     # C: double pow(double x, double y);
-    affix $lib, 'pow', [ Double, Double ] => Double;
-
-    # Call it natively
+    affix libm(), 'pow', [ Double, Double ] => Double;
     say pow( 2.0, 10.0 ); # 1024
 
-    # Working with Structs
+    # Working with C structs is easy
     # C: typedef struct { int x; int y; } Point;
     #    void draw_point(Point p);
     typedef Point => Struct[ x => Int, y => Int ];
     affix $lib, 'draw_point', [ Point() ] => Void;
-
     draw_point( { x => 10, y => 20 } );
 
-    # Managed Memory
-    # A Perl scalar is literally pinned to a place in C memory.
-    my $ptr = malloc(1024);
-    memcpy( $ptr, 'test data', 9 );
-    dump( $ptr, 16 ); # Hex dump to STDOUT
-    free($ptr);
+    # We can also allocate and manage raw memory and write data to it
+    my $ptr = Affix::malloc(1024);
+    memcpy( $ptr, 'test', 4 );
+
+    # We can also do pointer arithmetic to create new references
+    my $offset_ptr = Affix::ptr_add( $ptr, 12 );
+    memcpy( $offset_ptr, 'test', 4 );
+
+    # Inspect memory with a hex dump to STDOUT
+    Affix::dump( $ptr, 32 );
+
+    # And release the memory. This is automatic when such a scalar falls out of scope
+    Affix::free($ptr);
 
 =head1 DESCRIPTION
 
-Affix aims to be fast, powerful, and easy to use FFI for Perl. It allows you to load dynamic libraries (DLLs, shared
-objects) and call their functions natively without writing XS code or configuring a C compiler.
+Affix is a high-performance, developer friendly Foreign Function Interface (FFI) extension for Perl. It serves as a
+universal bridge to the vast ecosystem of native software including those written in C, Rust, Zig, C++, Go, Fortran,
+and more without writing XS code, managing a compiler, or compromising on execution speed. Affix also comes with an
+extensive type system including native support for primitives (including half-width floats and 128bit integers), nested
+C style structs, union, fixed size arrays, smart handling of enums, SIMD vector types, and, of course, pointers.
 
-Affix distinguishes itself from other FFI solutions by using L<infix|https://github.com/sanko/infix/>, a custom
-lightweight JIT engine. When you bind a function, Affix generates machine code at runtime (a 'trampoline') to handle
-the argument marshalling. This results in significantly lower overhead than generic FFI wrappers that rely on dynamic
-dispatch per-call.
+At its core, Affix is powered by L<infix|https://github.com/sanko/infix/>, a lightweight JIT (Just-In-Time) compilation
+engine designed with speed and portability as its primary objectives. Unlike traditional FFI solutions that rely on
+generic, per-call dispatch loops, Affix generates optimized machine code trampolines at runtime. These trampolines
+handle argument marshalling and return value processing directly, significantly reducing the overhead of crossing the
+boundary between Perl and native code. The underlying infix engine is L<rigorously tested across a diverse range of
+environments|https://github.com/sanko/infix/actions/workflows/ci.yml>, ensuring reliable performance on Linux, Windows,
+macOS, Solaris, and various BSD flavors. It supports multiple CPU architectures including C<x86_64> and C<AArch64>
+(ARM64).
+
+Affix serves as a universal bridge to the vast ecosystem of native software. Whether you're tapping into a legacy
+Fortran math routine, a modern Rust crate, or a system-level C library, Affix makes the integration safe, idiomatic,
+and exceptionally fast.
 
 =head1 EXPORTS
 
