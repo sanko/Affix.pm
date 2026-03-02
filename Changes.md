@@ -5,7 +5,7 @@ All notable changes to Affix.pm will be documented in this file.
 The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.0.0/),
 and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0.html).
 
-## [Unreleased]
+## [v1.0.8] - 2026-03-02
 
 This release introduces a modernization of pointer handling, turning pins into first-class objects with native indexing support. In other words, you can now use `$ptr->[$n]` to access the nth element.
 
