@@ -36,13 +36,18 @@ free($ptr);
 
 # DESCRIPTION
 
-Affix aims to be fast, powerful, and easy to use FFI for Perl. It allows you to load dynamic libraries (DLLs, shared objects) and call their functions natively without writing XS code or configuring a C compiler.
+Affix aims to be fast, powerful, and easy to use FFI for Perl. It allows you to load dynamic libraries (DLLs, shared
+objects) and call their functions natively without writing XS code or configuring a C compiler.
 
-Affix distinguishes itself from other FFI solutions by using [infix](https://github.com/sanko/infix/), a custom lightweight JIT engine. When you bind a function, Affix generates machine code at runtime (a 'trampoline') to handle the argument marshalling. This results in significantly lower overhead than generic FFI wrappers that rely on dynamic dispatch per-call.
+Affix distinguishes itself from other FFI solutions by using [infix](https://github.com/sanko/infix/), a custom
+lightweight JIT engine. When you bind a function, Affix generates machine code at runtime (a 'trampoline') to handle
+the argument marshalling. This results in significantly lower overhead than generic FFI wrappers that rely on dynamic
+dispatch per-call.
 
 # EXPORTS
 
-Affix exports standard types (`Int`, `Double`, etc.) and core functions (`affix`, `wrap`, `load_library`) by default. You can control imports using tags:
+Affix exports standard types (`Int`, `Double`, etc.) and core functions (`affix`, `wrap`, `load_library`) by
+default. You can control imports using tags:
 
 ```perl
 use Affix qw[:all];    # Import everything
@@ -80,7 +85,8 @@ On success, installs the subroutine and returns the generated code reference.
 
 ## `wrap( $lib, $symbol, $params, $return )`
 
-Creates a wrapper around a given symbol and returns it as an anonymous `CODE` reference. Arguments are identical to `affix` except you cannot provide an alias.
+Creates a wrapper around a given symbol and returns it as an anonymous `CODE` reference. Arguments are identical to
+`affix` except you cannot provide an alias.
 
 ```perl
 my $pow = wrap $lib, 'pow', [ Double, Double ] => Double;
@@ -89,7 +95,8 @@ my $result = $pow->( 2, 5 );
 
 ## `direct_affix( ... )` / `direct_wrap( ... )`
 
-**Experimental:** Bypasses standard safety checks and intermediate processing for maximum performance with simple primitives. Generates highly specialized trampolines that read Perl SVs directly from the stack.
+**Experimental:** Bypasses standard safety checks and intermediate processing for maximum performance with simple
+primitives. Generates highly specialized trampolines that read Perl SVs directly from the stack.
 
 ## `typedef( $name => $type )`
 
@@ -139,7 +146,8 @@ Removes the magic applied by `pin`. The variable retains its last value but is n
 
 # TYPE SYSTEM
 
-Affix signatures are built using helper functions that map precisely to C types. These are exported by default, or can be imported explicitly using the `:types` tag.
+Affix signatures are built using helper functions that map precisely to C types. These are exported by default, or can
+be imported explicitly using the `:types` tag.
 
 ## Primitive Types
 
@@ -198,7 +206,8 @@ Use these when a C library explicitly requests a `stdint.h` type.
 
 ### `Pointer[ $type ]`
 
-A pointer to another type. When used as an argument, you can pass a **reference to a scalar** for automatic temporary allocation and write-back.
+A pointer to another type. When used as an argument, you can pass a **reference to a scalar** for automatic temporary
+allocation and write-back.
 
 ```perl
 # C: void get_val(int *val);
@@ -263,7 +272,8 @@ typedef Config => Struct[ a => UInt32 | 1, b => UInt32 | 3 ];
 
 ## Live Views (Zero-Copy Aggregates)
 
-Standard structs and arrays copy data between Perl and C. Live views allow you to directly manipulate C memory through Perl references.
+Standard structs and arrays copy data between Perl and C. Live views allow you to directly manipulate C memory through
+Perl references.
 
 - **`LiveStruct[ ... ]`**: Returns an `Affix::Live` tied hash. Modifying keys in this hash updates C memory immediately.
 - **`LiveArray[ $type, $count ]`**: Returns an `Affix::Pointer` tied array. `$arr->[0] = 5` writes directly to memory.
@@ -320,7 +330,8 @@ that enum type.
 
 ## SIMD Vectors
 
-Vectors are first-class types. You can interact with them using standard **ArrayRefs** (convenient) or **Packed Strings** (high-performance, zero-overhead).
+Vectors are first-class types. You can interact with them using standard **ArrayRefs** (convenient) or **Packed Strings**
+(high-performance, zero-overhead).
 
 - **`Vector[ $size, $type ]`**: Create a custom vector (e.g., `Vector[ 4, Float ]`).
 - **Aliases**: `M256`, `M256d`, `M512`, `M512d`, `M512i`.
@@ -337,7 +348,9 @@ my $packed_res = add_vecs( $v1, $v2 );
 
 When bridging Perl and C, handling raw memory safely is critical. Affix uses **Pins** to manage this boundary.
 
-A Pin (an `Affix::Pointer` object) is a magical scalar reference that holds a C memory address, its associated type information, and an ownership flag. If a Pin is "managed", Perl will automatically free the underlying memory when the variable goes out of scope.
+A Pin (an `Affix::Pointer` object) is a magical scalar reference that holds a C memory address, its associated type
+information, and an ownership flag. If a Pin is "managed", Perl will automatically free the underlying memory when the
+variable goes out of scope.
 
 ## Allocation & Deallocation
 
@@ -354,7 +367,8 @@ my $ptr = malloc(1024); # Allocates 1KB
 
 ### `calloc( $count, $type )`
 
-Allocates memory for an array of `$count` elements of the given `$type`, and zero-initializes the memory. Returns a managed pin typed as an Array.
+Allocates memory for an array of `$count` elements of the given `$type`, and zero-initializes the memory. Returns a
+managed pin typed as an Array.
 
 ```perl
 my $arr = calloc( 10, Int );
@@ -363,7 +377,8 @@ $arr->[0] = 42; # Write directly to the first element
 
 ### `realloc( $ptr, $new_size )`
 
-Resizes the memory area pointed to by `$ptr` to `$new_size` bytes. The original pin is updated automatically in-place.
+Resizes the memory area pointed to by `$ptr` to `$new_size` bytes. The original pin is updated automatically
+in-place.
 
 ```
 $ptr = realloc( $ptr, 2048 );
@@ -371,7 +386,8 @@ $ptr = realloc( $ptr, 2048 );
 
 ### `strdup( $string )`
 
-Allocates managed memory and copies the Perl string (along with a `NULL` terminator) into it. Returns a managed `Pointer[Char]` pin.
+Allocates managed memory and copies the Perl string (along with a `NULL` terminator) into it. Returns a managed
+`Pointer[Char]` pin.
 
 ```perl
 my $str_ptr = strdup("Hello C!");
@@ -381,7 +397,9 @@ my $str_ptr = strdup("Hello C!");
 
 Manually releases memory.
 
-**Warning:** Only use this on memory that you exclusively own (e.g., allocated via `malloc`). Do not call `free` on unmanaged pointers returned by C libraries unless the library explicitly transfers ownership to you, or you will cause a segmentation fault.
+**Warning:** Only use this on memory that you exclusively own (e.g., allocated via `malloc`). Do not call `free` on
+unmanaged pointers returned by C libraries unless the library explicitly transfers ownership to you, or you will cause
+a segmentation fault.
 
 ```
 free($ptr);
@@ -404,7 +422,8 @@ own($c_string, 1);
 
 ### `attach_destructor( $pin, $func_ptr, [$lib] )`
 
-Attaches a custom C function to be called when the Pin is destroyed. This is incredibly useful for C libraries that require specific cleanup routines (e.g., `SDL_DestroyWindow`, `sqlite3_free`).
+Attaches a custom C function to be called when the Pin is destroyed. This is incredibly useful for C libraries that
+require specific cleanup routines (e.g., `SDL_DestroyWindow`, `sqlite3_free`).
 
 ```perl
 # Find the address of the library's custom free function
@@ -438,7 +457,8 @@ my $val = cast($void_ptr, Int); # Returns 99
 
 ### `address( $ptr )`
 
-Returns the virtual memory address of the pointer as a Perl Unsigned Integer (`UInt64`). Useful for passing addresses to other FFI libraries or debugging.
+Returns the virtual memory address of the pointer as a Perl Unsigned Integer (`UInt64`). Useful for passing addresses
+to other FFI libraries or debugging.
 
 ```
 say sprintf("Address: 0x%X", address($ptr));
@@ -469,7 +489,8 @@ Safe string length calculation. Checks the pointer for a `NULL` terminator, scan
 
 # RAW MEMORY OPERATIONS
 
-Affix exposes standard C memory operations for high-performance, raw byte manipulation. These functions accept either Pins or raw integer addresses.
+Affix exposes standard C memory operations for high-performance, raw byte manipulation. These functions accept either
+Pins or raw integer addresses.
 
 - `memcpy( $dest, $src, $bytes )`: Copies exactly `$bytes` from `$src` to `$dest`.
 - `memmove( $dest, $src, $bytes )`: Copies `$bytes` from `$src` to `$dest`. Safe to use if the memory regions overlap.
@@ -479,11 +500,14 @@ Affix exposes standard C memory operations for high-performance, raw byte manipu
 
 # LIBRARIES & SYMBOLS
 
-Loading dynamic libraries across different operating systems (Windows, macOS, Linux, BSD) can be a nightmare of varying extensions, prefixes, and search paths. Affix abstracts this complexity away with a smart library discovery engine.
+Loading dynamic libraries across different operating systems (Windows, macOS, Linux, BSD) can be a nightmare of varying
+extensions, prefixes, and search paths. Affix abstracts this complexity away with a smart library discovery engine.
 
 ## Library Discovery
 
-When you provide a bare library name (e.g., `'z'`, `'ssl'`, `'user32'`) rather than an absolute path, Affix automatically formats the name for the current platform (e.g., `libz.so`, `libz.dylib`, `z.dll`) and searches the following locations in order:
+When you provide a bare library name (e.g., `'z'`, `'ssl'`, `'user32'`) rather than an absolute path, Affix
+automatically formats the name for the current platform (e.g., `libz.so`, `libz.dylib`, `z.dll`) and searches the
+following locations in order:
 
 - 1. **Standard System Paths:** Windows `System32`/`SysWOW64`; Unix `/usr/local/lib`, `/usr/lib`, `/lib`, `/usr/lib/system`.
 - 2. **Environment Variables:** Paths defined in `LD_LIBRARY_PATH`, `DYLD_LIBRARY_PATH`, `DYLD_FALLBACK_LIBRARY_PATH`, or `PATH`.
@@ -499,13 +523,18 @@ Locates and loads a dynamic library into memory, returning an opaque `Affix::Lib
 my $lib = load_library('sqlite3');
 ```
 
-**Lifecycle:** Library handles are thread-safe and internally reference-counted. The underlying OS library is only closed (e.g., via `dlclose` or `FreeLibrary`) when all Affix wrappers and pins relying on it are destroyed.
+**Lifecycle:** Library handles are thread-safe and internally reference-counted. The underlying OS library is only
+closed (e.g., via `dlclose` or `FreeLibrary`) when all Affix wrappers and pins relying on it are destroyed.
 
-_Note:_ When using `affix()` or `wrap()`, you can safely pass the string name directly (e.g., `affix('sqlite3', ...)`) and Affix will call `load_library` for you internally. If you pass `undef` instead of a library name, Affix will search the currently running executable process.
+_Note:_ When using `affix()` or `wrap()`, you can safely pass the string name directly (e.g., `affix('sqlite3',
+...)`) and Affix will call `load_library` for you internally. If you pass `undef` instead of a library name, Affix
+will search the currently running executable process.
 
 ### `locate_lib( $name, [$version] )`
 
-Searches for a library using Affix's discovery engine and returns its absolute file path as a string. It **does not** load the library into memory. This is useful if you need to pass the library path to another tool or check for its existence.
+Searches for a library using Affix's discovery engine and returns its absolute file path as a string. It **does not**
+load the library into memory. This is useful if you need to pass the library path to another tool or check for its
+existence.
 
 ```perl
 # Find libssl.so.1.1 or libssl.1.1.dylib
@@ -515,7 +544,8 @@ say "Found SSL at: $path" if $path;
 
 ### `find_symbol( $lib_handle, $symbol_name )`
 
-Looks up an exported symbol (function or global variable) inside an already-loaded `Affix::Lib` handle. Returns an unmanaged `Affix::Pointer` (Pin) of type `Pointer[Void]` pointing to the memory address of the symbol.
+Looks up an exported symbol (function or global variable) inside an already-loaded `Affix::Lib` handle. Returns an
+unmanaged `Affix::Pointer` (Pin) of type `Pointer[Void]` pointing to the memory address of the symbol.
 
 ```perl
 my $lib = load_library('m');
@@ -532,7 +562,9 @@ Returns `undef` if the symbol cannot be found.
 
 ### `libc()` and `libm()`
 
-Helper functions that locate and return the file paths to the standard C library and the standard math library for the current platform. Because platform implementations differ wildly (e.g., MSVCRT on Windows, glibc on Linux, libSystem on macOS), using these helpers guarantees you get the correct library.
+Helper functions that locate and return the file paths to the standard C library and the standard math library for the
+current platform. Because platform implementations differ wildly (e.g., MSVCRT on Windows, glibc on Linux, libSystem on
+macOS), using these helpers guarantees you get the correct library.
 
 ```perl
 # Bind 'puts' from the standard C library
@@ -544,7 +576,8 @@ affix libm(), 'cos', [Double] => Double;
 
 ### `get_last_error_message()`
 
-If `load_library`, `find_symbol`, or a signature parsing step fails, this function returns a string describing the most recent internal or operating system error (via `dlerror` or `FormatMessage`).
+If `load_library`, `find_symbol`, or a signature parsing step fails, this function returns a string describing the
+most recent internal or operating system error (via `dlerror` or `FormatMessage`).
 
 ```perl
 my $lib = load_library('does_not_exist');
@@ -555,7 +588,8 @@ if (!$lib) {
 
 # INTROSPECTION
 
-When working with C APIs, you often need to know exactly how much memory a structure consumes or where a specific field is located within a block of memory. Affix provides compiler-grade type introspection.
+When working with C APIs, you often need to know exactly how much memory a structure consumes or where a specific field
+is located within a block of memory. Affix provides compiler-grade type introspection.
 
 ### `sizeof( $type )`
 
@@ -583,7 +617,8 @@ say alignof( Mixed() ); # 8
 
 ### `offsetof( $struct_or_union, $field_name )`
 
-Returns the byte offset of a named field within an Aggregate type (Struct or Union). This is incredibly useful for manual pointer arithmetic.
+Returns the byte offset of a named field within an Aggregate type (Struct or Union). This is incredibly useful for
+manual pointer arithmetic.
 
 ```perl
 typedef Rect => Struct[ x => Int, y => Int, w => Int, h => Int ];
@@ -594,7 +629,8 @@ say offsetof( Rect(), 'w' ); # 8 (skips x and y, 4 bytes each)
 
 ### `types()`
 
-Returns a list of all custom type names currently registered in Affix's global type registry via `typedef`. In scalar context, returns the total number of registered types.
+Returns a list of all custom type names currently registered in Affix's global type registry via `typedef`. In scalar
+context, returns the total number of registered types.
 
 ```perl
 my @known_types = types();
@@ -603,13 +639,16 @@ say "Registered types: " . join(', ', @known_types);
 
 # INTERFACING WITH OTHER LANGUAGES
 
-Because Affix dynamically loads symbols according to the C Application Binary Interface (C ABI), it can interact with libraries written in almost any language, provided they expose their functions correctly. Companion modules like [Affix::Build](https://metacpan.org/pod/Affix%3A%3ABuild) make compiling these languages seamless.
+Because Affix dynamically loads symbols according to the C Application Binary Interface (C ABI), it can interact with
+libraries written in almost any language, provided they expose their functions correctly. Companion modules like
+[Affix::Build](https://metacpan.org/pod/Affix%3A%3ABuild) make compiling these languages seamless.
 
 Here are the requirements and quirks for interfacing with non-C languages.
 
 ## C++
 
-C++ uses "name mangling" to support function overloading and namespaces, which alters the final symbol name inside the compiled library.
+C++ uses "name mangling" to support function overloading and namespaces, which alters the final symbol name inside the
+compiled library.
 
 - 1. **Prevent Mangling:** Wrap your exported functions in `extern "C"` to ensure they have predictable names.
 
@@ -653,19 +692,24 @@ When writing raw Assembly (NASM/GAS), you must manually adhere to the calling co
 
 ## Go
 
-Go libraries can be loaded if they are compiled with `-buildmode=c-shared`. Note that Go slices and strings contain internal metadata (length/capacity) and do not map directly to C arrays or `char*`. Use the `C` package inside Go (`import "C"`) and `*C.char` to bridge the boundary.
+Go libraries can be loaded if they are compiled with `-buildmode=c-shared`. Note that Go slices and strings contain
+internal metadata (length/capacity) and do not map directly to C arrays or `char*`. Use the `C` package inside Go
+(`import "C"`) and `*C.char` to bridge the boundary.
 
 # ERROR HANDLING & DEBUGGING
 
-Bridging two entirely different runtimes can lead to spectacular crashes if types or memory boundaries are mismatched. Affix provides built-in tools to help you identify what went wrong.
+Bridging two entirely different runtimes can lead to spectacular crashes if types or memory boundaries are mismatched.
+Affix provides built-in tools to help you identify what went wrong.
 
 ## Error Handling
 
 ### `errno()`
 
-Accesses the system error code from the most recent FFI or standard library call (reads `errno` on Unix and `GetLastError` on Windows).
+Accesses the system error code from the most recent FFI or standard library call (reads `errno` on Unix and
+`GetLastError` on Windows).
 
-This function returns a **dualvar**. It behaves as an integer in numeric context, and magically resolves to the human-readable system error message (via `strerror` or `FormatMessage`) in string context.
+This function returns a **dualvar**. It behaves as an integer in numeric context, and magically resolves to the
+human-readable system error message (via `strerror` or `FormatMessage`) in string context.
 
 ```perl
 # Suppose a C file-open function fails
@@ -683,13 +727,15 @@ if (!$fd) {
 }
 ```
 
-**Note:** You must call `errno()` immediately after the C function invokes, as subsequent Perl operations (like printing to STDOUT) might overwrite the system's error register.
+**Note:** You must call `errno()` immediately after the C function invokes, as subsequent Perl operations (like
+printing to STDOUT) might overwrite the system's error register.
 
 ## Memory Inspection
 
 ### `dump( $pin, $length_in_bytes )`
 
-Prints a formatted hex dump of the memory pointed to by a Pin directly to `STDOUT`. This is an invaluable tool for verifying that C structs or buffers contain the data you expect.
+Prints a formatted hex dump of the memory pointed to by a Pin directly to `STDOUT`. This is an invaluable tool for
+verifying that C structs or buffers contain the data you expect.
 
 ```perl
 my $ptr = strdup("Affix Debugging");
@@ -702,7 +748,8 @@ dump($ptr, 16);
 
 ### `sv_dump( $scalar )`
 
-Dumps Perl's internal interpreter structure (SV) for a given scalar to `STDOUT`. This exposes the raw flags, reference counts, and memory layout of the Perl variable itself.
+Dumps Perl's internal interpreter structure (SV) for a given scalar to `STDOUT`. This exposes the raw flags, reference
+counts, and memory layout of the Perl variable itself.
 
 ```perl
 my $val = 42;
@@ -716,7 +763,9 @@ sv_dump($val);
 
 Sets the internal `PL_perl_destruct_level` variable.
 
-When testing XS/FFI code for memory leaks using tools like Valgrind or AddressSanitizer, you often want Perl to meticulously clean up all global memory during its destruction phase (otherwise the leak checker will be flooded with false-positive "leaks" that are actually just memory Perl intentionally leaves to the OS to reclaim).
+When testing XS/FFI code for memory leaks using tools like Valgrind or AddressSanitizer, you often want Perl to
+meticulously clean up all global memory during its destruction phase (otherwise the leak checker will be flooded with
+false-positive "leaks" that are actually just memory Perl intentionally leaves to the OS to reclaim).
 
 ```
 # Call this at the start of your script when running under Valgrind
@@ -732,11 +781,13 @@ Affix ships with two powerful companion modules to streamline your FFI developme
 
 # THREAD SAFETY & CONCURRENCY
 
-Affix bridges Perl (a single-threaded interpreter, generally) with libraries that may be multi-threaded. This creates potential hazards that you must manage.
+Affix bridges Perl (a single-threaded interpreter, generally) with libraries that may be multi-threaded. This creates
+potential hazards that you must manage.
 
 ## 1. Initialization Phase vs. Execution Phase
 
-Functions that modify Affix's global state are **not thread-safe**. You must perform all definitions in the main thread before starting any background threads or loops in the library.
+Functions that modify Affix's global state are **not thread-safe**. You must perform all definitions in the main thread
+before starting any background threads or loops in the library.
 
 Unsafe operations that you should never call from Callbacks or in a threaded context:
 
@@ -745,9 +796,12 @@ Unsafe operations that you should never call from Callbacks or in a threaded con
 
 ## 2. Callbacks
 
-When passing a Perl subroutine as a `Callback`, avoid performing complex Perl operations like loading modules or defining subs inside callbacks triggered on a foreign thread. Such callbacks should remain simple: process data, update a shared variable, and return.
+When passing a Perl subroutine as a `Callback`, avoid performing complex Perl operations like loading modules or
+defining subs inside callbacks triggered on a foreign thread. Such callbacks should remain simple: process data, update
+a shared variable, and return.
 
-If the library executes the callback from a background thread (e.g., window managers, audio callbacks), Affix attempts to attach a temporary Perl context to that thread. This should be sufficient but Perl is gonna be Perl.
+If the library executes the callback from a background thread (e.g., window managers, audio callbacks), Affix attempts
+to attach a temporary Perl context to that thread. This should be sufficient but Perl is gonna be Perl.
 
 # RECIPES & EXAMPLES
 

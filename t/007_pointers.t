@@ -275,7 +275,7 @@ subtest 'return malloc\'d pointer' => sub {
 };
 subtest 'deep pointers' => sub {
 
-    # 1. Deep Indirection (***int)
+    # Deep Indirection (***int)
     isa_ok my $set_deep = wrap( $lib_path, 'set_int_deep', [ Pointer [ Pointer [ Pointer [Int] ] ], Int ] => Void ), ['Affix'];
 
     # Manually construct the pointer chain with correct types
@@ -296,7 +296,7 @@ subtest 'deep pointers' => sub {
     my $ppp_mem = malloc(8);
     my $ppp_val = Affix::cast( $ppp_mem, Pointer [ Pointer [ Pointer [Int] ] ] );
 
-    # FIXED: Dereference to invoke SET magic, writing the pointer address to memory.
+    # Dereference to invoke SET magic, writing the pointer address to memory.
     $$ppp_val = $pp_val;
 
     # Call Function
@@ -310,7 +310,7 @@ subtest 'deep pointers' => sub {
     Affix::free($pp_mem);
     Affix::free($ppp_mem);
 
-    # 2. Manual Memory Management (malloc/free/cast)
+    # Manual Memory Management (malloc/free/cast)
     isa_ok my $get_heap = wrap( $lib_path, 'get_heap_int', [Int] => Pointer [Int] ), ['Affix'];
 
     # Alias libc free to avoid conflict with Affix::free

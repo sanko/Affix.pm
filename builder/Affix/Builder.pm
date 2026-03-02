@@ -203,7 +203,7 @@ use %s;
         $build_lib->mkpath unless -d $build_lib;
         my @include_dirs = ( $infix_dir->child('include'), $infix_dir->child('src') );
 
-        # 1. Detect Compiler settings using Perl's Config as base
+        # Detect Compiler settings using Perl's Config as base
         my $cc_cmd  = $Config{cc} || 'cc';
         my $cc_type = 'gcc';                 # Default flavor
         if    ( $cc_cmd =~ /cl(\.exe)?$/i ) { $cc_type = 'msvc'; }
@@ -211,7 +211,7 @@ use %s;
         elsif ( $cc_cmd =~ /gcc/i )         { $cc_type = 'gcc'; }
         elsif ( $cc_cmd =~ /egcc/i )        { $cc_type = 'gcc'; }
 
-        # 2. Setup Flags
+        # Setup Flags
         my ( $ar_cmd, @cflags, @arflags, $out_flag_cc, $out_flag_ar );
         my @includes = map { ( $cc_type eq 'msvc' ? '/I' : '-I' ) . $_ } @include_dirs;
         if ( $cc_type eq 'msvc' ) {
@@ -235,7 +235,7 @@ use %s;
             push @cflags, '-pthread' unless $^O eq 'MSWin32';
         }
 
-        # 3. Compile infix.c -> infix.o
+        # Compile infix.c -> infix.o
         my $obj_ext  = $cc_type eq 'msvc' ? '.obj' : '.o';
         my $obj_file = $build_lib->child( 'infix' . $obj_ext );
         my @compile_cmd;
@@ -250,7 +250,7 @@ use %s;
             die "Failed to compile infix.c";
         }
 
-        # 4. Archive infix.o -> libinfix.a
+        # Archive infix.o -> libinfix.a
         my @archive_cmd;
         if ( $cc_type eq 'msvc' ) {
             @archive_cmd = ( $ar_cmd, @arflags, $out_flag_ar . $lib_file, $obj_file );

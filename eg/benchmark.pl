@@ -6,6 +6,7 @@ use Test2::Tools::Affix qw[:all];
 use Config;
 use Benchmark qw[:all];
 $|++;
+diag 'Affix ' . $Affix::VERSION;
 
 # Conditionally load FFI::Platypus and Inline::C
 my ( $has_platypus, $has_inline_c );
@@ -92,15 +93,15 @@ if ($has_platypus) {
     $ffi = FFI::Platypus->new( api => 2, lib => "$lib" );
     $ffi->attach( [ fast_pow      => 'platypus_fast_pow' ],    [ 'double', 'double' ] => 'double' );
     $ffi->attach( [ benchmark_sin => 'platypus_sin' ],         ['double']             => 'double' );
-    $ffi->attach( [ get_ptr       => 'platypus_get_ptr' ],     []                     => 'opaque' );
-    $ffi->attach( [ take_ptr      => 'platypus_take_ptr' ],    ['opaque']             => 'int' );
+    $ffi->attach( [ get_ptr       => 'platypus_get_ptr' ],     []                     => 'int*' );
+    $ffi->attach( [ take_ptr      => 'platypus_take_ptr' ],    ['int*']               => 'int' );
     $ffi->attach( [ take_enum     => 'platypus_take_enum' ],   ['int']                => 'int' );
     $ffi->attach( [ return_enum   => 'platypus_return_enum' ], ['int']                => 'int' );
     $platypus_sin_func = $ffi->function( 'benchmark_sin', ['double'] => 'double' );
 
     package BenchStruct {
         use FFI::Platypus::Record;
-        record_layout( sint32 => 'a', sint32 => 'b', sint32 => 'c', sint32 => 'd', );
+        record_layout_1( int => 'a', int => 'b', int => 'c', int => 'd' );
     }
     $ffi->type( 'record(BenchStruct)' => 'BenchStruct' );
     $ffi->attach( [ get_struct => 'platypus_get_struct' ], [] => 'BenchStruct' );
@@ -131,135 +132,102 @@ subtest verify => sub {
 my $bench_count = -5;
 my $ptr         = malloc(4);
 $$ptr = 123;
-subtest 'Core Overhead: Primitives' => sub {
-    diag 'Comparing Primitive Call Overhead (double + double -> double)...';
-    my %marks = ( 'Affix' => sub { fast_pow( 1.5, 2.5 ) }, );
-    $marks{'Platypus'} = sub { platypus_fast_pow( 1.5, 2.5 ) }
-        if $has_platypus;
-    cmpthese( $bench_count, \%marks );
-    pass 'finished';
-};
-subtest 'Math Functions (sin)' => sub {
-    diag 'Comparing Math Function Overhead (sin)...';
-    my %marks = (
-        'Affix: affix'       => sub { benchmark_sin(0.5) },
-        'Affix: wrap'        => sub { $wrap_sin->(0.5) },
-        'Affix: direct_wrap' => sub { $direct_sin->(0.5) },
-        'Pure Perl'          => sub { sin(0.5) },
-    );
-    if ($has_platypus) {
-        $marks{'Platypus: attach'}   = sub { platypus_sin(0.5) };
-        $marks{'Platypus: function'} = sub { $platypus_sin_func->(0.5) };
-    }
-    if ($has_inline_c) {
-        $marks{'Inline::C'} = sub { inline_sin(0.5) };
-    }
-    cmpthese( $bench_count, \%marks );
-    pass 'finished';
-};
-subtest 'Pointer Marshalling' => sub {
-    diag 'Comparing Pointer Marshalling (Return pointer, Pass pointer)...';
-    my %marks = ( 'Affix: return' => sub { get_ptr() }, 'Affix: pass' => sub { take_ptr($ptr) }, );
-    if ($has_platypus) {
-        $marks{'Platypus: return'} = sub { platypus_get_ptr() };
-        $marks{'Platypus: pass'}   = sub { platypus_take_ptr($ptr) };
-    }
-    cmpthese( $bench_count, \%marks );
-    pass 'finished';
-};
-subtest 'Aggregate Marshalling (Copying)' => sub {
-    diag 'Comparing Struct Marshalling (Returned by value, deep-copied to Hash/Record)...';
-    my %marks = ( 'Affix: struct_copy' => sub { get_struct() }, );
-    if ($has_platypus) {
-        $marks{'Platypus: struct_copy'} = sub { platypus_get_struct() };
-    }
-    cmpthese( $bench_count, \%marks );
-    pass 'finished';
-};
-subtest 'Enum Marshalling' => sub {
-    diag 'Comparing Enum Marshalling (Dualvars vs Integers)...';
-    my %marks
-        = ( 'Affix: pass_int' => sub { take_enum(2) }, 'Affix: pass_str' => sub { take_enum('GREEN') }, 'Affix: return' => sub { return_enum(3) }, );
-    if ($has_platypus) {
-        $marks{'Platypus: pass_int'} = sub { platypus_take_enum(2) };
-        $marks{'Platypus: return'}   = sub { platypus_return_enum(3) };
-    }
-    cmpthese( $bench_count, \%marks );
-    pass 'finished';
-};
-subtest 'Affix-Specific: "Live" vs "Copy" Aggregates' => sub {
-    my $has_live = eval { LiveStruct( [ a => Int ] ); 1 };
-    if ($has_live) {
-        diag 'Benchmarking Affix-only Features: "Live" vs "Copy" Aggregates...';
-        my $Inner = Struct [ a => Int, b => Int, c => Int, d => Int ];
-        diag 'LiveStruct signature: ' . LiveStruct($Inner);
-        eval 'affix $lib, [ get_struct => "get_struct_live" ], [] => LiveStruct $Inner';
-        eval 'affix $lib, [ get_outer  => "get_outer_live"  ], [] => LiveStruct [ nested => $Inner, id => Int ]';
-        my $live_struct = get_struct_live();
-        my $copy_struct = get_struct();
-        cmpthese(
-            $bench_count,
-            {   'struct_copy_pull'   => sub { get_struct() },
-                'struct_live_pull'   => sub { get_struct_live() },
-                'member_access_copy' => sub { my $v             = $copy_struct->{a} },
-                'member_access_live' => sub { my $v             = $live_struct->{a} },
-                'member_write_live'  => sub { $live_struct->{a} = 100 },
-            }
-        );
-        diag 'Benchmarking Affix-only Features: Recursive Liveness...';
-        my $outer_live = get_outer_live();
-        cmpthese(
-            $bench_count,
-            {   'nested_member_access' => sub { my $v = $outer_live->{nested}{a} }
-            }
-        );
-        pass 'finished';
-    }
-    else {
-        pass 'LiveStruct not supported in this build';
-    }
-};
-subtest 'Affix-Specific: Pointer and Array Indexing' => sub {
-    diag 'Benchmarking Affix-only Features: Pointer and Array Indexing...';
-    my $live_ptr   = get_ptr();
-    my $live_array = calloc( 10, Int );
-    cmpthese(
+is fastest(
+    $bench_count,                                                                    #
+    Affix    => sub { fast_pow( 1.5, 2.5 ) },                                        #
+    Platypus => ( $has_platypus ? ( sub { platypus_fast_pow( 1.5, 2.5 ) } ) : () )
+    ),
+    'Affix', ' func pow(1.5, 2.5)';
+isnt fastest(
+    $bench_count,
+    Affix    => sub { benchmark_sin(0.5) },                                          #
+    Platypus => ( $has_platypus ? ( sub { platypus_sin(0.5) } ) : () ),              #
+    Inline   => ( $has_inline_c ? ( sub { inline_sin(0.5) } )   : () )
+    ),
+    'Platypus', 'func sin(0.5)';
+is fastest(
+    $bench_count,                                                                    #
+    Affix    => sub { $wrap_sin->(0.5) },                                            #
+    Platypus => ( $has_platypus ? ( sub { $platypus_sin_func->(0.5) } ) : () )
+    ),
+    'Affix', 'anon sin(0.5)';
+is fastest(
+    $bench_count,                                                                    #
+    Affix    => sub { take_ptr($ptr) },                                              #
+    Platypus => ( $has_platypus ? ( sub { platypus_take_ptr($ptr) } ) : () )
+    ),
+    'Affix', 'pass pointer';
+is fastest(
+    $bench_count,                                                                    #
+    Affix    => sub { my $x = get_ptr() },                                           #
+    Platypus => ( $has_platypus ? ( sub { my $x = platypus_get_ptr() } ) : () )
+    ),
+    'Affix', 'return pointer';
+is fastest(
+    $bench_count,                                                                    #
+    Affix    => sub { get_struct() },                                                #
+    Platypus => ( $has_platypus ? ( sub { platypus_get_struct() } ) : () )
+    ),
+    'Affix', 'Aggregate Marshalling';
+like fastest(
+    $bench_count,
+    'Affix: pass_int'    => sub { take_enum(2) },
+    'Affix: pass_str'    => sub { take_enum('GREEN') },
+    'Affix: return'      => sub { return_enum(3) },
+    'Platypus: pass_int' => ( $has_platypus ? ( sub { platypus_take_enum(2) } )   : () ),
+    'Platypus: return'   => ( $has_platypus ? ( sub { platypus_return_enum(3) } ) : () )
+    ),
+    qr/^Affix/, 'Enum Marshalling';
+my $has_live = eval { LiveStruct( [ a => Int ] ); 1 };
+if ($has_live) {
+    my $Inner = Struct [ a => Int, b => Int, c => Int, d => Int ];
+    eval 'affix $lib, [ get_struct => "get_struct_live" ], [] => LiveStruct $Inner';
+    my $live_struct = get_struct_live();
+    my $copy_struct = get_struct();
+    like fastest(
         $bench_count,
-        {   'ptr_deref_magic' => sub { my $v = $$live_ptr },
-            'ptr_indexing_r'  => sub {
-                eval { my $v = $live_ptr->[0] }
-            },
-            'ptr_indexing_w' => sub {
-                eval { $live_ptr->[0] = 42 }
-            },
-            'array_indexing_r' => sub {
-                eval { my $v = $live_array->[5] }
-            },
-        }
-    );
-    pass 'finished';
-};
-subtest 'Affix-Specific: 128-bit Integers' => sub {
-    my $has_128 = 0;
-    if ( eval { Int128(); 1 } ) {
-        eval {
-            affix $lib, 'add128', [ Int128, Int128 ] => Int128;
-            $has_128 = 1;
-        };
-    }
-    if ($has_128) {
-        diag 'Benchmarking Affix-only Features: 128-bit Integers (passed as strings)...';
-        my $a = '170141183460469231731687303715884105727';    # max int128
-        my $b = '1';
-        cmpthese(
-            $bench_count / 5,
-            {   'add128' => sub { add128( $a, $b ) }
-            }
-        );
-        pass 'finished';
-    }
-    else {
-        pass '128-bit integers not supported in this build';
-    }
+        'struct_copy_pull'   => sub { get_struct() },
+        'struct_live_pull'   => sub { get_struct_live() },
+        'member_access_copy' => sub { my $v             = $copy_struct->{a} },
+        'member_access_live' => sub { my $v             = $live_struct->{a} },
+        'member_write_live'  => sub { $live_struct->{a} = 100 },
+        ),
+        qr/live|access|write/, 'Live vs Copy Aggregates';
+}
+my $live_ptr   = get_ptr();
+my $live_array = calloc( 10, Int );
+like fastest(
+    $bench_count,
+    ptr_deref_magic  => sub { my $v          = $$live_ptr },
+    ptr_indexing_r   => sub { my $v          = $live_ptr->[0] },
+    ptr_indexing_w   => sub { $live_ptr->[0] = 42 },
+    array_indexing_r => sub { my $v          = $live_array->[5] },
+    ),
+    qr/ptr|array/, 'Pointer and Array Indexing';
+subtest i128 => sub {
+    skip_all 'No 128bit integer support', 1 unless eval { Int128(); 1 };
+    affix $lib, 'add128', [ Int128, Int128 ] => Int128;
+    my $a = '170141183460469231731687303715884105727';
+    my $b = '1';
+    is fastest( $bench_count, 'add128' => sub { add128( $a, $b ) } ), 'add128', '128-bit Integers';
 };
 done_testing;
+
+sub fastest ( $times, %marks ) {
+    delete $marks{$_} for grep { !defined $marks{$_} } keys %marks;
+    note sprintf 'running %s for %s seconds each', join( ', ', keys %marks ), abs($times);
+    my @marks;
+    my $len = [ sort { $b <=> $a } map { length $_ } keys %marks ]->[0];
+    for my $name ( sort keys %marks ) {
+        my $res = timethis( $times, $marks{$name}, '', 'none' );
+        my ( $r, $pu, $ps, $cu, $cs, $n ) = @$res;
+        push @marks, { name => $name, res => $res, n => $n, s => ( $pu + $ps ) };
+        note sprintf '%' . ( $len + 1 ) . 's - %s', $name, timestr($res);
+    }
+    my $results = cmpthese {
+        map { $_->{name} => $_->{res} } @marks
+    }, 'none';
+    my $len_1 = [ sort { $b <=> $a } map { length $_->[1] } @$results ]->[0];
+    note sprintf '%-' . ( $len + 1 ) . 's %' . ( $len_1 + 1 ) . 's' . ( ' %5s' x ( scalar( @{ $results->[0] } ) - 2 ) ), @$_ for @$results;
+    [ sort { $b->{n} * $a->{s} <=> $a->{n} * $b->{s} } @marks ]->[0]->{name};
+}

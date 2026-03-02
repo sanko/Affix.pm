@@ -37,6 +37,7 @@ typedef struct {
     HV * enum_registry;
     // Cache for coercion strings to avoid re-fetching from SV objects
     HV * coercion_cache;
+    HV * stash_pointer;  // Cache for Affix::Pointer stash
 } my_cxt_t;
 START_MY_CXT;
 // Helper macro to fetch a value from a hash if it exists, otherwise return a default.
@@ -174,17 +175,20 @@ struct Affix {
     OutParamInfo * out_param_info;
     size_t num_out_params;
     const infix_type * ret_type;
-    Affix_Pull ret_pull_handler;  ///< Cached handler for marshalling the return value.
-    Affix_Opcode ret_opcode;      ///< Optimized return opcode.
+    const infix_type * unwrapped_ret_type;  // Pre-unwrapped for OP_RET_PTR
+    Affix_Pull ret_pull_handler;            ///< Cached handler for marshalling the return value.
+    Affix_Opcode ret_opcode;                ///< Optimized return opcode.
     void ** c_args;
 
     // Reconstruction info for threading/cloning
     char * sig_str;
     char * sym_name;
     void * target_addr;
+    char * lib_path;
+    dTHXfield(owner_perl)
 
-    // Variadic demo
-    HV * variadic_cache;
+        // Variadic demo
+        HV * variadic_cache;
     size_t num_fixed_args;
 };
 /// Represents an Affix::Pin object, a blessed Perl scalar that wraps a raw C pointer.
@@ -225,6 +229,12 @@ struct Affix_Backend {
     Affix_Pull pull_handler;       ///< Pre-resolved handler for marshalling the return value.
     Affix_Opcode ret_opcode;       ///< Optimized return opcode.
     size_t num_args;               ///< Cached number of arguments.
+
+    char * sig_str;
+    char * sym_name;
+    void * target_addr;
+    char * lib_path;
+    dTHXfield(owner_perl)
 };
 
 // Trigger function for the experimental backend (shh!)

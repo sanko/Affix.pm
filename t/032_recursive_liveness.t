@@ -26,7 +26,7 @@ typedef Point => Struct [ x => Int, y => Int ];
 typedef Rect => Struct [ top_left => Point(), bottom_right => Point() ];
 subtest 'Recursive Liveness (Struct in Struct)' => sub {
 
-    # 1. Cast to LiveStruct
+    # Cast to LiveStruct
     affix $lib_path, 'get_rect_ptr', [] => Pointer [ Rect() ];
     my $ptr  = get_rect_ptr();
     my $live = cast( $ptr, LiveStruct( Rect() ) );
@@ -81,4 +81,5 @@ subtest 'Recursive Liveness: LiveStruct with Array' => sub {
     is $live_struct->{items}[0], 100, 'Changes to live array field reflect in struct';
     free($ptr);
 };
+#
 done_testing;

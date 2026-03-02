@@ -1,11 +1,20 @@
 #include "Affix.h"
-
 /*
 |-------------------0----------------|--0---4----------------------------||
 |.----------0---3-------0---3---0----|----------3---0-------0---3---0---.||
 |.------2----------------------------|----------------------------------.||
 |---3--------------------------------|------------------3----------------||
 */
+
+#ifdef USE_ITHREADS
+perl_mutex affix_callback_mutex;
+#endif
+
+static void rebuild_backend_data(pTHX_ Affix_Backend * backend);
+static void rebuild_affix_data(pTHX_ Affix * affix);
+
+static MGVTBL Affix_cv_vtbl;
+static MGVTBL Affix_backend_vtbl;
 
 // This will be moved somewhere else eventually...
 #ifdef __SIZEOF_INT128__
@@ -163,7 +172,6 @@ static float half_to_float(uint16_t h) {
 
 // Handles thread cloning for pins. Deep copies metadata and managed memory
 static int Affix_pin_dup(pTHX_ MAGIC * mg, CLONE_PARAMS * param) {
-    PERL_UNUSED_VAR(param);
     Affix_Pin * old_pin = (Affix_Pin *)mg->mg_ptr;
 
     if (!old_pin)
@@ -174,7 +182,7 @@ static int Affix_pin_dup(pTHX_ MAGIC * mg, CLONE_PARAMS * param) {
 
     // Copy metadata
     new_pin->size = old_pin->size;
-    // new_pin->managed = old_pin->managed;
+    new_pin->destructor = old_pin->destructor;
 
     // Handle data ownership
     if (old_pin->managed && old_pin->pointer && old_pin->size > 0) {
@@ -188,6 +196,24 @@ static int Affix_pin_dup(pTHX_ MAGIC * mg, CLONE_PARAMS * param) {
         // Unmanaged/Global/Null: Shallow copy pointer.
         new_pin->pointer = old_pin->pointer;
         new_pin->managed = false;  // Explicitly set to false: pointer is not managed by safefree.
+    }
+
+    if (old_pin->owner_sv) {
+#ifdef USE_ITHREADS
+        new_pin->owner_sv = sv_dup(old_pin->owner_sv, param);
+#else
+        new_pin->owner_sv = old_pin->owner_sv;
+#endif
+        SvREFCNT_inc(new_pin->owner_sv);
+    }
+
+    if (old_pin->destructor_lib_sv) {
+#ifdef USE_ITHREADS
+        new_pin->destructor_lib_sv = sv_dup(old_pin->destructor_lib_sv, param);
+#else
+        new_pin->destructor_lib_sv = old_pin->destructor_lib_sv;
+#endif
+        SvREFCNT_inc(new_pin->destructor_lib_sv);
     }
 
     // Handle type arena (Deep Copy)
@@ -893,9 +919,22 @@ static Affix_Opcode get_ret_opcode_for_type(const infix_type * type) {
         if (is_perl_sv_type(type))
             return OP_RET_SV;
 
+        const char * name = infix_type_get_name(type);
+        if (name) {
+            if (strEQ(name, "StringList") || strEQ(name, "@StringList") || strEQ(name, "SV") || strEQ(name, "@SV"))
+                return OP_RET_CUSTOM;
+        }
+
         const infix_type * pointee = type->meta.pointer_info.pointee_type;
         if (is_perl_sv_type(pointee))
             return OP_RET_SV;
+
+        const char * pointee_name = infix_type_get_name(pointee);
+        if (pointee_name) {
+            if (strEQ(pointee_name, "File") || strEQ(pointee_name, "@File") || strEQ(pointee_name, "PerlIO") ||
+                strEQ(pointee_name, "@PerlIO"))
+                return OP_RET_CUSTOM;
+        }
 
         if (pointee->category == INFIX_TYPE_PRIMITIVE) {
             if (pointee->meta.primitive_id == INFIX_PRIMITIVE_SINT8 ||
@@ -907,6 +946,7 @@ static Affix_Opcode get_ret_opcode_for_type(const infix_type * type) {
                 return OP_RET_PTR_WCHAR;
 #endif
         }
+        return OP_RET_PTR;
     }
 
     if (type->category == INFIX_TYPE_STRUCT) {
@@ -1158,7 +1198,6 @@ static void plan_step_push_pointer(pTHX_ Affix * affix,
             return;
         }
     }
-    PING;
     sv_dump(sv);
     char signature_buf[256];
     if (infix_type_print(signature_buf, sizeof(signature_buf), (infix_type *)type, INFIX_DIALECT_SIGNATURE) !=
@@ -2008,6 +2047,31 @@ CASE_OP_DONE:                                                                   
         case OP_RET_DOUBLE:                                                                                  \
             sv_setnv(TARG, *(double *)ret_buffer);                                                           \
             break;                                                                                           \
+        case OP_RET_PTR:                                                                                     \
+            {                                                                                                \
+                void * c_ptr = *(void **)ret_buffer;                                                         \
+                if (c_ptr == nullptr) {                                                                      \
+                    sv_setsv(TARG, &PL_sv_undef);                                                            \
+                }                                                                                            \
+                else {                                                                                       \
+                    Affix_Pin * pin;                                                                         \
+                    Newxz(pin, 1, Affix_Pin);                                                                \
+                    pin->pointer = c_ptr;                                                                    \
+                    pin->type = affix->unwrapped_ret_type;                                                   \
+                                                                                                             \
+                    SV * obj_data = newSViv(PTR2IV(pin));                                                    \
+                    SV * rv = newRV_noinc(obj_data);                                                         \
+                                                                                                             \
+                    dMY_CXT;                                                                                 \
+                    if (UNLIKELY(MY_CXT.stash_pointer == nullptr))                                           \
+                        MY_CXT.stash_pointer = gv_stashpv("Affix::Pointer", GV_ADD);                         \
+                    (void)sv_bless(rv, MY_CXT.stash_pointer);                                                \
+                                                                                                             \
+                    (void)sv_magicext(obj_data, nullptr, PERL_MAGIC_ext, &Affix_pin_vtbl, (char *)pin, 0);   \
+                    sv_setsv(TARG, sv_2mortal(rv));                                                          \
+                }                                                                                            \
+                break;                                                                                       \
+            }                                                                                                \
         case OP_RET_PTR_CHAR:                                                                                \
             {                                                                                                \
                 char * p = *(char **)ret_buffer;                                                             \
@@ -2099,6 +2163,14 @@ static infix_library_t * _get_lib_from_registry(pTHX_ const char * path) {
 static int Affix_cv_free(pTHX_ SV * sv, MAGIC * mg) {
     Affix * affix = (Affix *)mg->mg_ptr;
     if (affix) {
+#ifdef MULTIPLICITY
+        if (affix->owner_perl != aTHX) {
+            // warn("Affix_cv_free: %p (owner=%p, current=%p) SKIPPING", affix, (void*)affix->owner_perl, (void*)aTHX);
+            return 0;
+        }
+#endif
+        // warn("Affix_cv_free: %p", affix);
+
         dMY_CXT;
         if (!PL_dirty && affix->lib_handle != nullptr && MY_CXT.lib_registry != nullptr) {
             hv_iterinit(MY_CXT.lib_registry);
@@ -2170,6 +2242,8 @@ static int Affix_cv_dup(pTHX_ MAGIC * mg, CLONE_PARAMS * param) {
     Affix * new_affix;
     Newxz(new_affix, 1, Affix);
 
+    //~ warn("Affix_cv_dup: old=%p -> new=%p", old_affix, new_affix);
+
     /* Basic copy of metadata */
     new_affix->num_args = old_affix->num_args;
     new_affix->plan_length = old_affix->plan_length;
@@ -2196,6 +2270,10 @@ static int Affix_cv_dup(pTHX_ MAGIC * mg, CLONE_PARAMS * param) {
 
     mg->mg_ptr = (char *)new_affix;
 
+#ifdef MULTIPLICITY
+    new_affix->owner_perl = aTHX;
+#endif
+
     // Update the new CV's fast access pointer
     CV * new_cv = (CV *)mg->mg_obj;
     CvXSUBANY(new_cv).any_ptr = (void *)new_affix;
@@ -2205,6 +2283,7 @@ static int Affix_cv_dup(pTHX_ MAGIC * mg, CLONE_PARAMS * param) {
 
 // Helper to rebuild Affix data in the new thread
 static void rebuild_affix_data(pTHX_ Affix * affix) {
+    //~ warn("rebuild_affix_data: %p", affix);
     dMY_CXT;
     infix_arena_t * parse_arena = nullptr;
     infix_type * ret_type = nullptr;
@@ -2256,6 +2335,7 @@ static void rebuild_affix_data(pTHX_ Affix * affix) {
 
     affix->cif = infix_forward_get_code(affix->infix);
     affix->ret_type = infix_forward_get_return_type(affix->infix);
+    affix->unwrapped_ret_type = _unwrap_pin_type(affix->ret_type);
     affix->ret_pull_handler = get_pull_handler(aTHX_ affix->ret_type);
     // affix->ret_opcode is already set from parent, but safe to assume it matches
 
@@ -2901,6 +2981,7 @@ XS_INTERNAL(Affix_affix) {
     affix->num_fixed_args = num_fixed;
 
     affix->ret_type = infix_forward_get_return_type(affix->infix);
+    affix->unwrapped_ret_type = _unwrap_pin_type(affix->ret_type);
     affix->ret_pull_handler = get_pull_handler(aTHX_ affix->ret_type);
     affix->ret_opcode = get_ret_opcode_for_type(affix->ret_type);
 
@@ -4383,6 +4464,7 @@ void _pin_sv(pTHX_ SV * sv, const infix_type * type, void * pointer, bool manage
 }
 XS_INTERNAL(Affix_find_symbol) {
     dXSARGS;
+    dMY_CXT;  // Require the thread-local context
     if (items != 2 || !sv_isobject(ST(0)) || !sv_derived_from(ST(0), "Affix::Lib"))
         croak_xs_usage(cv, "Affix_Lib_object, symbol_name");
     IV tmp = SvIV((SV *)SvRV(ST(0)));
@@ -4740,6 +4822,7 @@ XS_INTERNAL(Affix_END) {
         hv_undef(MY_CXT.coercion_cache);
         MY_CXT.coercion_cache = nullptr;
     }
+    MY_CXT.stash_pointer = nullptr;
     XSRETURN_EMPTY;
 }
 
@@ -4773,19 +4856,14 @@ XS_INTERNAL(Affix_typedef) {
     dMY_CXT;
     if (items < 1 || items > 2)
         croak_xs_usage(cv, "$name, [$type]");
-    PING;
     SV * name_sv = ST(0);
 
     const char * raw_name = SvPV_nolen(name_sv);
     const char * name = raw_name;
-    PING;
     if (name[0] == '@')
         name++;
-    PING;
     SV * def_sv = sv_2mortal(newSVpvf("@%s", name));
-    PING;
     if (items == 2) {
-        PING;
         sv_catpv(def_sv, " = ");
         SV * type_sv = ST(1);
         const char * type_str = _get_string_from_type_obj(aTHX_ type_sv);
@@ -4797,7 +4875,6 @@ XS_INTERNAL(Affix_typedef) {
         sv_catpv(def_sv, type_str);
     }
     sv_catpv(def_sv, ";");
-    PING;
     //~ warn("Affix: Registering types: %s", SvPV_nolen(def_sv));
     if (infix_register_types(MY_CXT.registry, SvPV_nolen(def_sv)) != INFIX_SUCCESS) {
         SV * err_sv = _format_parse_error(aTHX_ "in typedef", SvPV_nolen(def_sv), infix_get_last_error());
@@ -4811,26 +4888,19 @@ XS_INTERNAL(Affix_typedef) {
     infix_registry_print(blah, 1024 * 5, MY_CXT.registry);
     warn("registry: %s", blah);
 #endif
-    PING;
     HV * stash = CopSTASH(PL_curcop);
     bool sub_exists = false;
-    PING;
     if (stash) {
-        PING;
         SV ** entry = hv_fetch(stash, name, strlen(name), 0);
         if (entry && *entry && isGV(*entry)) {
-            PING;
             if (GvCV((GV *)*entry))
                 sub_exists = true;
         }
     }
-    PING;
     if (!sub_exists) {
-        PING;
         SV * type_name_sv = newSVpvf("@%s", name);
         newCONSTSUB(stash, (char *)name, type_name_sv);
     }
-    PING;
     XSRETURN_YES;
 }
 
@@ -4865,63 +4935,44 @@ XS_INTERNAL(Affix_defined_types) {
 }
 
 void _DumpHex(pTHX_ const void * addr, size_t len, const char * file, int line) {
-    PING;
     if (addr == nullptr) {
         printf("Dumping %lu bytes from null pointer %p at %s line %d\n", (unsigned long)len, addr, file, line);
         fflush(stdout);
         return;
     }
-    PING;
     fflush(stdout);
     int perLine = 16;
     if (perLine < 4 || perLine > 64)
         perLine = 16;
     size_t i;
     U8 * buff;
-    PING;
     Newxz(buff, perLine + 1, U8);
-    PING;
     const U8 * pc = (const U8 *)addr;
-    PING;
     printf("Dumping %lu bytes from %p at %s line %d\n", (unsigned long)len, addr, file, line);
-    PING;
     if (len == 0) {
         warn("ZERO LENGTH");
         return;
     }
-    PING;
     for (i = 0; i < len; i++) {
-        PING;
         if ((i % perLine) == 0) {
-            PING;
             if (i != 0)
                 printf(" | %s\n", buff);
             printf("#  %03zu ", i);
         }
-        PING;
         printf(" %02x", pc[i]);
-        PING;
         if ((pc[i] < 0x20) || (pc[i] > 0x7e))
             buff[i % perLine] = '.';
         else
             buff[i % perLine] = pc[i];
-        PING;
         buff[(i % perLine) + 1] = '\0';
-        PING;
     }
-    PING;
     while ((i % perLine) != 0) {
-        PING;
         printf("   ");
         i++;
     }
-    PING;
     printf(" | %s\n", buff);
-    PING;
     safefree(buff);
-    PING;
     fflush(stdout);
-    PING;
 }
 
 void _DD(pTHX_ SV * scalar, const char * file, int line) {
@@ -5351,42 +5402,29 @@ XS_INTERNAL(Affix_dump) {
     dXSARGS;
     if (items != 2)
         croak_xs_usage(cv, "scalar, length_in_bytes");
-    PING;
     Affix_Pin * pin = _get_pin_from_sv(aTHX_ ST(0));
-    PING;
     if (!pin) {
         warn("scalar is not a valid pointer");
         XSRETURN_EMPTY;
     }
     if (!pin->pointer) {
-        PING;
         warn("Cannot dump a nullptr pointer");
         XSRETURN_EMPTY;
     }
-    PING;
     UV length = SvUV(ST(1));
-    PING;
     if (length == 0) {
         warn("Dump length cannot be zero");
         XSRETURN_EMPTY;
     }
-    PING;
     // PL_curcop may be nullptr during thread destruction or callbacks?
     const char * file = "Unknown";
     int line = 0;
-    PING;
     if (LIKELY(PL_curcop)) {
-        PING;
         file = OutCopFILE(PL_curcop);
-        PING;
         line = CopLINE(PL_curcop);
-        PING;
     }
-    PING;
     _DumpHex(aTHX_ pin->pointer, length, file, line);
-    PING;
     ST(0) = ST(0);
-    PING;
     XSRETURN(1);
 }
 
@@ -5951,6 +5989,7 @@ XS_INTERNAL(Affix_CLONE) {
     MY_CXT.callback_registry = newHV();
     MY_CXT.enum_registry = newHV();
     MY_CXT.coercion_cache = newHV();
+    MY_CXT.stash_pointer = nullptr;
 
     // Deep copy the type registry.
     // This ensures typedefs and structs defined in the parent thread exist in the child thread,
@@ -5982,6 +6021,7 @@ void boot_Affix(pTHX_ CV * cv) {
     MY_CXT.callback_registry = newHV();
     MY_CXT.enum_registry = newHV();
     MY_CXT.coercion_cache = newHV();
+    MY_CXT.stash_pointer = nullptr;
     MY_CXT.registry = infix_registry_create();
     if (!MY_CXT.registry)
         croak("Failed to initialize the global type registry");
