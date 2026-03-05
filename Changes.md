@@ -5,13 +5,14 @@ All notable changes to Affix.pm will be documented in this file.
 The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.0.0/),
 and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0.html).
 
-## [Unreleased]
+## [v1.0.9] - 2026-03-05
 
-This release focuses on refining the "Live" zero-copy system and fixing bitfield write-back support.
+This release focuses on refining the "Live" zero-copy system (ugh) and fixing bitfield write-back support (yay).
+
+### Breaking Changes
+- Replaced `LiveStruct`, `LiveArray`, and `LiveUnion` with a single `Live` wrapper. It now accepts any type object or signature (`Live[Struct[...]]`, `Live[Array[Int, 10]]`) and returns a live, zero-copy view. I hate this too but I'm workin' on it.
 
 ### Added
-
-- Replaced `LiveStruct`, `LiveArray`, and `LiveUnion` with a single, elegant `Live()` wrapper. It now accepts any type object or signature (`Live[Struct[...]]`, `Live[Array[Int, 10]]`) and returns a live, zero-copy view.
 - Fully implemented write support for bitfields in live views. Modifying a bitfield member in an `Affix::Live` hash now correctly performs bit-masked writes to the underlying C memory.
 - Added `LiveUnion` as a deprecated alias for the unified `Live()` classifier.
 
@@ -308,7 +309,8 @@ Based on infix v0.1.3
 
   - Affix.pm is born
 
-[Unreleased]: https://github.com/sanko/Affix.pm/compare/v1.0.8...HEAD
+[Unreleased]: https://github.com/sanko/Affix.pm/compare/v1.0.9...HEAD
+[v1.0.9]: https://github.com/sanko/Affix.pm/compare/v1.0.8...v1.0.9
 [v1.0.8]: https://github.com/sanko/Affix.pm/compare/v1.0.7...v1.0.8
 [v1.0.7]: https://github.com/sanko/Affix.pm/compare/v1.0.6...v1.0.7
 [v1.0.6]: https://github.com/sanko/Affix.pm/compare/v1.0.5...v1.0.6
