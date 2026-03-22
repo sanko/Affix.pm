@@ -277,15 +277,6 @@ static void pull_pointer_as_wstring(pTHX_ Affix * affix, SV * sv, const infix_ty
 }
 
 // Direct marshalling experiment
-// Forward declarations for static helpers
-static infix_direct_value_t affix_marshaller_sint(void * sv_raw);
-static infix_direct_value_t affix_marshaller_uint(void * sv_raw);
-static infix_direct_value_t affix_marshaller_double(void * sv_raw);
-static infix_direct_value_t affix_marshaller_pointer(void * sv_raw);
-static void affix_aggregate_marshaller(void * sv_raw, void * dest, const infix_type * type);
-static void affix_aggregate_writeback(void * sv_raw, void * src, const infix_type * type);
-static infix_direct_arg_handler_t get_direct_handler_for_type(const infix_type * type);
-
 void Affix_trigger_backend(pTHX_ CV * cv) {
     // Backend optimization is not yet thread-clone friendly in this patch.
     // For now, assume it works or isn't used in the threading test.
@@ -644,83 +635,6 @@ void _pin_sv(pTHX_ SV * sv,
              size_t bit_width);
 
 static void push_union(pTHX_ Affix * affix, const infix_type * type, SV * sv, void * p);
-
-// Execution plan for mainline Affix
-static void plan_step_push_bool(pTHX_ Affix *, Affix_Plan_Step *, SV **, void *, void **, void *);
-static void plan_step_push_sint8(pTHX_ Affix *, Affix_Plan_Step *, SV **, void *, void **, void *);
-static void plan_step_push_uint8(pTHX_ Affix *, Affix_Plan_Step *, SV **, void *, void **, void *);
-static void plan_step_push_sint16(pTHX_ Affix *, Affix_Plan_Step *, SV **, void *, void **, void *);
-static void plan_step_push_uint16(pTHX_ Affix *, Affix_Plan_Step *, SV **, void *, void **, void *);
-static void plan_step_push_sint32(pTHX_ Affix *, Affix_Plan_Step *, SV **, void *, void **, void *);
-static void plan_step_push_uint32(pTHX_ Affix *, Affix_Plan_Step *, SV **, void *, void **, void *);
-static void plan_step_push_sint64(pTHX_ Affix *, Affix_Plan_Step *, SV **, void *, void **, void *);
-static void plan_step_push_uint64(pTHX_ Affix *, Affix_Plan_Step *, SV **, void *, void **, void *);
-static void plan_step_push_float(pTHX_ Affix *, Affix_Plan_Step *, SV **, void *, void **, void *);
-static void plan_step_push_double(pTHX_ Affix *, Affix_Plan_Step *, SV **, void *, void **, void *);
-static void plan_step_push_long_double(pTHX_ Affix *, Affix_Plan_Step *, SV **, void *, void **, void *);
-#if !defined(INFIX_COMPILER_MSVC)
-static void plan_step_push_sint128(pTHX_ Affix *, Affix_Plan_Step *, SV **, void *, void **, void *);
-static void plan_step_push_uint128(pTHX_ Affix *, Affix_Plan_Step *, SV **, void *, void **, void *);
-#endif
-static void plan_step_push_pointer(pTHX_ Affix *, Affix_Plan_Step *, SV **, void *, void **, void *);
-static void plan_step_push_struct(pTHX_ Affix *, Affix_Plan_Step *, SV **, void *, void **, void *);
-static void plan_step_push_union(pTHX_ Affix *, Affix_Plan_Step *, SV **, void *, void **, void *);
-static void plan_step_push_array(pTHX_ Affix *, Affix_Plan_Step *, SV **, void *, void **, void *);
-static void plan_step_push_enum(pTHX_ Affix *, Affix_Plan_Step *, SV **, void *, void **, void *);
-static void plan_step_push_complex(pTHX_ Affix *, Affix_Plan_Step *, SV **, void *, void **, void *);
-static void plan_step_push_vector(pTHX_ Affix *, Affix_Plan_Step *, SV **, void *, void **, void *);
-static void plan_step_push_sv(pTHX_ Affix *, Affix_Plan_Step *, SV **, void *, void **, void *);
-static void plan_step_push_callback(pTHX_ Affix *, Affix_Plan_Step *, SV **, void *, void **, void *);
-
-static void push_handler_bool(pTHX_ Affix *, SV *, void *);
-static void push_handler_sint8(pTHX_ Affix *, SV *, void *);
-static void push_handler_uint8(pTHX_ Affix *, SV *, void *);
-static void push_handler_sint16(pTHX_ Affix *, SV *, void *);
-static void push_handler_uint16(pTHX_ Affix *, SV *, void *);
-static void push_handler_sint32(pTHX_ Affix *, SV *, void *);
-static void push_handler_uint32(pTHX_ Affix *, SV *, void *);
-static void push_handler_sint64(pTHX_ Affix *, SV *, void *);
-static void push_handler_uint64(pTHX_ Affix *, SV *, void *);
-static void push_handler_float16(pTHX_ Affix *, SV *, void *);
-static void push_handler_float(pTHX_ Affix *, SV *, void *);
-static void push_handler_double(pTHX_ Affix *, SV *, void *);
-static void push_handler_long_double(pTHX_ Affix *, SV *, void *);
-
-static void pull_sint8(pTHX_ Affix *, SV *, const infix_type *, void *);
-static void pull_uint8(pTHX_ Affix *, SV *, const infix_type *, void *);
-static void pull_sint16(pTHX_ Affix *, SV *, const infix_type *, void *);
-static void pull_uint16(pTHX_ Affix *, SV *, const infix_type *, void *);
-static void pull_sint32(pTHX_ Affix *, SV *, const infix_type *, void *);
-static void pull_uint32(pTHX_ Affix *, SV *, const infix_type *, void *);
-static void pull_sint64(pTHX_ Affix *, SV *, const infix_type *, void *);
-static void pull_uint64(pTHX_ Affix *, SV *, const infix_type *, void *);
-static void pull_float16(pTHX_ Affix *, SV *, const infix_type *, void *);
-static void pull_float(pTHX_ Affix *, SV *, const infix_type *, void *);
-static void pull_double(pTHX_ Affix *, SV *, const infix_type *, void *);
-static void pull_long_double(pTHX_ Affix *, SV *, const infix_type *, void *);
-static void pull_bool(pTHX_ Affix *, SV *, const infix_type *, void *);
-static void pull_void(pTHX_ Affix *, SV *, const infix_type *, void *);
-static void pull_struct(pTHX_ Affix *, SV *, const infix_type *, void *);
-static void pull_union(pTHX_ Affix *, SV *, const infix_type *, void *);
-static void pull_array(pTHX_ Affix *, SV *, const infix_type *, void *);
-static void pull_enum(pTHX_ Affix *, SV *, const infix_type *, void *);
-static void pull_enum_dualvar(pTHX_ Affix *, SV *, const infix_type *, void *);
-static void pull_complex(pTHX_ Affix *, SV *, const infix_type *, void * p);
-static void pull_vector(pTHX_ Affix *, SV *, const infix_type *, void * p);
-static void pull_pointer(pTHX_ Affix *, SV *, const infix_type *, void *);
-static void pull_pointer_as_string(pTHX_ Affix *, SV *, const infix_type *, void *);
-static void pull_pointer_as_struct(pTHX_ Affix *, SV *, const infix_type *, void *);
-static void pull_pointer_as_array(pTHX_ Affix *, SV *, const infix_type *, void *);
-static void pull_pointer_as_pin(pTHX_ Affix *, SV *, const infix_type *, void *);
-static void pull_sv(pTHX_ Affix *, SV *, const infix_type *, void *);
-static void pull_reverse_trampoline(pTHX_ Affix *, SV *, const infix_type *, void *);
-static void pull_file(pTHX_ Affix *, SV *, const infix_type *, void *);
-static void pull_perlio(pTHX_ Affix *, SV *, const infix_type *, void *);
-static void pull_stringlist(pTHX_ Affix *, SV *, const infix_type *, void *);
-#if !defined(INFIX_COMPILER_MSVC)
-static void pull_sint128(pTHX_ Affix *, SV *, const infix_type *, void *);
-static void pull_uint128(pTHX_ Affix *, SV *, const infix_type *, void *);
-#endif
 
 #define DEFINE_PUSH_PRIMITIVE_EXECUTOR(name, c_type, sv_accessor)         \
     static void plan_step_push_##name(pTHX_ Affix * affix,                \
