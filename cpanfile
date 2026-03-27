@@ -33,7 +33,7 @@ on test => sub {
     requires 'TAP::Harness::Env';
     requires 'Test2::Plugin::UTF8';
     requires 'Test2::Tools::Compare';
-    requires 'Test2::V0';
+    requires 'Test2::V1';
     recommends 'Benchmark';
     recommends 'FFI::Platypus', '2';
     recommends 'Inline::C';
