@@ -21,8 +21,14 @@
 
 #include "common/infix_internals.h"
 #include <infix/infix.h>
-// This structure defines the thread-local storage for our module. Under ithreads,
-// each Perl thread will get its own private instance of this struct.
+
+/**
+ * @defgroup ThreadContext Thread-Safe Globals
+ *
+ * This structure defines the thread-local storage for our module. Under ithreads,
+ * each Perl thread will get its own private instance of this struct.
+ * @{
+ */
 typedef struct {
     /// A per-thread hash table to store loaded libraries.
     /// Maps library path -> LibRegistryEntry*.
@@ -40,6 +46,8 @@ typedef struct {
     HV * stash_pointer;  // Cache for Affix::Pointer stash
 } my_cxt_t;
 START_MY_CXT;
+/** @} */
+
 // Helper macro to fetch a value from a hash if it exists, otherwise return a default.
 #define hv_existsor(hv, key, _or) hv_exists(hv, key, strlen(key)) ? *hv_fetch(hv, key, strlen(key), 0) : _or
 // Macros to handle passing the Perl interpreter context ('THX') explicitly,

@@ -6074,10 +6074,10 @@ void boot_Affix(pTHX_ CV * cv) {
     (void)newXSproto_portable("Affix::set_destruct_level", Affix_set_destruct_level, __FILE__, "$");
 
     {
-        newXS_deffile("main::define_types", XS_main_define_types);
-        newXS_deffile("main::sizeof_type", XS_main_sizeof_type);
         newXS_deffile("main::cast", XS_main_cast);
         newXS_deffile("main::alloc_raw", XS_main_alloc_raw);
+        newXS_deffile("main::alloc_owned", XS_main_alloc_owned);
+
         newXS_deffile("main::get_string_ptr", XS_main_get_string_ptr);
         newXS_deffile("main::test_invoke_callback", XS_main_test_invoke_callback);
         newXS_deffile("main::set_mem_u128", XS_main_set_mem_u128);
