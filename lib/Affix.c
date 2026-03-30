@@ -6073,15 +6073,29 @@ void boot_Affix(pTHX_ CV * cv) {
     XSUB_EXPORT(errno, "", "core");
     (void)newXSproto_portable("Affix::set_destruct_level", Affix_set_destruct_level, __FILE__, "$");
 
-    {
-        newXS_deffile("main::cast", XS_main_cast);
-        newXS_deffile("main::alloc_raw", XS_main_alloc_raw);
-        newXS_deffile("main::alloc_owned", XS_main_alloc_owned);
 
-        newXS_deffile("main::get_string_ptr", XS_main_get_string_ptr);
-        newXS_deffile("main::test_invoke_callback", XS_main_test_invoke_callback);
-        newXS_deffile("main::set_mem_u128", XS_main_set_mem_u128);
-        newXS_deffile("main::get_file_ptr", XS_main_get_file_ptr);
+    {
+        (void)newXSproto_portable(
+            "main::verify_and_mutate_struct_arg", XS_main_verify_and_mutate_struct_arg, __FILE__, "$");
+        (void)newXSproto_portable("main::define_types", XS_main_define_types, __FILE__, "$");
+        (void)newXSproto_portable("main::sizeof_type", XS_main_sizeof_type, __FILE__, "$");
+        (void)newXSproto_portable("main::offsetof_member", XS_main_offsetof_member, __FILE__, "$$");
+        (void)newXSproto_portable("main::cast", XS_main_cast, __FILE__, "$$");
+        (void)newXSproto_portable("main::wrap_owned", XS_main_wrap_owned, __FILE__, "$$");
+        (void)newXSproto_portable("main::alloc_owned", XS_main_alloc_owned, __FILE__, "$");
+        (void)newXSproto_portable("main::free_owned", XS_main_free_owned, __FILE__, "$");
+        (void)newXSproto_portable("Affix::Memory::DESTROY", XS_main_free_owned, __FILE__, "$");
+        (void)newXSproto_portable("main::alloc_raw", XS_main_alloc_raw, __FILE__, "$");
+        (void)newXSproto_portable("main::set_mem_u128", XS_main_set_mem_u128, __FILE__, "$$$");
+        (void)newXSproto_portable("main::get_string_ptr", XS_main_get_string_ptr, __FILE__, "");
+        (void)newXSproto_portable("main::test_invoke_callback", XS_main_test_invoke_callback, __FILE__, "$$$");
+        (void)newXSproto_portable("main::test_invoke_callback_128", XS_main_test_invoke_callback_128, __FILE__, "$$");
+        (void)newXSproto_portable("main::get_file_ptr", XS_main_get_file_ptr, __FILE__, "$");
+        (void)newXSproto_portable("main::verify_marshalling_128", XS_main_verify_marshalling_128, __FILE__, "$");
+        (void)newXSproto_portable("main::mock_cxx_new", XS_main_mock_cxx_new, __FILE__, "$");
+        (void)newXSproto_portable("main::mock_cxx_delete", XS_main_mock_cxx_delete, __FILE__, "$");
+        (void)newXSproto_portable("main::get_mock_cxx_dtor", XS_main_get_mock_cxx_dtor, __FILE__, "");
+        (void)newXSproto_portable("main::get_mock_cxx_dtor_calls", XS_main_get_mock_cxx_dtor_calls, __FILE__, "");
     }
 #undef XSUB_EXPORT
 
