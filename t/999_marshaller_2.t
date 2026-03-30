@@ -80,7 +80,7 @@ subtest 'Core Types: Primitives' => sub {
     $p->{f32} = 1.25;
     is( $p->{f32}, 1.25, 'float32' );
     $p->{f64} = 1.23456789;
-    is( $p->{f64}, 1.23456789, 'float64' );
+    is( $p->{f64}, float(1.23456789), 'float64' );
     $p->{b} = 1;
     is( $p->{b}, 1, 'bool true' );
     $p->{b} = 0;
@@ -132,8 +132,8 @@ subtest 'Aggregates: Arrays, Vectors & Nesting' => sub {
     $data->{simd}[3] = 4.4;
     is( sprintf( "%.1f", $data->{simd}[3] ), "4.4", "Vector element access" );
     $data->{matrix}[9][8]{x} = 12.34;
-    is( $data->{matrix}[9][8]{x},       12.34, "Nested array access" );
-    is( scalar( @{ $data->{matrix} } ), 10,    "Array size check" );
+    is( $data->{matrix}[9][8]{x},       float(12.34), "Nested array access" );
+    is( scalar( @{ $data->{matrix} } ), 10,           "Array size check" );
 };
 subtest 'Assignment Interceptor (The Overwrite Test)' => sub {
     my $data = cast( alloc_raw( sizeof( Everything() ) ), "Everything" );
