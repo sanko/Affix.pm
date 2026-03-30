@@ -343,10 +343,60 @@ subtest 'Wide String Robustness (Japanese, Emoji, Truncation)' => sub {
 subtest '128-bit Robustness (Whitespace & Malformed)' => sub {
     my $data = cast( alloc_raw( sizeof( BigData() ) ), "BigData" );
     $data->{val} = "  12345  ";
-    is( $data->{val}, "12345", "128-bit decimal with whitespace" );
+    is $data->{val}, "12345", "128-bit decimal with whitespace" ;
     $data->{val} = "  0xABC  ";
-    is( $data->{val}, "2748", "128-bit hex with whitespace" );
+    is $data->{val}, "2748", "128-bit hex with whitespace" ;
     $data->{val} = "123XYZ";
-    is( $data->{val}, "123", "128-bit stops at malformed character" );
+    is $data->{val}, "123", "128-bit stops at malformed character" ;
+};
+subtest 'Memory Mutation via Magic VTables' => sub {
+    subtest 'Mutate C memory via Array Cast (int[1])' => sub {
+        my $size = sizeof_type('int');
+        my $mem  = alloc_owned($size);
+
+        # Cast to array and verify it initializes to 0 (since safecalloc is used)
+        my $int_array = cast( $mem, Array [ Int, 1 ] );
+        is $int_array->[0], 0, 'Memory is safely zero-initialized';
+
+        # Mutate the memory
+        $int_array->[0] = 42;
+        is $int_array->[0], 42, 'Value updated in the mapped Perl array';
+
+        # THE ACID TEST: Cast the same raw memory again to ensure the C memory actually changed
+        my $verify_array = cast( $mem, Array [ Int, 1 ] );
+        is $verify_array->[0], 42, 'Underlying C memory was successfully mutated';
+    };
+    subtest 'Mutate C memory via Scalar Aliasing (for-loop)' => sub {
+        my $size = sizeof(Int);
+        my $mem  = alloc_owned($size);
+
+        # Use the $_ aliasing trick to write directly to the magical scalar
+        for ( cast( $mem, Int ) ) {
+            is $_, 0, 'Memory is safely zero-initialized';
+            $_ = 99;    # Mutate
+            is $_, 99, 'Value updated via scalar alias';
+        }
+
+        # Cast again and alias to read the underlying memory
+        for ( cast( $mem, Int ) ) {
+            is $_, 99, 'Underlying C memory was successfully mutated via scalar alias';
+        }
+    };
+    subtest 'Standard assignment strips magic (Expected Failure)' => sub {
+        my $size = sizeof(Int);
+        my $mem  = alloc_owned($size);
+
+        # This copies the value (0) and strips the magic
+        my $copied_val = cast( $mem, Int );
+
+        # This only changes the Perl scalar, NOT the C memory
+        $copied_val = 777;
+        is $copied_val, 777, 'Perl scalar updated...';
+
+        # Verify the C memory remains untouched (should still be 0)
+        for ( cast( $mem, Int ) ) {
+            is $_, 0, '...but underlying C memory remains unchanged because magic was stripped during copy';
+        }
+    };
 };
 done_testing;
