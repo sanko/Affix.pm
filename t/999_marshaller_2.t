@@ -343,15 +343,15 @@ subtest 'Wide String Robustness (Japanese, Emoji, Truncation)' => sub {
 subtest '128-bit Robustness (Whitespace & Malformed)' => sub {
     my $data = cast( alloc_raw( sizeof( BigData() ) ), "BigData" );
     $data->{val} = "  12345  ";
-    is $data->{val}, "12345", "128-bit decimal with whitespace" ;
+    is $data->{val}, "12345", "128-bit decimal with whitespace";
     $data->{val} = "  0xABC  ";
-    is $data->{val}, "2748", "128-bit hex with whitespace" ;
+    is $data->{val}, "2748", "128-bit hex with whitespace";
     $data->{val} = "123XYZ";
-    is $data->{val}, "123", "128-bit stops at malformed character" ;
+    is $data->{val}, "123", "128-bit stops at malformed character";
 };
 subtest 'Memory Mutation via Magic VTables' => sub {
     subtest 'Mutate C memory via Array Cast (int[1])' => sub {
-        my $size = sizeof_type('int');
+        my $size = sizeof(Int);
         my $mem  = alloc_owned($size);
 
         # Cast to array and verify it initializes to 0 (since safecalloc is used)
@@ -362,7 +362,7 @@ subtest 'Memory Mutation via Magic VTables' => sub {
         $int_array->[0] = 42;
         is $int_array->[0], 42, 'Value updated in the mapped Perl array';
 
-        # THE ACID TEST: Cast the same raw memory again to ensure the C memory actually changed
+        # Cast the same raw memory again to ensure the C memory actually changed
         my $verify_array = cast( $mem, Array [ Int, 1 ] );
         is $verify_array->[0], 42, 'Underlying C memory was successfully mutated';
     };
@@ -398,5 +398,19 @@ subtest 'Memory Mutation via Magic VTables' => sub {
             is $_, 0, '...but underlying C memory remains unchanged because magic was stripped during copy';
         }
     };
+};
+subtest 'Linux Regression: Int[1] vs WChar[x]' => sub {
+
+    # On Linux, sizeof(Int) == sizeof(WChar) == 4.
+    # This test ensures they are distinguished by NAME, not SIZE.
+    ok my $mem = alloc_owned( sizeof_type("int") ), 'malloc';
+
+    # This should return an ARRAY REF (AV*), not a string ("")
+    ok my $int_arr = cast( $mem, Array [ Int, 1 ] ), 'cast(Array[Int, 1])';
+    is ref($int_arr), 'ARRAY', 'int[1] is treated as an array reference (AV*)';
+
+    # This should return a STRING (PV)
+    my $wchar_arr = cast( alloc_owned( sizeof_type(WChar) * 4 ), Array [ WChar, 4 ] );
+    is ref($wchar_arr), '', 'wchar_t[4] is treated as a string (PV)';
 };
 done_testing;

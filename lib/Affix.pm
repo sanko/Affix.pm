@@ -200,12 +200,14 @@ package Affix v1.0.9 {    # 'FFI' is my middle name!
 
     # Abstract
     CORE::state $wchar_size = $Config{wcharsize} // ( $^O eq 'MSWin32' ? 2 : 4 );
-    sub Void ()       { Affix::Type::Primitive->new( name => 'void' ) }
-    sub Bool ()       { Affix::Type::Primitive->new( name => 'bool' ) }
-    sub Char ()       { Affix::Type::Primitive->new( name => 'char' ) }
-    sub UChar()       { Affix::Type::Primitive->new( name => 'uchar' ) }
-    sub SChar()       { Affix::Type::Primitive->new( name => 'char' ) }
-    sub WChar()       { Affix::Type::Primitive->new( name => ( $wchar_size == 2 ? 'uint16' : 'uint32' ) ) }
+    sub Void () { Affix::Type::Primitive->new( name => 'void' ) }
+    sub Bool () { Affix::Type::Primitive->new( name => 'bool' ) }
+    sub Char () { Affix::Type::Primitive->new( name => 'char' ) }
+    sub UChar() { Affix::Type::Primitive->new( name => 'uchar' ) }
+    sub SChar() { Affix::Type::Primitive->new( name => 'char' ) }
+
+    #~ sub WChar()       { Affix::Type::Primitive->new( name => ( $wchar_size == 2 ? 'uint16' : 'uint32' ) ) }
+    sub WChar()       { Affix::Type::Primitive->new( name => 'wchar_t' ) }
     sub Short ()      { Affix::Type::Primitive->new( name => 'short' ) }
     sub UShort ()     { Affix::Type::Primitive->new( name => 'ushort' ) }
     sub Int ()        { Affix::Type::Primitive->new( name => 'int' ) }

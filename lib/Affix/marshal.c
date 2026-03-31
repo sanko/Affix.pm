@@ -84,15 +84,16 @@ float16_t float32_to_float16(float f) {
     }
     return sign | (e << 10) | (sig >> 13);
 }
-/* --- VTable Forward Declarations --- */
+
 static MGVTBL vtbl_sint8, vtbl_uint8, vtbl_sint16, vtbl_uint16, vtbl_sint32, vtbl_uint32, vtbl_sint64, vtbl_uint64,
     vtbl_float, vtbl_double, vtbl_float16, vtbl_bool, vtbl_sint128, vtbl_uint128, vtbl_void, vtbl_bitfield,
     vtbl_pointer, vtbl_array, string_vtable, wstring_vtable, vtbl_lazy_aggregate;
-/* --- Forward Declarations --- */
+
 const infix_type * resolve_type(pTHX_ const infix_type * type);
 SV * bind_aggregate(pTHX_ void * ptr, const infix_type * type, SV * owner);
 void bind_placeholder(
     pTHX_ SV * sv, void * ptr, const infix_type * type, uint8_t bit_offset, uint8_t bit_width, bool prime, SV * owner);
+
 /**
  * @brief Heuristic algorithm to determine if an array type should be treated as a string.
  * @details C has no real strings, only arrays. This checks if the array consists of
@@ -104,30 +105,36 @@ void bind_placeholder(
 int is_string_array(pTHX_ const infix_type * type, int * out_wide) {
     if (type->category != INFIX_TYPE_ARRAY)
         return 0;
+
     const infix_type * el_raw = type->meta.array_info.element_type;
     const infix_type * el_res = resolve_type(aTHX_ el_raw);
+
     if (el_res->category != INFIX_TYPE_PRIMITIVE)
         return 0;
+
+    // Standard 8-bit ints/chars are always treated as standard C strings
     if (el_res->meta.primitive_id == INFIX_PRIMITIVE_SINT8 || el_res->meta.primitive_id == INFIX_PRIMITIVE_UINT8) {
         if (out_wide)
             *out_wide = 0;
         return 1;
     }
+
+    // Check explicitly named types (e.g. char16_t, WChar, wchar_t, etc.)
     const char * n = infix_type_get_name(el_raw);
     if (!n)
         n = infix_type_get_name(el_res);
-    if (n && (strEQ(n, "char16_t") || strEQ(n, "wchar_t") || strEQ(n, "char32_t") || strEQ(n, "WChar"))) {
-        if (el_res->size == 2 || el_res->size == 4) {
-            if (out_wide)
-                *out_wide = 1;
-            return 1;
+
+    if (n) {
+        /* Use a robust substring check to catch all variations of "char" / "WChar" */
+        if (strstr(n, "char") || strstr(n, "Char") || strstr(n, "CHAR") || strEQ(n, "WChar") || strEQ(n, "wchar_t")) {
+            if (el_res->size == 2 || el_res->size == 4) {
+                if (out_wide)
+                    *out_wide = 1;
+                return 1;
+            }
         }
     }
-    if (!n && el_res->size == sizeof(wchar_t)) {
-        if (out_wide)
-            *out_wide = 1;
-        return 1;
-    }
+
     return 0;
 }
 /**
