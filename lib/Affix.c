@@ -6104,8 +6104,6 @@ void boot_Affix(pTHX_ CV * cv) {
 
 
     {
-        (void)newXSproto_portable(
-            "main::verify_and_mutate_struct_arg", XS_main_verify_and_mutate_struct_arg, __FILE__, "$");
         (void)newXSproto_portable("main::define_types", XS_main_define_types, __FILE__, "$");
         (void)newXSproto_portable("main::sizeof_type", XS_main_sizeof_type, __FILE__, "$");
         (void)newXSproto_portable("main::offsetof_member", XS_main_offsetof_member, __FILE__, "$$");

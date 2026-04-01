@@ -167,5 +167,30 @@ subtest 'smart & safety' => sub {
     my $deep_ok = $null_comp->{manager}{tasks}[0]{id};
     ok !$deep_ok, 'Deep access on C NULL throws Perl exception instead of crashing';
 };
+subtest 'Giant Array & Anon Types' => sub {
+    my $type = Struct [ a => Int, b => Int ];
+    my $mem  = alloc_owned( sizeof($type) );
+
+    # TEST ANONYMOUS TYPE EVAPORATION
+    {
+        my $p = cast( $mem, $type );
+        is $p->{a}, 0, 'Anonymous struct works';
+    }
+
+    # At this point, free_v2_pin was called, and the local arena for that
+    # struct definition is gone. No leak in the global registry!
+    # TEST GIANT ARRAY SWITCH
+    # Imagine a C array of 10,000 ints
+    typedef BigArray => Array [ Int, 10000 ];
+    $mem = alloc_owned( sizeof( BigArray() ) );
+    my $arr_pin = cast( $mem, BigArray() );
+
+    # $arr_pin is currently a scalar (Lazy Placeholder)
+    #~ ok !SvROK($$arr_pin), 'Giant array is still a lazy scalar';
+    # Accessing it vivifies the AV
+    is $arr_pin->[500], 0, 'Accessing giant array element vivifies it on demand';
+
+    #~ ok SvROK($arr_pin), 'Now it is a real array reference';
+};
 #
 done_testing;

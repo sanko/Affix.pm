@@ -8,6 +8,7 @@
 typedef struct {
     void * ptr;              /**< Pointer to the actual C memory backing this variable. */
     const infix_type * type; /**< Pointer to the parsed AST type node. */
+    infix_arena_t * arena;   /**< Local arena for anonymous types. */
     uint8_t bit_offset;      /**< Bitfield offset (0 for standard types). */
     uint8_t bit_width;       /**< Bitfield width in bits (0 for standard types). */
 } Affix_Pin_2_Point_Oh;
@@ -15,7 +16,18 @@ typedef uint16_t float16_t;
 
 bool is_pin_v2(pTHX_ SV * sv);
 static void * _extract_pointer_value(pTHX_ SV * sv, MAGIC * ignore_mg);
-
+const infix_type * resolve_type(pTHX_ const infix_type * type);
+SV * bind_aggregate(pTHX_ void * ptr, const infix_type * type, SV * owner);
+void bind_placeholder(pTHX_ SV * sv,
+                      void * ptr,
+                      const infix_type * type,
+                      uint8_t bit_offset,
+                      uint8_t bit_width,
+                      bool prime,
+                      SV * owner,
+                      infix_arena_t * arena);
+static SV * _bind_aggregate_internal(
+    pTHX_ void * ptr, const infix_type * type, SV * owner, infix_arena_t * arena, bool eager);
 
 /**
  * @brief Converts IEEE 754 half-precision (16-bit) to single-precision (32-bit) float.
@@ -96,8 +108,27 @@ static MGVTBL vtbl_sint8, vtbl_uint8, vtbl_sint16, vtbl_uint16, vtbl_sint32, vtb
 
 const infix_type * resolve_type(pTHX_ const infix_type * type);
 SV * bind_aggregate(pTHX_ void * ptr, const infix_type * type, SV * owner);
-void bind_placeholder(
-    pTHX_ SV * sv, void * ptr, const infix_type * type, uint8_t bit_offset, uint8_t bit_width, bool prime, SV * owner);
+void bind_placeholder(pTHX_ SV * sv,
+                      void * ptr,
+                      const infix_type * type,
+                      uint8_t bit_offset,
+                      uint8_t bit_width,
+                      bool prime,
+                      SV * owner,
+                      infix_arena_t *);
+
+
+/**
+ * @brief Common destructor for all v2 magic.
+ * Ensures that if a pin owns an anonymous type graph, it is freed with the SV.
+ */
+int free_v2_pin(pTHX_ SV * sv, MAGIC * mg) {
+    Affix_Pin_2_Point_Oh * im = (Affix_Pin_2_Point_Oh *)mg->mg_ptr;
+    if (im->arena)
+        infix_arena_destroy(im->arena);
+    return 0;
+}
+
 
 /**
  * @brief Heuristic algorithm to determine if an array type should be treated as a string.
@@ -193,7 +224,7 @@ const infix_type * resolve_type(pTHX_ const infix_type * type) {
         SvGMAGICAL_on(sv);                                              \
         return 0;                                                       \
     }                                                                   \
-    static MGVTBL vtbl_##NAME = {get_##NAME, set_##NAME, NULL, NULL, NULL};
+    static MGVTBL vtbl_##NAME = {get_##NAME, set_##NAME, NULL, NULL, free_v2_pin};
 MAKE_PRIMITIVE_DISPATCH(sint8, int8_t, sv_setiv, SvIV)
 MAKE_PRIMITIVE_DISPATCH(uint8, uint8_t, sv_setuv, SvUV)
 MAKE_PRIMITIVE_DISPATCH(sint16, int16_t, sv_setiv, SvIV)
@@ -229,7 +260,7 @@ int set_float16(pTHX_ SV * sv, MAGIC * mg) {
     SvGMAGICAL_on(sv);
     return 0;
 }
-static MGVTBL vtbl_float16 = {get_float16, set_float16, NULL, NULL, NULL};
+static MGVTBL vtbl_float16 = {get_float16, set_float16, NULL, NULL, free_v2_pin};
 /**
  * @brief VTable Handlers for Booleans
  */
@@ -252,7 +283,7 @@ int set_bool(pTHX_ SV * sv, MAGIC * mg) {
     SvGMAGICAL_on(sv);
     return 0;
 }
-static MGVTBL vtbl_bool = {get_bool, set_bool, NULL, NULL, NULL};
+static MGVTBL vtbl_bool = {get_bool, set_bool, NULL, NULL, free_v2_pin};
 /**
  * @brief Converts a native 128-bit unsigned integer to a base-10 string SV.
  * @details Perl lacks internal 128-bit support, so it must be marshalled as a string.
@@ -356,8 +387,8 @@ int set_128(pTHX_ SV * sv, MAGIC * mg) {
     SvGMAGICAL_on(sv);
     return 0;
 }
-static MGVTBL vtbl_sint128 = {get_128s, set_128, NULL, NULL, NULL};
-static MGVTBL vtbl_uint128 = {get_128u, set_128, NULL, NULL, NULL};
+static MGVTBL vtbl_sint128 = {get_128s, set_128, NULL, NULL, free_v2_pin};
+static MGVTBL vtbl_uint128 = {get_128u, set_128, NULL, NULL, free_v2_pin};
 /**
  * @brief Dynamic lookup to associate an Infix Type AST with a Perl Magic VTable.
  */
@@ -401,7 +432,7 @@ int void_mg_get(pTHX_ SV * sv, MAGIC * mg) {
     SvSMAGICAL_on(sv);
     return 0;
 }
-static MGVTBL vtbl_void = {void_mg_get, NULL, NULL, NULL, NULL};
+static MGVTBL vtbl_void = {void_mg_get, NULL, NULL, NULL, free_v2_pin};
 /*SPECIALIZED VTABLES (Strings, Bitfields, Pointers, Aggregates)  */
 int string_mg_get(pTHX_ SV * sv, MAGIC * mg) {
     Affix_Pin_2_Point_Oh * im = (Affix_Pin_2_Point_Oh *)mg->mg_ptr;
@@ -438,7 +469,7 @@ int string_mg_set(pTHX_ SV * sv, MAGIC * mg) {
     SvGMAGICAL_on(sv);
     return 0;
 }
-static MGVTBL string_vtable = {string_mg_get, string_mg_set, NULL, NULL, NULL};
+static MGVTBL string_vtable = {string_mg_get, string_mg_set, NULL, NULL, free_v2_pin};
 /**
  * @brief Reads UTF-16/32 Wide Strings from C and converts them into a Perl UTF-8 String.
  */
@@ -534,7 +565,7 @@ int wstring_mg_set(pTHX_ SV * sv, MAGIC * mg) {
     SvGMAGICAL_on(sv);
     return 0;
 }
-static MGVTBL wstring_vtable = {wstring_mg_get, wstring_mg_set, NULL, NULL, NULL};
+static MGVTBL wstring_vtable = {wstring_mg_get, wstring_mg_set, NULL, NULL, free_v2_pin};
 /**
  * @brief VTable GET handler for Bitfields
  */
@@ -598,7 +629,7 @@ int set_bitfield(pTHX_ SV * sv, MAGIC * mg) {
     SvGMAGICAL_on(sv);
     return 0;
 }
-static MGVTBL vtbl_bitfield = {get_bitfield, set_bitfield, NULL, NULL, NULL};
+static MGVTBL vtbl_bitfield = {get_bitfield, set_bitfield, NULL, NULL, free_v2_pin};
 /**
  * @brief Universal closure trampoline for FFI Perl callbacks.
  * @details This function is invoked from native C space when a callback fires. It converts
@@ -780,15 +811,18 @@ int set_ptr(pTHX_ SV * sv, MAGIC * mg) {
             infix_type ** at = n ? (infix_type **)safecalloc(n, sizeof(infix_type *)) : NULL;
             for (size_t i = 0; i < n; i++)
                 at[i] = ft->meta.func_ptr_info.args[i].type;
-            infix_reverse_create_closure_manual(&rc,
-                                                ft->meta.func_ptr_info.return_type,
-                                                at,
-                                                n,
-                                                ft->meta.func_ptr_info.num_fixed_args,
-                                                perl_universal_closure,
-                                                cv);
-            if (at)
-                safefree(at);
+            if (infix_reverse_create_closure_manual(&rc,
+                                                    ft->meta.func_ptr_info.return_type,
+                                                    at,
+                                                    n,
+                                                    ft->meta.func_ptr_info.num_fixed_args,
+                                                    perl_universal_closure,
+                                                    cv) != INFIX_SUCCESS) {
+                if (at)
+                    safefree(at);
+                croak("Closure failed");
+            }
+
             new_addr = infix_reverse_get_code(rc);
         }
         else if (SvPOK(sv) && !SvROK(sv) && !sv_isobject(sv)) {
@@ -818,7 +852,7 @@ int set_ptr(pTHX_ SV * sv, MAGIC * mg) {
     return 0;
 }
 
-static MGVTBL vtbl_pointer = {get_ptr, set_ptr, NULL, NULL, NULL};
+static MGVTBL vtbl_pointer = {get_ptr, set_ptr, NULL, NULL, free_v2_pin};
 
 
 int array_mg_fetch(pTHX_ SV * sv, MAGIC * mg) {
@@ -839,12 +873,10 @@ U32 array_mg_len(pTHX_ SV * sv, MAGIC * mg) {
     size_t len = (t->category == INFIX_TYPE_ARRAY) ? t->meta.array_info.num_elements : t->meta.vector_info.num_elements;
     return (U32)(len > 0 ? len - 1 : 0);
 }
-static MGVTBL vtbl_array = {NULL, NULL, (U32 (*)(pTHX_ SV *, MAGIC *))array_mg_len, NULL, NULL};
+static MGVTBL vtbl_array = {NULL, NULL, (U32 (*)(pTHX_ SV *, MAGIC *))array_mg_len, NULL, free_v2_pin};
 /**
  * @brief Lazy-loads child structures from memory when a Perl user tries to interact with a struct.
  */
-
-
 int lazy_agg_get(pTHX_ SV * sv, MAGIC * mg) {
     Affix_Pin_2_Point_Oh * im = (Affix_Pin_2_Point_Oh *)mg->mg_ptr;
     if (SvROK(sv))
@@ -855,8 +887,14 @@ int lazy_agg_get(pTHX_ SV * sv, MAGIC * mg) {
         sv_setsv(sv, &PL_sv_undef);
     }
     else {
-        SV * rv = bind_aggregate(aTHX_ im->ptr, im->type, mg->mg_obj);
-        sv_setsv(sv, rv);
+        /* FORCE EAGER: We are now vivifying the placeholder into a real reference */
+        SV * rv = _bind_aggregate_internal(aTHX_ im->ptr, im->type, mg->mg_obj, im->arena, true);
+
+        /* Transfer arena ownership to the new referent if it exists,
+           preventing double-free or early-free */
+        im->arena = NULL;
+
+        _vivify_magic_rv(aTHX_ sv, rv);
         SvREFCNT_dec(rv);
     }
     SvSMAGICAL_on(sv);
@@ -885,8 +923,14 @@ int lazy_agg_set(pTHX_ SV * sv, MAGIC * mg) {
                 if (val_ptr && *val_ptr) {
                     SV * temp = newSV(0);
                     sv_setsv(temp, *val_ptr);
-                    bind_placeholder(
-                        aTHX_ temp, (char *)im->ptr + m->offset, m->type, m->bit_offset, m->bit_width, false, owner);
+                    bind_placeholder(aTHX_ temp,
+                                     (char *)im->ptr + m->offset,
+                                     m->type,
+                                     m->bit_offset,
+                                     m->bit_width,
+                                     false,
+                                     owner,
+                                     NULL);
                     SvGMAGICAL_off(temp); /* Bypass placeholder recursion */
                     MAGIC * cmg = mg_find(temp, PERL_MAGIC_ext);
                     if (cmg && cmg->mg_virtual && cmg->mg_virtual->svt_set)
@@ -922,7 +966,7 @@ int lazy_agg_set(pTHX_ SV * sv, MAGIC * mg) {
                 if (val_ptr && *val_ptr) {
                     SV * temp = newSV(0);
                     sv_setsv(temp, *val_ptr);
-                    bind_placeholder(aTHX_ temp, (char *)im->ptr + (i * step), el_type, 0, 0, false, owner);
+                    bind_placeholder(aTHX_ temp, (char *)im->ptr + (i * step), el_type, 0, 0, false, owner, NULL);
                     SvGMAGICAL_off(temp);
                     MAGIC * cmg = mg_find(temp, PERL_MAGIC_ext);
                     if (cmg && cmg->mg_virtual && cmg->mg_virtual->svt_set)
@@ -937,7 +981,7 @@ int lazy_agg_set(pTHX_ SV * sv, MAGIC * mg) {
     SvSMAGICAL_on(sv);
     return 0;
 }
-static MGVTBL vtbl_lazy_aggregate = {lazy_agg_get, lazy_agg_set, NULL, NULL, NULL};
+static MGVTBL vtbl_lazy_aggregate = {lazy_agg_get, lazy_agg_set, NULL, NULL, free_v2_pin};
 /* BINDERS & MEMORY MAPPING */
 /**
  * @brief Binds a single C value (primitive or placeholder) to a Perl SV with magic.
@@ -949,17 +993,27 @@ static MGVTBL vtbl_lazy_aggregate = {lazy_agg_get, lazy_agg_set, NULL, NULL, NUL
  * @param prime If true, immediately synchronize the SV with C memory.
  * @param owner The "root" SV that owns the C memory (lifeline reference tracking).
  */
-void bind_placeholder(
-    pTHX_ SV * sv, void * ptr, const infix_type * type, uint8_t bit_offset, uint8_t bit_width, bool prime, SV * owner) {
+void bind_placeholder(pTHX_ SV * sv,
+                      void * ptr,
+                      const infix_type * type,
+                      uint8_t bit_offset,
+                      uint8_t bit_width,
+                      bool prime,
+                      SV * owner,
+                      infix_arena_t * arena) {
     const infix_type * res = resolve_type(aTHX_ type);
     infix_type_category cat = infix_type_get_category(res);
+
     Affix_Pin_2_Point_Oh m;
     m.ptr = ptr;
     m.type = type;
+    m.arena = arena;
     m.bit_offset = bit_offset;
     m.bit_width = bit_width;
+
     MGVTBL * v = NULL;
     int is_wide = 0;
+
     if (bit_width > 0)
         v = &vtbl_bitfield;
     else if (cat == INFIX_TYPE_PRIMITIVE) {
@@ -978,49 +1032,58 @@ void bind_placeholder(
         v = is_wide ? &wstring_vtable : &string_vtable;
     else
         v = &vtbl_lazy_aggregate;
-    /* Attach the VTable to the Variable */
+
     sv_magicext(sv, owner, PERL_MAGIC_ext, v, (char *)&m, sizeof(Affix_Pin_2_Point_Oh));
     SvMAGICAL_on(sv);
     SvGMAGICAL_on(sv);
     SvSMAGICAL_on(sv);
+
     if (prime && v != &vtbl_lazy_aggregate && v != &vtbl_void)
         v->svt_get(aTHX_ sv, mg_find(sv, PERL_MAGIC_ext));
 }
+
+#define LAZY_ARRAY_THRESHOLD 100
+
 /**
- * @brief Recursively constructs a Perl tree (Hash/Array) mapping to a C aggregate.
- * @param ptr Pointer to the raw C memory.
- * @param type The aggregate (struct/union/array) type.
- * @param owner The "root" SV that owns the C memory (lifeline).
- * @return A new reference to the constructed Perl aggregate.
+ * @brief Internal helper to build the actual Perl Hash/Array structure.
+ * @param eager If false, large arrays will return a magical scalar placeholder instead of an AV.
  */
-SV * bind_aggregate(pTHX_ void * ptr, const infix_type * type, SV * owner) {
+static SV * _bind_aggregate_internal(
+    pTHX_ void * ptr, const infix_type * type, SV * owner, infix_arena_t * arena, bool eager) {
     if (!ptr)
-        return &PL_sv_undef;  // Don't wrap NULL aggregates
+        return &PL_sv_undef;
 
     const infix_type * res = resolve_type(aTHX_ type);
     infix_type_category cat = infix_type_get_category(res);
+
+    /* Structs and Unions */
     if (cat == INFIX_TYPE_STRUCT || cat == INFIX_TYPE_UNION) {
         HV * hv = newHV();
         size_t count = infix_type_get_member_count(res);
         for (size_t i = 0; i < count; i++) {
             const infix_struct_member * m = infix_type_get_member(res, i);
             SV * v = newSV(0);
-            bind_placeholder(
-                aTHX_ v, ptr ? ((char *)ptr + m->offset) : NULL, m->type, m->bit_offset, m->bit_width, true, owner);
+            /* Members never own the arena (the parent HV does), so pass NULL */
+            bind_placeholder(aTHX_ v, (char *)ptr + m->offset, m->type, m->bit_offset, m->bit_width, true, owner, NULL);
             hv_store(hv, m->name ? m->name : "", strlen(m->name ? m->name : ""), v, 0);
         }
-        Affix_Pin_2_Point_Oh m = {.ptr = ptr, .type = type};
+
+        /* Attach magic to the HV so get_address_v2 finds it via referent */
+        Affix_Pin_2_Point_Oh m = {.ptr = ptr, .type = type, .arena = arena};
         sv_magicext((SV *)hv, owner, PERL_MAGIC_ext, &vtbl_lazy_aggregate, (char *)&m, sizeof(Affix_Pin_2_Point_Oh));
 
         return newRV_noinc((SV *)hv);
     }
+
+    /* Arrays, Vectors, and Complex Numbers */
     else if (cat == INFIX_TYPE_ARRAY || cat == INFIX_TYPE_VECTOR || cat == INFIX_TYPE_COMPLEX) {
+        /* String arrays (char[N]) are always eager and returned as strings */
         if (is_string_array(aTHX_ type, NULL)) {
             SV * sv = newSV(0);
-            bind_placeholder(aTHX_ sv, ptr, type, 0, 0, true, owner);
+            bind_placeholder(aTHX_ sv, ptr, type, 0, 0, true, owner, arena);
             return sv;
         }
-        AV * av = newAV();
+
         size_t n, s;
         const infix_type * et;
         if (cat == INFIX_TYPE_COMPLEX) {
@@ -1038,51 +1101,48 @@ SV * bind_aggregate(pTHX_ void * ptr, const infix_type * type, SV * owner) {
             et = res->meta.vector_info.element_type;
             s = et->size;
         }
+
+        /* GIANT ARRAY SWITCH: If not forced eager, return a placeholder scalar */
+        if (!eager && n > LAZY_ARRAY_THRESHOLD) {
+            SV * lazy_placeholder = newSV(0);
+            bind_placeholder(aTHX_ lazy_placeholder, ptr, type, 0, 0, false, owner, arena);
+            return lazy_placeholder;
+        }
+
+        /* Build the actual Perl AV */
+        AV * av = newAV();
         for (size_t i = 0; i < n; i++) {
             SV * el = newSV(0);
-            bind_placeholder(aTHX_ el, ptr ? ((char *)ptr + (i * s)) : NULL, et, 0, 0, true, owner);
+            bind_placeholder(aTHX_ el, (char *)ptr + (i * s), et, 0, 0, true, owner, NULL);
             av_push(av, el);
         }
-        Affix_Pin_2_Point_Oh am = {.ptr = ptr, .type = type};
+
+        /* Attach magic to the AV for length/address lookups */
+        Affix_Pin_2_Point_Oh am = {.ptr = ptr, .type = type, .arena = arena};
         sv_magicext((SV *)av, owner, PERL_MAGIC_ext, &vtbl_array, (char *)&am, sizeof(Affix_Pin_2_Point_Oh));
+
         return newRV_noinc((SV *)av);
     }
+
     return newSV(0);
 }
-/* Native ABI Verification Logic */
-typedef struct {
-    double x;
-    double y;
-} NativePos;
-void verify_and_mutate_struct_arg(pTHX_ SV * input) {
-    dMY_CXT;
-    const infix_type * type = infix_registry_lookup_type(MY_CXT.registry, "Pos");
-    NativePos stack_struct = {0.0, 0.0};
-    if (SvROK(input) && SvTYPE(SvRV(input)) == SVt_PVHV) {
-        SV * proxy = newSV(0);
-        sv_setsv(proxy, input);
-        bind_placeholder(aTHX_ proxy, &stack_struct, type, 0, 0, false, NULL);
-        MAGIC * mg = mg_find(proxy, PERL_MAGIC_ext);
-        if (mg && mg->mg_virtual && mg->mg_virtual->svt_set)
-            mg->mg_virtual->svt_set(aTHX_ proxy, mg);
-        SvREFCNT_dec(proxy);
-    }
-    stack_struct.x += 1.0;
-    stack_struct.y *= 2.0;
-    if (SvROK(input) && SvTYPE(SvRV(input)) == SVt_PVHV) {
-        SV * proxy_rv = bind_aggregate(aTHX_ & stack_struct, type, NULL);
-        HV * target_hv = (HV *)SvRV(input);
-        HV * source_hv = (HV *)SvRV(proxy_rv);
-        hv_iterinit(source_hv);
-        HE * entry;
-        while ((entry = hv_iternext(source_hv))) {
-            I32 klen;
-            char * kstr = hv_iterkey(entry, &klen);
-            SV * val = hv_iterval(source_hv, entry);
-            hv_store(target_hv, kstr, klen, newSVsv(val), 0);
-        }
-        SvREFCNT_dec(proxy_rv);
-    }
+
+/**
+ * @brief Recursively constructs a Perl tree (Hash/Array) mapping to a C aggregate.
+ * @param ptr Pointer to the raw C memory.
+ * @param type The aggregate (struct/union/array) type.
+ * @param owner The "root" SV that owns the C memory (lifeline).
+ * @return A new reference to the constructed Perl aggregate.
+ */
+SV * bind_aggregate(pTHX_ void * ptr, const infix_type * type, SV * owner) {
+    return _bind_aggregate_internal(aTHX_ ptr, type, owner, NULL, false);
+}
+
+/**
+ * @brief Public Strategy: Used by cast() to handle anonymous type lifecycle.
+ */
+SV * bind_aggregate_anon(pTHX_ void * ptr, const infix_type * type, SV * owner, infix_arena_t * arena) {
+    return _bind_aggregate_internal(aTHX_ ptr, type, owner, arena, false);
 }
 /* PUBLIC PERL FFI API */
 /**
@@ -1137,25 +1197,12 @@ IV offsetof_member(pTHX_ const char * type_name, const char * member_name) {
  */
 SV * cast(pTHX_ SV * in, const char * name) {
     dMY_CXT;
-    void * addr = NULL;
-    SV * tgt = SvROK(in) ? SvRV(in) : in;
-    MAGIC * mg = SvMAGICAL(tgt) ? mg_find(tgt, PERL_MAGIC_ext) : NULL;
-    SV * owner = NULL;
-    if (SvROK(in) && sv_derived_from(in, "Affix::Memory")) {
-        owner = SvRV(in);
-        if (SvTYPE(owner) == SVt_PVAV) {
-            SV ** p_ptr = av_fetch((AV *)owner, 0, 0);
-            addr = (p_ptr && *p_ptr) ? INT2PTR(void *, SvIV(*p_ptr)) : NULL;
-        }
-        else {
-            addr = INT2PTR(void *, SvIV(owner));
-        }
-    }
-    else if (mg && mg->mg_virtual == &vtbl_pointer)
-        addr = *(void **)((Affix_Pin_2_Point_Oh *)mg->mg_ptr)->ptr;
-    else
-        addr = INT2PTR(void *, SvIV(tgt));
+    void * addr = get_address_v2(aTHX_ in);
+    SV * owner = (SvROK(in) && sv_derived_from(in, "Affix::Memory")) ? SvRV(in) : NULL;
+
+    infix_arena_t * local_arena = NULL;
     const infix_type * t = infix_registry_lookup_type(MY_CXT.registry, name);
+
     if (!t) {
         if (strEQ(name, "sint8"))
             t = infix_type_create_primitive(INFIX_PRIMITIVE_SINT8);
@@ -1192,18 +1239,24 @@ SV * cast(pTHX_ SV * in, const char * name) {
         else if (strEQ(name, "char"))
             t = infix_type_create_primitive(INFIX_PRIMITIVE_SINT8);
         else {
-            infix_arena_t * ta;
             infix_type * tt;
-            if (infix_type_from_signature(&tt, &ta, name, MY_CXT.registry) == INFIX_SUCCESS) {
-                t = _copy_type_graph_to_arena(MY_CXT.registry->arena, tt);
-                infix_arena_destroy(ta);
-            }
+            /* Parse signature into a NEW arena */
+            if (infix_type_from_signature(&tt, &local_arena, name, MY_CXT.registry) == INFIX_SUCCESS)
+                t = tt;
         }
     }
+
     if (!t)
         croak("Type not found");
+
+    /* If it's an aggregate, use the anon binder to track the arena */
+    infix_type_category cat = infix_type_get_category(resolve_type(aTHX_ t));
+    if (cat == INFIX_TYPE_STRUCT || cat == INFIX_TYPE_UNION || cat == INFIX_TYPE_ARRAY || cat == INFIX_TYPE_VECTOR)
+        return bind_aggregate_anon(aTHX_ addr, t, owner, local_arena);
+
+    /* Primitives use the standard placeholder binder */
     SV * sv = newSV(0);
-    bind_placeholder(aTHX_ sv, addr, t, 0, 0, true, owner);
+    bind_placeholder(aTHX_ sv, addr, t, 0, 0, true, owner, local_arena);
     return sv;
 }
 /**
@@ -1312,7 +1365,7 @@ void verify_marshalling_128(pTHX_ SV * input) {
     if (SvROK(input)) {
         SV * proxy = newSV(0);
         sv_setsv(proxy, input);
-        bind_placeholder(aTHX_ proxy, &stack_struct, type, 0, 0, false, NULL);
+        bind_placeholder(aTHX_ proxy, &stack_struct, type, 0, 0, false, NULL, NULL);
         MAGIC * mg = mg_find(proxy, PERL_MAGIC_ext);
         if (mg && mg->mg_virtual->svt_set)
             mg->mg_virtual->svt_set(aTHX_ proxy, mg);
@@ -1350,29 +1403,7 @@ void mock_cxx_delete(void * ptr) {
 }
 IV get_mock_cxx_dtor() { return PTR2IV(mock_cxx_delete); }
 int get_mock_cxx_dtor_calls() { return mock_cxx_dtor_calls; }
-XS_INTERNAL(XS_main_verify_and_mutate_struct_arg) {
-    dVAR;
-    dXSARGS;
-    if (items != 1)
-        croak_xs_usage(cv, "input");
 
-    SP -= items;
-    {
-        SV * input = ST(0);
-        I32 * temp;
-        temp = PL_markstack_ptr++;
-        verify_and_mutate_struct_arg(aTHX_ input);
-        if (PL_markstack_ptr != temp) {
-
-            PL_markstack_ptr = temp;
-            XSRETURN_EMPTY;
-        }
-
-        return;
-        PUTBACK;
-        return;
-    }
-}
 XS_INTERNAL(XS_main_define_types) {
     dVAR;
     dXSARGS;
@@ -1704,7 +1735,7 @@ static void * _extract_pointer_value(pTHX_ SV * sv, MAGIC * ignore_mg) {
     if (!sv || !SvOK(sv))
         return NULL;
 
-    /* 1. Affix::Memory Handle */
+    /* Affix::Memory Handle */
     if (sv_isobject(sv) && sv_derived_from(sv, "Affix::Memory")) {
         SV * rv = SvRV(sv);
         if (SvTYPE(rv) == SVt_PVAV) {
@@ -1714,7 +1745,7 @@ static void * _extract_pointer_value(pTHX_ SV * sv, MAGIC * ignore_mg) {
         return INT2PTR(void *, SvUV(rv));
     }
 
-    /* 2. Magic on the Referent (The vivified Hash or Array) */
+    /* Magic on the Referent (The vivified Hash or Array) */
     /* MUST BE CHECKED BEFORE THE SCALAR ITSELF! */
     if (SvROK(sv)) {
         SV * target = SvRV(sv);
@@ -1725,14 +1756,14 @@ static void * _extract_pointer_value(pTHX_ SV * sv, MAGIC * ignore_mg) {
         }
     }
 
-    /* 3. Magic on the SV itself (The Scalar Pin) */
+    /* Magic on the SV itself (The Scalar Pin) */
     if (SvMAGICAL(sv)) {
         MAGIC * mg = mg_find(sv, PERL_MAGIC_ext);
         if (mg && mg != ignore_mg && is_v2_vtable(mg->mg_virtual))
             return ((Affix_Pin_2_Point_Oh *)mg->mg_ptr)->ptr;
     }
 
-    /* 4. Raw integer */
+    /* Raw integer */
     if (SvIOK(sv))
         return INT2PTR(void *, SvUV(sv));
     return NULL;
