@@ -214,6 +214,7 @@ typedef struct {
     size_t bit_width;            ///< Bit width (for bitfields, 0 = not a bitfield)
     bool readonly;               ///< Marks the pin to reject FFI assignment.
 } Affix_Pin;
+
 /**
  * @struct Affix_Pin_2_Point_Oh
  * @brief The internal payload attached to Perl Scalars via Perl Magic (PERL_MAGIC_ext).

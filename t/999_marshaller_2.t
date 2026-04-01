@@ -309,7 +309,6 @@ subtest 'Enum Dualvars' => sub {
         ok( $task->{status} == 2 && $task->{status} eq 'SUCCESS', 'Enum is a proper Dualvar' );
     };
     subtest auto => sub {
-        our $todo = todo 'This was a dev tool that I might eventually remove';
         my $mem  = alloc_owned( sizeof( AutoTask() ) );
         my $task = cast( $mem, AutoTask() );
 
@@ -405,6 +404,28 @@ subtest 'Feature: SIMD Vectors' => sub {
     $vec->[3] = 4.4;
     is int( $vec->[0] ), 1, 'SIMD element 0 read OK';
     is int( $vec->[3] ), 4, 'SIMD element 3 read OK';
+};
+subtest varargs => sub {
+    affix undef, [ 'sprintf' => 'my_sprintf' ], [ Pointer [SChar], VarArgs ], Int;
+    typedef Vec => Struct [ x => Int, y => Int ];
+    my $mem = alloc_owned( sizeof( Vec() ) );
+    my $v   = cast( $mem, Vec() );
+    $v->{x} = 100;
+    $v->{y} = 200;
+
+    # Test 1: Pass v2 members to variadic
+    my $out = " " x 100;
+
+    # sprintf(buf, "%d %d", v->x, v->y)
+    # Affix must extract the integers from the magical scalars
+    my_sprintf( $out, "%d and %d", $v->{x}, $v->{y} );
+    like $out, qr/100 and 200/, 'Variadic correctly marshalled V2 magical members';
+
+    # Test 2: Pass the whole struct pin to variadic (should treat as pointer)
+    # Most C variadic functions expect pointers for structs/strings
+    my $addr = address_v2($v);
+    my_sprintf( $out, "Address is %p", $v );
+    like $out, qr/Address is 0x[0-9a-f]+/i, 'Variadic correctly marshalled V2 pin as pointer';
 };
 #
 done_testing;
