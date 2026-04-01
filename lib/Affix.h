@@ -319,3 +319,8 @@ void _DD(pTHX_ SV *, const char *, int);
 
 
 void * get_address_v2(pTHX_ SV * sv);
+extern MGVTBL vtbl_lazy_aggregate;
+extern MGVTBL vtbl_array;
+MGVTBL vtbl_sint8, vtbl_uint8, vtbl_sint16, vtbl_uint16, vtbl_sint32, vtbl_uint32, vtbl_sint64, vtbl_uint64, vtbl_float,
+    vtbl_double, vtbl_float16, vtbl_bool, vtbl_sint128, vtbl_uint128, vtbl_void, vtbl_bitfield, vtbl_pointer,
+    vtbl_array, string_vtable, wstring_vtable, vtbl_lazy_aggregate;

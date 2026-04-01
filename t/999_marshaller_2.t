@@ -2,9 +2,12 @@ use v5.40;
 use blib;
 use Affix               qw[malloc affix :types sizeof];
 use Test2::Tools::Affix qw[:all];
+$|++;
 #
 my $C_CODE = <<'END_C';
 #include "std.h"
+#include <stdlib.h>
+
 //ext: .c
 
 DLLEXPORT bool test_ptr(void*ptr) { warn("# c: %p", ptr); return true; }
@@ -57,6 +60,32 @@ DLLEXPORT bool verify_hierarchy(Company *c) {
 DLLEXPORT Company* get_null_company() {
     static Company c = { .manager = NULL, .budget = 100 };
     return &c;
+}
+
+
+// C++ Mock: Destructor Tracking
+static int destructor_count = 0;
+typedef struct { int id; } MockObj;
+DLLEXPORT MockObj* mock_new(int id) {
+    MockObj* m = (MockObj*)malloc(sizeof(MockObj));
+    m->id = id;
+    return m;
+}
+DLLEXPORT void mock_delete(MockObj* m) {
+    destructor_count++;
+    free(m);
+}
+DLLEXPORT int get_destructor_count() { return destructor_count; }
+
+// Function Pointer Pattern
+typedef int (*calc_t)(int, int);
+typedef struct {
+    calc_t operation;
+} Calculator;
+
+DLLEXPORT int run_calc(Calculator *c, int a, int b) {
+    if (!c || !c->operation) return -1;
+    return c->operation(a, b);
 }
 END_C
 #
@@ -191,6 +220,47 @@ subtest 'Giant Array & Anon Types' => sub {
     is $arr_pin->[500], 0, 'Accessing giant array element vivifies it on demand';
 
     #~ ok SvROK($arr_pin), 'Now it is a real array reference';
+};
+subtest calculator => sub {
+    typedef MockObj    => Struct [ id => Int ];
+    typedef calc_t     => Callback [ [ Int, Int ] => Int ];
+    typedef Calculator => Struct [ operation => calc_t() ];
+    my $lib = Affix::load_library($lib_path);    # Load library object for find_symbol
+    subtest 'calculator' => sub {
+        subtest 'C++ Destructors' => sub {
+            affix $lib, 'mock_new', [Int], Pointer [ MockObj() ];
+
+            #~ affix $lib, 'mock_delete',          [ Pointer [ MockObj() ] ], Void;
+            affix $lib, 'get_destructor_count', [], Int;
+            {
+                ok my $raw_ptr = mock_new(42), 'Create native object';
+                my $addr = address_v2($raw_ptr);
+
+                # find_symbol returns a v1 Pin. address_v2 now recognizes its vtable.
+                my $sym  = Affix::find_symbol( $lib, 'mock_delete' );
+                my $dtor = address_v2($sym);
+                ok $dtor,                                    'Resolved destructor address from v1 symbol pin';
+                ok my $managed = wrap_owned( $addr, $dtor ), 'wrap_owned with mock_delete';
+                is get_destructor_count(), 0, 'Destructor not called yet';
+            }
+            is get_destructor_count(), 1, 'wrap_owned triggered native destructor';
+        };
+        subtest 'Function Pointers' => sub {
+            affix $lib, 'run_calc', [ Pointer [ Calculator() ], Int, Int ], Int;
+            ok my $mem  = alloc_owned( sizeof( Calculator() ) ), 'alloc Calculator';
+            ok my $calc = cast( $mem, Calculator() ),            'cast Calculator';
+
+            # First assignment
+            $calc->{operation} = sub ( $a, $b ) { return $a * $b; };
+            is run_calc( $calc, 10, 5 ), 50, 'C called Perl sub (10 * 5)';
+            Affix::sv_dump($calc);
+
+            # Second assignment - Prioritizing the Sub check allows this to update
+            $calc->{operation} = sub ( $a, $b ) { return $a + $b; };
+            Affix::sv_dump($calc);
+            is run_calc( $calc, 10, 5 ), 15, 'Updated function pointer to different sub (10 + 5)';
+        };
+    };
 };
 #
 done_testing;

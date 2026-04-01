@@ -102,9 +102,6 @@ float16_t float32_to_float16(float f) {
     return sign | (e << 10) | (sig >> 13);
 }
 
-static MGVTBL vtbl_sint8, vtbl_uint8, vtbl_sint16, vtbl_uint16, vtbl_sint32, vtbl_uint32, vtbl_sint64, vtbl_uint64,
-    vtbl_float, vtbl_double, vtbl_float16, vtbl_bool, vtbl_sint128, vtbl_uint128, vtbl_void, vtbl_bitfield,
-    vtbl_pointer, vtbl_array, string_vtable, wstring_vtable, vtbl_lazy_aggregate;
 
 const infix_type * resolve_type(pTHX_ const infix_type * type);
 SV * bind_aggregate(pTHX_ void * ptr, const infix_type * type, SV * owner);
@@ -224,7 +221,7 @@ const infix_type * resolve_type(pTHX_ const infix_type * type) {
         SvGMAGICAL_on(sv);                                              \
         return 0;                                                       \
     }                                                                   \
-    static MGVTBL vtbl_##NAME = {get_##NAME, set_##NAME, NULL, NULL, free_v2_pin};
+    MGVTBL vtbl_##NAME = {get_##NAME, set_##NAME, NULL, NULL, free_v2_pin};
 MAKE_PRIMITIVE_DISPATCH(sint8, int8_t, sv_setiv, SvIV)
 MAKE_PRIMITIVE_DISPATCH(uint8, uint8_t, sv_setuv, SvUV)
 MAKE_PRIMITIVE_DISPATCH(sint16, int16_t, sv_setiv, SvIV)
@@ -260,7 +257,7 @@ int set_float16(pTHX_ SV * sv, MAGIC * mg) {
     SvGMAGICAL_on(sv);
     return 0;
 }
-static MGVTBL vtbl_float16 = {get_float16, set_float16, NULL, NULL, free_v2_pin};
+MGVTBL vtbl_float16 = {get_float16, set_float16, NULL, NULL, free_v2_pin};
 /**
  * @brief VTable Handlers for Booleans
  */
@@ -283,7 +280,7 @@ int set_bool(pTHX_ SV * sv, MAGIC * mg) {
     SvGMAGICAL_on(sv);
     return 0;
 }
-static MGVTBL vtbl_bool = {get_bool, set_bool, NULL, NULL, free_v2_pin};
+MGVTBL vtbl_bool = {get_bool, set_bool, NULL, NULL, free_v2_pin};
 /**
  * @brief Converts a native 128-bit unsigned integer to a base-10 string SV.
  * @details Perl lacks internal 128-bit support, so it must be marshalled as a string.
@@ -387,8 +384,8 @@ int set_128(pTHX_ SV * sv, MAGIC * mg) {
     SvGMAGICAL_on(sv);
     return 0;
 }
-static MGVTBL vtbl_sint128 = {get_128s, set_128, NULL, NULL, free_v2_pin};
-static MGVTBL vtbl_uint128 = {get_128u, set_128, NULL, NULL, free_v2_pin};
+MGVTBL vtbl_sint128 = {get_128s, set_128, NULL, NULL, free_v2_pin};
+MGVTBL vtbl_uint128 = {get_128u, set_128, NULL, NULL, free_v2_pin};
 /**
  * @brief Dynamic lookup to associate an Infix Type AST with a Perl Magic VTable.
  */
@@ -432,7 +429,7 @@ int void_mg_get(pTHX_ SV * sv, MAGIC * mg) {
     SvSMAGICAL_on(sv);
     return 0;
 }
-static MGVTBL vtbl_void = {void_mg_get, NULL, NULL, NULL, free_v2_pin};
+MGVTBL vtbl_void = {void_mg_get, NULL, NULL, NULL, free_v2_pin};
 /*SPECIALIZED VTABLES (Strings, Bitfields, Pointers, Aggregates)  */
 int string_mg_get(pTHX_ SV * sv, MAGIC * mg) {
     Affix_Pin_2_Point_Oh * im = (Affix_Pin_2_Point_Oh *)mg->mg_ptr;
@@ -469,7 +466,7 @@ int string_mg_set(pTHX_ SV * sv, MAGIC * mg) {
     SvGMAGICAL_on(sv);
     return 0;
 }
-static MGVTBL string_vtable = {string_mg_get, string_mg_set, NULL, NULL, free_v2_pin};
+MGVTBL string_vtable = {string_mg_get, string_mg_set, NULL, NULL, free_v2_pin};
 /**
  * @brief Reads UTF-16/32 Wide Strings from C and converts them into a Perl UTF-8 String.
  */
@@ -565,7 +562,7 @@ int wstring_mg_set(pTHX_ SV * sv, MAGIC * mg) {
     SvGMAGICAL_on(sv);
     return 0;
 }
-static MGVTBL wstring_vtable = {wstring_mg_get, wstring_mg_set, NULL, NULL, free_v2_pin};
+MGVTBL wstring_vtable = {wstring_mg_get, wstring_mg_set, NULL, NULL, free_v2_pin};
 /**
  * @brief VTable GET handler for Bitfields
  */
@@ -629,7 +626,7 @@ int set_bitfield(pTHX_ SV * sv, MAGIC * mg) {
     SvGMAGICAL_on(sv);
     return 0;
 }
-static MGVTBL vtbl_bitfield = {get_bitfield, set_bitfield, NULL, NULL, free_v2_pin};
+MGVTBL vtbl_bitfield = {get_bitfield, set_bitfield, NULL, NULL, free_v2_pin};
 /**
  * @brief Universal closure trampoline for FFI Perl callbacks.
  * @details This function is invoked from native C space when a callback fires. It converts
@@ -745,6 +742,141 @@ static void _vivify_magic_rv(pTHX_ SV * sv, SV * rv) {
     SvROK_on(sv);
 }
 
+/**
+ * @brief Dynamically wraps a C function pointer into a callable Perl Subroutine.
+ */
+static SV * wrap_callable_pointer(pTHX_ void * addr, const infix_type * type) {
+    if (!addr)
+        return newSV(0);
+
+    char sig[512];
+    /* Serialize the AST back into a string signature */
+    if (infix_type_print(sig, sizeof(sig), type, INFIX_DIALECT_SIGNATURE) != INFIX_SUCCESS)
+        return newSVuv(PTR2UV(addr)); /* Fallback on failure */
+
+    /* Strip the callback indicator '!' so Affix::wrap treats it as a standard function */
+    char * sig_ptr = sig;
+    if (sig_ptr[0] == '!')
+        sig_ptr++;
+
+    dSP;
+    ENTER;
+    SAVETMPS;
+    PUSHMARK(SP);
+    EXTEND(SP, 2);
+    /* Push arguments for Affix::wrap($address, $signature_string) */
+    PUSHs(sv_2mortal(newSVuv(PTR2UV(addr))));
+    PUSHs(sv_2mortal(newSVpv(sig_ptr, 0)));
+    PUTBACK;
+
+    int count = call_pv("Affix::wrap", G_SCALAR);
+    SPAGAIN;
+
+    SV * ret = newSV(0);
+    if (count == 1) {
+        SV * wrapped = POPs;
+        if (SvOK(wrapped))
+            sv_setsv(ret, wrapped);
+        else
+            sv_setuv(ret, PTR2UV(addr));
+    }
+    else {
+        sv_setuv(ret, PTR2UV(addr));
+    }
+
+    PUTBACK;
+    FREETMPS;
+    LEAVE;
+
+    return ret;
+}
+static SV * fgwrap_callable_pointer(pTHX_ void * addr, const infix_type * type) {
+    if (!addr)
+        return newSV(0);
+
+    char sig[512];
+    /* Serialize the AST back into a string signature */
+    if (infix_type_print(sig, sizeof(sig), type, INFIX_DIALECT_SIGNATURE) != INFIX_SUCCESS)
+        return newSVuv(PTR2UV(addr)); /* Fallback on failure */
+
+    dSP;
+    ENTER;
+    SAVETMPS;
+    PUSHMARK(SP);
+    EXTEND(SP, 2);
+    /* Calling wrap($address, $signature_string) */
+    PUSHs(sv_2mortal(newSVuv(PTR2UV(addr))));
+    PUSHs(sv_2mortal(newSVpv(sig, 0)));
+    PUTBACK;
+
+    int count = call_pv("Affix::wrap", G_SCALAR);
+    SPAGAIN;
+
+    SV * ret = newSV(0);
+    if (count == 1) {
+        SV * wrapped = POPs;
+        if (SvOK(wrapped))
+            sv_setsv(ret, wrapped);
+        else
+            sv_setuv(ret, PTR2UV(addr));
+    }
+    else {
+        sv_setuv(ret, PTR2UV(addr));
+    }
+
+    PUTBACK;
+    FREETMPS;
+    LEAVE;
+
+    return ret;
+}
+
+
+int wwwget_ptr(pTHX_ SV * sv, MAGIC * mg) {
+    Affix_Pin_2_Point_Oh * im = (Affix_Pin_2_Point_Oh *)mg->mg_ptr;
+    SV * owner = mg->mg_obj;
+
+    if (SvROK(sv))
+        return 0; /* Already vivified */
+
+    SvSMAGICAL_off(sv);
+    void * addr = *(void **)im->ptr;
+
+    if (!addr) {
+        sv_setsv(sv, &PL_sv_undef);
+    }
+    else {
+        const infix_type * type = resolve_type(aTHX_ im->type);
+        /* Distinguish between a Pointer to Data vs a Function Pointer */
+        if (type->category == INFIX_TYPE_REVERSE_TRAMPOLINE) {
+            /* Wrap the C address in a Perl CV */
+            SV * wrapper = wrap_callable_pointer(aTHX_ addr, type);
+            sv_setsv(sv, wrapper);
+            SvREFCNT_dec(wrapper);
+        }
+        else {
+            const infix_type * pointee = resolve_type(aTHX_ type->meta.pointer_info.pointee_type);
+            infix_type_category cat = infix_type_get_category(pointee);
+
+            if (cat == INFIX_TYPE_PRIMITIVE &&
+                (pointee->meta.primitive_id == INFIX_PRIMITIVE_SINT8 ||
+                 pointee->meta.primitive_id == INFIX_PRIMITIVE_UINT8)) {
+                sv_setpv(sv, (char *)addr);
+            }
+            else if (cat == INFIX_TYPE_STRUCT || cat == INFIX_TYPE_UNION || cat == INFIX_TYPE_ARRAY ||
+                     cat == INFIX_TYPE_VECTOR) {
+                SV * rv = bind_aggregate(aTHX_ addr, pointee, owner);
+                _vivify_magic_rv(aTHX_ sv, rv);
+                SvREFCNT_dec(rv);
+            }
+            else {
+                sv_setuv(sv, PTR2UV(addr));
+            }
+        }
+    }
+    SvSMAGICAL_on(sv);
+    return 0;
+}
 
 int get_ptr(pTHX_ SV * sv, MAGIC * mg) {
     Affix_Pin_2_Point_Oh * im = (Affix_Pin_2_Point_Oh *)mg->mg_ptr;
@@ -761,22 +893,31 @@ int get_ptr(pTHX_ SV * sv, MAGIC * mg) {
     }
     else {
         const infix_type * type = resolve_type(aTHX_ im->type);
-        const infix_type * pointee = resolve_type(aTHX_ type->meta.pointer_info.pointee_type);
-        infix_type_category cat = infix_type_get_category(pointee);
 
-        if (cat == INFIX_TYPE_PRIMITIVE &&
-            (pointee->meta.primitive_id == INFIX_PRIMITIVE_SINT8 ||
-             pointee->meta.primitive_id == INFIX_PRIMITIVE_UINT8)) {
-            sv_setpv(sv, (char *)addr);
-        }
-        else if (cat == INFIX_TYPE_STRUCT || cat == INFIX_TYPE_UNION || cat == INFIX_TYPE_ARRAY ||
-                 cat == INFIX_TYPE_VECTOR) {
-            SV * rv = bind_aggregate(aTHX_ addr, pointee, owner);
-            sv_setsv(sv, rv);
-            SvREFCNT_dec(rv);
+        /* 1. Wrap Function Pointers into Perl CodeRefs */
+        if (type->category == INFIX_TYPE_REVERSE_TRAMPOLINE) {
+            SV * wrapper = wrap_callable_pointer(aTHX_ addr, type);
+            sv_setsv(sv, wrapper);
+            SvREFCNT_dec(wrapper);
         }
         else {
-            sv_setuv(sv, PTR2UV(addr));
+            const infix_type * pointee = resolve_type(aTHX_ type->meta.pointer_info.pointee_type);
+            infix_type_category cat = infix_type_get_category(pointee);
+
+            if (cat == INFIX_TYPE_PRIMITIVE &&
+                (pointee->meta.primitive_id == INFIX_PRIMITIVE_SINT8 ||
+                 pointee->meta.primitive_id == INFIX_PRIMITIVE_UINT8)) {
+                sv_setpv(sv, (char *)addr);
+            }
+            else if (cat == INFIX_TYPE_STRUCT || cat == INFIX_TYPE_UNION || cat == INFIX_TYPE_ARRAY ||
+                     cat == INFIX_TYPE_VECTOR) {
+                SV * rv = bind_aggregate(aTHX_ addr, pointee, owner);
+                _vivify_magic_rv(aTHX_ sv, rv);
+                SvREFCNT_dec(rv);
+            }
+            else {
+                sv_setuv(sv, PTR2UV(addr));
+            }
         }
     }
     SvSMAGICAL_on(sv);
@@ -784,6 +925,262 @@ int get_ptr(pTHX_ SV * sv, MAGIC * mg) {
 }
 
 int set_ptr(pTHX_ SV * sv, MAGIC * mg) {
+    Affix_Pin_2_Point_Oh * im = (Affix_Pin_2_Point_Oh *)mg->mg_ptr;
+    if (!im || !im->ptr)
+        return 0;
+
+    SvGMAGICAL_off(sv);
+    SvSMAGICAL_off(sv); /* Turn off set magic so we can safely clear the SV */
+    void * new_addr = NULL;
+
+    /* Priority 1: Subroutines */
+    if (SvROK(sv) && SvTYPE(SvRV(sv)) == SVt_PVCV) {
+        CV * cv = (CV *)SvRV(sv);
+        SvREFCNT_inc(cv);
+        infix_reverse_t * rc = NULL;
+        const infix_type * ft_raw = resolve_type(aTHX_ im->type);
+        const infix_type * ft = (ft_raw->category == INFIX_TYPE_POINTER)
+            ? resolve_type(aTHX_ ft_raw->meta.pointer_info.pointee_type)
+            : ft_raw;
+
+        size_t n = ft->meta.func_ptr_info.num_args;
+        infix_type ** at = n ? (infix_type **)safecalloc(n, sizeof(infix_type *)) : NULL;
+        for (size_t i = 0; i < n; i++)
+            at[i] = ft->meta.func_ptr_info.args[i].type;
+
+        if (infix_reverse_create_closure_manual(&rc,
+                                                ft->meta.func_ptr_info.return_type,
+                                                at,
+                                                n,
+                                                ft->meta.func_ptr_info.num_fixed_args,
+                                                perl_universal_closure,
+                                                cv) == INFIX_SUCCESS) {
+            new_addr = infix_reverse_get_code(rc);
+
+            /* Clear the Perl scalar so the next read is forced to fetch the native pointer */
+            sv_setsv(sv, &PL_sv_undef);
+        }
+        if (at)
+            safefree(at);
+    }
+    /* Priority 2: Null */
+    else if (!SvOK(sv)) {
+        new_addr = NULL;
+    }
+    /* Priority 3: Strings for char* */
+    else if (SvPOK(sv) && !SvROK(sv) && !sv_isobject(sv)) {
+        const infix_type * ft_raw = resolve_type(aTHX_ im->type);
+        if (ft_raw->category == INFIX_TYPE_POINTER) {
+            const infix_type * pointee = resolve_type(aTHX_ ft_raw->meta.pointer_info.pointee_type);
+            if (pointee->category == INFIX_TYPE_PRIMITIVE &&
+                (pointee->meta.primitive_id == INFIX_PRIMITIVE_SINT8 ||
+                 pointee->meta.primitive_id == INFIX_PRIMITIVE_UINT8)) {
+                new_addr = (void *)SvPV_nolen(sv);
+            }
+            else {
+                new_addr = INT2PTR(void *, SvUV(sv));
+            }
+        }
+        else {
+            new_addr = INT2PTR(void *, SvUV(sv));
+        }
+    }
+    /* Priority 4: Existing Pins/Addresses */
+    else {
+        void * extracted = _extract_pointer_value(aTHX_ sv, mg);
+        new_addr = extracted ? extracted : INT2PTR(void *, SvUV(sv));
+    }
+
+    *(void **)im->ptr = new_addr;
+
+    SvGMAGICAL_on(sv);
+    SvSMAGICAL_on(sv);
+    return 0;
+}
+int fdasadsset_ptr(pTHX_ SV * sv, MAGIC * mg) {
+    Affix_Pin_2_Point_Oh * im = (Affix_Pin_2_Point_Oh *)mg->mg_ptr;
+    if (!im || !im->ptr)
+        return 0;
+
+    SvGMAGICAL_off(sv);
+    void * new_addr = NULL;
+
+    /* Priority 1: Subroutines */
+    if (SvROK(sv) && SvTYPE(SvRV(sv)) == SVt_PVCV) {
+        CV * cv = (CV *)SvRV(sv);
+        SvREFCNT_inc(cv);
+        infix_reverse_t * rc = NULL;
+        const infix_type * ft_raw = resolve_type(aTHX_ im->type);
+        const infix_type * ft = (ft_raw->category == INFIX_TYPE_POINTER)
+            ? resolve_type(aTHX_ ft_raw->meta.pointer_info.pointee_type)
+            : ft_raw;
+
+        size_t n = ft->meta.func_ptr_info.num_args;
+        infix_type ** at = n ? (infix_type **)safecalloc(n, sizeof(infix_type *)) : NULL;
+        for (size_t i = 0; i < n; i++)
+            at[i] = ft->meta.func_ptr_info.args[i].type;
+
+        if (infix_reverse_create_closure_manual(&rc,
+                                                ft->meta.func_ptr_info.return_type,
+                                                at,
+                                                n,
+                                                ft->meta.func_ptr_info.num_fixed_args,
+                                                perl_universal_closure,
+                                                cv) == INFIX_SUCCESS) {
+            new_addr = infix_reverse_get_code(rc);
+        }
+        if (at)
+            safefree(at);
+    }
+    /* Priority 2: Null */
+    else if (!SvOK(sv)) {
+        new_addr = NULL;
+    }
+    /* Priority 3: Strings for char* */
+    else if (SvPOK(sv) && !SvROK(sv) && !sv_isobject(sv)) {
+        const infix_type * ft_raw = resolve_type(aTHX_ im->type);
+        if (ft_raw->category == INFIX_TYPE_POINTER) {
+            const infix_type * pointee = resolve_type(aTHX_ ft_raw->meta.pointer_info.pointee_type);
+            if (pointee->category == INFIX_TYPE_PRIMITIVE &&
+                (pointee->meta.primitive_id == INFIX_PRIMITIVE_SINT8 ||
+                 pointee->meta.primitive_id == INFIX_PRIMITIVE_UINT8)) {
+                new_addr = (void *)SvPV_nolen(sv);
+            }
+            else {
+                new_addr = INT2PTR(void *, SvUV(sv));
+            }
+        }
+        else {
+            new_addr = INT2PTR(void *, SvUV(sv));
+        }
+    }
+    /* Priority 4: Existing Pins/Addresses */
+    else {
+        void * extracted = _extract_pointer_value(aTHX_ sv, mg);
+        new_addr = extracted ? extracted : INT2PTR(void *, SvUV(sv));
+    }
+
+    *(void **)im->ptr = new_addr;
+    SvGMAGICAL_on(sv);
+    return 0;
+}
+
+
+int fdsset_ptr(pTHX_ SV * sv, MAGIC * mg) {
+    Affix_Pin_2_Point_Oh * im = (Affix_Pin_2_Point_Oh *)mg->mg_ptr;
+    if (!im || !im->ptr)
+        return 0;
+    SvGMAGICAL_off(sv);
+    void * new_addr = NULL;
+
+    if (!SvOK(sv)) {
+        new_addr = NULL;
+    }
+    else if (SvROK(sv) && SvTYPE(SvRV(sv)) == SVt_PVCV) {
+        CV * cv = (CV *)SvRV(sv);
+        SvREFCNT_inc(cv);
+        infix_reverse_t * rc = NULL;
+        const infix_type * ft_raw = resolve_type(aTHX_ im->type);
+        const infix_type * ft = (ft_raw->category == INFIX_TYPE_POINTER)
+            ? resolve_type(aTHX_ ft_raw->meta.pointer_info.pointee_type)
+            : ft_raw;
+        size_t n = ft->meta.func_ptr_info.num_args;
+        infix_type ** at = n ? (infix_type **)safecalloc(n, sizeof(infix_type *)) : NULL;
+        for (size_t i = 0; i < n; i++)
+            at[i] = ft->meta.func_ptr_info.args[i].type;
+        if (infix_reverse_create_closure_manual(&rc,
+                                                ft->meta.func_ptr_info.return_type,
+                                                at,
+                                                n,
+                                                ft->meta.func_ptr_info.num_fixed_args,
+                                                perl_universal_closure,
+                                                cv) == INFIX_SUCCESS) {
+            new_addr = infix_reverse_get_code(rc);
+        }
+        if (at)
+            safefree(at);
+    }
+    else {
+        /* Extract from Pin/Handle or use Integer value */
+        void * extracted = _extract_pointer_value(aTHX_ sv, mg);
+        new_addr = extracted ? extracted : INT2PTR(void *, SvUV(sv));
+    }
+
+    *(void **)im->ptr = new_addr; /* SUCCESSFUL ASSIGNMENT */
+    SvGMAGICAL_on(sv);
+    return 0;
+}
+int xfdsfaset_ptr(pTHX_ SV * sv, MAGIC * mg) {
+    Affix_Pin_2_Point_Oh * im = (Affix_Pin_2_Point_Oh *)mg->mg_ptr;
+    if (!im || !im->ptr)
+        return 0;
+
+    /* Temporary disable magic to prevent recursion during read */
+    SvGMAGICAL_off(sv);
+    void * new_addr = NULL;
+
+    /* PRIORITY 1: Subroutine Assignment (Create Closure) */
+    if (SvROK(sv) && SvTYPE(SvRV(sv)) == SVt_PVCV) {
+        CV * cv = (CV *)SvRV(sv);
+        SvREFCNT_inc(cv);
+        infix_reverse_t * rc = NULL;
+        const infix_type * ft_raw = resolve_type(aTHX_ im->type);
+        const infix_type * ft = (ft_raw->category == INFIX_TYPE_POINTER)
+            ? resolve_type(aTHX_ ft_raw->meta.pointer_info.pointee_type)
+            : ft_raw;
+
+        size_t n = ft->meta.func_ptr_info.num_args;
+        infix_type ** at = n ? (infix_type **)safecalloc(n, sizeof(infix_type *)) : NULL;
+        for (size_t i = 0; i < n; i++)
+            at[i] = ft->meta.func_ptr_info.args[i].type;
+
+        if (infix_reverse_create_closure_manual(&rc,
+                                                ft->meta.func_ptr_info.return_type,
+                                                at,
+                                                n,
+                                                ft->meta.func_ptr_info.num_fixed_args,
+                                                perl_universal_closure,
+                                                cv) == INFIX_SUCCESS) {
+            new_addr = infix_reverse_get_code(rc);
+        }
+        if (at)
+            safefree(at);
+    }
+    /* PRIORITY 2: NULL / undef */
+    else if (!SvOK(sv)) {
+        new_addr = NULL;
+    }
+    /* PRIORITY 3: String Assignment to char* members */
+    else if (SvPOK(sv) && !SvROK(sv) && !sv_isobject(sv)) {
+        const infix_type * res = resolve_type(aTHX_ im->type);
+        const infix_type * pointee =
+            (res->category == INFIX_TYPE_POINTER) ? resolve_type(aTHX_ res->meta.pointer_info.pointee_type) : NULL;
+
+        if (pointee &&
+            (pointee->meta.primitive_id == INFIX_PRIMITIVE_SINT8 ||
+             pointee->meta.primitive_id == INFIX_PRIMITIVE_UINT8)) {
+            new_addr = (void *)SvPV_nolen(sv);
+        }
+        else {
+            new_addr = INT2PTR(void *, SvUV(sv));
+        }
+    }
+    /* PRIORITY 4: Pin/Handle extraction or Integer address */
+    else {
+        void * extracted = _extract_pointer_value(aTHX_ sv, mg);
+        if (extracted)
+            new_addr = extracted;
+        else
+            new_addr = INT2PTR(void *, SvUV(sv));
+    }
+
+    /* Apply the new address to the native memory */
+    *(void **)im->ptr = new_addr;
+
+    SvGMAGICAL_on(sv);
+    return 0;
+}
+int xxxset_ptr(pTHX_ SV * sv, MAGIC * mg) {
     Affix_Pin_2_Point_Oh * im = (Affix_Pin_2_Point_Oh *)mg->mg_ptr;
     if (!im || !im->ptr)
         return 0;
@@ -852,7 +1249,7 @@ int set_ptr(pTHX_ SV * sv, MAGIC * mg) {
     return 0;
 }
 
-static MGVTBL vtbl_pointer = {get_ptr, set_ptr, NULL, NULL, free_v2_pin};
+MGVTBL vtbl_pointer = {get_ptr, set_ptr, NULL, NULL, free_v2_pin};
 
 
 int array_mg_fetch(pTHX_ SV * sv, MAGIC * mg) {
@@ -873,7 +1270,7 @@ U32 array_mg_len(pTHX_ SV * sv, MAGIC * mg) {
     size_t len = (t->category == INFIX_TYPE_ARRAY) ? t->meta.array_info.num_elements : t->meta.vector_info.num_elements;
     return (U32)(len > 0 ? len - 1 : 0);
 }
-static MGVTBL vtbl_array = {NULL, NULL, (U32 (*)(pTHX_ SV *, MAGIC *))array_mg_len, NULL, free_v2_pin};
+MGVTBL vtbl_array = {NULL, NULL, (U32 (*)(pTHX_ SV *, MAGIC *))array_mg_len, NULL, free_v2_pin};
 /**
  * @brief Lazy-loads child structures from memory when a Perl user tries to interact with a struct.
  */
@@ -887,11 +1284,11 @@ int lazy_agg_get(pTHX_ SV * sv, MAGIC * mg) {
         sv_setsv(sv, &PL_sv_undef);
     }
     else {
-        /* FORCE EAGER: We are now vivifying the placeholder into a real reference */
+        /* FIX 1: eager=true to prevent infinite recursion */
         SV * rv = _bind_aggregate_internal(aTHX_ im->ptr, im->type, mg->mg_obj, im->arena, true);
 
-        /* Transfer arena ownership to the new referent if it exists,
-           preventing double-free or early-free */
+        /* FIX 2: Clear arena ownership from the scalar magic because the
+           referent magic (inside rv) has now taken ownership of it. */
         im->arena = NULL;
 
         _vivify_magic_rv(aTHX_ sv, rv);
@@ -903,7 +1300,81 @@ int lazy_agg_get(pTHX_ SV * sv, MAGIC * mg) {
 /**
  * @brief Performs deep writes to structs when a user assigns a hash (`$struct = { x => 1 }`).
  */
+
 int lazy_agg_set(pTHX_ SV * sv, MAGIC * mg) {
+    Affix_Pin_2_Point_Oh * im = (Affix_Pin_2_Point_Oh *)mg->mg_ptr;
+    if (!im->ptr)
+        return 0;
+    SV * owner = mg->mg_obj;
+    const infix_type * type = resolve_type(aTHX_ im->type);
+    infix_type_category cat = infix_type_get_category(type);
+
+    SvGMAGICAL_off(sv);
+    SvSMAGICAL_off(sv);
+
+    /* Support both the RV and the raw HV/AV (from the auto-sync loop) */
+    SV * rv = SvROK(sv) ? SvRV(sv) : sv;
+
+    if ((cat == INFIX_TYPE_STRUCT || cat == INFIX_TYPE_UNION) && SvTYPE(rv) == SVt_PVHV) {
+        HV * user_hv = (HV *)rv;
+        size_t count = infix_type_get_member_count(type);
+        for (size_t i = 0; i < count; i++) {
+            const infix_struct_member * m = infix_type_get_member(type, i);
+            SV ** val_ptr = hv_fetch(user_hv, m->name ? m->name : "", strlen(m->name ? m->name : ""), 0);
+            if (val_ptr && *val_ptr) {
+                SV * temp = newSV(0);
+                sv_setsv(temp, *val_ptr);
+                bind_placeholder(
+                    aTHX_ temp, (char *)im->ptr + m->offset, m->type, m->bit_offset, m->bit_width, false, owner, NULL);
+                SvGMAGICAL_off(temp);
+                MAGIC * cmg = mg_find(temp, PERL_MAGIC_ext);
+                if (cmg && cmg->mg_virtual && cmg->mg_virtual->svt_set)
+                    cmg->mg_virtual->svt_set(aTHX_ temp, cmg);
+                SvREFCNT_dec(temp);
+            }
+        }
+    }
+    else if ((cat == INFIX_TYPE_ARRAY || cat == INFIX_TYPE_VECTOR || cat == INFIX_TYPE_COMPLEX) &&
+             SvTYPE(rv) == SVt_PVAV) {
+        AV * user_av = (AV *)rv;
+        size_t max_len, step;
+        const infix_type * el_type;
+        if (cat == INFIX_TYPE_COMPLEX) {
+            max_len = 2;
+            el_type = type->meta.complex_info.base_type;
+            step = el_type->size;
+        }
+        else if (cat == INFIX_TYPE_ARRAY) {
+            max_len = type->meta.array_info.num_elements;
+            el_type = type->meta.array_info.element_type;
+            step = resolve_type(aTHX_ el_type)->size;
+        }
+        else {
+            max_len = type->meta.vector_info.num_elements;
+            el_type = type->meta.vector_info.element_type;
+            step = el_type->size;
+        }
+        SSize_t user_len = av_len(user_av) + 1;
+        size_t copy_len = ((size_t)user_len < max_len) ? (size_t)user_len : max_len;
+        for (size_t i = 0; i < copy_len; i++) {
+            SV ** val_ptr = av_fetch(user_av, i, 0);
+            if (val_ptr && *val_ptr) {
+                SV * temp = newSV(0);
+                sv_setsv(temp, *val_ptr);
+                bind_placeholder(aTHX_ temp, (char *)im->ptr + (i * step), el_type, 0, 0, false, owner, NULL);
+                SvGMAGICAL_off(temp);
+                MAGIC * cmg = mg_find(temp, PERL_MAGIC_ext);
+                if (cmg && cmg->mg_virtual && cmg->mg_virtual->svt_set)
+                    cmg->mg_virtual->svt_set(aTHX_ temp, cmg);
+                SvREFCNT_dec(temp);
+            }
+        }
+    }
+    SvGMAGICAL_on(sv);
+    SvSMAGICAL_on(sv);
+    return 0;
+}
+int fdslazy_agg_set(pTHX_ SV * sv, MAGIC * mg) {
     Affix_Pin_2_Point_Oh * im = (Affix_Pin_2_Point_Oh *)mg->mg_ptr;
     if (!im->ptr)
         return 0;
@@ -981,7 +1452,7 @@ int lazy_agg_set(pTHX_ SV * sv, MAGIC * mg) {
     SvSMAGICAL_on(sv);
     return 0;
 }
-static MGVTBL vtbl_lazy_aggregate = {lazy_agg_get, lazy_agg_set, NULL, NULL, free_v2_pin};
+MGVTBL vtbl_lazy_aggregate = {lazy_agg_get, lazy_agg_set, NULL, NULL, free_v2_pin};
 /* BINDERS & MEMORY MAPPING */
 /**
  * @brief Binds a single C value (primitive or placeholder) to a Perl SV with magic.
@@ -993,6 +1464,7 @@ static MGVTBL vtbl_lazy_aggregate = {lazy_agg_get, lazy_agg_set, NULL, NULL, fre
  * @param prime If true, immediately synchronize the SV with C memory.
  * @param owner The "root" SV that owns the C memory (lifeline reference tracking).
  */
+
 void bind_placeholder(pTHX_ SV * sv,
                       void * ptr,
                       const infix_type * type,
@@ -1004,12 +1476,8 @@ void bind_placeholder(pTHX_ SV * sv,
     const infix_type * res = resolve_type(aTHX_ type);
     infix_type_category cat = infix_type_get_category(res);
 
-    Affix_Pin_2_Point_Oh m;
-    m.ptr = ptr;
-    m.type = type;
-    m.arena = arena;
-    m.bit_offset = bit_offset;
-    m.bit_width = bit_width;
+    Affix_Pin_2_Point_Oh m = {
+        .ptr = ptr, .type = type, .arena = arena, .bit_offset = bit_offset, .bit_width = bit_width};
 
     MGVTBL * v = NULL;
     int is_wide = 0;
@@ -1038,6 +1506,7 @@ void bind_placeholder(pTHX_ SV * sv,
     SvGMAGICAL_on(sv);
     SvSMAGICAL_on(sv);
 
+    /* FIX 3: Never prime a lazy aggregate placeholder; let it vivify on first use. */
     if (prime && v != &vtbl_lazy_aggregate && v != &vtbl_void)
         v->svt_get(aTHX_ sv, mg_find(sv, PERL_MAGIC_ext));
 }
@@ -1048,6 +1517,7 @@ void bind_placeholder(pTHX_ SV * sv,
  * @brief Internal helper to build the actual Perl Hash/Array structure.
  * @param eager If false, large arrays will return a magical scalar placeholder instead of an AV.
  */
+
 static SV * _bind_aggregate_internal(
     pTHX_ void * ptr, const infix_type * type, SV * owner, infix_arena_t * arena, bool eager) {
     if (!ptr)
@@ -1056,28 +1526,26 @@ static SV * _bind_aggregate_internal(
     const infix_type * res = resolve_type(aTHX_ type);
     infix_type_category cat = infix_type_get_category(res);
 
-    /* Structs and Unions */
+    /* --- 1. Handle Structs and Unions --- */
     if (cat == INFIX_TYPE_STRUCT || cat == INFIX_TYPE_UNION) {
         HV * hv = newHV();
         size_t count = infix_type_get_member_count(res);
         for (size_t i = 0; i < count; i++) {
             const infix_struct_member * m = infix_type_get_member(res, i);
             SV * v = newSV(0);
-            /* Members never own the arena (the parent HV does), so pass NULL */
+            /* Recursive members never own the arena; the parent HV does */
             bind_placeholder(aTHX_ v, (char *)ptr + m->offset, m->type, m->bit_offset, m->bit_width, true, owner, NULL);
             hv_store(hv, m->name ? m->name : "", strlen(m->name ? m->name : ""), v, 0);
         }
 
-        /* Attach magic to the HV so get_address_v2 finds it via referent */
         Affix_Pin_2_Point_Oh m = {.ptr = ptr, .type = type, .arena = arena};
         sv_magicext((SV *)hv, owner, PERL_MAGIC_ext, &vtbl_lazy_aggregate, (char *)&m, sizeof(Affix_Pin_2_Point_Oh));
 
         return newRV_noinc((SV *)hv);
     }
 
-    /* Arrays, Vectors, and Complex Numbers */
+    /* --- 2. Handle Arrays, Vectors, and Complex --- */
     else if (cat == INFIX_TYPE_ARRAY || cat == INFIX_TYPE_VECTOR || cat == INFIX_TYPE_COMPLEX) {
-        /* String arrays (char[N]) are always eager and returned as strings */
         if (is_string_array(aTHX_ type, NULL)) {
             SV * sv = newSV(0);
             bind_placeholder(aTHX_ sv, ptr, type, 0, 0, true, owner, arena);
@@ -1102,14 +1570,14 @@ static SV * _bind_aggregate_internal(
             s = et->size;
         }
 
-        /* GIANT ARRAY SWITCH: If not forced eager, return a placeholder scalar */
+        /* GIANT ARRAY SWITCH: Returns a placeholder scalar if not forced eager */
         if (!eager && n > LAZY_ARRAY_THRESHOLD) {
             SV * lazy_placeholder = newSV(0);
             bind_placeholder(aTHX_ lazy_placeholder, ptr, type, 0, 0, false, owner, arena);
             return lazy_placeholder;
         }
 
-        /* Build the actual Perl AV */
+        /* Forced Eager path: Create full Perl array */
         AV * av = newAV();
         for (size_t i = 0; i < n; i++) {
             SV * el = newSV(0);
@@ -1117,7 +1585,6 @@ static SV * _bind_aggregate_internal(
             av_push(av, el);
         }
 
-        /* Attach magic to the AV for length/address lookups */
         Affix_Pin_2_Point_Oh am = {.ptr = ptr, .type = type, .arena = arena};
         sv_magicext((SV *)av, owner, PERL_MAGIC_ext, &vtbl_array, (char *)&am, sizeof(Affix_Pin_2_Point_Oh));
 
@@ -1716,26 +2183,32 @@ XS_INTERNAL(XS_main_get_mock_cxx_dtor_calls) {
     XSRETURN(1);
 }
 
+extern MGVTBL Affix_pin_vtbl;
 
 /**
- * @brief Helper to verify if a VTable belongs to the 2.0 system.
+ * @brief Helper to verify if a VTable belongs to the Affix system (v1 or v2).
  */
 static inline int is_v2_vtable(MGVTBL * v) {
-    return (v == &vtbl_sint8 || v == &vtbl_uint8 || v == &vtbl_sint16 || v == &vtbl_uint16 || v == &vtbl_sint32 ||
-            v == &vtbl_uint32 || v == &vtbl_sint64 || v == &vtbl_uint64 || v == &vtbl_sint128 || v == &vtbl_uint128 ||
-            v == &vtbl_float || v == &vtbl_double || v == &vtbl_float16 || v == &vtbl_bool || v == &vtbl_void ||
-            v == &vtbl_bitfield || v == &vtbl_pointer || v == &vtbl_array || v == &string_vtable ||
+    /* Access the v1 vtable from Affix.c */
+    extern MGVTBL Affix_pin_vtbl;
+
+    return (v == &Affix_pin_vtbl || v == &vtbl_sint8 || v == &vtbl_uint8 || v == &vtbl_sint16 || v == &vtbl_uint16 ||
+            v == &vtbl_sint32 || v == &vtbl_uint32 || v == &vtbl_sint64 || v == &vtbl_uint64 || v == &vtbl_sint128 ||
+            v == &vtbl_uint128 || v == &vtbl_float || v == &vtbl_double || v == &vtbl_float16 || v == &vtbl_bool ||
+            v == &vtbl_void || v == &vtbl_bitfield || v == &vtbl_pointer || v == &vtbl_array || v == &string_vtable ||
             v == &wstring_vtable || v == &vtbl_lazy_aggregate);
 }
 /**
  * @brief Internal helper to safely extract a pointer address, ignoring a specific magic struct.
  * This prevents a pointer field from accidentally extracting its own address during assignment.
  */
+
+
 static void * _extract_pointer_value(pTHX_ SV * sv, MAGIC * ignore_mg) {
     if (!sv || !SvOK(sv))
         return NULL;
 
-    /* Affix::Memory Handle */
+    /* 1. Affix::Memory Handle */
     if (sv_isobject(sv) && sv_derived_from(sv, "Affix::Memory")) {
         SV * rv = SvRV(sv);
         if (SvTYPE(rv) == SVt_PVAV) {
@@ -1745,8 +2218,7 @@ static void * _extract_pointer_value(pTHX_ SV * sv, MAGIC * ignore_mg) {
         return INT2PTR(void *, SvUV(rv));
     }
 
-    /* Magic on the Referent (The vivified Hash or Array) */
-    /* MUST BE CHECKED BEFORE THE SCALAR ITSELF! */
+    /* 2. Magic on the Referent (The vivified Hash or Array) */
     if (SvROK(sv)) {
         SV * target = SvRV(sv);
         if (SvMAGICAL(target)) {
@@ -1756,14 +2228,14 @@ static void * _extract_pointer_value(pTHX_ SV * sv, MAGIC * ignore_mg) {
         }
     }
 
-    /* Magic on the SV itself (The Scalar Pin) */
+    /* 3. Magic on the SV itself (The Scalar Pin) */
     if (SvMAGICAL(sv)) {
         MAGIC * mg = mg_find(sv, PERL_MAGIC_ext);
         if (mg && mg != ignore_mg && is_v2_vtable(mg->mg_virtual))
             return ((Affix_Pin_2_Point_Oh *)mg->mg_ptr)->ptr;
     }
 
-    /* Raw integer */
+    /* 4. Raw integer */
     if (SvIOK(sv))
         return INT2PTR(void *, SvUV(sv));
     return NULL;

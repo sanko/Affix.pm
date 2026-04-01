@@ -15,7 +15,9 @@ static void rebuild_affix_data(pTHX_ Affix * affix);
 
 static MGVTBL Affix_cv_vtbl;
 static MGVTBL Affix_backend_vtbl;
-
+extern MGVTBL vtbl_sint8, vtbl_uint8, vtbl_sint16, vtbl_uint16, vtbl_sint32, vtbl_uint32, vtbl_sint64, vtbl_uint64,
+    vtbl_float, vtbl_double, vtbl_float16, vtbl_bool, vtbl_sint128, vtbl_uint128, vtbl_void, vtbl_bitfield,
+    vtbl_pointer, vtbl_array, string_vtable, wstring_vtable, vtbl_lazy_aggregate;
 // This will be moved somewhere else eventually...
 #ifdef __SIZEOF_INT128__
 #define sv_to_int128_safe(sv, ptr) *(__int128_t *)ptr = sv_to_int128(aTHX_ sv)
@@ -1659,6 +1661,10 @@ static void rebuild_affix_data(pTHX_ Affix * affix);
         dXSTARG;                                                                                             \
         Affix * affix = (Affix *)CvXSUBANY(cv).any_ptr;                                                      \
                                                                                                              \
+        if (UNLIKELY(!affix->infix))                                                                         \
+            rebuild_affix_data(aTHX_ affix);                                                                 \
+                                                                                                             \
+        I32 items = (I32)(SP - MARK);                                                                        \
         /* LAZY REBUILD: If we are in a new thread and data hasn't been built yet */                         \
         if (UNLIKELY(!affix->infix))                                                                         \
             rebuild_affix_data(aTHX_ affix);                                                                 \
@@ -1667,6 +1673,17 @@ static void rebuild_affix_data(pTHX_ Affix * affix);
             croak("Wrong number of arguments. Expected %d, got %d", (int)affix->num_args, (int)(SP - MARK)); \
                                                                                                              \
         register Affix_Plan_Step * step = affix->plan;                                                       \
+        for (I32 i = 0; i < items; i++) {                                                                    \
+            SV * arg = ST(i);                                                                                \
+            SV * target = (arg && SvROK(arg)) ? SvRV(arg) : arg;                                             \
+            if (target && SvMAGICAL(target)) {                                                               \
+                MAGIC * mg = mg_find(target, PERL_MAGIC_ext);                                                \
+                if (mg && (mg->mg_virtual == &vtbl_lazy_aggregate || mg->mg_virtual == &vtbl_array)) {       \
+                    if (mg->mg_virtual->svt_set)                                                             \
+                        mg->mg_virtual->svt_set(aTHX_ target, mg);                                           \
+                }                                                                                            \
+            }                                                                                                \
+        }                                                                                                    \
                                                                                                              \
         /* ALLOCATION STRATEGY */                                                                            \
         size_t arena_mark = affix->args_arena->current_offset;                                               \
