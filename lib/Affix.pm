@@ -724,6 +724,7 @@ package Affix v1.0.9 {    # 'FFI' is my middle name!
         sub _as_array         { my $self = shift; my @proxy; tie @proxy, 'Affix::Pointer::TiedArray', $self; return \@proxy; }
         sub _as_hash          { my $self = shift; my %proxy; tie %proxy, 'Affix::Pointer::TiedHash',  $self; return \%proxy; }
         sub attach_destructor { my ( $self, $destructor, $lib ) = @_; Affix::attach_destructor( $self, $destructor, $lib ); }
+        sub readonly          { Affix::readonly(shift, @_) }
     }
     package    #
         Affix::Pointer::TiedHash {

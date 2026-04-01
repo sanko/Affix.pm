@@ -212,7 +212,23 @@ typedef struct {
     SV * owner_sv;               ///< Perl object that owns the memory, kept alive by this pin.
     size_t bit_offset;           ///< Bit offset (for bitfields)
     size_t bit_width;            ///< Bit width (for bitfields, 0 = not a bitfield)
+    bool readonly;               ///< Marks the pin to reject FFI assignment.
 } Affix_Pin;
+/**
+ * @struct Affix_Pin_2_Point_Oh
+ * @brief The internal payload attached to Perl Scalars via Perl Magic (PERL_MAGIC_ext).
+ * @details This struct holds the raw C pointer, type metadata, and bitfield offsets.
+ * When Perl attempts to read or write a scalar, the VTable fetches this struct to
+ * map the scalar value directly to native C memory.
+ */
+typedef struct {
+    void * ptr;              /**< Pointer to the actual C memory backing this variable. */
+    const infix_type * type; /**< Pointer to the parsed AST type node. */
+    infix_arena_t * arena;   /**< Local arena for anonymous types. */
+    uint8_t bit_offset;      /**< Bitfield offset (0 for standard types). */
+    uint8_t bit_width;       /**< Bitfield width in bits (0 for standard types). */
+    bool readonly;           /**< True if the pin is marked const/readonly. */
+} Affix_Pin_2_Point_Oh;
 /// Holds the necessary data for a callback, specifically the Perl subroutine to call.
 typedef struct {
     SV * coderef_rv;  ///< A reference (RV) to the Perl coderef. We hold this to keep it alive.
@@ -329,3 +345,4 @@ extern MGVTBL vtbl_array;
 MGVTBL vtbl_sint8, vtbl_uint8, vtbl_sint16, vtbl_uint16, vtbl_sint32, vtbl_uint32, vtbl_sint64, vtbl_uint64, vtbl_float,
     vtbl_double, vtbl_float16, vtbl_bool, vtbl_sint128, vtbl_uint128, vtbl_void, vtbl_bitfield, vtbl_pointer,
     vtbl_array, string_vtable, wstring_vtable, vtbl_lazy_aggregate, vtbl_enum;
+Affix_Pin_2_Point_Oh * get_pin_v2(pTHX_ SV * sv);

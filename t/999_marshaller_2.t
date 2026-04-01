@@ -335,5 +335,76 @@ subtest 'Enum Dualvars' => sub {
         is is_pinv2($task), T(), 'Task pointer is natively tracked as a v2 FFI Pin';
     }
 };
+subtest 'Feature: Signed Bitfields' => sub {
+
+    # 4-bit signed bitfield (range: -8 to 7)
+    typedef Bits => Struct [ low => SInt8 | 4, high => SInt8 | 4 ];
+    my $mem = alloc_owned( sizeof( Bits() ) );
+    my $b   = cast( $mem, Bits() );
+    $b->{low} = 3;
+    is $b->{low}, 3, 'Positive bitfield value is correct';
+
+    # Assign -3 to the 4-bit signed field
+    $b->{high} = -3;
+
+    # Due to sign extension, -3 (1101 in 4-bit two's complement) should read back as -3
+    is $b->{high}, -3, 'Negative signed bitfield is correctly sign-extended on read';
+    $b->{low} = -8;
+    is $b->{low}, -8, 'Min bounds of 4-bit signed field is -8';
+};
+subtest 'Feature: Pointer-to-Pointer / StringList (char**)' => sub {
+    typedef Cmd => Struct [ argc => Int, argv => StringList() ];
+    my $mem = alloc_owned( sizeof( Cmd() ) );
+    my $cmd = cast( $mem, Cmd() );
+
+    # Native assignment of an ArrayRef to a char** field
+    $cmd->{argv} = [ "hello", "world", "ffi" ];
+    $cmd->{argc} = 3;
+
+    # FFI-intercept read: Pointer to Pointer converts seamlessly back to ArrayRef
+    my $read_back = $cmd->{argv};
+    is ref($read_back),     'ARRAY', 'StringList reads back as a native Perl ArrayRef';
+    is scalar(@$read_back), 3,       'ArrayRef has correct element count';
+    is $read_back->[0],     'hello', 'Element 0 matches';
+    is $read_back->[1],     'world', 'Element 1 matches';
+    is $read_back->[2],     'ffi',   'Element 2 matches';
+};
+subtest 'Feature: Const-Correctness / Readonly Pins' => sub {
+    typedef Info => Struct [ version => Float, author => String ];
+    my $mem  = alloc_owned( sizeof( Info() ) );
+    my $info = cast( $mem, Info() );
+    $info->{version} = 1.0;
+
+    # Apply readonly state
+    ok !Affix::readonly($info), 'Pin defaults to mutable';
+    Affix::readonly( $info, 1 );
+    ok Affix::readonly($info), 'Pin is now marked readonly';
+
+    # Attempting to assign should croak
+    like dies {
+        $info->{version} = 2.0;
+    }, qr/Modification of a read-only C value attempted/, 'Caught illegal write to readonly pin';
+    is $info->{version}, 1.0, 'Value remained unmodified after exception';
+
+    # Unlock
+    Affix::readonly( $info, 0 );
+    $info->{version} = 2.0;
+    is $info->{version}, 2.0, 'Value successfully modified after unlocking';
+};
+subtest 'Feature: SIMD Vectors' => sub {
+
+    # 4-element single-precision float vector
+    typedef SimdType => Vector [ 4, Float32 ];
+    my $mem = alloc_owned( sizeof( SimdType() ) );
+    my $vec = cast( $mem, SimdType() );
+
+    # Vectors map to arrayrefs natively during bind
+    $vec->[0] = 1.1;
+    $vec->[1] = 2.2;
+    $vec->[2] = 3.3;
+    $vec->[3] = 4.4;
+    is int( $vec->[0] ), 1, 'SIMD element 0 read OK';
+    is int( $vec->[3] ), 4, 'SIMD element 3 read OK';
+};
 #
 done_testing;

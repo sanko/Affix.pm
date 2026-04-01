@@ -202,6 +202,8 @@ static int Affix_pin_dup(pTHX_ MAGIC * mg, CLONE_PARAMS * param) {
         new_pin->managed = false;  // Explicitly set to false: pointer is not managed by safefree.
     }
 
+    new_pin->readonly = old_pin->readonly;
+
     if (old_pin->owner_sv) {
 #ifdef USE_ITHREADS
         new_pin->owner_sv = sv_dup(old_pin->owner_sv, param);
@@ -4258,7 +4260,8 @@ static int Affix_set_pin(pTHX_ SV * sv, MAGIC * mg) {
     Affix_Pin * pin = (Affix_Pin *)mg->mg_ptr;
     if (!pin || !pin->pointer || !pin->type)
         return 0;
-
+    if (pin->readonly)
+        croak("Modification of a read-only C value attempted");
     if (pin->bit_width > 0) {
         size_t sz = infix_type_get_size(pin->type);
         uint64_t val = (uint64_t)SvUV(sv);
@@ -4341,7 +4344,22 @@ static int Affix_get_pin(pTHX_ SV * sv, MAGIC * mg) {
         uint64_t raw = 0;
         memcpy(&raw, pin->pointer, sz);
         uint64_t val = (raw >> pin->bit_offset) & (((uint64_t)1 << pin->bit_width) - 1);
-        sv_setuv(sv, val);
+
+        uint64_t mask = (pin->bit_width == 64) ? ~0ULL : (((uint64_t)1 << pin->bit_width) - 1);
+        bool is_signed = (pin->type->meta.primitive_id == INFIX_PRIMITIVE_SINT8 ||
+                          pin->type->meta.primitive_id == INFIX_PRIMITIVE_SINT16 ||
+                          pin->type->meta.primitive_id == INFIX_PRIMITIVE_SINT32 ||
+                          pin->type->meta.primitive_id == INFIX_PRIMITIVE_SINT64 ||
+                          pin->type->meta.primitive_id == INFIX_PRIMITIVE_SINT128);
+
+        if (is_signed && (val & (1ULL << (pin->bit_width - 1)))) {
+            val |= ~mask;
+            sv_setiv(sv, (IV)val);
+        }
+        else {
+            sv_setuv(sv, val);
+        }
+
         return 0;
     }
 
@@ -5991,6 +6009,32 @@ static void _register_core_types(infix_registry_t * registry) {
         croak("Failed to register internal type alias '@SockAddr'");
 }
 
+XS_INTERNAL(Affix_readonly) {
+    dXSARGS;
+    if (items < 1)
+        croak_xs_usage(cv, "pin, [readonly]");
+
+    // Check for V2 Pin first
+    if (is_pin_v2(aTHX_ ST(0))) {
+        Affix_Pin_2_Point_Oh * pin_v2 = get_pin_v2(aTHX_ ST(0));
+        if (items > 1)
+            pin_v2->readonly = SvTRUE(ST(1));
+        ST(0) = pin_v2->readonly ? &PL_sv_yes : &PL_sv_no;
+        XSRETURN(1);
+    }
+
+    // Check for V1 Pin
+    Affix_Pin * pin_v1 = _get_pin_from_sv(aTHX_ ST(0));
+    if (pin_v1) {
+        if (items > 1)
+            pin_v1->readonly = SvTRUE(ST(1));
+        ST(0) = pin_v1->readonly ? &PL_sv_yes : &PL_sv_no;
+        XSRETURN(1);
+    }
+
+    XSRETURN_UNDEF;
+}
+
 XS_INTERNAL(Affix_CLONE) {
     dXSARGS;
     PERL_UNUSED_VAR(items);
@@ -6120,6 +6164,7 @@ void boot_Affix(pTHX_ CV * cv) {
         XSUB_EXPORT(cast, "$$", "memory");
         XSUB_EXPORT(dump, "$$", "memory");
         XSUB_EXPORT(own, "$;$", "memory");
+        XSUB_EXPORT(readonly, "$;$", "memory");
 
         // Raw memory operations
         XSUB_EXPORT(memcpy, "$$$", "memory");
