@@ -12,12 +12,14 @@ perl_mutex affix_callback_mutex;
 
 static void rebuild_backend_data(pTHX_ Affix_Backend * backend);
 static void rebuild_affix_data(pTHX_ Affix * affix);
+static const infix_type * _resolve_type(pTHX_ const infix_type * type);
 
 static MGVTBL Affix_cv_vtbl;
 static MGVTBL Affix_backend_vtbl;
 extern MGVTBL vtbl_sint8, vtbl_uint8, vtbl_sint16, vtbl_uint16, vtbl_sint32, vtbl_uint32, vtbl_sint64, vtbl_uint64,
     vtbl_float, vtbl_double, vtbl_float16, vtbl_bool, vtbl_sint128, vtbl_uint128, vtbl_void, vtbl_bitfield,
-    vtbl_pointer, vtbl_array, string_vtable, wstring_vtable, vtbl_lazy_aggregate;
+    vtbl_pointer, vtbl_array, string_vtable, wstring_vtable, vtbl_lazy_aggregate, vtbl_enum;
+
 // This will be moved somewhere else eventually...
 #ifdef __SIZEOF_INT128__
 #define sv_to_int128_safe(sv, ptr) *(__int128_t *)ptr = sv_to_int128(aTHX_ sv)
@@ -538,6 +540,8 @@ static bool is_perl_sv_type(const infix_type * t) {
 
     // Check by name
     const char * name = infix_type_get_name(t);
+    if (!name && t->category == INFIX_TYPE_NAMED_REFERENCE)
+        name = t->meta.named_reference.name;
     if (name && (strEQ(name, "SV") || strEQ(name, "@SV")))
         return true;
 
@@ -847,6 +851,8 @@ static Affix_Opcode get_ret_opcode_for_type(const infix_type * type) {
             return OP_RET_SV;
 
         const char * name = infix_type_get_name(type);
+        if (!name && type->category == INFIX_TYPE_NAMED_REFERENCE)
+            name = type->meta.named_reference.name;
         if (name) {
             if (strEQ(name, "StringList") || strEQ(name, "@StringList") || strEQ(name, "SV") || strEQ(name, "@SV"))
                 return OP_RET_CUSTOM;
@@ -857,6 +863,8 @@ static Affix_Opcode get_ret_opcode_for_type(const infix_type * type) {
             return OP_RET_SV;
 
         const char * pointee_name = infix_type_get_name(pointee);
+        if (!pointee_name && pointee->category == INFIX_TYPE_NAMED_REFERENCE)
+            pointee_name = pointee->meta.named_reference.name;
         if (pointee_name) {
             if (strEQ(pointee_name, "File") || strEQ(pointee_name, "@File") || strEQ(pointee_name, "PerlIO") ||
                 strEQ(pointee_name, "@PerlIO"))
@@ -1055,6 +1063,8 @@ static void plan_step_push_pointer(pTHX_ Affix * affix,
     }
 
     const char * type_name = infix_type_get_name(type);
+    if (!type_name && type->category == INFIX_TYPE_NAMED_REFERENCE)
+        type_name = type->meta.named_reference.name;
     if (type_name &&
         (strEQ(type_name, "Buffer") || strEQ(type_name, "@Buffer") || strEQ(type_name, "SockAddr") ||
          strEQ(type_name, "@SockAddr") || strEQ(type_name, "StringList") || strEQ(type_name, "@StringList"))) {
@@ -1063,6 +1073,8 @@ static void plan_step_push_pointer(pTHX_ Affix * affix,
     }
 
     const char * pointee_name = infix_type_get_name(pointee_type);
+    if (!pointee_name && pointee_type->category == INFIX_TYPE_NAMED_REFERENCE)
+        pointee_name = pointee_type->meta.named_reference.name;
     if (pointee_name &&
         (strEQ(pointee_name, "File") || strEQ(pointee_name, "@File") || strEQ(pointee_name, "PerlIO") ||
          strEQ(pointee_name, "@PerlIO"))) {
@@ -2343,6 +2355,8 @@ static void rebuild_affix_data(pTHX_ Affix * affix) {
         if (original_type->category == INFIX_TYPE_POINTER) {
             const infix_type * pointee = original_type->meta.pointer_info.pointee_type;
             const char * pointee_name = infix_type_get_name(pointee);
+            if (!pointee_name && pointee->category == INFIX_TYPE_NAMED_REFERENCE)
+                pointee_name = pointee->meta.named_reference.name;
             bool is_sv_pointer = pointee_name && (strEQ(pointee_name, "SV") || strEQ(pointee_name, "@SV"));
 
             if (!is_sv_pointer && pointee->category != INFIX_TYPE_REVERSE_TRAMPOLINE &&
@@ -2991,6 +3005,8 @@ XS_INTERNAL(Affix_affix) {
         if (original_type->category == INFIX_TYPE_POINTER) {
             const infix_type * pointee = original_type->meta.pointer_info.pointee_type;
             const char * pointee_name = infix_type_get_name(pointee);
+            if (!pointee_name && pointee->category == INFIX_TYPE_NAMED_REFERENCE)
+                pointee_name = pointee->meta.named_reference.name;
             // Skip writeback for Pointer[@SV] to avoid corrupting Perl variables with void return values
             // We assume SV* passed to C is owned by C for the duration and shouldn't be auto-updated
             // (since the SV* itself is the value, not a pointer to a value we want copied back).
@@ -3275,6 +3291,9 @@ static void pull_enum_dualvar(pTHX_ Affix * affix, SV * sv, const infix_type * t
     dMY_CXT;
     const char * type_name = infix_type_get_name(type);
 
+    if (!type_name && type->category == INFIX_TYPE_NAMED_REFERENCE)
+        type_name = type->meta.named_reference.name;
+
     if (type_name) {
         SV ** enum_info_ptr = hv_fetch(MY_CXT.enum_registry, type_name, strlen(type_name), 0);
         if (enum_info_ptr) {
@@ -3296,6 +3315,7 @@ static void pull_enum_dualvar(pTHX_ Affix * affix, SV * sv, const infix_type * t
                     sv_setpv(sv, name_str);  // Sets PV, clears IV? No, usually clears flags, right?
 
                     // Force dualvar state by manually reinstating the IV
+                    SvUPGRADE(sv, SVt_PVIV);
                     SvIV_set(sv, val);
                     SvIOK_on(sv);  // It is valid Integer
                     // SvPOK is on from sv_setpv
@@ -3620,8 +3640,11 @@ static const Affix_Pull pull_handlers[] = {[INFIX_PRIMITIVE_BOOL] = pull_bool,
 #endif
 };
 
+
 Affix_Pull get_pull_handler(pTHX_ const infix_type * type) {
     const char * name = infix_type_get_name(type);
+    if (!name && type->category == INFIX_TYPE_NAMED_REFERENCE)
+        name = type->meta.named_reference.name;
     bool live_hint = name && name[0] == '+';
 
     switch (type->category) {
@@ -3645,7 +3668,8 @@ Affix_Pull get_pull_handler(pTHX_ const infix_type * type) {
 
             const infix_type * pointee_type = type->meta.pointer_info.pointee_type;
             const char * pointee_name = infix_type_get_name(pointee_type);
-
+            if (!pointee_name && pointee_type->category == INFIX_TYPE_NAMED_REFERENCE)
+                pointee_name = pointee_type->meta.named_reference.name;
             if (is_perl_sv_type(pointee_type))
                 return pull_sv;
 
@@ -3669,7 +3693,8 @@ Affix_Pull get_pull_handler(pTHX_ const infix_type * type) {
                 return live_hint ? pull_struct_as_live : pull_pointer_as_pin;
             if (pointee_type->category == INFIX_TYPE_ARRAY)
                 return pull_pointer_as_pin;
-
+            if (pointee_type->category == INFIX_TYPE_REVERSE_TRAMPOLINE)
+                return pull_pointer_as_callable;
             return pull_pointer_as_pin;
         }
     case INFIX_TYPE_STRUCT:
@@ -3687,8 +3712,10 @@ Affix_Pull get_pull_handler(pTHX_ const infix_type * type) {
     case INFIX_TYPE_ENUM:
         {  // Check if we have registered values for this enum
             dMY_CXT;
-            const char * name = infix_type_get_name(type);
-            if (name && hv_exists(MY_CXT.enum_registry, name, strlen(name)))
+            const char * enum_name = infix_type_get_name(type);
+            if (!enum_name && type->category == INFIX_TYPE_NAMED_REFERENCE)
+                enum_name = type->meta.named_reference.name;
+            if (enum_name && hv_exists(MY_CXT.enum_registry, enum_name, strlen(enum_name)))
                 return pull_enum_dualvar;
         }
         // Fallback to simple integer
@@ -3737,6 +3764,8 @@ void sv2ptr(pTHX_ Affix * affix, SV * perl_sv, void * c_ptr, const infix_type * 
             }
 
             const char * type_name = infix_type_get_name(type);
+            if (!type_name && type->category == INFIX_TYPE_NAMED_REFERENCE)
+                type_name = type->meta.named_reference.name;
             if (type_name) {
                 if (strEQ(type_name, "Buffer") || strEQ(type_name, "@Buffer")) {
                     push_buffer(aTHX_ affix, perl_sv, c_ptr);
@@ -3760,7 +3789,8 @@ void sv2ptr(pTHX_ Affix * affix, SV * perl_sv, void * c_ptr, const infix_type * 
             }
 
             const char * pointee_name = infix_type_get_name(pointee_type);
-
+            if (!pointee_name && pointee_type->category == INFIX_TYPE_NAMED_REFERENCE)
+                pointee_name = pointee_type->meta.named_reference.name;
             if (pointee_name && (strEQ(pointee_name, "File") || strEQ(pointee_name, "@File"))) {
                 IO * io = sv_2io(perl_sv);
                 if (!io)
@@ -3908,6 +3938,8 @@ void sv2ptr(pTHX_ Affix * affix, SV * perl_sv, void * c_ptr, const infix_type * 
         if (SvPOK(perl_sv)) {
             dMY_CXT;
             const char * type_name = infix_type_get_name(type);
+            if (!type_name && type->category == INFIX_TYPE_NAMED_REFERENCE)
+                type_name = type->meta.named_reference.name;
             if (type_name) {
                 SV ** enum_info_ptr = hv_fetch(MY_CXT.enum_registry, type_name, strlen(type_name), 0);
                 if (enum_info_ptr) {
@@ -5129,7 +5161,6 @@ XS_INTERNAL(Affix_free) {
     XSRETURN_YES;
 }
 
-static const infix_type * _resolve_type(pTHX_ const infix_type * type);
 
 XS_INTERNAL(Affix_cast) {
     dXSARGS;

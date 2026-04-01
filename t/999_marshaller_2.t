@@ -253,14 +253,87 @@ subtest calculator => sub {
             # First assignment
             $calc->{operation} = sub ( $a, $b ) { return $a * $b; };
             is run_calc( $calc, 10, 5 ), 50, 'C called Perl sub (10 * 5)';
-            Affix::sv_dump($calc);
 
+            #~ Affix::sv_dump($calc);
             # Second assignment - Prioritizing the Sub check allows this to update
             $calc->{operation} = sub ( $a, $b ) { return $a + $b; };
-            Affix::sv_dump($calc);
+
+            #~ Affix::sv_dump($calc);
             is run_calc( $calc, 10, 5 ), 15, 'Updated function pointer to different sub (10 + 5)';
+
+            # Extract the native C function directly from the struct
+            my $native_sub = $calc->{operation};
+
+            # Validate that we successfully wrapped it into a Perl CV
+            is ref($native_sub), 'Affix', 'Extracted function pointer is a callable Affix CV';
+
+            #~ Affix::sv_dump $native_sub;
+            # Call the native C memory directly from Perl!
+            is $native_sub->( 3, 4 ), 7, 'Calling extracted function pointer natively returns 7';
         };
     };
+};
+subtest 'Discriminated Union' => sub {
+    typedef Vec2  => Struct [ x => Float, y => Float ];
+    typedef Shape => Union [ point => Vec2(), radius => Float ];
+
+    # We want to track which member is active
+    ok my $mem = alloc_owned( sizeof( Shape() ) ), 'alloc Shape';
+    ok my $s   = cast( $mem, Shape() ),            'cast Shape';
+    $s->{point} = { x => 1.5, y => 2.5 };
+    is $s->{point}{x}, 1.5, 'Active member: point';
+    $s->{radius} = 10.0;
+    is $s->{radius}, 10.0, 'Switched to active member: radius';
+};
+subtest 'Enum Dualvars' => sub {
+    typedef Status     => Enum [ PENDING => 0, RUNNING => 1, SUCCESS => 2, ERROR => 3 ];
+    typedef AutoStatus => Enum [ 'QUEUED', 'PROCESSED', 'FAILED' ];
+    typedef AutoTask   => Struct [ id => Int, status => Status(), auto => AutoStatus() ];
+    typedef TaskObj    => Struct [ id => Int, status => Status() ];
+    subtest TaskObj => sub {
+        ok my $mem  = alloc_owned( sizeof( TaskObj() ) ), 'alloc TaskObj';
+        ok my $task = cast( $mem, TaskObj() ),            'cast TaskObj';
+
+        # Set by name
+        $task->{status} = 'RUNNING';
+        is int $task->{status}, 1, 'Enum set by name matches integer 1';
+
+        # Get as string
+        is "$task->{status}", 'RUNNING', 'Enum stringifies to RUNNING';
+
+        # Set with int
+        $task->{status} = 2;
+        is "$task->{status}", 'SUCCESS', 'Enum set by integer matches string SUCCESS';
+
+        # Make sure it's a dualvar
+        ok( $task->{status} == 2 && $task->{status} eq 'SUCCESS', 'Enum is a proper Dualvar' );
+    };
+    subtest auto => sub {
+        our $todo = todo 'This was a dev tool that I might eventually remove';
+        my $mem  = alloc_owned( sizeof( AutoTask() ) );
+        my $task = cast( $mem, AutoTask() );
+
+        # Write to Enum by String Name
+        $task->{status} = 'RUNNING';
+
+        # Internal representation validation (No off-by-one)
+        is int $task->{status}, 1, 'Enum written by name resolves to exact integer 1';
+
+        # Dualvar retrieval check (SVt_PVIV upgrade successful in C)
+        is "$task->{status}", 'RUNNING', 'Enum read back retains string mapping (Dualvar SV Upgrade successful)';
+
+        # VTable Shadowing verification (C interception is correctly scoped to vtbl_enum)
+        $task->{status} = 2;
+        is "$task->{status}", 'SUCCESS', 'Enum written by integer successfully stringifies to mapped name';
+        ok( $task->{status} == 2 && $task->{status} eq 'SUCCESS', 'Dualvar operations work symmetrically in Perl' );
+
+        # Auto-enumerated Enums verification
+        $task->{auto} = 'PROCESSED';
+        is int( $task->{auto} ), 1, 'Implicit enum correctly evaluated next index as integer 1';
+
+        # VTable scoping / memory boundaries
+        is is_pinv2($task), T(), 'Task pointer is natively tracked as a v2 FFI Pin';
+    }
 };
 #
 done_testing;

@@ -470,11 +470,37 @@ package Affix v1.0.9 {    # 'FFI' is my middle name!
             $self->{const_map}  = {};
             $self->{values_map} = {};
             my $counter = 0;
-            for my $item ( @{ $self->{elements} } ) {
+            my @elems   = @{ $self->{elements} };
+            for ( my $i = 0; $i < @elems; $i++ ) {
+                my $item = $elems[$i];
                 my ( $name, $final_val );
                 if ( !ref $item ) {
-                    $name      = $item;
-                    $final_val = $counter;
+                    $name = $item;
+                    my $next     = $elems[ $i + 1 ];
+                    my $is_value = 0;
+                    if ( defined $next && !ref $next ) {
+                        if ( $next =~ /^-?\d+$/ || $next =~ /^0x[0-9a-fA-F]+$/ || $next =~ /[\+\|\-\*\/\<\>\~\!\^\(\)]/ ) {
+                            $is_value = 1;
+                        }
+                        elsif ( exists $self->{const_map}->{$next} ) {
+                            $is_value = 1;
+                        }
+                    }
+                    if ($is_value) {
+                        if ( $next =~ /^-?\d+$/ ) {
+                            $final_val = $next;
+                        }
+                        elsif ( $next =~ /^0x[0-9a-fA-F]+$/ ) {
+                            $final_val = hex($next);
+                        }
+                        else {
+                            $final_val = $self->_calculate_expr( $next, $self->{const_map} );
+                        }
+                        $i++;
+                    }
+                    else {
+                        $final_val = $counter;
+                    }
                 }
                 elsif ( ref $item eq 'ARRAY' ) {
                     my $raw_val;
