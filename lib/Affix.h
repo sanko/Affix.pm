@@ -316,3 +316,6 @@ void _DD(pTHX_ SV *, const char *, int);
 
 #include <string.h>
 #include <wchar.h>
+
+
+void * get_address_v2(pTHX_ SV * sv);

@@ -1005,11 +1005,19 @@ static void plan_step_push_pointer(pTHX_ Affix * affix,
                                    void * args_buffer,
                                    void ** c_args,
                                    void * ret_buffer) {
+
     PERL_UNUSED_VAR(ret_buffer);
     const infix_type * type = step->data.type;
     SV * sv = perl_stack_frame[step->data.index];
     void * c_arg_ptr = (char *)args_buffer + step->data.c_arg_offset;
     c_args[step->data.index] = c_arg_ptr;
+
+
+    void * addr = get_address_v2(aTHX_ sv);
+    if (addr) {
+        *(void **)c_arg_ptr = addr;
+        return;
+    }
 
     if (is_pin(aTHX_ sv)) {
         *(void **)c_arg_ptr = _get_pin_from_sv(aTHX_ sv)->pointer;
@@ -1878,7 +1886,10 @@ CASE_OP_PUSH_POINTER:                                                           
             SV * sv = ST(step->data.index);                                                                  \
             void * ptr = (char *)args_buffer + step->data.c_arg_offset;                                      \
             c_args[step->data.index] = ptr;                                                                  \
-            if (is_pin(aTHX_ sv))                                                                            \
+            void * addr = get_address_v2(aTHX_ sv);                                                          \
+            if (addr)                                                                                        \
+                *(void **)ptr = addr;                                                                        \
+            else if (is_pin(aTHX_ sv))                                                                       \
                 *(void **)ptr = _get_pin_from_sv(aTHX_ sv)->pointer;                                         \
             else if (!SvOK(sv) && SvREADONLY(sv))                                                            \
                 *(void **)ptr = nullptr;                                                                     \
@@ -3152,7 +3163,7 @@ static void pull_union(pTHX_ Affix * affix, SV * sv, const infix_type * type, vo
     else {
         hv = newHV();
         SV * rv = newRV_noinc(MUTABLE_SV(hv));
-        sv_bless(rv, gv_stashpv("Affix::Live", GV_ADD));
+        //~ sv_bless(rv, gv_stashpv("Affix::Live", GV_ADD));
         sv_setsv(sv, sv_2mortal(rv));
     }
     _populate_hv_from_c_struct(aTHX_ affix, hv, type, p, true, nullptr);
@@ -3346,7 +3357,7 @@ static void pull_struct_as_live(pTHX_ Affix * affix, SV * sv, const infix_type *
     const infix_type * pointee_type = type->meta.pointer_info.pointee_type;
     HV * hv = newHV();
     SV * rv = newRV_noinc(MUTABLE_SV(hv));
-    sv_bless(rv, gv_stashpv("Affix::Live", GV_ADD));
+    //~ sv_bless(rv, gv_stashpv("Affix::Live", GV_ADD));
     _populate_hv_from_c_struct(aTHX_ affix, hv, pointee_type, c_ptr, true, nullptr);
     sv_setsv(sv, rv);
     SvREFCNT_dec(rv);
@@ -3906,6 +3917,12 @@ void sv2ptr(pTHX_ Affix * affix, SV * perl_sv, void * c_ptr, const infix_type * 
     }
 }
 void push_struct(pTHX_ Affix * affix, const infix_type * type, SV * sv, void * p) {
+    void * addr = get_address_v2(aTHX_ sv);
+    if (addr) {
+        memcpy(p, addr, infix_type_get_size(type));
+        return;
+    }
+
     HV * hv;
     if (SvROK(sv) && SvTYPE(SvRV(sv)) == SVt_PVHV)
         hv = (HV *)SvRV(sv);
@@ -3944,6 +3961,12 @@ void push_struct(pTHX_ Affix * affix, const infix_type * type, SV * sv, void * p
     }
 }
 void push_union(pTHX_ Affix * affix, const infix_type * type, SV * sv, void * p) {
+    void * addr = get_address_v2(aTHX_ sv);
+    if (addr) {
+        memcpy(p, addr, infix_type_get_size(type));
+        return;
+    }
+
     HV * hv;
     if (SvROK(sv) && SvTYPE(SvRV(sv)) == SVt_PVHV)
         hv = (HV *)SvRV(sv);
@@ -3963,6 +3986,12 @@ void push_union(pTHX_ Affix * affix, const infix_type * type, SV * sv, void * p)
     }
 }
 void push_array(pTHX_ Affix * affix, const infix_type * type, SV * sv, void * p) {
+    void * addr = get_address_v2(aTHX_ sv);
+    if (addr) {
+        memcpy(p, addr, infix_type_get_size(type));
+        return;
+    }
+
     const infix_type * element_type = type->meta.array_info.element_type;
     size_t c_array_len = type->meta.array_info.num_elements;
     if (element_type->category == INFIX_TYPE_PRIMITIVE &&
@@ -4291,7 +4320,7 @@ static int Affix_get_pin(pTHX_ SV * sv, MAGIC * mg) {
         if (pointee->category == INFIX_TYPE_STRUCT || pointee->category == INFIX_TYPE_UNION) {
             HV * hv = newHV();
             SV * rv = newRV_noinc(MUTABLE_SV(hv));
-            sv_bless(rv, gv_stashpv("Affix::Live", GV_ADD));
+            //~ sv_bless(rv, gv_stashpv("Affix::Live", GV_ADD));
             _populate_hv_from_c_struct(
                 aTHX_ nullptr, hv, pointee, pin->pointer, true, pin->owner_sv ? pin->owner_sv : sv);
             sv_setsv(sv, rv);
@@ -5169,7 +5198,7 @@ XS_INTERNAL(Affix_cast) {
             // Live struct return from cast: bypass ptr2sv and create blessed HV
             HV * hv = newHV();
             SV * rv = newRV_noinc(MUTABLE_SV(hv));
-            sv_bless(rv, gv_stashpv("Affix::Live", GV_ADD));
+            //~ sv_bless(rv, gv_stashpv("Affix::Live", GV_ADD));
             _populate_hv_from_c_struct(
                 aTHX_ nullptr, hv, resolved, ptr_val, true, pin ? (pin->owner_sv ? pin->owner_sv : arg) : nullptr);
             ret_val = sv_2mortal(rv);
@@ -5651,7 +5680,7 @@ void _populate_hv_from_c_struct(
                 if (resolved->category == INFIX_TYPE_STRUCT || resolved->category == INFIX_TYPE_UNION) {
                     HV * sub_hv = newHV();
                     SV * sub_rv = newRV_noinc(MUTABLE_SV(sub_hv));
-                    sv_bless(sub_rv, gv_stashpv("Affix::Live", GV_ADD));
+                    //~ sv_bless(sub_rv, gv_stashpv("Affix::Live", GV_ADD));
                     _populate_hv_from_c_struct(aTHX_ affix, sub_hv, resolved, member_ptr, true, owner_sv);
                     member_sv = sub_rv;
                 }
@@ -5830,7 +5859,7 @@ XS_INTERNAL(Affix_pin_get_at) {
     if (elem_type->category == INFIX_TYPE_STRUCT || elem_type->category == INFIX_TYPE_UNION) {
         HV * hv = newHV();
         SV * rv = newRV_noinc(MUTABLE_SV(hv));
-        sv_bless(rv, gv_stashpv("Affix::Live", GV_ADD));
+        //~ sv_bless(rv, gv_stashpv("Affix::Live", GV_ADD));
         // We might need to pass the owner here too, but let's start with pins
         _populate_hv_from_c_struct(aTHX_ nullptr, hv, elem_type, target, true, pin->owner_sv ? pin->owner_sv : ST(0));
         ST(0) = sv_2mortal(rv);
@@ -6096,6 +6125,8 @@ void boot_Affix(pTHX_ CV * cv) {
         (void)newXSproto_portable("main::mock_cxx_delete", XS_main_mock_cxx_delete, __FILE__, "$");
         (void)newXSproto_portable("main::get_mock_cxx_dtor", XS_main_get_mock_cxx_dtor, __FILE__, "");
         (void)newXSproto_portable("main::get_mock_cxx_dtor_calls", XS_main_get_mock_cxx_dtor_calls, __FILE__, "");
+        (void)newXSproto_portable("main::is_pinv2", XS_main_is_pin, __FILE__, "$");
+        (void)newXSproto_portable("main::address_v2", XS_main_address, __FILE__, "$");
     }
 #undef XSUB_EXPORT
 
