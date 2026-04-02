@@ -7,6 +7,7 @@ $|++;
 my $C_CODE = <<'END_C';
 #include "std.h"
 #include <stdlib.h>
+#include <stdarg.h>
 
 //ext: .c
 
@@ -87,6 +88,19 @@ DLLEXPORT int run_calc(Calculator *c, int a, int b) {
     if (!c || !c->operation) return -1;
     return c->operation(a, b);
 }
+
+DLLEXPORT int debug_variadic(int count, ...) {
+    va_list args;
+    va_start(args, count);
+    warn("# c: debug_variadic received count=%d", count);
+    for (int i = 0; i < count; i++) {
+        int val = va_arg(args, int);
+        warn("# c: argument %d = %d", i, val);
+    }
+    va_end(args);
+    return count * 10; // Return something specific to check return logic
+}
+
 END_C
 #
 my $lib_path = compile_ok($C_CODE);
@@ -406,7 +420,7 @@ subtest 'Feature: SIMD Vectors' => sub {
     is int( $vec->[3] ), 4, 'SIMD element 3 read OK';
 };
 subtest varargs => sub {
-    affix libc, [ 'sprintf' => 'my_sprintf' ], [ Pointer [SChar], VarArgs ], Int;
+    affix libc, [ 'sprintf' => 'my_sprintf' ], [ Pointer [SChar], Pointer [SChar], VarArgs ], Int;
     typedef Vec => Struct [ x => Int, y => Int ];
     my $mem = alloc_owned( sizeof( Vec() ) );
     my $v   = cast( $mem, Vec() );
@@ -426,6 +440,11 @@ subtest varargs => sub {
     my $addr = address($v);
     my_sprintf( $out, "Address is %p", $v );
     like $out, qr/Address is [x0-9a-f]+/i, 'Variadic correctly marshalled V2 pin as pointer';
+};
+subtest 'Variadic Debugger' => sub {
+    affix $lib_path, 'debug_variadic', [ Int, VarArgs ], Int;
+    my $ret = debug_variadic( 2, 100, 200 );    # Call with Int;Int,Int
+    is $ret, 20, 'Variadic function returned expected calculated value (20)';
 };
 #
 done_testing;
