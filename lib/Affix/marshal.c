@@ -4,7 +4,7 @@ typedef uint16_t float16_t;
 bool is_pin_v2(pTHX_ SV * sv);
 static void * _extract_pointer_value(pTHX_ SV * sv, MAGIC * ignore_mg);
 const infix_type * resolve_type(pTHX_ const infix_type * type);
-SV * bind_aggregate(pTHX_ void * ptr, const infix_type * type, SV * owner);
+SV * bind_aggregate(pTHX_ void * ptr, const infix_type * type, SV * owner, bool);
 void bind_placeholder(pTHX_ SV * sv,
                       void * ptr,
                       const infix_type * type,
@@ -12,11 +12,12 @@ void bind_placeholder(pTHX_ SV * sv,
                       uint8_t bit_width,
                       bool prime,
                       SV * owner,
-                      infix_arena_t *);
-static inline int is_v2_vtable(MGVTBL * v);
+                      infix_arena_t *,
+                      bool);
+int is_v2_vtable(MGVTBL * v);
 
 static SV * _bind_aggregate_internal(
-    pTHX_ void * ptr, const infix_type * type, SV * owner, infix_arena_t * arena, bool eager);
+    pTHX_ void * ptr, const infix_type * type, SV * owner, infix_arena_t * arena, bool, bool);
 
 /**
  * @brief Converts IEEE 754 half-precision (16-bit) to single-precision (32-bit) float.
@@ -98,6 +99,10 @@ float16_t float32_to_float16(float f) {
  */
 int free_v2_pin(pTHX_ SV * sv, MAGIC * mg) {
     Affix_Pin_2_Point_Oh * im = (Affix_Pin_2_Point_Oh *)mg->mg_ptr;
+    if (im->destructor && im->ptr)
+        im->destructor(im->ptr);
+    if (im->destructor_lib_sv)
+        SvREFCNT_dec(im->destructor_lib_sv);
     if (im->arena)
         infix_arena_destroy(im->arena);
     return 0;
@@ -175,64 +180,33 @@ const infix_type * resolve_type(pTHX_ const infix_type * type) {
     return type;
 }
 
-/**
- * @brief Helper to check if a pin or its parent container is marked readonly.
- * @details This uses a non-recursive check to prevent stack overflows on circular lifelines.
- */
-static bool _is_really_readonly(pTHX_ Affix_Pin_2_Point_Oh * im, MAGIC * mg) {
-    if (im->readonly)
-        return true;
-
-
-    /* Check owner lifeline (mg_obj) without triggering high-level magic FETCH */
-    SV * owner = mg->mg_obj;
-    if (owner) {
-        /* If owner is a reference, look at the target container */
-        if (SvROK(owner))
-            owner = SvRV(owner);
-
-        if (SvMAGICAL(owner)) {
-            /* Search specifically for our V2 magic on the owner */
-            MAGIC * omg = mg_find(owner, PERL_MAGIC_ext);
-            while (omg && !is_v2_vtable(omg->mg_virtual))
-                omg = omg->mg_moremagic;
-
-            if (omg) {
-                Affix_Pin_2_Point_Oh * parent_im = (Affix_Pin_2_Point_Oh *)omg->mg_ptr;
-                if (parent_im && parent_im->readonly)
-                    return true;
-            }
-        }
-    }
-    return false;
-}
 /*
    FAST DISPATCH VTABLES:
    These Virtual Tables hook into Perl's SV read/write events. Instead of
    allocating a new SV on every read, they intercept reads and map them directly
    from the underlying C memory, creating zero-copy bindings.
 */
+#undef MAKE_PRIMITIVE_DISPATCH
 #define MAKE_PRIMITIVE_DISPATCH(NAME, C_TYPE, SV_SET, SV_GET)           \
     int get_##NAME(pTHX_ SV * sv, MAGIC * mg) {                         \
         Affix_Pin_2_Point_Oh * im = (Affix_Pin_2_Point_Oh *)mg->mg_ptr; \
-        SvSMAGICAL_off(sv);                                             \
+        SvGMAGICAL_off(sv);                                             \
         if (!im->ptr)                                                   \
             sv_setsv(sv, &PL_sv_undef);                                 \
-        else {                                                          \
+        else                                                            \
             SV_SET(sv, *(C_TYPE *)im->ptr);                             \
-        }                                                               \
-        SvSMAGICAL_on(sv);                                              \
+        SvGMAGICAL_on(sv);                                              \
         return 0;                                                       \
     }                                                                   \
     int set_##NAME(pTHX_ SV * sv, MAGIC * mg) {                         \
         Affix_Pin_2_Point_Oh * im = (Affix_Pin_2_Point_Oh *)mg->mg_ptr; \
+        if (im->readonly)                                               \
+            croak("Modification of a read-only C value attempted");     \
         if (!im->ptr)                                                   \
             return 0;                                                   \
-        if (_is_really_readonly(aTHX_ im, mg))                          \
-            croak("Modification of a read-only C value attempted");     \
-        SvGMAGICAL_off(sv);                                             \
+        SvSMAGICAL_off(sv);                                             \
         *(C_TYPE *)im->ptr = (C_TYPE)SV_GET(sv);                        \
-        SvGMAGICAL_on(sv);                                              \
+        SvSMAGICAL_on(sv);                                              \
         return 0;                                                       \
     }                                                                   \
     MGVTBL vtbl_##NAME = {get_##NAME, set_##NAME, NULL, NULL, free_v2_pin};
@@ -450,14 +424,16 @@ int void_mg_get(pTHX_ SV * sv, MAGIC * mg) {
     return 0;
 }
 MGVTBL vtbl_void = {void_mg_get, NULL, NULL, NULL, free_v2_pin};
-/*SPECIALIZED VTABLES (Strings, Bitfields, Pointers, Aggregates)  */
 int string_mg_get(pTHX_ SV * sv, MAGIC * mg) {
     Affix_Pin_2_Point_Oh * im = (Affix_Pin_2_Point_Oh *)mg->mg_ptr;
     const infix_type * t = resolve_type(aTHX_ im->type);
     size_t max_len = t->meta.array_info.num_elements;
-    SvSMAGICAL_off(sv);
+    SvGMAGICAL_off(sv);
     char * target = (char *)im->ptr;
-    if (!target || max_len == 0) {
+    if (!target) {
+        sv_setsv(sv, &PL_sv_undef);
+    }
+    else if (max_len == 0) {
         sv_setpvn(sv, "", 0);
     }
     else {
@@ -466,7 +442,7 @@ int string_mg_get(pTHX_ SV * sv, MAGIC * mg) {
             actual++;
         sv_setpvn(sv, target, actual);
     }
-    SvSMAGICAL_on(sv);
+    SvGMAGICAL_on(sv);
     return 0;
 }
 int string_mg_set(pTHX_ SV * sv, MAGIC * mg) {
@@ -760,28 +736,20 @@ void perl_universal_closure(infix_context_t * ctx, void * ret, void ** args) {
                 *(unsigned __int128 *)ret = _alt_sv_to_int128(aTHX_ rs);
         }
         else if (rt->category == INFIX_TYPE_POINTER) {
-            *(void **)ret = INT2PTR(void *, SvIV(rs));
+            void * extracted = _extract_pointer_value(aTHX_ rs, NULL);
+            if (extracted)
+                *(void **)ret = extracted;
+            else if (SvPOK(rs) && !SvROK(rs))
+                *(void **)ret = (void *)SvPV_nolen(rs);
+            else if (SvIOK(rs))
+                *(void **)ret = INT2PTR(void *, SvIV(rs));
+            else
+                *(void **)ret = NULL;
         }
     }
     PUTBACK;
     FREETMPS;
     LEAVE;
-}
-
-/**
- * @brief Non-destructive vivification helper.
- * Transforms a placeholder scalar into a reference without stripping magic.
- */
-static void _vivify_magic_rv(pTHX_ SV * sv, SV * rv) {
-    if (!SvROK(rv)) {
-        sv_setsv(sv, rv);
-        return;
-    }
-    SvUPGRADE(sv, SVt_IV);
-    SvOK_off(sv);
-    SV * target = SvRV(rv);
-    SvRV_set(sv, SvREFCNT_inc(target));
-    SvROK_on(sv);
 }
 
 void pull_pointer_as_callable(pTHX_ Affix * affix, SV * sv, const infix_type * type, void * ptr) {
@@ -850,66 +818,82 @@ SV * wrap_callable_pointer(pTHX_ void * addr, const infix_type * type) {
     return ret;
 }
 
+
 int get_ptr(pTHX_ SV * sv, MAGIC * mg) {
     Affix_Pin_2_Point_Oh * im = (Affix_Pin_2_Point_Oh *)mg->mg_ptr;
     SV * owner = mg->mg_obj;
 
-    if (SvROK(sv))
-        return 0; /* Already vivified */
+    SvGMAGICAL_off(sv);
+    void * addr = im->ptr ? *(void **)im->ptr : NULL;
 
-    SvSMAGICAL_off(sv);
-    void * addr = *(void **)im->ptr;
+    /* Check the RAW type for StringList, BEFORE resolve_type strips the name */
+    const infix_type * raw_type = im->type;
+    const char * t_name = infix_type_get_name(raw_type);
+    if (!t_name && raw_type->category == INFIX_TYPE_NAMED_REFERENCE)
+        t_name = raw_type->meta.named_reference.name;
+
+    if (t_name && (strEQ(t_name, "StringList") || strEQ(t_name, "@StringList"))) {
+        if (!addr) {
+            sv_setsv(sv, &PL_sv_undef);
+            SvGMAGICAL_on(sv);
+            return 0;
+        }
+        char ** list = (char **)addr;
+        AV * av = newAV();
+        if (list) {
+            while (*list) {
+                av_push(av, newSVpv(*list, 0));
+                list++;
+            }
+        }
+        sv_setsv(sv, sv_2mortal(newRV_noinc((SV *)av)));
+        SvGMAGICAL_on(sv);
+        return 0;
+    }
+
+    const infix_type * type = resolve_type(aTHX_ raw_type);
+    const infix_type * pointee = resolve_type(aTHX_ type->meta.pointer_info.pointee_type);
+    infix_type_category cat = infix_type_get_category(pointee);
 
     if (!addr) {
-        sv_setsv(sv, &PL_sv_undef);
-    }
-    else {
-        const infix_type * type = resolve_type(aTHX_ im->type);
-        const infix_type * pointee = resolve_type(aTHX_ type->meta.pointer_info.pointee_type);
-
-        const char * t_name = infix_type_get_name(type);
-        if (!t_name && type->category == INFIX_TYPE_NAMED_REFERENCE)
-            t_name = type->meta.named_reference.name;
-
-        /* Automated char** / StringList */
-        if (t_name && strEQ(t_name, "StringList")) {
-            char ** list = (char **)addr;
-            AV * av = newAV();
-            if (list) {
-                while (*list) {
-                    av_push(av, newSVpv(*list, 0));
-                    list++;
-                }
-            }
-            sv_setsv(sv, sv_2mortal(newRV_noinc((SV *)av)));
-            SvSMAGICAL_on(sv);
+        if (cat == INFIX_TYPE_STRUCT || cat == INFIX_TYPE_UNION || cat == INFIX_TYPE_ARRAY ||
+            cat == INFIX_TYPE_VECTOR || cat == INFIX_TYPE_COMPLEX) {
+            /* NULL-Safe Traversal: Return an SV that is undef (defined() == false)
+               but carries SvROK so it can be traversed as a Hash/Array. */
+            SV * rv = bind_aggregate(aTHX_ NULL, pointee, owner, im->readonly);
+            sv_setsv(sv, rv);
+            SvREFCNT_dec(rv);
+            SvOK_off(sv);
+            SvGMAGICAL_on(sv);
             return 0;
         }
 
-        infix_type_category cat = infix_type_get_category(pointee);
-
-        /* Wrap Function Pointers into Perl CodeRefs */
-        if (cat == INFIX_TYPE_REVERSE_TRAMPOLINE) {
-            SV * wrapper = wrap_callable_pointer(aTHX_ addr, pointee);
-            sv_setsv(sv, wrapper);
-            SvREFCNT_dec(wrapper);
-        }
-        else if (cat == INFIX_TYPE_PRIMITIVE &&
-                 (pointee->meta.primitive_id == INFIX_PRIMITIVE_SINT8 ||
-                  pointee->meta.primitive_id == INFIX_PRIMITIVE_UINT8)) {
-            sv_setpv(sv, (char *)addr);
-        }
-        else if (cat == INFIX_TYPE_STRUCT || cat == INFIX_TYPE_UNION || cat == INFIX_TYPE_ARRAY ||
-                 cat == INFIX_TYPE_VECTOR) {
-            SV * rv = bind_aggregate(aTHX_ addr, pointee, owner);
-            _vivify_magic_rv(aTHX_ sv, rv);
-            SvREFCNT_dec(rv);
-        }
-        else {
-            sv_setuv(sv, PTR2UV(addr));
-        }
+        sv_setsv(sv, &PL_sv_undef);
+        SvGMAGICAL_on(sv);
+        return 0;
     }
-    SvSMAGICAL_on(sv);
+
+    if (cat == INFIX_TYPE_REVERSE_TRAMPOLINE) {
+        SV * wrapper = wrap_callable_pointer(aTHX_ addr, pointee);
+        sv_setsv(sv, wrapper);
+        SvREFCNT_dec(wrapper);
+    }
+    else if (cat == INFIX_TYPE_PRIMITIVE &&
+             (pointee->meta.primitive_id == INFIX_PRIMITIVE_SINT8 ||
+              pointee->meta.primitive_id == INFIX_PRIMITIVE_UINT8)) {
+        sv_setpv(sv, (char *)addr);
+    }
+    else if (cat == INFIX_TYPE_STRUCT || cat == INFIX_TYPE_UNION || cat == INFIX_TYPE_ARRAY ||
+             cat == INFIX_TYPE_VECTOR || cat == INFIX_TYPE_COMPLEX) {
+        SV * rv = bind_aggregate(aTHX_ addr, pointee, owner, im->readonly);
+        sv_setsv(sv, rv);
+        SvREFCNT_dec(rv);
+    }
+    else {
+        sv_setuv(sv, PTR2UV(addr));
+    }
+
+    SvGMAGICAL_on(sv);
     return 0;
 }
 
@@ -921,7 +905,7 @@ int set_ptr(pTHX_ SV * sv, MAGIC * mg) {
     if (!im || !im->ptr)
         return 0;
 
-    SvGMAGICAL_off(sv);
+    SvSMAGICAL_off(sv);
     void * new_addr = NULL;
 
     /* Priority 1: Subroutines */
@@ -1006,17 +990,19 @@ int set_ptr(pTHX_ SV * sv, MAGIC * mg) {
             new_addr = INT2PTR(void *, SvUV(sv));
         }
     }
-    /* Priority 4: Existing Pins/Addresses */
+
+    /* Priority 5: Existing Pins/Addresses */
     else {
         void * extracted = _extract_pointer_value(aTHX_ sv, mg);
-        new_addr = extracted ? extracted : INT2PTR(void *, SvUV(sv));
+        new_addr = extracted ? extracted : (SvIOK(sv) ? INT2PTR(void *, SvUV(sv)) : NULL);
     }
 
+
     *(void **)im->ptr = new_addr;
-    SvGMAGICAL_on(sv);
+
+    SvSMAGICAL_on(sv);
     return 0;
 }
-
 
 MGVTBL vtbl_pointer = {get_ptr, set_ptr, NULL, NULL, free_v2_pin};
 
@@ -1045,25 +1031,25 @@ MGVTBL vtbl_array = {NULL, NULL, (U32 (*)(pTHX_ SV *, MAGIC *))array_mg_len, NUL
  */
 int lazy_agg_get(pTHX_ SV * sv, MAGIC * mg) {
     Affix_Pin_2_Point_Oh * im = (Affix_Pin_2_Point_Oh *)mg->mg_ptr;
-    if (SvROK(sv))
+    if (SvROK(sv) || SvTYPE(sv) >= SVt_PVAV)
         return 0;
 
-    SvSMAGICAL_off(sv);
+    SvGMAGICAL_off(sv);
     if (!im->ptr) {
-        sv_setsv(sv, &PL_sv_undef);
+        SV * rv = _bind_aggregate_internal(aTHX_ NULL, im->type, mg->mg_obj, im->arena, true, im->readonly);
+        sv_setsv(sv, rv);
+        SvREFCNT_dec(rv);
+        im->arena = NULL;
     }
     else {
-        /* eager=true to prevent infinite recursion */
-        SV * rv = _bind_aggregate_internal(aTHX_ im->ptr, im->type, mg->mg_obj, im->arena, true);
-
-        /* Clear arena ownership from the scalar magic because the
-           referent magic (inside rv) has now taken ownership of it. */
+        SV * rv = _bind_aggregate_internal(aTHX_ im->ptr, im->type, mg->mg_obj, im->arena, true, im->readonly);
+        if (SvROK(sv))
+            sv_unref(sv);
         im->arena = NULL;
-
-        _vivify_magic_rv(aTHX_ sv, rv);
+        sv_setsv(sv, rv);
         SvREFCNT_dec(rv);
     }
-    SvSMAGICAL_on(sv);
+    SvGMAGICAL_on(sv);
     return 0;
 }
 /**
@@ -1095,8 +1081,15 @@ int lazy_agg_set(pTHX_ SV * sv, MAGIC * mg) {
             if (val_ptr && *val_ptr) {
                 SV * temp = newSV(0);
                 sv_setsv(temp, *val_ptr);
-                bind_placeholder(
-                    aTHX_ temp, (char *)im->ptr + m->offset, m->type, m->bit_offset, m->bit_width, false, owner, NULL);
+                bind_placeholder(aTHX_ temp,
+                                 (char *)im->ptr + m->offset,
+                                 m->type,
+                                 +m->bit_offset,
+                                 m->bit_width,
+                                 false,
+                                 owner,
+                                 NULL,
+                                 im->readonly);
                 SvGMAGICAL_off(temp);
                 MAGIC * cmg = mg_find(temp, PERL_MAGIC_ext);
                 if (cmg && cmg->mg_virtual && cmg->mg_virtual->svt_set)
@@ -1136,7 +1129,8 @@ int lazy_agg_set(pTHX_ SV * sv, MAGIC * mg) {
             if (val_ptr && *val_ptr) {
                 SV * temp = newSV(0);
                 sv_setsv(temp, *val_ptr);
-                bind_placeholder(aTHX_ temp, (char *)im->ptr + (i * step), el_type, 0, 0, false, owner, NULL);
+                bind_placeholder(
+                    aTHX_ temp, (char *)im->ptr + (i * step), el_type, 0, 0, false, owner, NULL, im->readonly);
                 SvGMAGICAL_off(temp);
                 MAGIC * cmg = mg_find(temp, PERL_MAGIC_ext);
                 if (cmg && cmg->mg_virtual && cmg->mg_virtual->svt_set)
@@ -1299,12 +1293,19 @@ void bind_placeholder(pTHX_ SV * sv,
                       uint8_t bit_width,
                       bool prime,
                       SV * owner,
-                      infix_arena_t * arena) {
+                      infix_arena_t * arena,
+                      bool readonly) {
     const infix_type * res = resolve_type(aTHX_ type);
     infix_type_category cat = infix_type_get_category(res);
 
-    Affix_Pin_2_Point_Oh m = {
-        .ptr = ptr, .type = type, .arena = arena, .bit_offset = bit_offset, .bit_width = bit_width, .readonly = false};
+    Affix_Pin_2_Point_Oh m = {.ptr = ptr,
+                              .type = type,
+                              .arena = arena,
+                              .bit_offset = bit_offset,
+                              .bit_width = bit_width,
+                              .readonly = readonly,
+                              .destructor = NULL,
+                              .destructor_lib_sv = NULL};
 
     MGVTBL * v = NULL;
     int is_wide = 0;
@@ -1341,93 +1342,81 @@ void bind_placeholder(pTHX_ SV * sv,
 }
 
 #define LAZY_ARRAY_THRESHOLD 100
-
 /**
  * @brief Internal helper to build the actual Perl Hash/Array structure.
- * @param eager If false, large arrays will return a magical scalar placeholder instead of an AV.
+ * @param ptr   The raw C memory address (may be NULL).
+ * @param type  The infix_type definition.
+ * @param owner The root SV lifeline.
+ * @param arena The local arena for anonymous types (if any).
+ * @param eager If false, large arrays return a magical scalar placeholder.
+ * @param readonly If true, mutations via the resulting aggregate are blocked.
  */
-
 static SV * _bind_aggregate_internal(
-    pTHX_ void * ptr, const infix_type * type, SV * owner, infix_arena_t * arena, bool eager) {
-    if (!ptr)
-        return &PL_sv_undef;
-
+    pTHX_ void * ptr, const infix_type * type, SV * owner, infix_arena_t * arena, bool eager, bool readonly) {
     const infix_type * res = resolve_type(aTHX_ type);
     infix_type_category cat = infix_type_get_category(res);
 
-    // Handle Structs and Unions
     if (cat == INFIX_TYPE_STRUCT || cat == INFIX_TYPE_UNION) {
         HV * hv = newHV();
-
-        /* Bind magic to the container HV FIRST so it can act as an owner for members */
-        Affix_Pin_2_Point_Oh m = {.ptr = ptr, .type = type, .arena = arena, .readonly = false};
+        Affix_Pin_2_Point_Oh m = {.ptr = ptr, .type = type, .arena = arena, .readonly = readonly};
         sv_magicext((SV *)hv, owner, PERL_MAGIC_ext, &vtbl_lazy_aggregate, (char *)&m, sizeof(Affix_Pin_2_Point_Oh));
 
         size_t count = infix_type_get_member_count(res);
         for (size_t i = 0; i < count; i++) {
             const infix_struct_member * m = infix_type_get_member(res, i);
             SV * v = newSV(0);
-            /* Members point to the container HV as their immediate owner lifeline */
-            bind_placeholder(
-                aTHX_ v, (char *)ptr + m->offset, m->type, m->bit_offset, m->bit_width, true, (SV *)hv, NULL);
+            /* Propagate NULL safely so getters don't read from 0x0 + offset */
+            void * child_ptr = ptr ? ((char *)ptr + m->offset) : NULL;
+            bind_placeholder(aTHX_ v, child_ptr, m->type, m->bit_offset, m->bit_width, true, (SV *)hv, NULL, readonly);
             hv_store(hv, m->name ? m->name : "", strlen(m->name ? m->name : ""), v, 0);
         }
-
         return newRV_noinc((SV *)hv);
     }
-
-    /* Handle Arrays, Vectors, and Complex */
     else if (cat == INFIX_TYPE_ARRAY || cat == INFIX_TYPE_VECTOR || cat == INFIX_TYPE_COMPLEX) {
         if (is_string_array(aTHX_ type, NULL)) {
             SV * sv = newSV(0);
-            bind_placeholder(aTHX_ sv, ptr, type, 0, 0, true, owner, arena);
+            bind_placeholder(aTHX_ sv, ptr, type, 0, 0, true, owner, arena, readonly);
             return sv;
         }
 
-        size_t n, s;
-        const infix_type * et;
+        size_t n, step;
+        const infix_type * el_type;
         if (cat == INFIX_TYPE_COMPLEX) {
             n = 2;
-            et = res->meta.complex_info.base_type;
-            s = et->size;
+            el_type = res->meta.complex_info.base_type;
+            step = el_type->size;
         }
         else if (cat == INFIX_TYPE_ARRAY) {
             n = res->meta.array_info.num_elements;
-            et = res->meta.array_info.element_type;
-            s = resolve_type(aTHX_ et)->size;
+            el_type = res->meta.array_info.element_type;
+            step = resolve_type(aTHX_ el_type)->size;
         }
         else {
             n = res->meta.vector_info.num_elements;
-            et = res->meta.vector_info.element_type;
-            s = et->size;
+            el_type = res->meta.vector_info.element_type;
+            step = el_type->size;
         }
 
-        /* GIANT ARRAY SWITCH: Returns a placeholder scalar if not forced eager */
         if (!eager && n > LAZY_ARRAY_THRESHOLD) {
             SV * lazy_placeholder = newSV(0);
-            bind_placeholder(aTHX_ lazy_placeholder, ptr, type, 0, 0, false, owner, arena);
+            bind_placeholder(aTHX_ lazy_placeholder, ptr, type, 0, 0, false, owner, arena, readonly);
             return lazy_placeholder;
         }
 
-        /* Forced Eager path: Create full Perl array */
         AV * av = newAV();
-
-        /* Bind magic to the container AV FIRST */
-        Affix_Pin_2_Point_Oh am = {.ptr = ptr, .type = type, .arena = arena, .readonly = false};
+        Affix_Pin_2_Point_Oh am = {.ptr = ptr, .type = type, .arena = arena, .readonly = readonly};
         sv_magicext((SV *)av, owner, PERL_MAGIC_ext, &vtbl_array, (char *)&am, sizeof(Affix_Pin_2_Point_Oh));
 
         for (size_t i = 0; i < n; i++) {
             SV * el = newSV(0);
-            bind_placeholder(aTHX_ el, (char *)ptr + (i * s), et, 0, 0, true, (SV *)av, NULL);
+            void * child_ptr = ptr ? ((char *)ptr + (i * step)) : NULL;
+            bind_placeholder(aTHX_ el, child_ptr, el_type, 0, 0, true, (SV *)av, NULL, readonly);
             av_push(av, el);
         }
-
         return newRV_noinc((SV *)av);
     }
-
     return newSV(0);
 }
-
 /**
  * @brief Recursively constructs a Perl tree (Hash/Array) mapping to a C aggregate.
  * @param ptr Pointer to the raw C memory.
@@ -1435,16 +1424,17 @@ static SV * _bind_aggregate_internal(
  * @param owner The "root" SV that owns the C memory (lifeline).
  * @return A new reference to the constructed Perl aggregate.
  */
-SV * bind_aggregate(pTHX_ void * ptr, const infix_type * type, SV * owner) {
-    return _bind_aggregate_internal(aTHX_ ptr, type, owner, NULL, false);
+SV * bind_aggregate(pTHX_ void * ptr, const infix_type * type, SV * owner, bool readonly) {
+    return _bind_aggregate_internal(aTHX_ ptr, type, owner, NULL, false, readonly);
 }
 
 /**
  * @brief Public Strategy: Used by cast() to handle anonymous type lifecycle.
  */
-SV * bind_aggregate_anon(pTHX_ void * ptr, const infix_type * type, SV * owner, infix_arena_t * arena) {
-    return _bind_aggregate_internal(aTHX_ ptr, type, owner, arena, false);
+SV * bind_aggregate_anon(pTHX_ void * ptr, const infix_type * type, SV * owner, infix_arena_t * arena, bool readonly) {
+    return _bind_aggregate_internal(aTHX_ ptr, type, owner, arena, false, readonly);
 }
+
 /* PUBLIC PERL FFI API */
 /**
  * @brief Registers multiple types into the global Infix Type Registry.
@@ -1553,11 +1543,11 @@ SV * cast(pTHX_ SV * in, const char * name) {
     /* If it's an aggregate, use the anon binder to track the arena */
     infix_type_category cat = infix_type_get_category(resolve_type(aTHX_ t));
     if (cat == INFIX_TYPE_STRUCT || cat == INFIX_TYPE_UNION || cat == INFIX_TYPE_ARRAY || cat == INFIX_TYPE_VECTOR)
-        return bind_aggregate_anon(aTHX_ addr, t, owner, local_arena);
+        return bind_aggregate_anon(aTHX_ addr, t, owner, local_arena, false);
 
     /* Primitives use the standard placeholder binder */
     SV * sv = newSV(0);
-    bind_placeholder(aTHX_ sv, addr, t, 0, 0, true, owner, local_arena);
+    bind_placeholder(aTHX_ sv, addr, t, 0, 0, true, owner, local_arena, false);
     return sv;
 }
 /**
@@ -1566,10 +1556,10 @@ SV * cast(pTHX_ SV * in, const char * name) {
  * @param dtor_iv The destructor callback pointer (as integer).
  * @return An Affix::Memory object representing the mapped block.
  */
-SV * wrap_owned(pTHX_ IV ptr_iv, IV dtor_iv) {
+SV * wrap_owned(pTHX_ UV ptr_uv, UV dtor_uv) {
     AV * av = newAV();
-    av_push(av, newSViv(ptr_iv));
-    av_push(av, newSViv(dtor_iv));
+    av_push(av, newSVuv(ptr_uv));  /* Use UV */
+    av_push(av, newSVuv(dtor_uv)); /* Use UV */
     SV * rv = newRV_noinc((SV *)av);
     sv_bless(rv, gv_stashpv("Affix::Memory", GV_ADD));
     return rv;
@@ -1579,9 +1569,9 @@ SV * wrap_owned(pTHX_ IV ptr_iv, IV dtor_iv) {
  * @param size Memory allocation size in bytes.
  * @return An Affix::Memory object representation.
  */
-SV * alloc_owned(pTHX_ IV size) {
+SV * alloc_owned(pTHX_ UV size) {
     void * ptr = safecalloc(1, size);
-    SV * sv = newSViv(PTR2IV(ptr));
+    SV * sv = newSVuv(PTR2UV(ptr)); /* Use UV */
     SV * rv = newRV_noinc(sv);
     sv_bless(rv, gv_stashpv("Affix::Memory", GV_ADD));
     return rv;
@@ -1592,7 +1582,7 @@ SV * alloc_owned(pTHX_ IV size) {
  * @param rv The Affix::Memory reference triggered by DESTROY.
  */
 void free_owned(pTHX_ SV * rv) {
-    if (!SvROK(rv))
+    if (!rv || !SvROK(rv))
         return;
     SV * sv = SvRV(rv);
     if (SvTYPE(sv) == SVt_PVAV) {
@@ -1600,24 +1590,34 @@ void free_owned(pTHX_ SV * rv) {
         SV ** r_ptr = av_fetch(av, 0, 0);
         SV ** r_dtor = av_fetch(av, 1, 0);
         if (r_ptr && *r_ptr && SvOK(*r_ptr)) {
-            void * ptr = INT2PTR(void *, SvIV(*r_ptr));
-            if (ptr && ptr != NULL) {
-                if (r_dtor && *r_dtor && SvOK(*r_dtor) && SvIV(*r_dtor) != 0) {
-                    void (*custom_dtor)(void *) = INT2PTR(void (*)(void *), SvIV(*r_dtor));
-                    custom_dtor(ptr);
+
+
+            /* Use UV directly to bypass INT2PTR sign-extension bugs */
+            UV raw_ptr = SvUV(*r_ptr);
+            if (raw_ptr) {
+                /* Zero the pointer immediately to prevent double-free or recursion */
+                sv_setuv(*r_ptr, 0);
+
+                if (r_dtor && *r_dtor && SvOK(*r_dtor)) {
+                    UV raw_dtor = SvUV(*r_dtor);
+                    if (raw_dtor) {
+                        /* Explicit cast to function pointer */
+                        typedef void (*dtor_t)(void *);
+                        dtor_t custom_dtor = (dtor_t)raw_dtor;
+                        custom_dtor((void *)raw_ptr);
+                        return;
+                    }
                 }
-                else {
-                    safefree(ptr);
-                }
+                safefree((void *)raw_ptr);
             }
-            sv_setiv(*r_ptr, 0); /* Zero the pointer to avert Double-Frees */
         }
     }
-    else {
-        void * ptr = INT2PTR(void *, SvIV(sv));
-        if (ptr) {
-            safefree(ptr);
-            sv_setiv(sv, 0);
+    /* Case 2: alloc_owned() stores ptr directly in a UV scalar */
+    else if (SvOK(sv)) {
+        UV raw_ptr = SvUV(sv);
+        if (raw_ptr) {
+            sv_setuv(sv, 0);
+            safefree((void *)raw_ptr);
         }
     }
 }
@@ -1666,7 +1666,7 @@ void verify_marshalling_128(pTHX_ SV * input) {
     if (SvROK(input)) {
         SV * proxy = newSV(0);
         sv_setsv(proxy, input);
-        bind_placeholder(aTHX_ proxy, &stack_struct, type, 0, 0, false, NULL, NULL);
+        bind_placeholder(aTHX_ proxy, &stack_struct, type, 0, 0, false, NULL, NULL, false);
         MAGIC * mg = mg_find(proxy, PERL_MAGIC_ext);
         if (mg && mg->mg_virtual->svt_set)
             mg->mg_virtual->svt_set(aTHX_ proxy, mg);
@@ -1674,7 +1674,7 @@ void verify_marshalling_128(pTHX_ SV * input) {
     }
     mutate_big_data_native(&stack_struct);
     if (SvROK(input)) {
-        SV * proxy_rv = bind_aggregate(aTHX_ & stack_struct, type, NULL);
+        SV * proxy_rv = bind_aggregate(aTHX_ & stack_struct, type, NULL, false);
         HV * target_hv = (HV *)SvRV(input);
         HV * source_hv = (HV *)SvRV(proxy_rv);
         hv_iterinit(source_hv);
@@ -1710,23 +1710,8 @@ XS_INTERNAL(XS_main_define_types) {
     dXSARGS;
     if (items != 1)
         croak_xs_usage(cv, "defs");
-
-    SP -= items;
-    {
-        const char * defs = (const char *)SvPV_nolen(ST(0));
-        I32 * temp;
-        temp = PL_markstack_ptr++;
-        define_types(aTHX_ defs);
-        if (PL_markstack_ptr != temp) {
-
-            PL_markstack_ptr = temp;
-            XSRETURN_EMPTY;
-        }
-
-        return;
-        PUTBACK;
-        return;
-    }
+    define_types(aTHX_ SvPV_nolen(ST(0)));
+    XSRETURN_EMPTY;
 }
 XS_INTERNAL(XS_main_sizeof_type) {
     dVAR;
@@ -1774,57 +1759,42 @@ XS_INTERNAL(XS_main_cast) {
     }
     XSRETURN(1);
 }
+
+
+XS_INTERNAL(XS_main_free_owned) {
+    dVAR;
+    dXSARGS;
+    if (items != 1)
+        croak_xs_usage(cv, "rv");
+    SV * arg = ST(0);
+    if (arg)
+        free_owned(aTHX_ arg);
+    XSRETURN_EMPTY;
+}
+
 XS_INTERNAL(XS_main_wrap_owned) {
     dVAR;
     dXSARGS;
     if (items != 2)
-        croak_xs_usage(cv, "ptr_iv, dtor_iv");
+        croak_xs_usage(cv, "ptr_uv, dtor_uv");
     {
-        IV ptr_iv = (IV)SvIV(ST(0));
-        IV dtor_iv = (IV)SvIV(ST(1));
-        SV * RETVAL;
-        RETVAL = wrap_owned(aTHX_ ptr_iv, dtor_iv);
-        RETVAL = sv_2mortal(RETVAL);
-        ST(0) = RETVAL;
+        UV ptr_uv = SvUV(ST(0)); /* Correct for high-bit addresses */
+        UV dtor_uv = SvUV(ST(1));
+        ST(0) = sv_2mortal(wrap_owned(aTHX_ ptr_uv, dtor_uv));
     }
     XSRETURN(1);
 }
+
 XS_INTERNAL(XS_main_alloc_owned) {
     dVAR;
     dXSARGS;
     if (items != 1)
         croak_xs_usage(cv, "size");
     {
-        IV size = (IV)SvIV(ST(0));
-        SV * RETVAL;
-        RETVAL = alloc_owned(aTHX_ size);
-        RETVAL = sv_2mortal(RETVAL);
-        ST(0) = RETVAL;
+        UV size = SvUV(ST(0));
+        ST(0) = sv_2mortal(alloc_owned(aTHX_ size));
     }
     XSRETURN(1);
-}
-XS_INTERNAL(XS_main_free_owned) {
-    dVAR;
-    dXSARGS;
-    if (items != 1)
-        croak_xs_usage(cv, "rv");
-
-    SP -= items;
-    {
-        SV * rv = ST(0);
-        I32 * temp;
-        temp = PL_markstack_ptr++;
-        free_owned(aTHX_ rv);
-        if (PL_markstack_ptr != temp) {
-
-            PL_markstack_ptr = temp;
-            XSRETURN_EMPTY;
-        }
-
-        return;
-        PUTBACK;
-        return;
-    }
 }
 XS_INTERNAL(XS_main_alloc_raw) {
     dVAR;
@@ -1841,31 +1811,16 @@ XS_INTERNAL(XS_main_alloc_raw) {
     }
     XSRETURN(1);
 }
+
 XS_INTERNAL(XS_main_set_mem_u128) {
     dVAR;
     dXSARGS;
     if (items != 3)
         croak_xs_usage(cv, "addr, l, h");
-
-    SP -= items;
-    {
-        IV addr = (IV)SvIV(ST(0));
-        IV l = (IV)SvIV(ST(1));
-        IV h = (IV)SvIV(ST(2));
-        I32 * temp;
-        temp = PL_markstack_ptr++;
-        set_mem_u128(addr, l, h);
-        if (PL_markstack_ptr != temp) {
-
-            PL_markstack_ptr = temp;
-            XSRETURN_EMPTY;
-        }
-
-        return;
-        PUTBACK;
-        return;
-    }
+    set_mem_u128((IV)SvIV(ST(0)), (IV)SvIV(ST(1)), (IV)SvIV(ST(2)));
+    XSRETURN_EMPTY;
 }
+
 XS_INTERNAL(XS_main_get_string_ptr) {
     dVAR;
     dXSARGS;
@@ -1932,23 +1887,8 @@ XS_INTERNAL(XS_main_verify_marshalling_128) {
     dXSARGS;
     if (items != 1)
         croak_xs_usage(cv, "input");
-
-    SP -= items;
-    {
-        SV * input = ST(0);
-        I32 * temp;
-        temp = PL_markstack_ptr++;
-        verify_marshalling_128(aTHX_ input);
-        if (PL_markstack_ptr != temp) {
-
-            PL_markstack_ptr = temp;
-            XSRETURN_EMPTY;
-        }
-
-        return;
-        PUTBACK;
-        return;
-    }
+    verify_marshalling_128(aTHX_ ST(0));
+    XSRETURN_EMPTY;
 }
 XS_INTERNAL(XS_main_mock_cxx_new) {
     dVAR;
@@ -1965,29 +1905,6 @@ XS_INTERNAL(XS_main_mock_cxx_new) {
     }
     XSRETURN(1);
 }
-XS_INTERNAL(XS_main_mock_cxx_delete) {
-    dVAR;
-    dXSARGS;
-    if (items != 1)
-        croak_xs_usage(cv, "ptr");
-
-    SP -= items;
-    {
-        void * ptr = INT2PTR(void *, SvIV(ST(0)));
-        I32 * temp;
-        temp = PL_markstack_ptr++;
-        mock_cxx_delete(ptr);
-        if (PL_markstack_ptr != temp) {
-
-            PL_markstack_ptr = temp;
-            XSRETURN_EMPTY;
-        }
-
-        return;
-        PUTBACK;
-        return;
-    }
-}
 XS_INTERNAL(XS_main_get_mock_cxx_dtor) {
     dVAR;
     dXSARGS;
@@ -2001,6 +1918,14 @@ XS_INTERNAL(XS_main_get_mock_cxx_dtor) {
         ST(0) = TARG;
     }
     XSRETURN(1);
+}
+XS_INTERNAL(XS_main_mock_cxx_delete) {
+    dVAR;
+    dXSARGS;
+    if (items != 1)
+        croak_xs_usage(cv, "ptr");
+    mock_cxx_delete(INT2PTR(void *, SvIV(ST(0))));
+    XSRETURN_EMPTY;
 }
 XS_INTERNAL(XS_main_get_mock_cxx_dtor_calls) {
     dVAR;
@@ -2017,19 +1942,16 @@ XS_INTERNAL(XS_main_get_mock_cxx_dtor_calls) {
     XSRETURN(1);
 }
 
-extern MGVTBL Affix_pin_vtbl;
-
 /**
  * @brief Helper to verify if a VTable belongs to the Affix system (v1 or v2).
  */
-static inline int is_v2_vtable(MGVTBL * v) {
-    /* Access the v1 vtable from Affix.c */
-    extern MGVTBL Affix_pin_vtbl;
-
-    return (v == &Affix_pin_vtbl || v == &vtbl_sint8 || v == &vtbl_uint8 || v == &vtbl_sint16 || v == &vtbl_uint16 ||
-            v == &vtbl_sint32 || v == &vtbl_uint32 || v == &vtbl_sint64 || v == &vtbl_uint64 || v == &vtbl_sint128 ||
-            v == &vtbl_uint128 || v == &vtbl_float || v == &vtbl_double || v == &vtbl_float16 || v == &vtbl_bool ||
-            v == &vtbl_void || v == &vtbl_bitfield || v == &vtbl_pointer || v == &vtbl_array || v == &string_vtable ||
+int is_v2_vtable(MGVTBL * v) {
+    if (!v)
+        return 0;
+    return (v == &vtbl_sint8 || v == &vtbl_uint8 || v == &vtbl_sint16 || v == &vtbl_uint16 || v == &vtbl_sint32 ||
+            v == &vtbl_uint32 || v == &vtbl_sint64 || v == &vtbl_uint64 || v == &vtbl_sint128 || v == &vtbl_uint128 ||
+            v == &vtbl_float || v == &vtbl_double || v == &vtbl_float16 || v == &vtbl_bool || v == &vtbl_void ||
+            v == &vtbl_bitfield || v == &vtbl_pointer || v == &vtbl_array || v == &string_vtable ||
             v == &wstring_vtable || v == &vtbl_lazy_aggregate || v == &vtbl_enum);
 }
 /**
@@ -2052,17 +1974,6 @@ static void * _extract_pointer_value(pTHX_ SV * sv, MAGIC * ignore_mg) {
         return INT2PTR(void *, SvUV(rv));
     }
 
-
-    // Standard Pointer Object (Affix::Pointer)
-    if (sv_isobject(sv) && sv_derived_from(sv, "Affix::Pointer")) {
-        MAGIC * mg = mg_find(SvRV(sv), PERL_MAGIC_ext);
-        while (mg && !is_v2_vtable(mg->mg_virtual))
-            mg = mg->mg_moremagic;
-        if (mg && mg != ignore_mg)
-            return ((Affix_Pin_2_Point_Oh *)mg->mg_ptr)->ptr;
-    }
-
-
     // Magic on the Referent (The vivified Hash or Array)
     if (SvROK(sv)) {
         SV * target = SvRV(sv);
@@ -2070,8 +1981,13 @@ static void * _extract_pointer_value(pTHX_ SV * sv, MAGIC * ignore_mg) {
             MAGIC * mg = mg_find(target, PERL_MAGIC_ext);
             while (mg && !is_v2_vtable(mg->mg_virtual))
                 mg = mg->mg_moremagic;
-            if (mg && mg != ignore_mg)
-                return ((Affix_Pin_2_Point_Oh *)mg->mg_ptr)->ptr;
+            if (mg && mg != ignore_mg) {
+                void * p = ((Affix_Pin_2_Point_Oh *)mg->mg_ptr)->ptr;
+                // If this is a pin to a pointer, dereference it to return the pointed-to address
+                if (mg->mg_virtual == &vtbl_pointer)
+                    return p ? *(void **)p : NULL;
+                return p;
+            }
         }
     }
 
@@ -2080,8 +1996,12 @@ static void * _extract_pointer_value(pTHX_ SV * sv, MAGIC * ignore_mg) {
         MAGIC * mg = mg_find(sv, PERL_MAGIC_ext);
         while (mg && !is_v2_vtable(mg->mg_virtual))
             mg = mg->mg_moremagic;
-        if (mg && mg != ignore_mg)
-            return ((Affix_Pin_2_Point_Oh *)mg->mg_ptr)->ptr;
+        if (mg && mg != ignore_mg) {
+            void * p = ((Affix_Pin_2_Point_Oh *)mg->mg_ptr)->ptr;
+            if (mg->mg_virtual == &vtbl_pointer)
+                return p ? *(void **)p : NULL;
+            return p;
+        }
     }
 
     // Raw integer
@@ -2096,7 +2016,24 @@ static void * _extract_pointer_value(pTHX_ SV * sv, MAGIC * ignore_mg) {
  * @return The raw C pointer, or NULL if not found.
  */
 void * get_address_v2(pTHX_ SV * sv) { return _extract_pointer_value(aTHX_ sv, NULL); }
-
+/**
+ * @brief Determines the underlying type for a pointer pin.
+ * @details Prevents unwrapping char* (which should remain a string) but unwraps others
+ * so that $$ptr reads the correct data type.
+ */
+const infix_type * _unwrap_pin_type(const infix_type * type) {
+    if (type->category == INFIX_TYPE_POINTER) {
+        const infix_type * pointee = type->meta.pointer_info.pointee_type;
+        if (pointee->category == INFIX_TYPE_PRIMITIVE &&
+            (pointee->meta.primitive_id == INFIX_PRIMITIVE_SINT8 ||
+             pointee->meta.primitive_id == INFIX_PRIMITIVE_UINT8)) {
+            return type;
+        }
+        if (pointee->category != INFIX_TYPE_VOID)
+            return pointee;
+    }
+    return type;
+}
 /**
  * @brief Checks if a Perl Scalar is managed by the new 2.0 memory system.
  * @details This identifies SVs that are directly mapped to C memory via the
@@ -2111,17 +2048,16 @@ bool is_pin_v2(pTHX_ SV * sv) {
     if (sv_isobject(sv) && sv_derived_from(sv, "Affix::Memory"))
         return true;
 
-    SV * target = SvROK(sv) ? SvRV(sv) : sv;
+    SV * target = (SvROK(sv) && !sv_isobject(sv)) ? SvRV(sv) : sv;
     if (SvMAGICAL(target)) {
         MAGIC * mg = mg_find(target, PERL_MAGIC_ext);
+
         while (mg) {
             if (is_v2_vtable(mg->mg_virtual))
                 return true;
             mg = mg->mg_moremagic;
         }
     }
-    if (sv_isobject(sv) && sv_derived_from(sv, "Affix::Pointer"))
-        return true;
     return false;
 }
 
@@ -2162,11 +2098,11 @@ XS_INTERNAL(XS_main_is_pin) {
  * @brief Returns the raw memory address of a v2.0 pin as an integer.
  * @usage my $addr = Affix::address_v2($var);
  */
-XS_INTERNAL(XS_main_address) {
+XS_INTERNAL(Affix_address) {
     dVAR;
     dXSARGS;
     if (items != 1)
-        croak_xs_usage(cv, "sv");
+        croak_xs_usage(cv, "pointer");
 
     void * addr = get_address_v2(aTHX_ ST(0));
     if (addr) {

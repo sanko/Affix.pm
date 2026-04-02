@@ -199,21 +199,6 @@ struct Affix {
         HV * variadic_cache;
     size_t num_fixed_args;
 };
-/// Represents an Affix::Pin object, a blessed Perl scalar that wraps a raw C pointer.
-typedef struct {
-    void * pointer;              ///< The raw C memory address.
-    const infix_type * type;     ///< Infix's description of the data type at 'pointer'. Used for dereferencing.
-    infix_arena_t * type_arena;  ///< Memory arena that owns the 'type' structure.
-    bool managed;                ///< If true, Perl owns the 'pointer' and will safefree() it on DESTROY.
-    UV ref_count;                ///< Refcount to prevent premature freeing when SVs are copied.
-    size_t size;                 ///< Size of malloc'd void pointers.
-    void (*destructor)(void *);  ///< Custom destructor function (e.g. SDL_DestroyWindow).
-    SV * destructor_lib_sv;      ///< Perl object (Affix::Lib) to keep alive for the destructor.
-    SV * owner_sv;               ///< Perl object that owns the memory, kept alive by this pin.
-    size_t bit_offset;           ///< Bit offset (for bitfields)
-    size_t bit_width;            ///< Bit width (for bitfields, 0 = not a bitfield)
-    bool readonly;               ///< Marks the pin to reject FFI assignment.
-} Affix_Pin;
 
 /**
  * @struct Affix_Pin_2_Point_Oh
@@ -229,6 +214,8 @@ typedef struct {
     uint8_t bit_offset;      /**< Bitfield offset (0 for standard types). */
     uint8_t bit_width;       /**< Bitfield width in bits (0 for standard types). */
     bool readonly;           /**< True if the pin is marked const/readonly. */
+    void (*destructor)(void *);
+    SV * destructor_lib_sv;
 } Affix_Pin_2_Point_Oh;
 /// Holds the necessary data for a callback, specifically the Perl subroutine to call.
 typedef struct {
@@ -281,7 +268,7 @@ void push_reverse_trampoline(pTHX_ Affix * affix, const infix_type * type, SV * 
 // Marshalling (Perl <- C)
 void ptr2sv(pTHX_ Affix * affix, void * c_ptr, SV * perl_sv, const infix_type * type);
 void _populate_hv_from_c_struct(
-    pTHX_ Affix * affix, HV * hv, const infix_type * type, void * p, bool live, SV * owner_sv);
+    pTHX_ Affix * affix, HV * hv, const infix_type * type, void * p, bool live, SV * owner_sv, bool);
 
 // Handler resolution
 Affix_Step_Executor get_plan_step_executor(const infix_type * type);
@@ -289,16 +276,6 @@ Affix_Pull get_pull_handler(pTHX_ const infix_type * type);
 Affix_Out_Param_Writer get_out_param_writer(const infix_type * type);
 
 // Pin management
-void _pin_sv(pTHX_ SV * sv,
-             const infix_type * type,
-             void * pointer,
-             bool managed,
-             SV * owner_sv,
-             size_t bit_offset,
-             size_t bit_width);
-bool is_pin(pTHX_ SV * sv);
-Affix_Pin * _get_pin_from_sv(pTHX_ SV * sv);
-SV * _new_pointer_obj(pTHX_ Affix_Pin * pin);
 
 // Reverse trampolines
 void _affix_callback_handler_entry(infix_context_t *, void *, void **);
@@ -340,10 +317,22 @@ bool is_pin_v2(pTHX_ SV * sv);
 const infix_type * resolve_type(pTHX_ const infix_type * type);
 SV * wrap_callable_pointer(pTHX_ void * addr, const infix_type * type);
 void pull_pointer_as_callable(pTHX_ Affix * affix, SV * sv, const infix_type * type, void * ptr);
+const infix_type * _unwrap_pin_type(const infix_type * type);
+void bind_placeholder(pTHX_ SV *, void *, const infix_type *, uint8_t, uint8_t, bool, SV *, infix_arena_t *, bool);
+void pull_pointer_as_pin(pTHX_ Affix * affix, SV * sv, const infix_type * type, void * ptr);
+IV sizeof_type(pTHX_ const char * name);
+SV * cast(pTHX_ SV * in, const char * name);
+SV * alloc_owned(pTHX_ UV size);
+void free_owned(pTHX_ SV * rv);
+int is_v2_vtable(MGVTBL * v);
 
 extern MGVTBL vtbl_lazy_aggregate;
 extern MGVTBL vtbl_array;
-MGVTBL vtbl_sint8, vtbl_uint8, vtbl_sint16, vtbl_uint16, vtbl_sint32, vtbl_uint32, vtbl_sint64, vtbl_uint64, vtbl_float,
-    vtbl_double, vtbl_float16, vtbl_bool, vtbl_sint128, vtbl_uint128, vtbl_void, vtbl_bitfield, vtbl_pointer,
-    vtbl_array, string_vtable, wstring_vtable, vtbl_lazy_aggregate, vtbl_enum;
+
+extern MGVTBL vtbl_sint8, vtbl_uint8, vtbl_sint16, vtbl_uint16, vtbl_sint32, vtbl_uint32, vtbl_sint64, vtbl_uint64,
+    vtbl_float, vtbl_double, vtbl_float16, vtbl_bool, vtbl_sint128, vtbl_uint128, vtbl_void, vtbl_bitfield,
+    vtbl_pointer, vtbl_array, string_vtable, wstring_vtable, vtbl_lazy_aggregate, vtbl_enum;
 Affix_Pin_2_Point_Oh * get_pin_v2(pTHX_ SV * sv);
+SV * bind_aggregate(pTHX_ void *, const infix_type *, SV *, bool);
+SV * bind_aggregate_anon(pTHX_ void *, const infix_type *, SV * owner, infix_arena_t * a, bool);
+void * get_address_v2(pTHX_ SV * sv);

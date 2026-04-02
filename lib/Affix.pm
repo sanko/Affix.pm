@@ -711,66 +711,6 @@ package Affix v1.0.9 {    # 'FFI' is my middle name!
             return "*(($args)->$r)";
         }
     }
-    package    #
-        Affix::Pointer {
-        use v5.40;
-        use overload '""' => \&address, '@{}' => \&_as_array, '%{}' => \&_as_hash, fallback => 1;
-        sub address           { Affix::address(shift) }
-        sub type              { Affix::_pin_type(shift) }
-        sub element_type      { Affix::_pin_element_type(shift) }
-        sub size              { Affix::_pin_size(shift) }
-        sub count             { Affix::_pin_count(shift) }
-        sub cast              { Affix::cast( shift, shift ) }
-        sub _as_array         { my $self = shift; my @proxy; tie @proxy, 'Affix::Pointer::TiedArray', $self; return \@proxy; }
-        sub _as_hash          { my $self = shift; my %proxy; tie %proxy, 'Affix::Pointer::TiedHash',  $self; return \%proxy; }
-        sub attach_destructor { my ( $self, $destructor, $lib ) = @_; Affix::attach_destructor( $self, $destructor, $lib ); }
-        sub readonly          { Affix::readonly( shift, @_ ) }
-    }
-    package    #
-        Affix::Pointer::TiedHash {
-        use v5.40;
-        sub TIEHASH { my ( $class, $ptr ) = @_; my $obj = $ptr->cast( "+" . $ptr->element_type ); return $obj; }
-        sub FETCH { my ( $self, $key ) = @_; return $self->{$key}; }
-
-        sub STORE {
-            my ( $self, $key, $val ) = @_;
-
-            # If the existing entry is a Pin, trigger its SET magic instead of replacing it
-            if ( CORE::exists( $self->{$key} ) && Affix::address( \$self->{$key} ) ) {
-                ${ \$self->{$key} } = $val;
-            }
-            else {
-                $self->{$key} = $val;
-            }
-        }
-        sub EXISTS   { my ( $self, $key ) = @_; return exists $self->{$key}; }
-        sub FIRSTKEY { my ($self) = @_; keys %$self; return each %$self; }
-        sub NEXTKEY  { my ( $self, $last ) = @_; return each %$self; }
-        sub SCALAR   { my ($self) = @_; return scalar %$self; }
-        };
-    package    #
-        Affix::Pointer::TiedArray {
-        use v5.40;
-        sub TIEARRAY  { bless { pin => $_[1] }, $_[0] }
-        sub FETCH     { my ( $self, $index ) = @_; Affix::_pin_get_at( $self->{pin}, $index ); }
-        sub STORE     { my ( $self, $index, $value ) = @_; Affix::_pin_set_at( $self->{pin}, $index, $value ); }
-        sub FETCHSIZE { my $self = shift; Affix::_pin_count( $self->{pin} ) // 0x7FFFFFFF; }
-        sub EXISTS    { my ( $self, $index ) = @_; my $count = Affix::_pin_count( $self->{pin} ); return defined($count) ? ( $index < $count ) : 1; }
-        sub DELETE    { die "Cannot delete elements from a C array" }
-        sub CLEAR     { die "Cannot clear a C array" }
-        };
-
-    #~ package    #
-    #~ Affix::Live {
-    #~ use v5.40;
-    #~ sub new      { my ( $class, $ref ) = @_; return bless $ref // {}, $class; }
-    #~ sub FETCH    { my ( $self, $key ) = @_; return $self->{$key}; }
-    #~ sub STORE    { my ( $self, $key, $val ) = @_; $self->{$key} = $val; }
-    #~ sub EXISTS   { my ( $self, $key ) = @_; return exists $self->{$key}; }
-    #~ sub FIRSTKEY { my ($self) = @_; keys %$self; return each %$self; }
-    #~ sub NEXTKEY  { my ( $self, $last ) = @_; return each %$self; }
-    #~ sub SCALAR   { my ($self) = @_; return scalar %$self; }
-    #~ }
 };
 1;
 __END__

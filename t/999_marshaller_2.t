@@ -1,6 +1,6 @@
 use v5.40;
 use blib;
-use Affix               qw[malloc affix :types sizeof];
+use Affix               qw[malloc affix address :types libc sizeof];
 use Test2::Tools::Affix qw[:all];
 $|++;
 #
@@ -97,7 +97,7 @@ ok affix $lib_path, 'test_ptr', [ Pointer [Void] ], Bool;
 ok my $ptr = alloc_owned(1024), '$ptr = alloc_owned(1024)';
 ok is_pinv2($ptr),              'is_pinv2($ptr)';
 ok test_ptr($ptr),              'test_ptr($ptr)';
-diag sprintf( "0x%016X", address_v2($ptr) );
+diag sprintf( "0x%016X", address($ptr) );
 #
 subtest struct => sub {
     typedef Pos => Struct [ x => Int, y => Double ];
@@ -126,7 +126,7 @@ subtest struct => sub {
     # Pass the magical pin to FFI (By Pointer)
     # Affix will use get_address_v2 to resolve the pointer
     ok check_pos_ptr($p), 'FFI check_pos_ptr($p) - passed by pointer';
-    diag sprintf( "Address: 0x%X", address_v2($p) );
+    diag sprintf( "Address: 0x%X", address($p) );
 };
 subtest company => sub {
     typedef Task     => Struct [ id      => Int, name => Array [ Char, 16 ] ];
@@ -142,8 +142,9 @@ subtest company => sub {
     ok my $mgr      = cast( $mem_mgr, Employee() ),        'cast Manager';
 
     # Link them via pointer
-    $comp->{manager} = address_v2($mgr);
+    $comp->{manager} = address($mgr);
     $comp->{budget}  = 50000;
+    is $comp->{budget}, 50000, 'Direct hash access to C memory works';
 
     # Set deep values
     $mgr->{name}           = "Alice";
@@ -179,22 +180,19 @@ subtest 'smart & safety' => sub {
 
     # We assign the $mgr pin DIRECTLY to the manager pointer field.
     $comp->{manager} = $mgr;
-    is address_v2( $comp->{manager} ), address_v2($mgr), 'Smart Assignment: Pin converted to address automatically';
-    is $comp->{manager}{name},         "Bob",            'Data accessible through smart-assigned pointer';
+    is address( $comp->{manager} ), address($mgr), 'Smart Assignment: Pin converted to address automatically';
+    is $comp->{manager}{name},      "Bob",         'Data accessible through smart-assigned pointer';
 
     # Traversing a NULL pointer in a struct
     $comp->{manager} = undef;    # Set C pointer to NULL
-    my $name;
-    ok lives { $name = $comp->{manager}{name} }, 'Accessing NULL pointer member is not a fatal exception';
-    is $name, undef, 'Member of NULL pointer is undef';
+    like dies { $comp->{manager}{name} }, qr[undefined value], 'Accessing NULL pointer member is a fatal exception';
 
     # returning NULL
     ok my $null_comp = get_null_company(), 'C returns pointer to struct with NULL member';
     is $null_comp->{manager}, undef, 'C NULL pointer correctly becomes Perl undef';
 
     # Deep Null
-    my $deep_ok = $null_comp->{manager}{tasks}[0]{id};
-    ok !$deep_ok, 'Deep access on C NULL throws Perl exception instead of crashing';
+    like dies { $null_comp->{manager}{tasks}[0]{id} }, qr[undefined value], 'Deep access on C NULL throws Perl exception';
 };
 subtest 'Giant Array & Anon Types' => sub {
     my $type = Struct [ a => Int, b => Int ];
@@ -215,7 +213,7 @@ subtest 'Giant Array & Anon Types' => sub {
     my $arr_pin = cast( $mem, BigArray() );
 
     # $arr_pin is currently a scalar (Lazy Placeholder)
-    #~ ok !SvROK($$arr_pin), 'Giant array is still a lazy scalar';
+    #~ ok !SvROK($arr_pin), 'Giant array is still a lazy scalar';
     # Accessing it vivifies the AV
     is $arr_pin->[500], 0, 'Accessing giant array element vivifies it on demand';
 
@@ -234,11 +232,13 @@ subtest calculator => sub {
             affix $lib, 'get_destructor_count', [], Int;
             {
                 ok my $raw_ptr = mock_new(42), 'Create native object';
-                my $addr = address_v2($raw_ptr);
+                my $addr = address($raw_ptr);
 
                 # find_symbol returns a v1 Pin. address_v2 now recognizes its vtable.
-                my $sym  = Affix::find_symbol( $lib, 'mock_delete' );
-                my $dtor = address_v2($sym);
+                my $sym = Affix::find_symbol( $lib, 'mock_delete' );
+                ok is_pinv2($sym), 'find_symbol returns a pin';
+                my $dtor = Affix::address($sym);
+                diag sprintf( "DTOR ADDR: 0x%x\n", $dtor );
                 ok $dtor,                                    'Resolved destructor address from v1 symbol pin';
                 ok my $managed = wrap_owned( $addr, $dtor ), 'wrap_owned with mock_delete';
                 is get_destructor_count(), 0, 'Destructor not called yet';
@@ -406,7 +406,7 @@ subtest 'Feature: SIMD Vectors' => sub {
     is int( $vec->[3] ), 4, 'SIMD element 3 read OK';
 };
 subtest varargs => sub {
-    affix undef, [ 'sprintf' => 'my_sprintf' ], [ Pointer [SChar], VarArgs ], Int;
+    affix libc, [ 'sprintf' => 'my_sprintf' ], [ Pointer [SChar], VarArgs ], Int;
     typedef Vec => Struct [ x => Int, y => Int ];
     my $mem = alloc_owned( sizeof( Vec() ) );
     my $v   = cast( $mem, Vec() );
@@ -423,9 +423,9 @@ subtest varargs => sub {
 
     # Test 2: Pass the whole struct pin to variadic (should treat as pointer)
     # Most C variadic functions expect pointers for structs/strings
-    my $addr = address_v2($v);
+    my $addr = address($v);
     my_sprintf( $out, "Address is %p", $v );
-    like $out, qr/Address is 0x[0-9a-f]+/i, 'Variadic correctly marshalled V2 pin as pointer';
+    like $out, qr/Address is [x0-9a-f]+/i, 'Variadic correctly marshalled V2 pin as pointer';
 };
 #
 done_testing;
