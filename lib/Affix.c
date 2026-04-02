@@ -2308,181 +2308,107 @@ static const char * _get_coerced_sig(pTHX_ SV * sv) {
     }
     return NULL;
 }
-
-
 void Affix_trigger_variadic(pTHX_ CV * cv) {
     dSP;
     dAXMARK;
     dXSTARG;
-    dMY_CXT;
-
     Affix * affix = (Affix *)CvXSUBANY(cv).any_ptr;
     size_t items = SP - MARK;
 
-    if (items < affix->num_fixed_args)
-        croak(
-            "Not enough arguments for variadic function. Expected at least %zu, got %zu", affix->num_fixed_args, items);
-
-    // Save arena state
+    // Save arena state to prevent leaks
     size_t arena_mark = affix->args_arena->current_offset;
 
-    // Construct the complete signature string dynamically
+    // Build the dynamic signature string
     SV * sig_sv = sv_2mortal(newSVpv("", 0));
-
-    // Reconstruct fixed part from the cached sig_str (which ends in '; ...' or similar)
-    // We need to parse the original signature string to get the fixed part cleanly,
-    // OR we can reconstruct it from the plan.
-    // Simplest: The affix->sig_str contains the fixed part and the ';'.
-    // We assume affix->sig_str is like "(*char; ...)->int"
     char * semi_ptr = strchr(affix->sig_str, ';');
-    if (!semi_ptr)
-        croak("Internal error: Variadic function missing semicolon in signature");
 
-    // Append fixed part up to and including ';'
-    sv_catpvn(sig_sv, affix->sig_str, (semi_ptr - affix->sig_str) + 1);
+    // Copy the fixed portion of the signature exactly as defined
+    sv_catpvn(sig_sv, affix->sig_str, (semi_ptr - affix->sig_str));
+    sv_catpvs(sig_sv, ";");
 
-    // Iterate varargs to infer types and append to signature
+    // Coerce variadic arguments into types
     for (size_t i = affix->num_fixed_args; i < items; ++i) {
         SV * arg = ST(i);
-        SvGETMAGIC(arg);  // Trigger GET magic to correctly infer values from primitive pins
+        SvGETMAGIC(arg);
         const char * coerced_sig = _get_coerced_sig(aTHX_ arg);
 
         if (i > affix->num_fixed_args)
             sv_catpvs(sig_sv, ",");
 
-        if (coerced_sig)
+        if (coerced_sig) {
             sv_catpv(sig_sv, coerced_sig);
+        }
         else if (is_pin_v2(aTHX_ arg)) {
-            Affix_Pin_2_Point_Oh * pin = get_pin_v2(aTHX_ arg);
-            if (pin && pin->type) {
-                const infix_type * res = resolve_type(aTHX_ pin->type);
-                // If it's a primitive or enum, use its specific native type
-                // to avoid the 64-bit promotion alignment bug on ARM64.
-                if (res->category == INFIX_TYPE_PRIMITIVE || res->category == INFIX_TYPE_ENUM) {
-                    char type_buf[64];
-                    if (infix_type_print(
-                            type_buf, sizeof(type_buf), (infix_type *)pin->type, INFIX_DIALECT_SIGNATURE) ==
-                        INFIX_SUCCESS) {
-                        sv_catpv(sig_sv, type_buf);
-                        continue;
-                    }
-                }
-            }
-            sv_catpvs(sig_sv, "*void");
+            // Intelligent Pin Coercion: use the underlying C type
+            const infix_type * res = resolve_type(aTHX_ get_pin_v2(aTHX_ arg)->type);
+            char type_buf[64];
+            if (infix_type_print(type_buf, sizeof(type_buf), res, INFIX_DIALECT_SIGNATURE) == INFIX_SUCCESS)
+                sv_catpv(sig_sv, type_buf);
+            else
+                sv_catpvs(sig_sv, "*void");
         }
         else {
+            // Default scalar coercion (C promotion rules)
             if (SvIOK(arg))
-                sv_catpvs(sig_sv, "sint64");
+                sv_catpvs(sig_sv, "sint32");
             else if (SvNOK(arg))
                 sv_catpvs(sig_sv, "double");
             else if (SvPOK(arg))
                 sv_catpvs(sig_sv, "*char");
             else
-                sv_catpvs(sig_sv, "sint64");
+                sv_catpvs(sig_sv, "sint32");
         }
     }
 
-    // Append return type part (find ')' in original sig)
-    char * close_paren = strrchr(affix->sig_str, ')');
-    if (close_paren)
-        sv_catpv(sig_sv, close_paren);
-    else
-        croak("Malformed signature string in affix");
-
+    // Finalize signature (append return type)
+    sv_catpv(sig_sv, strrchr(affix->sig_str, ')'));
     const char * full_sig = SvPV_nolen(sig_sv);
 
-    // Check Cache
+    // JIT or Fetch from Cache
+    // We check the variadic_cache so we don't re-compile for identical calls
     infix_forward_t * trampoline = NULL;
     SV ** cache_entry = hv_fetch(affix->variadic_cache, full_sig, strlen(full_sig), 0);
-
-    if (cache_entry)
+    if (cache_entry) {
         trampoline = INT2PTR(infix_forward_t *, SvIV(*cache_entry));
+    }
     else {
-        // Cache Miss: Compile new trampoline
-        // We use the parsing logic to get types
+        // Compile a new specialized trampoline via infix
         infix_arena_t * temp_arena = NULL;
-        infix_type * ret_type = NULL;
-        infix_function_argument * args = NULL;
-        size_t num_args = 0, num_fixed = 0;
+        infix_type * ret_type;
+        infix_function_argument * args;
+        size_t n_args, n_fixed;
+        dMY_CXT;
 
-        infix_status status =
-            infix_signature_parse(full_sig, &temp_arena, &ret_type, &args, &num_args, &num_fixed, MY_CXT.registry);
+        infix_signature_parse(full_sig, &temp_arena, &ret_type, &args, &n_args, &n_fixed, MY_CXT.registry);
 
-        if (status != INFIX_SUCCESS) {
-            if (temp_arena)
-                infix_arena_destroy(temp_arena);
-            croak("Failed to compile variadic signature: %s", full_sig);
-        }
+        infix_type ** arg_types = safemalloc(sizeof(infix_type *) * n_args);
+        for (size_t i = 0; i < n_args; ++i)
+            arg_types[i] = args[i].type;
 
-        // Convert args to type array
-        infix_type ** arg_types = NULL;
-        if (num_args > 0) {
-            arg_types = safemalloc(sizeof(infix_type *) * num_args);
-            for (size_t i = 0; i < num_args; ++i)
-                arg_types[i] = args[i].type;
-        }
+        // Note: passing n_fixed is CRITICAL for ARM64 stack placement
+        infix_forward_create_manual(&trampoline, ret_type, arg_types, n_args, n_fixed, affix->target_addr);
 
-        status = infix_forward_create_manual(&trampoline, ret_type, arg_types, num_args, num_fixed, affix->target_addr);
-
-        if (arg_types)
-            safefree(arg_types);
+        safefree(arg_types);
         infix_arena_destroy(temp_arena);
-
-        if (status != INFIX_SUCCESS)
-            croak("Failed to create variadic trampoline");
-
-        // Store in cache
         hv_store(affix->variadic_cache, full_sig, strlen(full_sig), newSViv(PTR2IV(trampoline)), 0);
     }
 
-    // Execute
-    infix_cif_func cif = infix_forward_get_code(trampoline);
-    size_t num_args = infix_forward_get_num_args(trampoline);
-    const infix_type * ret_type = infix_forward_get_return_type(trampoline);
+    // Execution
+    void ** c_args = alloca(sizeof(void *) * items);
+    void * ret_buffer = infix_arena_alloc(affix->ret_arena, 16, 8);
 
-    // Allocate args buffer (pointers)
-    void ** c_args = alloca(sizeof(void *) * num_args);
-
-    // Alignment 8 is safe for most return values
-    void * ret_buffer = infix_arena_alloc(affix->ret_arena, infix_type_get_size(ret_type), 8);
-
-    for (size_t i = 0; i < num_args; ++i) {
+    for (size_t i = 0; i < items; ++i) {
         const infix_type * arg_type = infix_forward_get_arg_type(trampoline, i);
-        void * data =
-            infix_arena_alloc(affix->args_arena, infix_type_get_size(arg_type), infix_type_get_alignment(arg_type));
+        void * data = infix_arena_alloc(affix->args_arena, infix_type_get_size(arg_type), 8);
         sv2ptr(aTHX_ affix, ST(i), data, arg_type);
         c_args[i] = data;
     }
 
-    // Call
-    cif(ret_buffer, c_args);
+    infix_forward_get_code(trampoline)(ret_buffer, c_args);
+    ptr2sv(aTHX_ affix, ret_buffer, TARG, infix_forward_get_return_type(trampoline));
 
-    // Marshal Return
-    ptr2sv(aTHX_ affix, ret_buffer, TARG, ret_type);
-
-    // Variadic writeback logic for out-parameters (heuristic)
-    for (size_t i = 0; i < num_args; ++i) {
-        const infix_type * type = resolve_type(aTHX_ infix_forward_get_arg_type(trampoline, i));
-        if (type->category == INFIX_TYPE_POINTER) {
-            const infix_type * pointee = resolve_type(aTHX_ type->meta.pointer_info.pointee_type);
-            if (pointee->category != INFIX_TYPE_VOID && pointee->category != INFIX_TYPE_REVERSE_TRAMPOLINE) {
-                SV * arg_sv = ST(i);
-                if (SvROK(arg_sv) && !is_pin_v2(aTHX_ arg_sv)) {
-                    SV * rsv = SvRV(arg_sv);
-
-                    OutParamInfo info;
-                    info.perl_stack_index = i;
-                    info.pointee_type = pointee;
-                    info.writer = get_out_param_writer(pointee);
-                    info.writer(aTHX_ affix, &info, rsv, c_args[i]);
-                }
-            }
-        }
-    }
-
+    // Cleanup arenas
     affix->args_arena->current_offset = arena_mark;
-    affix->ret_arena->current_offset = 0;
-
     ST(0) = TARG;
     XSRETURN(1);
 }
