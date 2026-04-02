@@ -2308,6 +2308,8 @@ static const char * _get_coerced_sig(pTHX_ SV * sv) {
     }
     return NULL;
 }
+
+
 void Affix_trigger_variadic(pTHX_ CV * cv) {
     dSP;
     dAXMARK;
@@ -2369,7 +2371,6 @@ void Affix_trigger_variadic(pTHX_ CV * cv) {
             sv_catpvs(sig_sv, "*void");
         }
         else {
-treat_as_scalar:
             if (SvIOK(arg))
                 sv_catpvs(sig_sv, "sint64");
             else if (SvNOK(arg))
@@ -2468,7 +2469,12 @@ treat_as_scalar:
                 SV * arg_sv = ST(i);
                 if (SvROK(arg_sv) && !is_pin_v2(aTHX_ arg_sv)) {
                     SV * rsv = SvRV(arg_sv);
-                    get_out_param_writer(pointee)(aTHX_ affix, NULL, rsv, c_args[i]);
+
+                    OutParamInfo info;
+                    info.perl_stack_index = i;
+                    info.pointee_type = pointee;
+                    info.writer = get_out_param_writer(pointee);
+                    info.writer(aTHX_ affix, &info, rsv, c_args[i]);
                 }
             }
         }
@@ -5182,12 +5188,16 @@ XS_INTERNAL(Affix_is_null) {
 }
 
 static const infix_type * _resolve_type(pTHX_ const infix_type * type) {
-    if (type->category == INFIX_TYPE_NAMED_REFERENCE) {
+    const infix_type * curr = type;
+    // Recursively resolve named references (typedef aliases) to find the base type.
+    while (curr && curr->category == INFIX_TYPE_NAMED_REFERENCE) {
         dMY_CXT;
-        const infix_type * resolved = infix_registry_lookup_type(MY_CXT.registry, type->meta.named_reference.name);
-        return resolved ? resolved : type;
+        const infix_type * resolved = infix_registry_lookup_type(MY_CXT.registry, curr->meta.named_reference.name);
+        if (!resolved || resolved == curr)
+            break;
+        curr = resolved;
     }
-    return type;
+    return curr;
 }
 
 void _populate_hv_from_c_struct(
