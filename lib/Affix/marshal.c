@@ -855,6 +855,7 @@ int get_ptr(pTHX_ SV * sv, MAGIC * mg) {
     const infix_type * pointee = resolve_type(aTHX_ type->meta.pointer_info.pointee_type);
     infix_type_category cat = infix_type_get_category(pointee);
 
+#if 1
     if (!addr) {
         if (cat == INFIX_TYPE_STRUCT || cat == INFIX_TYPE_UNION || cat == INFIX_TYPE_ARRAY ||
             cat == INFIX_TYPE_VECTOR || cat == INFIX_TYPE_COMPLEX) {
@@ -872,7 +873,26 @@ int get_ptr(pTHX_ SV * sv, MAGIC * mg) {
         SvGMAGICAL_on(sv);
         return 0;
     }
+#else
 
+    if (!addr) {
+        if (cat == INFIX_TYPE_STRUCT || cat == INFIX_TYPE_UNION || cat == INFIX_TYPE_ARRAY ||
+            cat == INFIX_TYPE_VECTOR || cat == INFIX_TYPE_COMPLEX) {
+            /* NULL-Safe Traversal: Return a bound aggregate even for NULL pointers.
+               This allows ->{field} and ->[index] to return undef instead of crashing. */
+            SV * rv = bind_aggregate(aTHX_ NULL, pointee, owner, im->readonly);
+            sv_setsv(sv, rv);
+            SvREFCNT_dec(rv);
+            SvGMAGICAL_on(sv);
+            return 0;
+        }
+
+        sv_setsv(sv, &PL_sv_undef);
+        SvGMAGICAL_on(sv);
+        return 0;
+    }
+
+#endif
     if (cat == INFIX_TYPE_REVERSE_TRAMPOLINE) {
         SV * wrapper = wrap_callable_pointer(aTHX_ addr, pointee);
         sv_setsv(sv, wrapper);

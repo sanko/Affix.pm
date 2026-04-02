@@ -2308,7 +2308,6 @@ static const char * _get_coerced_sig(pTHX_ SV * sv) {
     }
     return NULL;
 }
-
 void Affix_trigger_variadic(pTHX_ CV * cv) {
     dSP;
     dAXMARK;
@@ -2322,6 +2321,9 @@ void Affix_trigger_variadic(pTHX_ CV * cv) {
         croak(
             "Not enough arguments for variadic function. Expected at least %zu, got %zu", affix->num_fixed_args, items);
 
+    // Save arena state
+    size_t arena_mark = affix->args_arena->current_offset;
+
     // Construct the complete signature string dynamically
     SV * sig_sv = sv_2mortal(newSVpv("", 0));
 
@@ -2330,7 +2332,6 @@ void Affix_trigger_variadic(pTHX_ CV * cv) {
     // OR we can reconstruct it from the plan.
     // Simplest: The affix->sig_str contains the fixed part and the ';'.
     // We assume affix->sig_str is like "(*char; ...)->int"
-
     char * semi_ptr = strchr(affix->sig_str, ';');
     if (!semi_ptr)
         croak("Internal error: Variadic function missing semicolon in signature");
@@ -2353,21 +2354,29 @@ void Affix_trigger_variadic(pTHX_ CV * cv) {
             Affix_Pin_2_Point_Oh * pin = get_pin_v2(aTHX_ arg);
             if (pin && pin->type) {
                 const infix_type * res = resolve_type(aTHX_ pin->type);
-                if (res->category == INFIX_TYPE_PRIMITIVE || res->category == INFIX_TYPE_ENUM)
-                    goto treat_as_scalar;
+                // If it's a primitive or enum, use its specific native type
+                // to avoid the 64-bit promotion alignment bug on ARM64.
+                if (res->category == INFIX_TYPE_PRIMITIVE || res->category == INFIX_TYPE_ENUM) {
+                    char type_buf[64];
+                    if (infix_type_print(
+                            type_buf, sizeof(type_buf), (infix_type *)pin->type, INFIX_DIALECT_SIGNATURE) ==
+                        INFIX_SUCCESS) {
+                        sv_catpv(sig_sv, type_buf);
+                        continue;
+                    }
+                }
             }
             sv_catpvs(sig_sv, "*void");
         }
         else {
 treat_as_scalar:
-
             if (SvIOK(arg))
-                sv_catpvs(sig_sv, "sint64");  // Default integer promotion
+                sv_catpvs(sig_sv, "sint64");
             else if (SvNOK(arg))
-                sv_catpvs(sig_sv, "double");  // Default float promotion
+                sv_catpvs(sig_sv, "double");
             else if (SvPOK(arg))
-                sv_catpvs(sig_sv, "*char");  // Default string promotion
-            else                             // Fallback/Unknown
+                sv_catpvs(sig_sv, "*char");
+            else
                 sv_catpvs(sig_sv, "sint64");
         }
     }
@@ -2433,14 +2442,13 @@ treat_as_scalar:
     // Allocate args buffer (pointers)
     void ** c_args = alloca(sizeof(void *) * num_args);
 
-    // Use an arena for argument data to avoid many malloc/frees
-    infix_arena_t * call_arena = infix_arena_create(2048);
-    void * ret_buffer = infix_arena_alloc(call_arena, infix_type_get_size(ret_type), 8);
+    // Alignment 8 is safe for most return values
+    void * ret_buffer = infix_arena_alloc(affix->ret_arena, infix_type_get_size(ret_type), 8);
 
-    // Marshal Arguments
     for (size_t i = 0; i < num_args; ++i) {
         const infix_type * arg_type = infix_forward_get_arg_type(trampoline, i);
-        void * data = infix_arena_alloc(call_arena, infix_type_get_size(arg_type), infix_type_get_alignment(arg_type));
+        void * data =
+            infix_arena_alloc(affix->args_arena, infix_type_get_size(arg_type), infix_type_get_alignment(arg_type));
         sv2ptr(aTHX_ affix, ST(i), data, arg_type);
         c_args[i] = data;
     }
@@ -2449,12 +2457,27 @@ treat_as_scalar:
     cif(ret_buffer, c_args);
 
     // Marshal Return
-    SV * ret_sv = TARG;
-    ptr2sv(aTHX_ affix, ret_buffer, ret_sv, ret_type);
+    ptr2sv(aTHX_ affix, ret_buffer, TARG, ret_type);
 
-    infix_arena_destroy(call_arena);
+    // Variadic writeback logic for out-parameters (heuristic)
+    for (size_t i = 0; i < num_args; ++i) {
+        const infix_type * type = resolve_type(aTHX_ infix_forward_get_arg_type(trampoline, i));
+        if (type->category == INFIX_TYPE_POINTER) {
+            const infix_type * pointee = resolve_type(aTHX_ type->meta.pointer_info.pointee_type);
+            if (pointee->category != INFIX_TYPE_VOID && pointee->category != INFIX_TYPE_REVERSE_TRAMPOLINE) {
+                SV * arg_sv = ST(i);
+                if (SvROK(arg_sv) && !is_pin_v2(aTHX_ arg_sv)) {
+                    SV * rsv = SvRV(arg_sv);
+                    get_out_param_writer(pointee)(aTHX_ affix, NULL, rsv, c_args[i]);
+                }
+            }
+        }
+    }
 
-    ST(0) = ret_sv;
+    affix->args_arena->current_offset = arena_mark;
+    affix->ret_arena->current_offset = 0;
+
+    ST(0) = TARG;
     XSRETURN(1);
 }
 
