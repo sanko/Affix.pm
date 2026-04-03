@@ -175,11 +175,11 @@ static float half_to_float(uint16_t h) {
 }
 
 // Handles UTF-16LE (Windows) and UTF-32 (Linux/Mac) conversion to UTF-8 SV
-static void pull_pointer_as_wstring(pTHX_ Affix * affix, SV * sv, const infix_type * type, void * ptr) {
+static void pull_pointer_as_wstring(pTHX_ Affix * affix, SV * sv, const infix_type * type, void * p, bool readonly) {
     PERL_UNUSED_VAR(affix);
     PERL_UNUSED_VAR(type);
 
-    wchar_t * wstr = *(wchar_t **)ptr;
+    wchar_t * wstr = *(wchar_t **)p;
 
     if (wstr == nullptr) {
         sv_setsv(sv, &PL_sv_undef);
@@ -287,7 +287,7 @@ void Affix_trigger_backend(pTHX_ CV * cv) {
             break;
         }
     case OP_RET_PTR_WCHAR:
-        pull_pointer_as_pin(aTHX_ nullptr, TARG, backend->ret_type, ret_buffer);
+        pull_pointer_as_pin(aTHX_ nullptr, TARG, backend->ret_type, ret_buffer, backend->ret_readonly);
         break;
     case OP_RET_SV:
         {
@@ -300,7 +300,7 @@ void Affix_trigger_backend(pTHX_ CV * cv) {
         }
     case OP_RET_CUSTOM:
     default:
-        backend->pull_handler(aTHX_ nullptr, TARG, backend->ret_type, ret_buffer);
+        backend->pull_handler(aTHX_ nullptr, TARG, backend->ret_type, ret_buffer, backend->ret_readonly);
         break;
     }
 
@@ -391,7 +391,7 @@ static void affix_aggregate_writeback(void * sv_raw, void * src_buffer, const in
         if (member->name) {
             void * member_ptr = (char *)src_buffer + member->offset;
             SV * member_sv = newSV(0);
-            ptr2sv(aTHX_ nullptr, member_ptr, member_sv, member->type);
+            ptr2sv(aTHX_ nullptr, member_ptr, member_sv, member->type, false);
             hv_store(hv, member->name, strlen(member->name), member_sv, 0);
         }
     }
@@ -421,7 +421,7 @@ static void affix_array_writeback(pTHX_ Affix * affix, const OutParamInfo * info
     for (size_t i = 0; i < count; ++i) {
         void * elem_src = (char *)data_ptr + (i * element_size);
         SV * sv = newSV(0);
-        ptr2sv(aTHX_ affix, elem_src, sv, element_type);
+        ptr2sv(aTHX_ affix, elem_src, sv, element_type, false);
         av_store(av, i, sv);
     }
 }
@@ -1316,7 +1316,7 @@ static void plan_step_pull_return_value(pTHX_ Affix * affix,
     PERL_UNUSED_VAR(perl_stack_frame);
     PERL_UNUSED_VAR(args_buffer);
     PERL_UNUSED_VAR(c_args);
-    step->data.pull_handler(aTHX_ affix, affix->return_sv, step->data.type, ret_buffer);
+    step->data.pull_handler(aTHX_ affix, affix->return_sv, step->data.type, ret_buffer, affix->ret_readonly);
 }
 
 Affix_Step_Executor get_plan_step_executor(const infix_type * type) {
@@ -1369,13 +1369,12 @@ static void writeback_primitive(pTHX_ Affix * affix, const OutParamInfo * info, 
             void * elem_ptr = (char *)actual_data_ptr + (i * elem_size);
             // Fetch the existing SV* from the AV (to update in place if possible)
             SV ** sv_ptr = av_fetch(av, i, 0);
-            if (sv_ptr) {
-                ptr2sv(aTHX_ affix, elem_ptr, *sv_ptr, info->pointee_type);
-            }
+            if (sv_ptr)
+                ptr2sv(aTHX_ affix, actual_data_ptr, *sv_ptr, info->pointee_type, false);
             else {
                 // Slot was empty, create new SV and store it
                 SV * val = newSV(0);
-                ptr2sv(aTHX_ affix, elem_ptr, val, info->pointee_type);
+                ptr2sv(aTHX_ affix, actual_data_ptr, val, info->pointee_type, false);
                 av_store(av, i, val);
             }
         }
@@ -1394,17 +1393,17 @@ static void writeback_primitive(pTHX_ Affix * affix, const OutParamInfo * info, 
             size_t elem_size = infix_type_get_size(info->pointee_type);
             for (size_t i = 0; i < count; ++i) {
                 SV * val_sv = newSV(0);
-                ptr2sv(aTHX_ affix, (char *)actual_data_ptr + (i * elem_size), val_sv, info->pointee_type);
+                ptr2sv(aTHX_ affix, (char *)actual_data_ptr + (i * elem_size), val_sv, info->pointee_type, false);
                 av_store(av, i, val_sv);
             }
             return;
         }
         // Scalar Ref Writeback
-        ptr2sv(aTHX_ affix, actual_data_ptr, rv, info->pointee_type);
+        ptr2sv(aTHX_ affix, actual_data_ptr, rv, info->pointee_type, false);
     }
     else if (!SvREADONLY(perl_sv)) {
         // Lvalue Writeback
-        ptr2sv(aTHX_ affix, actual_data_ptr, perl_sv, info->pointee_type);
+        ptr2sv(aTHX_ affix, actual_data_ptr, perl_sv, info->pointee_type, false);
     }
 }
 
@@ -1482,7 +1481,7 @@ static void writeback_pointer_generic(pTHX_ Affix * affix, const OutParamInfo * 
         for (size_t i = 0; i < count; ++i) {
             SV ** item_ptr = av_fetch(av, i, 0);
             if (item_ptr)
-                ptr2sv(aTHX_ affix, (char *)inner_ptr + (i * elem_size), *item_ptr, info->pointee_type);
+                ptr2sv(aTHX_ affix, (char *)inner_ptr + (i * elem_size), *item_ptr, info->pointee_type, false);
         }
         return;
     }
@@ -1497,7 +1496,7 @@ static void writeback_pointer_generic(pTHX_ Affix * affix, const OutParamInfo * 
             for (size_t i = 0; i < count; ++i) {
                 SV * val_sv = newSV(0);
                 // inner_ptr is T*. Array elements are at inner_ptr[i].
-                ptr2sv(aTHX_ affix, (char *)inner_ptr + (i * elem_size), val_sv, info->pointee_type);
+                ptr2sv(aTHX_ affix, (char *)inner_ptr + (i * elem_size), val_sv, info->pointee_type, false);
                 av_store(av, i, val_sv);
             }
             return;
@@ -1505,12 +1504,12 @@ static void writeback_pointer_generic(pTHX_ Affix * affix, const OutParamInfo * 
         if (SvTYPE(rv) == SVt_PVHV)
             return;
 
-        ptr2sv(aTHX_ affix, inner_ptr, rv, info->pointee_type);
+        ptr2sv(aTHX_ affix, inner_ptr, rv, info->pointee_type, false);
     }
     else {
         if (UNLIKELY(SvTYPE(perl_sv) >= SVt_PVAV))
             return;
-        ptr2sv(aTHX_ affix, inner_ptr, perl_sv, info->pointee_type);
+        ptr2sv(aTHX_ affix, inner_ptr, perl_sv, info->pointee_type, false);
     }
 }
 
@@ -1587,408 +1586,408 @@ Affix_Out_Param_Writer get_out_param_writer(const infix_type * pointee_type) {
 static void rebuild_affix_data(pTHX_ Affix * affix);
 
 // We use a macro to generate two variants (Stack vs Arena) to ensure logic sync.
-#define GENERATE_TRIGGER_XSUB(NAME, USE_STACK_ALLOC)                                                         \
-    void NAME(pTHX_ CV * cv) {                                                                               \
-        if (UNLIKELY(PL_dirty))                                                                              \
-            return;                                                                                          \
-        dSP;                                                                                                 \
-        dAXMARK;                                                                                             \
-        dXSTARG;                                                                                             \
-        Affix * affix = (Affix *)CvXSUBANY(cv).any_ptr;                                                      \
-                                                                                                             \
-        if (UNLIKELY(!affix->infix))                                                                         \
-            rebuild_affix_data(aTHX_ affix);                                                                 \
-                                                                                                             \
-        I32 items = (I32)(SP - MARK);                                                                        \
-        /* LAZY REBUILD: If we are in a new thread and data hasn't been built yet */                         \
-        if (UNLIKELY(!affix->infix))                                                                         \
-            rebuild_affix_data(aTHX_ affix);                                                                 \
-                                                                                                             \
-        if (UNLIKELY((SP - MARK) != affix->num_args))                                                        \
-            croak("Wrong number of arguments. Expected %d, got %d", (int)affix->num_args, (int)(SP - MARK)); \
-                                                                                                             \
-        register Affix_Plan_Step * step = affix->plan;                                                       \
-        for (I32 i = 0; i < items; i++) {                                                                    \
-            SV * arg = ST(i);                                                                                \
-            SV * target = (arg && SvROK(arg)) ? SvRV(arg) : arg;                                             \
-            if (target && SvMAGICAL(target)) {                                                               \
-                MAGIC * mg = mg_find(target, PERL_MAGIC_ext);                                                \
-                if (mg && (mg->mg_virtual == &vtbl_lazy_aggregate || mg->mg_virtual == &vtbl_array)) {       \
-                    if (mg->mg_virtual->svt_set)                                                             \
-                        mg->mg_virtual->svt_set(aTHX_ target, mg);                                           \
-                }                                                                                            \
-            }                                                                                                \
-        }                                                                                                    \
-                                                                                                             \
-        /* ALLOCATION STRATEGY */                                                                            \
-        size_t arena_mark = affix->args_arena->current_offset;                                               \
-        void * args_buffer;                                                                                  \
-        if (USE_STACK_ALLOC && affix->total_args_size <= 2048) {                                             \
-            /* Fast path: Stack allocation if under 2k */                                                    \
-            args_buffer = alloca(affix->total_args_size);                                                    \
-            memset(args_buffer, 0, affix->total_args_size);                                                  \
-        }                                                                                                    \
-        else {                                                                                               \
-            /* Slow path: Arena allocation */                                                                \
-            arena_mark = affix->args_arena->current_offset;                                                  \
-            /* Alignment 64 is safe for AVX-512 vectors */                                                   \
-            args_buffer = infix_arena_calloc(affix->args_arena, 1, affix->total_args_size, 64);              \
-        }                                                                                                    \
-                                                                                                             \
-        register void ** c_args = (void **)alloca(affix->num_args * sizeof(void *));                         \
-        memset(c_args, 0, affix->num_args * sizeof(void *));                                                 \
-                                                                                                             \
-        size_t ret_align = affix->ret_type->alignment;                                                       \
-        if (ret_align < 1)                                                                                   \
-            ret_align = 1;                                                                                   \
-        void * ret_buffer = infix_arena_calloc(affix->ret_arena, 1, affix->ret_type->size, ret_align);       \
-                                                                                                             \
-        DEFINE_DISPATCH_TABLE();                                                                             \
-                                                                                                             \
-        DISPATCH_START();                                                                                    \
-                                                                                                             \
-CASE_OP_PUSH_BOOL:                                                                                           \
-        {                                                                                                    \
-            SV * sv = ST(step->data.index);                                                                  \
-            void * ptr = (char *)args_buffer + step->data.c_arg_offset;                                      \
-            *(bool *)ptr = SvTRUE(sv);                                                                       \
-            c_args[step->data.index] = ptr;                                                                  \
-            DISPATCH();                                                                                      \
-        }                                                                                                    \
-CASE_OP_PUSH_SINT8:                                                                                          \
-        {                                                                                                    \
-            SV * sv = ST(step->data.index);                                                                  \
-            void * ptr = (char *)args_buffer + step->data.c_arg_offset;                                      \
-            *(int8_t *)ptr = (int8_t)SvIV(sv);                                                               \
-            c_args[step->data.index] = ptr;                                                                  \
-            DISPATCH();                                                                                      \
-        }                                                                                                    \
-CASE_OP_PUSH_UINT8:                                                                                          \
-        {                                                                                                    \
-            SV * sv = ST(step->data.index);                                                                  \
-            void * ptr = (char *)args_buffer + step->data.c_arg_offset;                                      \
-            *(uint8_t *)ptr = (uint8_t)SvUV(sv);                                                             \
-            c_args[step->data.index] = ptr;                                                                  \
-            DISPATCH();                                                                                      \
-        }                                                                                                    \
-CASE_OP_PUSH_SINT16:                                                                                         \
-        {                                                                                                    \
-            SV * sv = ST(step->data.index);                                                                  \
-            void * ptr = (char *)args_buffer + step->data.c_arg_offset;                                      \
-            *(int16_t *)ptr = (int16_t)SvIV(sv);                                                             \
-            c_args[step->data.index] = ptr;                                                                  \
-            DISPATCH();                                                                                      \
-        }                                                                                                    \
-CASE_OP_PUSH_UINT16:                                                                                         \
-        {                                                                                                    \
-            SV * sv = ST(step->data.index);                                                                  \
-            void * ptr = (char *)args_buffer + step->data.c_arg_offset;                                      \
-            *(uint16_t *)ptr = (uint16_t)SvUV(sv);                                                           \
-            c_args[step->data.index] = ptr;                                                                  \
-            DISPATCH();                                                                                      \
-        }                                                                                                    \
-CASE_OP_PUSH_SINT32:                                                                                         \
-        {                                                                                                    \
-            SV * sv = ST(step->data.index);                                                                  \
-            void * ptr = (char *)args_buffer + step->data.c_arg_offset;                                      \
-            *(int32_t *)ptr = (int32_t)SvIV(sv);                                                             \
-            c_args[step->data.index] = ptr;                                                                  \
-            DISPATCH();                                                                                      \
-        }                                                                                                    \
-CASE_OP_PUSH_UINT32:                                                                                         \
-        {                                                                                                    \
-            SV * sv = ST(step->data.index);                                                                  \
-            void * ptr = (char *)args_buffer + step->data.c_arg_offset;                                      \
-            *(uint32_t *)ptr = (uint32_t)SvUV(sv);                                                           \
-            c_args[step->data.index] = ptr;                                                                  \
-            DISPATCH();                                                                                      \
-        }                                                                                                    \
-CASE_OP_PUSH_SINT64:                                                                                         \
-        {                                                                                                    \
-            SV * sv = ST(step->data.index);                                                                  \
-            void * ptr = (char *)args_buffer + step->data.c_arg_offset;                                      \
-            *(int64_t *)ptr = (int64_t)SvIV(sv);                                                             \
-            c_args[step->data.index] = ptr;                                                                  \
-            DISPATCH();                                                                                      \
-        }                                                                                                    \
-CASE_OP_PUSH_UINT64:                                                                                         \
-        {                                                                                                    \
-            SV * sv = ST(step->data.index);                                                                  \
-            void * ptr = (char *)args_buffer + step->data.c_arg_offset;                                      \
-            *(uint64_t *)ptr = (uint64_t)SvUV(sv);                                                           \
-            c_args[step->data.index] = ptr;                                                                  \
-            DISPATCH();                                                                                      \
-        }                                                                                                    \
-CASE_OP_PUSH_SINT128:                                                                                        \
-        {                                                                                                    \
-            SV * sv = ST(step->data.index);                                                                  \
-            void * ptr = (char *)args_buffer + step->data.c_arg_offset;                                      \
-            sv_to_int128_safe(sv, ptr);                                                                      \
-            c_args[step->data.index] = ptr;                                                                  \
-            DISPATCH();                                                                                      \
-        }                                                                                                    \
-CASE_OP_PUSH_UINT128:                                                                                        \
-        {                                                                                                    \
-            SV * sv = ST(step->data.index);                                                                  \
-            void * ptr = (char *)args_buffer + step->data.c_arg_offset;                                      \
-            sv_to_uint128_safe(sv, ptr);                                                                     \
-            c_args[step->data.index] = ptr;                                                                  \
-            DISPATCH();                                                                                      \
-        }                                                                                                    \
-CASE_OP_PUSH_FLOAT16:                                                                                        \
-        {                                                                                                    \
-            SV * sv = ST(step->data.index);                                                                  \
-            void * ptr = (char *)args_buffer + step->data.c_arg_offset;                                      \
-            *(infix_float16_t *)ptr = float_to_half((float)SvNV(sv));                                        \
-            c_args[step->data.index] = ptr;                                                                  \
-            DISPATCH();                                                                                      \
-        }                                                                                                    \
-CASE_OP_PUSH_FLOAT:                                                                                          \
-        {                                                                                                    \
-            SV * sv = ST(step->data.index);                                                                  \
-            void * ptr = (char *)args_buffer + step->data.c_arg_offset;                                      \
-            U32 flags = SvFLAGS(sv);                                                                         \
-            if (LIKELY(flags & SVf_NOK))                                                                     \
-                *(float *)ptr = (float)SvNVX(sv);                                                            \
-            else if (flags & SVf_IOK)                                                                        \
-                *(float *)ptr = (float)((flags & SVf_IVisUV) ? SvUVX(sv) : SvIVX(sv));                       \
-            else                                                                                             \
-                *(float *)ptr = (float)SvNV(sv);                                                             \
-            c_args[step->data.index] = ptr;                                                                  \
-            DISPATCH();                                                                                      \
-        }                                                                                                    \
-CASE_OP_PUSH_DOUBLE:                                                                                         \
-        {                                                                                                    \
-            SV * sv = ST(step->data.index);                                                                  \
-            void * ptr = (char *)args_buffer + step->data.c_arg_offset;                                      \
-            U32 flags = SvFLAGS(sv);                                                                         \
-            if (LIKELY(flags & SVf_NOK))                                                                     \
-                *(double *)ptr = SvNVX(sv);                                                                  \
-            else if (flags & SVf_IOK)                                                                        \
-                *(double *)ptr = (double)((flags & SVf_IVisUV) ? SvUVX(sv) : SvIVX(sv));                     \
-            else                                                                                             \
-                *(double *)ptr = (double)SvNV(sv);                                                           \
-            c_args[step->data.index] = ptr;                                                                  \
-            DISPATCH();                                                                                      \
-        }                                                                                                    \
-CASE_OP_PUSH_LONGDOUBLE:                                                                                     \
-        {                                                                                                    \
-            SV * sv = ST(step->data.index);                                                                  \
-            void * ptr = (char *)args_buffer + step->data.c_arg_offset;                                      \
-            U32 flags = SvFLAGS(sv);                                                                         \
-            if (LIKELY(flags & SVf_NOK))                                                                     \
-                *(long double *)ptr = SvNVX(sv);                                                             \
-            else if (flags & SVf_IOK)                                                                        \
-                *(long double *)ptr = (long double)((flags & SVf_IVisUV) ? SvUVX(sv) : SvIVX(sv));           \
-            else                                                                                             \
-                *(long double *)ptr = (long double)SvNV(sv);                                                 \
-            c_args[step->data.index] = ptr;                                                                  \
-            DISPATCH();                                                                                      \
-        }                                                                                                    \
-CASE_OP_PUSH_PTR_CHAR:                                                                                       \
-        {                                                                                                    \
-            SV * sv = ST(step->data.index);                                                                  \
-            void * ptr = (char *)args_buffer + step->data.c_arg_offset;                                      \
-            c_args[step->data.index] = ptr;                                                                  \
-            if (SvPOK(sv))                                                                                   \
-                *(const char **)ptr = SvPV_nolen(sv);                                                        \
-            else if (!SvOK(sv))                                                                              \
-                *(void **)ptr = nullptr;                                                                     \
-            else if (is_pin_v2(aTHX_ sv))                                                                    \
-                *(void **)ptr = get_address_v2(aTHX_ sv);                                                    \
-            else                                                                                             \
-                step->executor(aTHX_ affix, step, &ST(0), args_buffer, c_args, ret_buffer);                  \
-            DISPATCH();                                                                                      \
-        }                                                                                                    \
-CASE_OP_PUSH_PTR_WCHAR:                                                                                      \
-        {                                                                                                    \
-            SV * sv = ST(step->data.index);                                                                  \
-            void * ptr = (char *)args_buffer + step->data.c_arg_offset;                                      \
-            c_args[step->data.index] = ptr;                                                                  \
-            if (SvPOK(sv)) {                                                                                 \
-                STRLEN len;                                                                                  \
-                U8 * s = (U8 *)SvPVutf8(sv, len);                                                            \
-                U8 * e = s + len;                                                                            \
-                Newx(*(void **)ptr, len + 1, wchar_t);                                                       \
-                wchar_t * d = *(void **)ptr;                                                                 \
-                while (s < e) {                                                                              \
-                    UV uv = utf8_to_uvchr_buf(s, e, nullptr);                                                \
-                    if (sizeof(wchar_t) == 2 && uv > 0xFFFF) {                                               \
-                        uv -= 0x10000;                                                                       \
-                        *d++ = (wchar_t)((uv >> 10) + 0xD800);                                               \
-                        *d++ = (wchar_t)((uv & 0x3FF) + 0xDC00);                                             \
-                    }                                                                                        \
-                    else                                                                                     \
-                        *d++ = (wchar_t)uv;                                                                  \
-                    s += UTF8SKIP(s);                                                                        \
-                }                                                                                            \
-                *d = 0;                                                                                      \
-                SAVEFREEPV(*(void **)ptr);                                                                   \
-            }                                                                                                \
-            else if (!SvOK(sv))                                                                              \
-                *(void **)ptr = nullptr;                                                                     \
-            else if (is_pin_v2(aTHX_ sv))                                                                    \
-                *(void **)ptr = get_address_v2(aTHX_ sv);                                                    \
-            else                                                                                             \
-                step->executor(aTHX_ affix, step, &ST(0), args_buffer, c_args, ret_buffer);                  \
-            DISPATCH();                                                                                      \
-        }                                                                                                    \
-CASE_OP_PUSH_POINTER:                                                                                        \
-        {                                                                                                    \
-            SV * sv = ST(step->data.index);                                                                  \
-            void * ptr = (char *)args_buffer + step->data.c_arg_offset;                                      \
-            c_args[step->data.index] = ptr;                                                                  \
-            void * addr = get_address_v2(aTHX_ sv);                                                          \
-            if (addr)                                                                                        \
-                *(void **)ptr = addr;                                                                        \
-            else if (is_pin_v2(aTHX_ sv))                                                                    \
-                *(void **)ptr = get_address_v2(aTHX_ sv);                                                    \
-            else if (!SvOK(sv) && SvREADONLY(sv))                                                            \
-                *(void **)ptr = nullptr;                                                                     \
-            else                                                                                             \
-                step->executor(aTHX_ affix, step, &ST(0), args_buffer, c_args, ret_buffer);                  \
-            DISPATCH();                                                                                      \
-        }                                                                                                    \
-CASE_OP_PUSH_SV:                                                                                             \
-        {                                                                                                    \
-            SV * sv = ST(step->data.index);                                                                  \
-            void * ptr = (char *)args_buffer + step->data.c_arg_offset;                                      \
-            c_args[step->data.index] = ptr;                                                                  \
-            *(SV **)ptr = sv;                                                                                \
-            DISPATCH();                                                                                      \
-        }                                                                                                    \
-CASE_OP_PUSH_VECTOR:                                                                                         \
-        {                                                                                                    \
-            SV * sv = ST(step->data.index);                                                                  \
-            void * ptr = (char *)args_buffer + step->data.c_arg_offset;                                      \
-            c_args[step->data.index] = ptr;                                                                  \
-            if (SvPOK(sv)) {                                                                                 \
-                STRLEN len;                                                                                  \
-                const char * buf = SvPV(sv, len);                                                            \
-                size_t sz = infix_type_get_size(step->data.type);                                            \
-                if (len >= sz) {                                                                             \
-                    memcpy(ptr, buf, sz);                                                                    \
-                    DISPATCH();                                                                              \
-                }                                                                                            \
-            }                                                                                                \
-            step->executor(aTHX_ affix, step, &ST(0), args_buffer, c_args, ret_buffer);                      \
-            DISPATCH();                                                                                      \
-        }                                                                                                    \
-CASE_OP_PUSH_STRUCT:                                                                                         \
-CASE_OP_PUSH_UNION:                                                                                          \
-CASE_OP_PUSH_ARRAY:                                                                                          \
-CASE_OP_PUSH_CALLBACK:                                                                                       \
-CASE_OP_PUSH_ENUM:                                                                                           \
-CASE_OP_PUSH_COMPLEX:                                                                                        \
-        {                                                                                                    \
-            step->executor(aTHX_ affix, step, &ST(0), args_buffer, c_args, ret_buffer);                      \
-            DISPATCH();                                                                                      \
-        }                                                                                                    \
-CASE_OP_DONE:                                                                                                \
-        DISPATCH_END();                                                                                      \
-                                                                                                             \
-        affix->cif(ret_buffer, c_args);                                                                      \
-                                                                                                             \
-        switch (affix->ret_opcode) {                                                                         \
-        case OP_RET_VOID:                                                                                    \
-            sv_setsv(TARG, &PL_sv_undef);                                                                    \
-            break;                                                                                           \
-        case OP_RET_BOOL:                                                                                    \
-            sv_setbool(TARG, *(bool *)ret_buffer);                                                           \
-            break;                                                                                           \
-        case OP_RET_SINT8:                                                                                   \
-            sv_setiv(TARG, *(int8_t *)ret_buffer);                                                           \
-            break;                                                                                           \
-        case OP_RET_UINT8:                                                                                   \
-            sv_setuv(TARG, *(uint8_t *)ret_buffer);                                                          \
-            break;                                                                                           \
-        case OP_RET_SINT16:                                                                                  \
-            sv_setiv(TARG, *(int16_t *)ret_buffer);                                                          \
-            break;                                                                                           \
-        case OP_RET_UINT16:                                                                                  \
-            sv_setuv(TARG, *(uint16_t *)ret_buffer);                                                         \
-            break;                                                                                           \
-        case OP_RET_SINT32:                                                                                  \
-            sv_setiv(TARG, *(int32_t *)ret_buffer);                                                          \
-            break;                                                                                           \
-        case OP_RET_UINT32:                                                                                  \
-            sv_setuv(TARG, *(uint32_t *)ret_buffer);                                                         \
-            break;                                                                                           \
-        case OP_RET_SINT64:                                                                                  \
-            sv_setiv(TARG, *(int64_t *)ret_buffer);                                                          \
-            break;                                                                                           \
-        case OP_RET_UINT64:                                                                                  \
-            sv_setuv(TARG, *(uint64_t *)ret_buffer);                                                         \
-            break;                                                                                           \
-        case OP_RET_SINT128:                                                                                 \
-            sv_from_int128_safe(TARG, ret_buffer);                                                           \
-            break;                                                                                           \
-        case OP_RET_UINT128:                                                                                 \
-            sv_from_uint128_safe(TARG, ret_buffer);                                                          \
-            break;                                                                                           \
-        case OP_RET_FLOAT:                                                                                   \
-            sv_setnv(TARG, (double)*(float *)ret_buffer);                                                    \
-            break;                                                                                           \
-        case OP_RET_FLOAT16:                                                                                 \
-            sv_setnv(TARG, (double)half_to_float(*(infix_float16_t *)ret_buffer));                           \
-            break;                                                                                           \
-        case OP_RET_DOUBLE:                                                                                  \
-            sv_setnv(TARG, *(double *)ret_buffer);                                                           \
-            break;                                                                                           \
-        case OP_RET_PTR:                                                                                     \
-            {                                                                                                \
-                void * c_ptr = *(void **)ret_buffer;                                                         \
-                if (c_ptr == nullptr)                                                                        \
-                    sv_setsv(TARG, &PL_sv_undef);                                                            \
-                else                                                                                         \
-                    pull_pointer_as_pin(aTHX_ nullptr, TARG, affix->ret_type, ret_buffer);                   \
-                break;                                                                                       \
-            }                                                                                                \
-        case OP_RET_PTR_CHAR:                                                                                \
-            {                                                                                                \
-                char * p = *(char **)ret_buffer;                                                             \
-                if (p)                                                                                       \
-                    sv_setpv(TARG, p);                                                                       \
-                else                                                                                         \
-                    sv_setsv(TARG, &PL_sv_undef);                                                            \
-                break;                                                                                       \
-            }                                                                                                \
-        case OP_RET_PTR_WCHAR:                                                                               \
-            pull_pointer_as_wstring(aTHX_ affix, TARG, affix->ret_type, ret_buffer);                         \
-            break;                                                                                           \
-        case OP_RET_SV:                                                                                      \
-            {                                                                                                \
-                SV * s = *(SV **)ret_buffer;                                                                 \
-                if (s)                                                                                       \
-                    sv_setsv(TARG, s);                                                                       \
-                else                                                                                         \
-                    sv_setsv(TARG, &PL_sv_undef);                                                            \
-                break;                                                                                       \
-            }                                                                                                \
-        case OP_RET_CUSTOM:                                                                                  \
-        default:                                                                                             \
-            if (affix->ret_pull_handler)                                                                     \
-                affix->ret_pull_handler(aTHX_ affix, TARG, affix->ret_type, ret_buffer);                     \
-            break;                                                                                           \
-        }                                                                                                    \
-        if (UNLIKELY(affix->num_out_params > 0)) {                                                           \
-            for (size_t i = 0; i < affix->num_out_params; ++i) {                                             \
-                const OutParamInfo * info = &affix->out_param_info[i];                                       \
-                SV * arg_sv = ST(info->perl_stack_index);                                                    \
-                if (SvROK(arg_sv) && !is_pin_v2(aTHX_ arg_sv)) {                                             \
-                    SV * rsv = SvRV(arg_sv);                                                                 \
-                    info->writer(aTHX_ affix, info, rsv, c_args[info->perl_stack_index]);                    \
-                }                                                                                            \
-                else if (!SvOK(arg_sv) && !SvREADONLY(arg_sv))                                               \
-                    info->writer(aTHX_ affix, info, arg_sv, c_args[info->perl_stack_index]);                 \
-            }                                                                                                \
-        }                                                                                                    \
-                                                                                                             \
-        affix->args_arena->current_offset = arena_mark;                                                      \
-        affix->ret_arena->current_offset = 0;                                                                \
-                                                                                                             \
-        ST(0) = TARG;                                                                                        \
-        XSRETURN(1);                                                                                         \
+#define GENERATE_TRIGGER_XSUB(NAME, USE_STACK_ALLOC)                                                            \
+    void NAME(pTHX_ CV * cv) {                                                                                  \
+        if (UNLIKELY(PL_dirty))                                                                                 \
+            return;                                                                                             \
+        dSP;                                                                                                    \
+        dAXMARK;                                                                                                \
+        dXSTARG;                                                                                                \
+        Affix * affix = (Affix *)CvXSUBANY(cv).any_ptr;                                                         \
+                                                                                                                \
+        if (UNLIKELY(!affix->infix))                                                                            \
+            rebuild_affix_data(aTHX_ affix);                                                                    \
+                                                                                                                \
+        I32 items = (I32)(SP - MARK);                                                                           \
+        /* LAZY REBUILD: If we are in a new thread and data hasn't been built yet */                            \
+        if (UNLIKELY(!affix->infix))                                                                            \
+            rebuild_affix_data(aTHX_ affix);                                                                    \
+                                                                                                                \
+        if (UNLIKELY((SP - MARK) != affix->num_args))                                                           \
+            croak("Wrong number of arguments. Expected %d, got %d", (int)affix->num_args, (int)(SP - MARK));    \
+                                                                                                                \
+        register Affix_Plan_Step * step = affix->plan;                                                          \
+        for (I32 i = 0; i < items; i++) {                                                                       \
+            SV * arg = ST(i);                                                                                   \
+            SV * target = (arg && SvROK(arg)) ? SvRV(arg) : arg;                                                \
+            if (target && SvMAGICAL(target)) {                                                                  \
+                MAGIC * mg = mg_find(target, PERL_MAGIC_ext);                                                   \
+                if (mg && (mg->mg_virtual == &vtbl_lazy_aggregate || mg->mg_virtual == &vtbl_array)) {          \
+                    if (mg->mg_virtual->svt_set)                                                                \
+                        mg->mg_virtual->svt_set(aTHX_ target, mg);                                              \
+                }                                                                                               \
+            }                                                                                                   \
+        }                                                                                                       \
+                                                                                                                \
+        /* ALLOCATION STRATEGY */                                                                               \
+        size_t arena_mark = affix->args_arena->current_offset;                                                  \
+        void * args_buffer;                                                                                     \
+        if (USE_STACK_ALLOC && affix->total_args_size <= 2048) {                                                \
+            /* Fast path: Stack allocation if under 2k */                                                       \
+            args_buffer = alloca(affix->total_args_size);                                                       \
+            memset(args_buffer, 0, affix->total_args_size);                                                     \
+        }                                                                                                       \
+        else {                                                                                                  \
+            /* Slow path: Arena allocation */                                                                   \
+            arena_mark = affix->args_arena->current_offset;                                                     \
+            /* Alignment 64 is safe for AVX-512 vectors */                                                      \
+            args_buffer = infix_arena_calloc(affix->args_arena, 1, affix->total_args_size, 64);                 \
+        }                                                                                                       \
+                                                                                                                \
+        register void ** c_args = (void **)alloca(affix->num_args * sizeof(void *));                            \
+        memset(c_args, 0, affix->num_args * sizeof(void *));                                                    \
+                                                                                                                \
+        size_t ret_align = affix->ret_type->alignment;                                                          \
+        if (ret_align < 1)                                                                                      \
+            ret_align = 1;                                                                                      \
+        void * ret_buffer = infix_arena_calloc(affix->ret_arena, 1, affix->ret_type->size, ret_align);          \
+                                                                                                                \
+        DEFINE_DISPATCH_TABLE();                                                                                \
+                                                                                                                \
+        DISPATCH_START();                                                                                       \
+                                                                                                                \
+CASE_OP_PUSH_BOOL:                                                                                              \
+        {                                                                                                       \
+            SV * sv = ST(step->data.index);                                                                     \
+            void * ptr = (char *)args_buffer + step->data.c_arg_offset;                                         \
+            *(bool *)ptr = SvTRUE(sv);                                                                          \
+            c_args[step->data.index] = ptr;                                                                     \
+            DISPATCH();                                                                                         \
+        }                                                                                                       \
+CASE_OP_PUSH_SINT8:                                                                                             \
+        {                                                                                                       \
+            SV * sv = ST(step->data.index);                                                                     \
+            void * ptr = (char *)args_buffer + step->data.c_arg_offset;                                         \
+            *(int8_t *)ptr = (int8_t)SvIV(sv);                                                                  \
+            c_args[step->data.index] = ptr;                                                                     \
+            DISPATCH();                                                                                         \
+        }                                                                                                       \
+CASE_OP_PUSH_UINT8:                                                                                             \
+        {                                                                                                       \
+            SV * sv = ST(step->data.index);                                                                     \
+            void * ptr = (char *)args_buffer + step->data.c_arg_offset;                                         \
+            *(uint8_t *)ptr = (uint8_t)SvUV(sv);                                                                \
+            c_args[step->data.index] = ptr;                                                                     \
+            DISPATCH();                                                                                         \
+        }                                                                                                       \
+CASE_OP_PUSH_SINT16:                                                                                            \
+        {                                                                                                       \
+            SV * sv = ST(step->data.index);                                                                     \
+            void * ptr = (char *)args_buffer + step->data.c_arg_offset;                                         \
+            *(int16_t *)ptr = (int16_t)SvIV(sv);                                                                \
+            c_args[step->data.index] = ptr;                                                                     \
+            DISPATCH();                                                                                         \
+        }                                                                                                       \
+CASE_OP_PUSH_UINT16:                                                                                            \
+        {                                                                                                       \
+            SV * sv = ST(step->data.index);                                                                     \
+            void * ptr = (char *)args_buffer + step->data.c_arg_offset;                                         \
+            *(uint16_t *)ptr = (uint16_t)SvUV(sv);                                                              \
+            c_args[step->data.index] = ptr;                                                                     \
+            DISPATCH();                                                                                         \
+        }                                                                                                       \
+CASE_OP_PUSH_SINT32:                                                                                            \
+        {                                                                                                       \
+            SV * sv = ST(step->data.index);                                                                     \
+            void * ptr = (char *)args_buffer + step->data.c_arg_offset;                                         \
+            *(int32_t *)ptr = (int32_t)SvIV(sv);                                                                \
+            c_args[step->data.index] = ptr;                                                                     \
+            DISPATCH();                                                                                         \
+        }                                                                                                       \
+CASE_OP_PUSH_UINT32:                                                                                            \
+        {                                                                                                       \
+            SV * sv = ST(step->data.index);                                                                     \
+            void * ptr = (char *)args_buffer + step->data.c_arg_offset;                                         \
+            *(uint32_t *)ptr = (uint32_t)SvUV(sv);                                                              \
+            c_args[step->data.index] = ptr;                                                                     \
+            DISPATCH();                                                                                         \
+        }                                                                                                       \
+CASE_OP_PUSH_SINT64:                                                                                            \
+        {                                                                                                       \
+            SV * sv = ST(step->data.index);                                                                     \
+            void * ptr = (char *)args_buffer + step->data.c_arg_offset;                                         \
+            *(int64_t *)ptr = (int64_t)SvIV(sv);                                                                \
+            c_args[step->data.index] = ptr;                                                                     \
+            DISPATCH();                                                                                         \
+        }                                                                                                       \
+CASE_OP_PUSH_UINT64:                                                                                            \
+        {                                                                                                       \
+            SV * sv = ST(step->data.index);                                                                     \
+            void * ptr = (char *)args_buffer + step->data.c_arg_offset;                                         \
+            *(uint64_t *)ptr = (uint64_t)SvUV(sv);                                                              \
+            c_args[step->data.index] = ptr;                                                                     \
+            DISPATCH();                                                                                         \
+        }                                                                                                       \
+CASE_OP_PUSH_SINT128:                                                                                           \
+        {                                                                                                       \
+            SV * sv = ST(step->data.index);                                                                     \
+            void * ptr = (char *)args_buffer + step->data.c_arg_offset;                                         \
+            sv_to_int128_safe(sv, ptr);                                                                         \
+            c_args[step->data.index] = ptr;                                                                     \
+            DISPATCH();                                                                                         \
+        }                                                                                                       \
+CASE_OP_PUSH_UINT128:                                                                                           \
+        {                                                                                                       \
+            SV * sv = ST(step->data.index);                                                                     \
+            void * ptr = (char *)args_buffer + step->data.c_arg_offset;                                         \
+            sv_to_uint128_safe(sv, ptr);                                                                        \
+            c_args[step->data.index] = ptr;                                                                     \
+            DISPATCH();                                                                                         \
+        }                                                                                                       \
+CASE_OP_PUSH_FLOAT16:                                                                                           \
+        {                                                                                                       \
+            SV * sv = ST(step->data.index);                                                                     \
+            void * ptr = (char *)args_buffer + step->data.c_arg_offset;                                         \
+            *(infix_float16_t *)ptr = float_to_half((float)SvNV(sv));                                           \
+            c_args[step->data.index] = ptr;                                                                     \
+            DISPATCH();                                                                                         \
+        }                                                                                                       \
+CASE_OP_PUSH_FLOAT:                                                                                             \
+        {                                                                                                       \
+            SV * sv = ST(step->data.index);                                                                     \
+            void * ptr = (char *)args_buffer + step->data.c_arg_offset;                                         \
+            U32 flags = SvFLAGS(sv);                                                                            \
+            if (LIKELY(flags & SVf_NOK))                                                                        \
+                *(float *)ptr = (float)SvNVX(sv);                                                               \
+            else if (flags & SVf_IOK)                                                                           \
+                *(float *)ptr = (float)((flags & SVf_IVisUV) ? SvUVX(sv) : SvIVX(sv));                          \
+            else                                                                                                \
+                *(float *)ptr = (float)SvNV(sv);                                                                \
+            c_args[step->data.index] = ptr;                                                                     \
+            DISPATCH();                                                                                         \
+        }                                                                                                       \
+CASE_OP_PUSH_DOUBLE:                                                                                            \
+        {                                                                                                       \
+            SV * sv = ST(step->data.index);                                                                     \
+            void * ptr = (char *)args_buffer + step->data.c_arg_offset;                                         \
+            U32 flags = SvFLAGS(sv);                                                                            \
+            if (LIKELY(flags & SVf_NOK))                                                                        \
+                *(double *)ptr = SvNVX(sv);                                                                     \
+            else if (flags & SVf_IOK)                                                                           \
+                *(double *)ptr = (double)((flags & SVf_IVisUV) ? SvUVX(sv) : SvIVX(sv));                        \
+            else                                                                                                \
+                *(double *)ptr = (double)SvNV(sv);                                                              \
+            c_args[step->data.index] = ptr;                                                                     \
+            DISPATCH();                                                                                         \
+        }                                                                                                       \
+CASE_OP_PUSH_LONGDOUBLE:                                                                                        \
+        {                                                                                                       \
+            SV * sv = ST(step->data.index);                                                                     \
+            void * ptr = (char *)args_buffer + step->data.c_arg_offset;                                         \
+            U32 flags = SvFLAGS(sv);                                                                            \
+            if (LIKELY(flags & SVf_NOK))                                                                        \
+                *(long double *)ptr = SvNVX(sv);                                                                \
+            else if (flags & SVf_IOK)                                                                           \
+                *(long double *)ptr = (long double)((flags & SVf_IVisUV) ? SvUVX(sv) : SvIVX(sv));              \
+            else                                                                                                \
+                *(long double *)ptr = (long double)SvNV(sv);                                                    \
+            c_args[step->data.index] = ptr;                                                                     \
+            DISPATCH();                                                                                         \
+        }                                                                                                       \
+CASE_OP_PUSH_PTR_CHAR:                                                                                          \
+        {                                                                                                       \
+            SV * sv = ST(step->data.index);                                                                     \
+            void * ptr = (char *)args_buffer + step->data.c_arg_offset;                                         \
+            c_args[step->data.index] = ptr;                                                                     \
+            if (SvPOK(sv))                                                                                      \
+                *(const char **)ptr = SvPV_nolen(sv);                                                           \
+            else if (!SvOK(sv))                                                                                 \
+                *(void **)ptr = nullptr;                                                                        \
+            else if (is_pin_v2(aTHX_ sv))                                                                       \
+                *(void **)ptr = get_address_v2(aTHX_ sv);                                                       \
+            else                                                                                                \
+                step->executor(aTHX_ affix, step, &ST(0), args_buffer, c_args, ret_buffer);                     \
+            DISPATCH();                                                                                         \
+        }                                                                                                       \
+CASE_OP_PUSH_PTR_WCHAR:                                                                                         \
+        {                                                                                                       \
+            SV * sv = ST(step->data.index);                                                                     \
+            void * ptr = (char *)args_buffer + step->data.c_arg_offset;                                         \
+            c_args[step->data.index] = ptr;                                                                     \
+            if (SvPOK(sv)) {                                                                                    \
+                STRLEN len;                                                                                     \
+                U8 * s = (U8 *)SvPVutf8(sv, len);                                                               \
+                U8 * e = s + len;                                                                               \
+                Newx(*(void **)ptr, len + 1, wchar_t);                                                          \
+                wchar_t * d = *(void **)ptr;                                                                    \
+                while (s < e) {                                                                                 \
+                    UV uv = utf8_to_uvchr_buf(s, e, nullptr);                                                   \
+                    if (sizeof(wchar_t) == 2 && uv > 0xFFFF) {                                                  \
+                        uv -= 0x10000;                                                                          \
+                        *d++ = (wchar_t)((uv >> 10) + 0xD800);                                                  \
+                        *d++ = (wchar_t)((uv & 0x3FF) + 0xDC00);                                                \
+                    }                                                                                           \
+                    else                                                                                        \
+                        *d++ = (wchar_t)uv;                                                                     \
+                    s += UTF8SKIP(s);                                                                           \
+                }                                                                                               \
+                *d = 0;                                                                                         \
+                SAVEFREEPV(*(void **)ptr);                                                                      \
+            }                                                                                                   \
+            else if (!SvOK(sv))                                                                                 \
+                *(void **)ptr = nullptr;                                                                        \
+            else if (is_pin_v2(aTHX_ sv))                                                                       \
+                *(void **)ptr = get_address_v2(aTHX_ sv);                                                       \
+            else                                                                                                \
+                step->executor(aTHX_ affix, step, &ST(0), args_buffer, c_args, ret_buffer);                     \
+            DISPATCH();                                                                                         \
+        }                                                                                                       \
+CASE_OP_PUSH_POINTER:                                                                                           \
+        {                                                                                                       \
+            SV * sv = ST(step->data.index);                                                                     \
+            void * ptr = (char *)args_buffer + step->data.c_arg_offset;                                         \
+            c_args[step->data.index] = ptr;                                                                     \
+            void * addr = get_address_v2(aTHX_ sv);                                                             \
+            if (addr)                                                                                           \
+                *(void **)ptr = addr;                                                                           \
+            else if (is_pin_v2(aTHX_ sv))                                                                       \
+                *(void **)ptr = get_address_v2(aTHX_ sv);                                                       \
+            else if (!SvOK(sv) && SvREADONLY(sv))                                                               \
+                *(void **)ptr = nullptr;                                                                        \
+            else                                                                                                \
+                step->executor(aTHX_ affix, step, &ST(0), args_buffer, c_args, ret_buffer);                     \
+            DISPATCH();                                                                                         \
+        }                                                                                                       \
+CASE_OP_PUSH_SV:                                                                                                \
+        {                                                                                                       \
+            SV * sv = ST(step->data.index);                                                                     \
+            void * ptr = (char *)args_buffer + step->data.c_arg_offset;                                         \
+            c_args[step->data.index] = ptr;                                                                     \
+            *(SV **)ptr = sv;                                                                                   \
+            DISPATCH();                                                                                         \
+        }                                                                                                       \
+CASE_OP_PUSH_VECTOR:                                                                                            \
+        {                                                                                                       \
+            SV * sv = ST(step->data.index);                                                                     \
+            void * ptr = (char *)args_buffer + step->data.c_arg_offset;                                         \
+            c_args[step->data.index] = ptr;                                                                     \
+            if (SvPOK(sv)) {                                                                                    \
+                STRLEN len;                                                                                     \
+                const char * buf = SvPV(sv, len);                                                               \
+                size_t sz = infix_type_get_size(step->data.type);                                               \
+                if (len >= sz) {                                                                                \
+                    memcpy(ptr, buf, sz);                                                                       \
+                    DISPATCH();                                                                                 \
+                }                                                                                               \
+            }                                                                                                   \
+            step->executor(aTHX_ affix, step, &ST(0), args_buffer, c_args, ret_buffer);                         \
+            DISPATCH();                                                                                         \
+        }                                                                                                       \
+CASE_OP_PUSH_STRUCT:                                                                                            \
+CASE_OP_PUSH_UNION:                                                                                             \
+CASE_OP_PUSH_ARRAY:                                                                                             \
+CASE_OP_PUSH_CALLBACK:                                                                                          \
+CASE_OP_PUSH_ENUM:                                                                                              \
+CASE_OP_PUSH_COMPLEX:                                                                                           \
+        {                                                                                                       \
+            step->executor(aTHX_ affix, step, &ST(0), args_buffer, c_args, ret_buffer);                         \
+            DISPATCH();                                                                                         \
+        }                                                                                                       \
+CASE_OP_DONE:                                                                                                   \
+        DISPATCH_END();                                                                                         \
+                                                                                                                \
+        affix->cif(ret_buffer, c_args);                                                                         \
+                                                                                                                \
+        switch (affix->ret_opcode) {                                                                            \
+        case OP_RET_VOID:                                                                                       \
+            sv_setsv(TARG, &PL_sv_undef);                                                                       \
+            break;                                                                                              \
+        case OP_RET_BOOL:                                                                                       \
+            sv_setbool(TARG, *(bool *)ret_buffer);                                                              \
+            break;                                                                                              \
+        case OP_RET_SINT8:                                                                                      \
+            sv_setiv(TARG, *(int8_t *)ret_buffer);                                                              \
+            break;                                                                                              \
+        case OP_RET_UINT8:                                                                                      \
+            sv_setuv(TARG, *(uint8_t *)ret_buffer);                                                             \
+            break;                                                                                              \
+        case OP_RET_SINT16:                                                                                     \
+            sv_setiv(TARG, *(int16_t *)ret_buffer);                                                             \
+            break;                                                                                              \
+        case OP_RET_UINT16:                                                                                     \
+            sv_setuv(TARG, *(uint16_t *)ret_buffer);                                                            \
+            break;                                                                                              \
+        case OP_RET_SINT32:                                                                                     \
+            sv_setiv(TARG, *(int32_t *)ret_buffer);                                                             \
+            break;                                                                                              \
+        case OP_RET_UINT32:                                                                                     \
+            sv_setuv(TARG, *(uint32_t *)ret_buffer);                                                            \
+            break;                                                                                              \
+        case OP_RET_SINT64:                                                                                     \
+            sv_setiv(TARG, *(int64_t *)ret_buffer);                                                             \
+            break;                                                                                              \
+        case OP_RET_UINT64:                                                                                     \
+            sv_setuv(TARG, *(uint64_t *)ret_buffer);                                                            \
+            break;                                                                                              \
+        case OP_RET_SINT128:                                                                                    \
+            sv_from_int128_safe(TARG, ret_buffer);                                                              \
+            break;                                                                                              \
+        case OP_RET_UINT128:                                                                                    \
+            sv_from_uint128_safe(TARG, ret_buffer);                                                             \
+            break;                                                                                              \
+        case OP_RET_FLOAT:                                                                                      \
+            sv_setnv(TARG, (double)*(float *)ret_buffer);                                                       \
+            break;                                                                                              \
+        case OP_RET_FLOAT16:                                                                                    \
+            sv_setnv(TARG, (double)half_to_float(*(infix_float16_t *)ret_buffer));                              \
+            break;                                                                                              \
+        case OP_RET_DOUBLE:                                                                                     \
+            sv_setnv(TARG, *(double *)ret_buffer);                                                              \
+            break;                                                                                              \
+        case OP_RET_PTR:                                                                                        \
+            {                                                                                                   \
+                void * c_ptr = *(void **)ret_buffer;                                                            \
+                if (c_ptr == nullptr)                                                                           \
+                    sv_setsv(TARG, &PL_sv_undef);                                                               \
+                else                                                                                            \
+                    pull_pointer_as_pin(aTHX_ nullptr, TARG, affix->ret_type, ret_buffer, affix->ret_readonly); \
+                break;                                                                                          \
+            }                                                                                                   \
+        case OP_RET_PTR_CHAR:                                                                                   \
+            {                                                                                                   \
+                char * p = *(char **)ret_buffer;                                                                \
+                if (p)                                                                                          \
+                    sv_setpv(TARG, p);                                                                          \
+                else                                                                                            \
+                    sv_setsv(TARG, &PL_sv_undef);                                                               \
+                break;                                                                                          \
+            }                                                                                                   \
+        case OP_RET_PTR_WCHAR:                                                                                  \
+            pull_pointer_as_wstring(aTHX_ affix, TARG, affix->ret_type, ret_buffer, affix->ret_readonly);       \
+            break;                                                                                              \
+        case OP_RET_SV:                                                                                         \
+            {                                                                                                   \
+                SV * s = *(SV **)ret_buffer;                                                                    \
+                if (s)                                                                                          \
+                    sv_setsv(TARG, s);                                                                          \
+                else                                                                                            \
+                    sv_setsv(TARG, &PL_sv_undef);                                                               \
+                break;                                                                                          \
+            }                                                                                                   \
+        case OP_RET_CUSTOM:                                                                                     \
+        default:                                                                                                \
+            if (affix->ret_pull_handler)                                                                        \
+                affix->ret_pull_handler(aTHX_ affix, TARG, affix->ret_type, ret_buffer, affix->ret_readonly);   \
+            break;                                                                                              \
+        }                                                                                                       \
+        if (UNLIKELY(affix->num_out_params > 0)) {                                                              \
+            for (size_t i = 0; i < affix->num_out_params; ++i) {                                                \
+                const OutParamInfo * info = &affix->out_param_info[i];                                          \
+                SV * arg_sv = ST(info->perl_stack_index);                                                       \
+                if (SvROK(arg_sv) && !is_pin_v2(aTHX_ arg_sv)) {                                                \
+                    SV * rsv = SvRV(arg_sv);                                                                    \
+                    info->writer(aTHX_ affix, info, rsv, c_args[info->perl_stack_index]);                       \
+                }                                                                                               \
+                else if (!SvOK(arg_sv) && !SvREADONLY(arg_sv))                                                  \
+                    info->writer(aTHX_ affix, info, arg_sv, c_args[info->perl_stack_index]);                    \
+            }                                                                                                   \
+        }                                                                                                       \
+                                                                                                                \
+        affix->args_arena->current_offset = arena_mark;                                                         \
+        affix->ret_arena->current_offset = 0;                                                                   \
+                                                                                                                \
+        ST(0) = TARG;                                                                                           \
+        XSRETURN(1);                                                                                            \
     }
 
 // Generate the two XSUBs
@@ -2127,7 +2126,8 @@ static int Affix_cv_dup(pTHX_ MAGIC * mg, CLONE_PARAMS * param) {
     new_affix->total_args_size = old_affix->total_args_size;
     new_affix->ret_opcode = old_affix->ret_opcode;
     new_affix->num_out_params = old_affix->num_out_params;
-    new_affix->num_fixed_args = old_affix->num_fixed_args;  // Copied too
+    new_affix->num_fixed_args = old_affix->num_fixed_args;
+    new_affix->ret_readonly = old_affix->ret_readonly;
 
     /* Reconstruct strings */
     if (old_affix->sig_str)
@@ -2379,14 +2379,18 @@ void Affix_trigger_variadic(pTHX_ CV * cv) {
         size_t n_args, n_fixed;
         dMY_CXT;
 
-        infix_signature_parse(full_sig, &temp_arena, &ret_type, &args, &n_args, &n_fixed, MY_CXT.registry);
+        if (infix_signature_parse(full_sig, &temp_arena, &ret_type, &args, &n_args, &n_fixed, MY_CXT.registry) !=
+            INFIX_SUCCESS)
+            croak("Internal error: Variadic JIT failed to parse signature");
 
         infix_type ** arg_types = safemalloc(sizeof(infix_type *) * n_args);
         for (size_t i = 0; i < n_args; ++i)
             arg_types[i] = args[i].type;
 
         // Note: passing n_fixed is CRITICAL for ARM64 stack placement
-        infix_forward_create_manual(&trampoline, ret_type, arg_types, n_args, n_fixed, affix->target_addr);
+        if (infix_forward_create_manual(&trampoline, ret_type, arg_types, n_args, n_fixed, affix->target_addr) !=
+            INFIX_SUCCESS)
+            croak("Internal error: Variadic JIT failed to create trampoline");
 
         safefree(arg_types);
         infix_arena_destroy(temp_arena);
@@ -2405,7 +2409,7 @@ void Affix_trigger_variadic(pTHX_ CV * cv) {
     }
 
     infix_forward_get_code(trampoline)(ret_buffer, c_args);
-    ptr2sv(aTHX_ affix, ret_buffer, TARG, infix_forward_get_return_type(trampoline));
+    ptr2sv(aTHX_ affix, ret_buffer, TARG, infix_forward_get_return_type(trampoline), affix->ret_readonly);
 
     // Cleanup arenas
     affix->args_arena->current_offset = arena_mark;
@@ -2642,6 +2646,11 @@ XS_INTERNAL(Affix_affix) {
         infix_function_argument * args = nullptr;
         size_t num_args = 0, num_fixed = 0;
 
+        backend->ret_readonly = false;
+        char * ret_ptr = strstr(signature, "->");
+        if (ret_ptr && strchr(ret_ptr, '+'))
+            backend->ret_readonly = true;
+
         const char * sig_to_parse = signature;
         char * clean_sig = nullptr;
         if (strstr(signature, "+")) {
@@ -2824,6 +2833,15 @@ XS_INTERNAL(Affix_affix) {
     affix->unwrapped_ret_type = _unwrap_pin_type(affix->ret_type);
     affix->ret_pull_handler = get_pull_handler(aTHX_ affix->ret_type);
     affix->ret_opcode = get_ret_opcode_for_type(affix->ret_type);
+
+    // Extract outer constness if specified for the return type
+    affix->ret_readonly = false;
+    if (signature && strrchr(signature, '>') != NULL) {
+        // Simple heuristic: If the return signature block has a '+', it's readonly
+        char * ret_start = strstr(signature, "->");
+        if (ret_start && strchr(ret_start, '+'))
+            affix->ret_readonly = true;
+    }
 
     if (affix->ret_pull_handler == nullptr) {
         _affix_destroy(aTHX_ affix);
@@ -3022,34 +3040,62 @@ XS_INTERNAL(Affix_DESTROY) {
     XSRETURN_EMPTY;
 }
 
-static void pull_sint8(pTHX_ Affix * affix, SV * sv, const infix_type * t, void * p) { sv_setiv(sv, *(int8_t *)p); }
-static void pull_uint8(pTHX_ Affix * affix, SV * sv, const infix_type * t, void * p) { sv_setuv(sv, *(uint8_t *)p); }
-static void pull_sint16(pTHX_ Affix * affix, SV * sv, const infix_type * t, void * p) { sv_setiv(sv, *(int16_t *)p); }
-static void pull_uint16(pTHX_ Affix * affix, SV * sv, const infix_type * t, void * p) { sv_setuv(sv, *(uint16_t *)p); }
-static void pull_sint32(pTHX_ Affix * affix, SV * sv, const infix_type * t, void * p) { sv_setiv(sv, *(int32_t *)p); }
-static void pull_uint32(pTHX_ Affix * affix, SV * sv, const infix_type * t, void * p) { sv_setuv(sv, *(uint32_t *)p); }
-static void pull_sint64(pTHX_ Affix * affix, SV * sv, const infix_type * t, void * p) { sv_setiv(sv, *(int64_t *)p); }
-static void pull_uint64(pTHX_ Affix * affix, SV * sv, const infix_type * t, void * p) { sv_setuv(sv, *(uint64_t *)p); }
-static void pull_float16(pTHX_ Affix * affix, SV * sv, const infix_type * t, void * p) {
+static void pull_sint8(pTHX_ Affix * affix, SV * sv, const infix_type * t, void * p, bool readonly) {
+    sv_setiv(sv, *(int8_t *)p);
+}
+static void pull_uint8(pTHX_ Affix * affix, SV * sv, const infix_type * t, void * p, bool readonly) {
+    sv_setuv(sv, *(uint8_t *)p);
+}
+static void pull_sint16(pTHX_ Affix * affix, SV * sv, const infix_type * t, void * p, bool readonly) {
+    sv_setiv(sv, *(int16_t *)p);
+}
+static void pull_uint16(pTHX_ Affix * affix, SV * sv, const infix_type * t, void * p, bool readonly) {
+    sv_setuv(sv, *(uint16_t *)p);
+}
+static void pull_sint32(pTHX_ Affix * affix, SV * sv, const infix_type * t, void * p, bool readonly) {
+    sv_setiv(sv, *(int32_t *)p);
+}
+static void pull_uint32(pTHX_ Affix * affix, SV * sv, const infix_type * t, void * p, bool readonly) {
+    sv_setuv(sv, *(uint32_t *)p);
+}
+static void pull_sint64(pTHX_ Affix * affix, SV * sv, const infix_type * t, void * p, bool readonly) {
+    sv_setiv(sv, *(int64_t *)p);
+}
+static void pull_uint64(pTHX_ Affix * affix, SV * sv, const infix_type * t, void * p, bool readonly) {
+    sv_setuv(sv, *(uint64_t *)p);
+}
+static void pull_float16(pTHX_ Affix * affix, SV * sv, const infix_type * t, void * p, bool readonly) {
     sv_setnv(sv, (double)half_to_float(*(infix_float16_t *)p));
 }
-static void pull_float(pTHX_ Affix * affix, SV * sv, const infix_type * t, void * p) { sv_setnv(sv, *(float *)p); }
-static void pull_double(pTHX_ Affix * affix, SV * sv, const infix_type * t, void * p) { sv_setnv(sv, *(double *)p); }
-static void pull_long_double(pTHX_ Affix * affix, SV * sv, const infix_type * t, void * p) {
+static void pull_float(pTHX_ Affix * affix, SV * sv, const infix_type * t, void * p, bool readonly) {
+    sv_setnv(sv, *(float *)p);
+}
+static void pull_double(pTHX_ Affix * affix, SV * sv, const infix_type * t, void * p, bool readonly) {
+    sv_setnv(sv, *(double *)p);
+}
+static void pull_long_double(pTHX_ Affix * affix, SV * sv, const infix_type * t, void * p, bool readonly) {
     sv_setnv(sv, *(long double *)p);
 }
-static void pull_bool(pTHX_ Affix * affix, SV * sv, const infix_type * t, void * p) { sv_setbool(sv, *(bool *)p); }
-static void pull_void(pTHX_ Affix * affix, SV * sv, const infix_type * t, void * p) { sv_setsv(sv, &PL_sv_undef); }
+static void pull_bool(pTHX_ Affix * affix, SV * sv, const infix_type * t, void * p, bool readonly) {
+    sv_setbool(sv, *(bool *)p);
+}
+static void pull_void(pTHX_ Affix * affix, SV * sv, const infix_type * t, void * p, bool readonly) {
+    sv_setsv(sv, &PL_sv_undef);
+}
 
 #if !defined(INFIX_COMPILER_MSVC)
-static void pull_sint128(pTHX_ Affix * affix, SV * sv, const infix_type * t, void * p) { sv_from_int128_safe(sv, p); }
-static void pull_uint128(pTHX_ Affix * affix, SV * sv, const infix_type * t, void * p) { sv_from_uint128_safe(sv, p); }
+static void pull_sint128(pTHX_ Affix * affix, SV * sv, const infix_type * t, void * p, bool readonly) {
+    sv_from_int128_safe(sv, p);
+}
+static void pull_uint128(pTHX_ Affix * affix, SV * sv, const infix_type * t, void * p, bool readonly) {
+    sv_from_uint128_safe(sv, p);
+}
 #endif
 
-static void pull_struct(pTHX_ Affix * affix, SV * sv, const infix_type * type, void * p) {
+static void pull_struct(pTHX_ Affix * affix, SV * sv, const infix_type * type, void * p, bool readonly) {
     HV * hv;
-    bool live = (sv_isobject(sv) && sv_derived_from(sv, "Affix::Live")) ||
-        (SvROK(sv) && sv_isobject(SvRV(sv)) && sv_derived_from(SvRV(sv), "Affix::Live"));
+    bool live = (sv_isobject(sv) && sv_derived_from(sv, "Affix::Const")) ||
+        (SvROK(sv) && sv_isobject(SvRV(sv)) && sv_derived_from(SvRV(sv), "Affix::Const"));
 
     if (SvROK(sv) && SvTYPE(SvRV(sv)) == SVt_PVHV)
         hv = (HV *)SvRV(sv);
@@ -3057,10 +3103,10 @@ static void pull_struct(pTHX_ Affix * affix, SV * sv, const infix_type * type, v
         hv = newHV();
         sv_setsv(sv, sv_2mortal(newRV_noinc(MUTABLE_SV(hv))));
     }
-    _populate_hv_from_c_struct(aTHX_ affix, hv, type, p, live, nullptr, false);
+    _populate_hv_from_c_struct(aTHX_ affix, hv, type, p, false, nullptr, live);
 }
 
-static void pull_union(pTHX_ Affix * affix, SV * sv, const infix_type * type, void * p) {
+static void pull_union(pTHX_ Affix * affix, SV * sv, const infix_type * type, void * p, bool readonly) {
     HV * hv;
     if (SvROK(sv) && SvTYPE(SvRV(sv)) == SVt_PVHV) {
         hv = (HV *)SvRV(sv);
@@ -3084,7 +3130,7 @@ static size_t _safe_strnlen(const char * s, size_t maxlen) {
     return len;
 }
 
-static void pull_array(pTHX_ Affix * affix, SV * sv, const infix_type * type, void * p) {
+static void pull_array(pTHX_ Affix * affix, SV * sv, const infix_type * type, void * p, bool readonly) {
     const infix_type * element_type = type->meta.array_info.element_type;
 
     if (element_type->category == INFIX_TYPE_PRIMITIVE) {
@@ -3122,20 +3168,20 @@ static void pull_array(pTHX_ Affix * affix, SV * sv, const infix_type * type, vo
     for (size_t i = 0; i < num_elements; ++i) {
         void * element_ptr = (char *)p + (i * element_size);
         SV * element_sv = newSV(0);
-        ptr2sv(aTHX_ affix, element_ptr, element_sv, element_type);
+        ptr2sv(aTHX_ affix, element_ptr, element_sv, element_type, readonly);
         av_push(av, element_sv);
     }
 }
 
-static void pull_reverse_trampoline(pTHX_ Affix * affix, SV * sv, const infix_type * type, void * p) {
+static void pull_reverse_trampoline(pTHX_ Affix * affix, SV * sv, const infix_type * type, void * p, bool readonly) {
     sv_setiv(sv, PTR2IV(*(void **)p));
 }
 
-static void pull_enum(pTHX_ Affix * affix, SV * sv, const infix_type * type, void * p) {
-    ptr2sv(aTHX_ affix, p, sv, type->meta.enum_info.underlying_type);
+static void pull_enum(pTHX_ Affix * affix, SV * sv, const infix_type * type, void * p, bool readonly) {
+    ptr2sv(aTHX_ affix, p, sv, type->meta.enum_info.underlying_type, readonly);
 }
 
-static void pull_enum_dualvar(pTHX_ Affix * affix, SV * sv, const infix_type * type, void * p) {
+static void pull_enum_dualvar(pTHX_ Affix * affix, SV * sv, const infix_type * type, void * p, bool readonly) {
     // We assume standard 'e:int' (int32/64 based on platform 'int').
     // But type->meta.enum_info.underlying_type tells us the exact size.
     const infix_type * int_type = type->meta.enum_info.underlying_type;
@@ -3198,7 +3244,7 @@ static void pull_enum_dualvar(pTHX_ Affix * affix, SV * sv, const infix_type * t
     }
 }
 
-static void pull_complex(pTHX_ Affix * affix, SV * sv, const infix_type * type, void * p) {
+static void pull_complex(pTHX_ Affix * affix, SV * sv, const infix_type * type, void * p, bool readonly) {
     AV * av;
     if (SvROK(sv) && SvTYPE(SvRV(sv)) == SVt_PVAV) {
         av = (AV *)SvRV(sv);
@@ -3211,14 +3257,14 @@ static void pull_complex(pTHX_ Affix * affix, SV * sv, const infix_type * type, 
     const infix_type * base_type = type->meta.complex_info.base_type;
     size_t base_size = infix_type_get_size(base_type);
     SV * real_sv = newSV(0);
-    ptr2sv(aTHX_ affix, p, real_sv, base_type);
+    ptr2sv(aTHX_ affix, p, real_sv, base_type, readonly);
     av_push(av, real_sv);
     SV * imag_sv = newSV(0);
-    ptr2sv(aTHX_ affix, (char *)p + base_size, imag_sv, base_type);
+    ptr2sv(aTHX_ affix, (char *)p + base_size, imag_sv, base_type, readonly);
     av_push(av, imag_sv);
 }
 
-static void pull_vector(pTHX_ Affix * affix, SV * sv, const infix_type * type, void * p) {
+static void pull_vector(pTHX_ Affix * affix, SV * sv, const infix_type * type, void * p, bool readonly) {
     AV * av;
     if (SvROK(sv) && SvTYPE(SvRV(sv)) == SVt_PVAV) {
         av = (AV *)SvRV(sv);
@@ -3235,31 +3281,31 @@ static void pull_vector(pTHX_ Affix * affix, SV * sv, const infix_type * type, v
     for (size_t i = 0; i < num_elements; ++i) {
         void * element_ptr = (char *)p + (i * element_size);
         SV * element_sv = newSV(0);
-        ptr2sv(aTHX_ affix, element_ptr, element_sv, element_type);
+        ptr2sv(aTHX_ affix, element_ptr, element_sv, element_type, readonly);
         av_push(av, element_sv);
     }
 }
 
-static void pull_pointer_as_string(pTHX_ Affix * affix, SV * sv, const infix_type * type, void * ptr) {
-    void * c_ptr = *(void **)ptr;
+static void pull_pointer_as_string(pTHX_ Affix * affix, SV * sv, const infix_type * type, void * p, bool readonly) {
+    void * c_ptr = *(void **)p;
     if (c_ptr == nullptr)
         sv_setsv(sv, &PL_sv_undef);
     else
         sv_setpv(sv, (const char *)c_ptr);
 }
 
-static void pull_pointer_as_struct(pTHX_ Affix * affix, SV * sv, const infix_type * type, void * ptr) {
-    void * c_ptr = *(void **)ptr;
+static void pull_pointer_as_struct(pTHX_ Affix * affix, SV * sv, const infix_type * type, void * p, bool readonly) {
+    void * c_ptr = *(void **)p;
     if (c_ptr == nullptr)
         sv_setsv(sv, &PL_sv_undef);
     else {
         const infix_type * pointee_type = type->meta.pointer_info.pointee_type;
-        pull_struct(aTHX_ affix, sv, pointee_type, c_ptr);
+        pull_struct(aTHX_ affix, sv, pointee_type, c_ptr, readonly);
     }
 }
-
-static void pull_struct_as_live(pTHX_ Affix * affix, SV * sv, const infix_type * type, void * ptr) {
-    void * c_ptr = *(void **)ptr;
+#if 0
+static void pull_struct_as_live(pTHX_ Affix * affix, SV * sv, const infix_type * type, void * p, bool readonly) {
+    void * c_ptr = *(void **)p;
     if (c_ptr == nullptr) {
         sv_setsv(sv, &PL_sv_undef);
         return;
@@ -3268,23 +3314,23 @@ static void pull_struct_as_live(pTHX_ Affix * affix, SV * sv, const infix_type *
     HV * hv = newHV();
     SV * rv = newRV_noinc(MUTABLE_SV(hv));
     //~ sv_bless(rv, gv_stashpv("Affix::Live", GV_ADD));
-    _populate_hv_from_c_struct(aTHX_ affix, hv, pointee_type, c_ptr, true, nullptr, false);
+    _populate_hv_from_c_struct(aTHX_ affix, hv, pointee_type, c_ptr, true, nullptr, readonly);
     sv_setsv(sv, rv);
     SvREFCNT_dec(rv);
 }
-
-static void pull_pointer_as_array(pTHX_ Affix * affix, SV * sv, const infix_type * type, void * ptr) {
-    void * c_ptr = *(void **)ptr;
+#endif
+static void pull_pointer_as_array(pTHX_ Affix * affix, SV * sv, const infix_type * type, void * p, bool readonly) {
+    void * c_ptr = *(void **)p;
     if (c_ptr == nullptr)
         sv_setsv(sv, &PL_sv_undef);
     else {
         const infix_type * pointee_type = type->meta.pointer_info.pointee_type;
-        pull_array(aTHX_ affix, sv, pointee_type, c_ptr);
+        pull_array(aTHX_ affix, sv, pointee_type, c_ptr, readonly);
     }
 }
 
-void pull_pointer_as_pin(pTHX_ Affix * affix, SV * sv, const infix_type * type, void * ptr) {
-    void * c_ptr = *(void **)ptr;
+void pull_pointer_as_pin(pTHX_ Affix * affix, SV * sv, const infix_type * type, void * p, bool readonly) {
+    void * c_ptr = *(void **)p;
     if (c_ptr == nullptr) {
         sv_setsv(sv, &PL_sv_undef);
         return;
@@ -3294,29 +3340,29 @@ void pull_pointer_as_pin(pTHX_ Affix * affix, SV * sv, const infix_type * type, 
 
     if (cat == INFIX_TYPE_STRUCT || cat == INFIX_TYPE_UNION || cat == INFIX_TYPE_ARRAY || cat == INFIX_TYPE_VECTOR ||
         cat == INFIX_TYPE_COMPLEX) {
-        SV * rv = bind_aggregate(aTHX_ c_ptr, pointee, NULL, false);
+        SV * rv = bind_aggregate(aTHX_ c_ptr, pointee, NULL, readonly);
         sv_setsv(sv, rv);
         SvREFCNT_dec(rv);
     }
     else {
         SV * obj = newSV(0);
-        bind_placeholder(aTHX_ obj, c_ptr, pointee, 0, 0, false, NULL, NULL, false);
+        bind_placeholder(aTHX_ obj, c_ptr, pointee, 0, 0, false, NULL, NULL, readonly);
         sv_setsv(sv, obj);
     }
 }
 
-static void pull_sv(pTHX_ Affix * affix, SV * sv, const infix_type * type, void * ptr) {
-    void * c_ptr = *(void **)ptr;
+static void pull_sv(pTHX_ Affix * affix, SV * sv, const infix_type * type, void * p, bool readonly) {
+    void * c_ptr = *(void **)p;
     if (c_ptr == nullptr)
         sv_setsv(sv, &PL_sv_undef);
     else
         sv_setsv(sv, (SV *)c_ptr);
 }
 
-static void pull_file(pTHX_ Affix * affix, SV * sv, const infix_type * type, void * ptr) {
+static void pull_file(pTHX_ Affix * affix, SV * sv, const infix_type * type, void * p, bool readonly) {
     PERL_UNUSED_VAR(affix);
     PERL_UNUSED_VAR(type);
-    FILE * fp = *(FILE **)ptr;
+    FILE * fp = *(FILE **)p;
     if (!fp) {
         sv_setsv(sv, &PL_sv_undef);
         return;
@@ -3357,10 +3403,10 @@ static void pull_file(pTHX_ Affix * affix, SV * sv, const infix_type * type, voi
     }
 }
 
-static void pull_perlio(pTHX_ Affix * affix, SV * sv, const infix_type * type, void * ptr) {
+static void pull_perlio(pTHX_ Affix * affix, SV * sv, const infix_type * type, void * p, bool readonly) {
     PERL_UNUSED_VAR(affix);
     PERL_UNUSED_VAR(type);
-    PerlIO * pio = *(PerlIO **)ptr;
+    PerlIO * pio = *(PerlIO **)p;
     if (!pio) {
         sv_setsv(sv, &PL_sv_undef);
         return;
@@ -3426,10 +3472,10 @@ static void push_stringlist(pTHX_ Affix * affix, SV * sv, void * c_arg_ptr) {
     *(char ***)c_arg_ptr = list;
 }
 
-static void pull_stringlist(pTHX_ Affix * affix, SV * sv, const infix_type * type, void * ptr) {
+static void pull_stringlist(pTHX_ Affix * affix, SV * sv, const infix_type * type, void * p, bool readonly) {
     PERL_UNUSED_VAR(affix);
     PERL_UNUSED_VAR(type);
-    char ** list = *(char ***)ptr;
+    char ** list = *(char ***)p;
 
     AV * av = newAV();
     if (list) {
@@ -3553,7 +3599,11 @@ Affix_Pull get_pull_handler(pTHX_ const infix_type * type) {
 #endif
             }
             if (pointee_type->category == INFIX_TYPE_STRUCT)
-                return live_hint ? pull_struct_as_live : pull_pointer_as_pin;
+                return
+#if 0
+            live_hint ? pull_struct_as_live :
+#endif
+                    pull_pointer_as_pin;
             if (pointee_type->category == INFIX_TYPE_ARRAY)
                 return pull_pointer_as_pin;
             if (pointee_type->category == INFIX_TYPE_REVERSE_TRAMPOLINE)
@@ -3594,7 +3644,7 @@ Affix_Pull get_pull_handler(pTHX_ const infix_type * type) {
     }
 }
 
-void ptr2sv(pTHX_ Affix * affix, void * c_ptr, SV * perl_sv, const infix_type * type) {
+void ptr2sv(pTHX_ Affix * affix, void * c_ptr, SV * perl_sv, const infix_type * type, bool readonly) {
     Affix_Pull h = get_pull_handler(aTHX_ type);
     if (!h) {
         char buffer[128];
@@ -3602,7 +3652,7 @@ void ptr2sv(pTHX_ Affix * affix, void * c_ptr, SV * perl_sv, const infix_type * 
             croak("Cannot convert C type to Perl SV. Unsupported type: %s", buffer);
         croak("Cannot convert C type to Perl SV. Unsupported type.");
     }
-    h(aTHX_ affix, perl_sv, type, c_ptr);
+    h(aTHX_ affix, perl_sv, type, c_ptr, readonly);
 }
 
 static int _get_pointer_depth(const infix_type * t) {
@@ -4234,7 +4284,7 @@ void _affix_callback_handler_entry(infix_context_t * ctx, void * retval, void **
         if (!puller)
             croak("Unsupported callback argument type");
         SV * arg_sv = newSV(0);
-        puller(aTHX_ nullptr, arg_sv, type, args[i]);
+        puller(aTHX_ nullptr, arg_sv, type, args[i], false);
         mXPUSHs(arg_sv);
     }
     PUTBACK;
@@ -4417,7 +4467,7 @@ XS_INTERNAL(Affix_typedef) {
         const char * type_str = _get_string_from_type_obj(aTHX_ type_sv);
         if (!type_str)
             type_str = SvPV_nolen(type_sv);
-        // Live() prepends '+' to signatures. Infix doesn't support this character.
+        // Const() prepends '+' to signatures. Infix doesn't support this character.
         if (type_str[0] == '+')
             type_str++;
         sv_catpv(def_sv, type_str);
@@ -4675,7 +4725,6 @@ XS_INTERNAL(Affix_free) {
     XSRETURN_NO;
 }
 
-
 XS_INTERNAL(Affix_cast) {
     dXSARGS;
     dMY_CXT;
@@ -4690,15 +4739,16 @@ XS_INTERNAL(Affix_cast) {
 
     /* Resolve the signature string */
     SV * type_sv = ST(1);
-    bool readonly = false;
     const char * signature = _get_string_from_type_obj(aTHX_ type_sv);
     if (!signature)
         signature = SvPV_nolen(type_sv);
 
-    /* Handle the "+" live hint (e.g. Affix::cast($p, "+MyStruct")) */
-    bool live_hint = (signature[0] == '+');
-    if (live_hint)
+    /* Handle the "+" readonly/const hint (e.g. Affix::cast($p, "+MyStruct")) */
+    bool readonly = false;
+    if ((signature[0] == '+')) {
         signature++;
+        readonly = true;
+    }
 
     /* Resolve the type object and create an arena if it's a dynamic signature */
     infix_type * new_type = nullptr;
@@ -4740,14 +4790,10 @@ XS_INTERNAL(Affix_cast) {
     /* Execution */
     if (return_as_value) {
         SV * ret_val = sv_newmortal();
-        if (is_string_type) {
-            /* String pullers expect char**, so we pass the address of our pointer */
-            ptr2sv(aTHX_ nullptr, &ptr_val, ret_val, new_type);
-        }
-        else {
-            /* Primitives expect the address of the data */
-            ptr2sv(aTHX_ nullptr, ptr_val, ret_val, new_type);
-        }
+        if (is_string_type)  // String pullers expect char**, so we pass the address of our pointer
+            ptr2sv(aTHX_ nullptr, &ptr_val, ret_val, new_type, readonly);
+        else  // Primitives expect the address of the data
+            ptr2sv(aTHX_ nullptr, ptr_val, ret_val, new_type, readonly);
 
         /* If we parsed an anonymous signature, we can destroy the arena now
            since we copied the data out into a standard Perl scalar. */
@@ -5135,7 +5181,7 @@ void _populate_hv_from_c_struct(
         if (member->name) {
             void * member_ptr = (char *)p + member->offset;
             SV * member_sv = nullptr;
-
+#if 0
             if (live) {
                 // Live mode: Create a Pin or Live view for this member
                 const infix_type * resolved = _resolve_type(aTHX_ member->type);
@@ -5158,13 +5204,15 @@ void _populate_hv_from_c_struct(
                                      member->type,
                                      member->bit_offset,
                                      member->bit_width,
-                                     true, /* prime: read value from C immediately */
+                                     true, // prime: read value from C immediately
                                      owner_sv,
                                      NULL,
                                      readonly);
-                }
-            }
-            else if (member->is_bitfield) {
+        }
+    }
+    else
+#endif
+            if (member->is_bitfield) {
                 // Bitfield pull: mask and shift
                 member_sv = newSV(0);
                 size_t sz = infix_type_get_size(member->type);
@@ -5176,7 +5224,7 @@ void _populate_hv_from_c_struct(
             }
             else {
                 member_sv = newSV(0);
-                ptr2sv(aTHX_ affix, member_ptr, member_sv, member->type);
+                ptr2sv(aTHX_ affix, member_ptr, member_sv, member->type, readonly);
             }
 
             if (member_sv)

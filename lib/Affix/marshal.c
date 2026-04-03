@@ -752,8 +752,8 @@ void perl_universal_closure(infix_context_t * ctx, void * ret, void ** args) {
     LEAVE;
 }
 
-void pull_pointer_as_callable(pTHX_ Affix * affix, SV * sv, const infix_type * type, void * ptr) {
-    void * c_ptr = *(void **)ptr;
+void pull_pointer_as_callable(pTHX_ Affix * affix, SV * sv, const infix_type * type, void * p, bool readonly) {
+    void * c_ptr = *(void **)p;
     if (c_ptr == nullptr) {
         sv_setsv(sv, &PL_sv_undef);
         return;

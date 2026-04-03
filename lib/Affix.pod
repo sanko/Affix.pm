@@ -442,9 +442,21 @@ Vectors are first-class types. You can interact with them using standard B<Array
 
 When bridging Perl and C, handling raw memory safely is critical. Affix uses B<Pins> to manage this boundary.
 
-A Pin (an C<Affix::Pointer> object) is a magical scalar reference that holds a C memory address, its associated type
-information, and an ownership flag. If a Pin is "managed", Perl will automatically free the underlying memory when the
-variable goes out of scope.
+Affix now features a completely reimagined memory access system using Perl's internal magic to
+map Perl variables directly to native C memory. This provides zero-copy performance with the ergonomics of native Perl
+Hashes and Arrays.
+
+=head2 Managed vs. Unmanaged Memory
+
+Memory in Affix is handled by life lines.
+
+=over
+
+=item * B<Affix::Memory:> Created via C<malloc()> or C<calloc()>. These are root objects. When the Perl variable is destroyed, C<safefree()> is called automatically.
+
+=item * B<Pins:> Created via C<cast()> or pointer dereferencing. These variables do not own the memory, but they hold a reference to a life line to prevent the parent memory from being freed prematurely.
+
+=back
 
 =head2 Allocation & Deallocation
 
@@ -452,18 +464,15 @@ These functions allocate memory on the C heap. Memory allocated via these functi
 
 =head3 C<malloc( $size )>
 
-Allocates C<$size> bytes of uninitialized memory. Returns a managed C<Pointer[Void]> pin.
+Allocates C<$size> bytes of uninitialized memory.
 
     my $ptr = malloc(1024); # Allocates 1KB
-    # $ptr is automatically freed when it goes out of scope
 
-=head3 C<calloc( $count, $type )>
+=head3 C<calloc( $count, $size )>
 
-Allocates memory for an array of C<$count> elements of the given C<$type>, and zero-initializes the memory. Returns a
-managed pin typed as an Array.
+Allocates memory for an array of C<$count> elements of the given C<$size>, and zero-initializes the memory.
 
-    my $arr = calloc( 10, Int );
-    $arr->[0] = 42; # Write directly to the first element
+    my $arr = calloc( 10, sizeof(Int) );
 
 =head3 C<realloc( $ptr, $new_size )>
 
@@ -491,22 +500,6 @@ a segmentation fault.
 
 =head2 Lifecycle & Ownership
 
-=head3 C<own( $ptr, [$bool] )>
-
-Gets or sets the lifecycle management status of a pointer.
-
-=over
-
-=item * C<own($ptr, 1)>: Perl takes ownership. C<free()> will be called automatically when C<$ptr> is garbage collected.
-
-=item * C<own($ptr, 0)>: Perl releases ownership. You (or the C library) are now responsible for freeing the memory.
-
-=back
-
-    # Take ownership of a pointer returned from C
-    my $c_string = get_string_from_c();
-    own($c_string, 1);
-
 =head3 C<attach_destructor( $pin, $func_ptr, [$lib] )>
 
 Attaches a custom C function to be called when the Pin is destroyed. This is incredibly useful for C libraries that
@@ -518,28 +511,23 @@ require specific cleanup routines (e.g., C<SDL_DestroyWindow>, C<sqlite3_free>).
     # When $ptr goes out of scope, Affix will call custom_free($ptr)
     attach_destructor($ptr, $free_func, $my_lib);
 
+=head3 C<readonly( $pin, [$bool] )>
+
+Gets or sets the "const" status of a memory pin. If set to true, any attempt to write to that memory from Perl will
+throw an exception.
+
+    readonly($point, 1);
+    $point->{x} = 20; # CRASH: Modification of a read-only C value
+
 =head2 Type Casting
 
 =head3 C<cast( $ptr, $type )>
 
-Reinterprets a memory address as a new type. The behavior depends on the requested C<$type>:
+The most powerful tool in the memory kit. It "overlays" a C type definition onto a raw memory address.
 
-=over
-
-=item * B<Casting to a Value (Primitives/Strings):> Reads the memory immediately and returns a Perl scalar copy.
-
-=item * B<Casting to a Reference (Pointers/Live Views):> Returns a B<new unmanaged Pin> that aliases the same memory address, allowing you to interact with it using the new type's rules.
-
-=back
-
-    my $void_ptr = malloc(4);
-
-    # 1. Alias the memory as an Integer pointer
-    my $int_ptr = cast($void_ptr, Pointer[Int]);
-    $int_ptr->[0] = 99;
-
-    # 2. Read the memory immediately as an integer value
-    my $val = cast($void_ptr, Int); # Returns 99
+    my $mem = malloc(16);
+    my $point = cast($mem, Struct[ x => Int, y => Int ]);
+    $point->{x} = 10;
 
 =head1 POINTER UTILITIES
 
@@ -571,7 +559,7 @@ Returns true if the address is C<NULL> (C<0x0>).
 
 Safe string length calculation. Checks the pointer for a C<NULL> terminator, scanning at most C<$max> bytes.
 
-=head1 RAW MEMORY OPERATIONS
+=head1 Raw Memory Operations
 
 Affix exposes standard C memory operations for high-performance, raw byte manipulation. These functions accept either
 Pins or raw integer addresses.
@@ -589,6 +577,53 @@ Pins or raw integer addresses.
 =item * C<memchr( $ptr, $byte_val, $bytes )>: Locates the first occurrence of C<$byte_val> within the first C<$bytes> of the memory block. Returns a new Pin pointing to the match, or C<undef>.
 
 =back
+
+=head2 Const-Correctness
+
+When interfacing with C, it is critical to respect `const` boundaries to prevent segmentation faults or undefined behavior. Affix provides both declarative and imperative ways to protect memory.
+
+=head3 Declarative: C<Const[ $type ]>
+
+You can declare a type as read-only directly in the signature. Affix will enforce this protection automatically.
+
+    typedef HardwareInfo => Struct[
+        device_id   => Const[ Int ],             # Immutable hardware ID
+        temperature => Float,                    # Mutable sensor reading
+        name        => Array[ Const[Char], 32 ]  # Immutable string buffer
+    ];
+
+If you try to write to `$info->{device_id}`, Affix will throw a fatal exception: C<Modification of a read-only C value attempted>.
+
+=head3 Imperative: C<readonly( $pin, [$bool] )>
+
+Sometimes you need to dynamically lock memory, or you need an "escape hatch" (akin to C++'s `const_cast`) to bypass a `Const` signature.
+
+    my $info = cast($mem, HardwareInfo());
+
+    # Force bypass the Const declaration
+    Affix::readonly($info->{device_id}, 0);
+    $info->{device_id} = 999;
+
+    # Re-lock the memory
+    Affix::readonly($info->{device_id}, 1);
+
+=head1 ZERO-COPY AGGREGATES
+
+When C returns a pointer to a struct or an array, Affix does not copy the data. Instead, it returns a magical Perl variable that maps directly to the C memory.
+
+=head3 Native Array Indexing
+
+C Arrays are traversed using standard Perl array syntax.
+
+    typedef Task => Struct[ id => Int, name => String ];
+    affix $lib, 'get_tasks', [] => Pointer[ Array[ Task(), 10 ] ];
+
+    my $tasks = get_tasks();
+    $tasks->[5]{id} = 404; # Writes directly to C memory!
+
+=head3 Deep Null Safety
+
+Traversing a `NULL` pointer in C causes a segfault. Affix wraps C memory in Perl safety rails. If you try to traverse a `NULL` pointer inside a struct, Affix intercepts it and throws a standard Perl exception (C<Can't use an undefined value as a HASH reference>).
 
 =head1 LIBRARIES & SYMBOLS
 

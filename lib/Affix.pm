@@ -48,9 +48,9 @@ package Affix v1.0.9 {    # 'FFI' is my middle name!
             Float32 Float64
             Size_t SSize_t
             String WString
-            Pointer Array Live Struct Union Enum Callback CodeRef Complex Vector Live
+            Pointer Array Struct Union Enum Callback CodeRef Complex Vector
             ThisCall attach_destructor
-            Packed VarArgs
+            Const Packed VarArgs
             SV
             File PerlIO
             StringList
@@ -185,7 +185,7 @@ package Affix v1.0.9 {    # 'FFI' is my middle name!
         return 0 if !defined $thing || ref $thing;
 
         # Strictly check for signature characters
-        return 1 if $thing =~ /^[\*\[\{\!<\\@]/;
+        return 1 if $thing =~ /^[\*\[\{\!<\\@\+]/;
 
         # Complex (c[...]), Vector (v[...]), or Enum (e:...)
         return 1 if $thing =~ /^[cv]\[/;
@@ -259,24 +259,19 @@ package Affix v1.0.9 {    # 'FFI' is my middle name!
     }
     sub Struct : prototype($) { Affix::Type::Struct->new( members => $_[0] ) }
 
-    sub Live : prototype($) {
+    sub Const : prototype($) {
         my $t = $_[0];
-        return $t;    # Make Live a noop
         $t = $t->() if ref($t) eq 'CODE';
         if ( ref($t) eq 'ARRAY' ) {
             if   ( @$t == 1 ) { $t = $t->[0]; }
             else              { $t = ( @$t == 2 && !ref( $t->[1] ) && $t->[1] =~ /^\d+$/ ) ? Array($t) : Struct($t); }
         }
-        if ( builtin::blessed($t) ) {
-            return '+' . $t->signature if $t->isa('Affix::Type::Struct') || $t->isa('Affix::Type::Union');
-            return Pointer [$t]        if $t->isa('Affix::Type::Array');
-            return Pointer [$t];
-        }
+        return '+' . $t->signature if builtin::blessed($t);
         if ( !ref $t ) {
             return '+' . $t if $t =~ /^[\{\<@]/;
-            return '*' . $t if $t =~ /^\[/;
+            return '+*' . $t if $t =~ /^\[/;
         }
-        return $t;
+        return '+' . $t;
     }
 
     # Union[ i => Int, f => Float ] -> <i:int,f:float>

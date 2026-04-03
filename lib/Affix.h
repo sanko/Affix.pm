@@ -81,7 +81,8 @@ typedef void (*Affix_Step_Executor)(pTHX_ Affix * affix,
                                     void ** c_args,
                                     void * ret_buffer);
 /// Function pointer type for a "pull" operation: marshalling from C (void*) to Perl (SV).
-typedef void (*Affix_Pull)(pTHX_ Affix * affix, SV *, const infix_type *, void *);
+typedef void (*Affix_Pull)(pTHX_ Affix *, SV *, const infix_type *, void *, bool);
+
 /// Function pointer type for a "push" operation: marshalling from Perl (SV) to C (void*).
 typedef void (*Affix_Push_Handler)(pTHX_ Affix * affix, SV *, void *);
 /**
@@ -186,6 +187,7 @@ struct Affix {
     const infix_type * unwrapped_ret_type;  // Pre-unwrapped for OP_RET_PTR
     Affix_Pull ret_pull_handler;            ///< Cached handler for marshalling the return value.
     Affix_Opcode ret_opcode;                ///< Optimized return opcode.
+    bool ret_readonly;                      ///< Should the returned aggregate prevent perl-side mutations?
     void ** c_args;
 
     // Reconstruction info for threading/cloning
@@ -242,6 +244,7 @@ struct Affix_Backend {
     const infix_type * ret_type;   ///< Cached return type info.
     Affix_Pull pull_handler;       ///< Pre-resolved handler for marshalling the return value.
     Affix_Opcode ret_opcode;       ///< Optimized return opcode.
+    bool ret_readonly;             ///< Should the returned aggregate prevent perl-side mutations?
     size_t num_args;               ///< Cached number of arguments.
 
     char * sig_str;
@@ -266,7 +269,7 @@ void push_array(pTHX_ Affix * affix, const infix_type * type, SV * sv, void * p)
 void push_reverse_trampoline(pTHX_ Affix * affix, const infix_type * type, SV * sv, void * p);
 
 // Marshalling (Perl <- C)
-void ptr2sv(pTHX_ Affix * affix, void * c_ptr, SV * perl_sv, const infix_type * type);
+void ptr2sv(pTHX_ Affix *, void *, SV *, const infix_type *, bool);
 void _populate_hv_from_c_struct(
     pTHX_ Affix * affix, HV * hv, const infix_type * type, void * p, bool live, SV * owner_sv, bool);
 
@@ -316,10 +319,10 @@ void * get_address_v2(pTHX_ SV * sv);
 bool is_pin_v2(pTHX_ SV * sv);
 const infix_type * resolve_type(pTHX_ const infix_type * type);
 SV * wrap_callable_pointer(pTHX_ void * addr, const infix_type * type);
-void pull_pointer_as_callable(pTHX_ Affix * affix, SV * sv, const infix_type * type, void * ptr);
+void pull_pointer_as_callable(pTHX_ Affix *, SV *, const infix_type *, void *, bool);
 const infix_type * _unwrap_pin_type(const infix_type * type);
 void bind_placeholder(pTHX_ SV *, void *, const infix_type *, uint8_t, uint8_t, bool, SV *, infix_arena_t *, bool);
-void pull_pointer_as_pin(pTHX_ Affix * affix, SV * sv, const infix_type * type, void * ptr);
+void pull_pointer_as_pin(pTHX_ Affix *, SV *, const infix_type *, void *, bool);
 IV sizeof_type(pTHX_ const char * name);
 SV * cast(pTHX_ SV * in, const char * name);
 SV * alloc_owned(pTHX_ UV size);
