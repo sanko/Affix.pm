@@ -1,6 +1,8 @@
 #pragma once
 
+#ifndef DEBUG
 #define DEBUG 0
+#endif
 
 // Disables the implicit 'pTHX_' context pointer argument, which is good practice for
 // modern Perl XS code that uses the 'aTHX_' macro explicitly.
@@ -216,6 +218,7 @@ typedef struct {
     uint8_t bit_offset;      /**< Bitfield offset (0 for standard types). */
     uint8_t bit_width;       /**< Bitfield width in bits (0 for standard types). */
     bool readonly;           /**< True if the pin is marked const/readonly. */
+    bool absolute;           /**< True if ptr is the target address, false if it's the address of a variable */
     void (*destructor)(void *);
     SV * destructor_lib_sv;
 } Affix_Pin_2_Point_Oh;
@@ -321,13 +324,15 @@ const infix_type * resolve_type(pTHX_ const infix_type * type);
 SV * wrap_callable_pointer(pTHX_ void * addr, const infix_type * type);
 void pull_pointer_as_callable(pTHX_ Affix *, SV *, const infix_type *, void *, bool);
 const infix_type * _unwrap_pin_type(const infix_type * type);
-void bind_placeholder(pTHX_ SV *, void *, const infix_type *, uint8_t, uint8_t, bool, SV *, infix_arena_t *, bool);
+void bind_placeholder(
+    pTHX_ SV *, void *, const infix_type *, uint8_t, uint8_t, bool, SV *, infix_arena_t *, bool, bool);
 void pull_pointer_as_pin(pTHX_ Affix *, SV *, const infix_type *, void *, bool);
 IV sizeof_type(pTHX_ const char * name);
 SV * cast(pTHX_ SV * in, const char * name);
 SV * alloc_owned(pTHX_ UV size);
 void free_owned(pTHX_ SV * rv);
 int is_v2_vtable(MGVTBL * v);
+int is_string_list_type(pTHX_ const infix_type * type);
 
 extern MGVTBL vtbl_lazy_aggregate;
 extern MGVTBL vtbl_array;

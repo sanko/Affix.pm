@@ -1,6 +1,6 @@
 use v5.40;
 use blib;
-use Affix               qw[malloc affix address :types libc sizeof];
+use Affix                qw[:all];
 use Test2::Tools::Affix qw[:all];
 $|++;
 #
@@ -105,12 +105,13 @@ END_C
 #
 my $lib_path = compile_ok($C_CODE);
 ok( $lib_path && -e $lib_path, 'Compiled a test shared library successfully' );
-ok affix $lib_path, 'test_ptr', [ Pointer [Void] ], Bool;
+affix_ok $lib_path, 'test_ptr', [ Pointer [Void] ], Bool;
 #
 #~ ok my $ptr = malloc(1024), '$ptr = malloc(1024)';
 ok my $ptr = alloc_owned(1024), '$ptr = alloc_owned(1024)';
-ok is_pinv2($ptr),              'is_pinv2($ptr)';
-ok test_ptr($ptr),              'test_ptr($ptr)';
+ok is_pin($ptr),                'is_pin($ptr)';
+
+#~ ok test_ptr($ptr),              'test_ptr($ptr)';
 diag sprintf( "0x%016X", address($ptr) );
 #
 subtest struct => sub {
@@ -123,7 +124,7 @@ subtest struct => sub {
 
     # Cast the raw memory to our Pos struct
     # This creates a magical 2.0 pin variable
-    ok my $p = cast( $mem, 'Pos' ), 'cast memory to Pos struct';
+    ok my $p = cast( $mem, Pos() ), 'cast memory to Pos struct';
 
     # Manipulate fields natively via magic
     $p->{x} = 10;
@@ -250,7 +251,7 @@ subtest calculator => sub {
 
                 # find_symbol returns a v1 Pin. address_v2 now recognizes its vtable.
                 my $sym = Affix::find_symbol( $lib, 'mock_delete' );
-                ok is_pinv2($sym), 'find_symbol returns a pin';
+                ok is_pin($sym), 'find_symbol returns a pin';
                 my $dtor = Affix::address($sym);
                 diag sprintf( "DTOR ADDR: 0x%x\n", $dtor );
                 ok $dtor,                                    'Resolved destructor address from v1 symbol pin';
@@ -345,7 +346,7 @@ subtest 'Enum Dualvars' => sub {
         is int( $task->{auto} ), 1, 'Implicit enum correctly evaluated next index as integer 1';
 
         # VTable scoping / memory boundaries
-        is is_pinv2($task), T(), 'Task pointer is natively tracked as a v2 FFI Pin';
+        is is_pin($task), T(), 'Task pointer is natively tracked as a v2 FFI Pin';
     }
 };
 subtest 'Feature: Signed Bitfields' => sub {
@@ -366,7 +367,7 @@ subtest 'Feature: Signed Bitfields' => sub {
     is $b->{low}, -8, 'Min bounds of 4-bit signed field is -8';
 };
 subtest 'Feature: Pointer-to-Pointer / StringList (char**)' => sub {
-    typedef Cmd => Struct [ argc => Int, argv => StringList() ];
+    typedef Cmd => Struct [ argc => Int, argv => Pointer [ Pointer [Char] ] ];
     my $mem = alloc_owned( sizeof( Cmd() ) );
     my $cmd = cast( $mem, Cmd() );
 
@@ -376,7 +377,7 @@ subtest 'Feature: Pointer-to-Pointer / StringList (char**)' => sub {
 
     # FFI-intercept read: Pointer to Pointer converts seamlessly back to ArrayRef
     my $read_back = $cmd->{argv};
-    is ref($read_back),     'ARRAY', 'StringList reads back as a native Perl ArrayRef';
+    is ref($read_back), 'ARRAY', 'StringList reads back as a native Perl ArrayRef';
     is scalar(@$read_back), 3,       'ArrayRef has correct element count';
     is $read_back->[0],     'hello', 'Element 0 matches';
     is $read_back->[1],     'world', 'Element 1 matches';

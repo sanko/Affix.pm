@@ -268,7 +268,7 @@ package Affix v1.0.9 {    # 'FFI' is my middle name!
         }
         return '+' . $t->signature if builtin::blessed($t);
         if ( !ref $t ) {
-            return '+' . $t if $t =~ /^[\{\<@]/;
+            return '+' . $t  if $t =~ /^[\{\<@]/;
             return '+*' . $t if $t =~ /^\[/;
         }
         return '+' . $t;
@@ -361,7 +361,7 @@ package Affix v1.0.9 {    # 'FFI' is my middle name!
     sub SV()          {'@SV'}
     sub File ()       {'@File'}
     sub PerlIO ()     {'@PerlIO'}
-    sub StringList () {'@StringList'}
+    sub StringList () { Pointer [ Pointer [Char] ] }
     sub Buffer ()     {'@Buffer'}
     sub SockAddr ()   {'@SockAddr'}
 
