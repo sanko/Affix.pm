@@ -21,9 +21,5 @@ is $u->{f}, float(1.0), 'Writing to i affected f';
 # Write to f, check i
 $u->{f} = 2.0;
 is $u->{i}, 0x40000000, 'Writing to f affected i';
+#
 done_testing;
-
-sub is_pin {
-    my $sv = shift;
-    return Affix::address($sv);
-}
