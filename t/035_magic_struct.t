@@ -48,11 +48,11 @@ subtest 'Reference counting and persistence' => sub {
 subtest 'Magical Array Indexing (Primitives)' => sub {
 
     # Allocate memory for 5 integers
-    my $ptr = Affix::malloc( sizeof(Int) * 5 );
-    memset( $ptr, 0, sizeof(Int) * 5 );
+    my $ptr = Affix::malloc( sizeof( Array [ Int, 5 ] ) );
+    memset( $ptr, 0, sizeof( Array [ Int, 5 ] ) );
 
     # Cast to Pointer[Int] so Affix knows the element size
-    $ptr = cast( $ptr, Pointer [Int] );
+    $ptr = cast( $ptr, Array [ Int, 5 ] );
 
     # ACT: Write to various indices
     $ptr->[0] = 10;
@@ -69,9 +69,9 @@ subtest 'Magical Array Indexing (Primitives)' => sub {
 subtest 'Magical Array Indexing (Nested Structs)' => sub {
 
     # Allocate memory for 2 Points
-    my $ptr = Affix::malloc( sizeof( Point() ) * 2 );
-    memset( $ptr, 0, sizeof( Point() ) * 2 );
-    $ptr = cast( $ptr, Pointer [ Point() ] );
+    my $ptr = Affix::malloc( sizeof( Array [ Point(), 2 ] ) );
+    memset( $ptr, 0, sizeof( Array [ Point(), 2 ] ) );
+    $ptr = cast( $ptr, Array [ Point(), 2 ] );
 
     # ACT: Access second point and modify field
     # This combines the Magical Array FETCH and Magical Hash BIND
@@ -87,7 +87,7 @@ subtest 'Array Element Longevity' => sub {
     my $element_ref;
     {
         my $root = Affix::malloc( sizeof(Int) * 10 );
-        $root = cast( $root, Pointer [Int] );
+        $root = cast( $root, Array [Int] );
         $root->[5] = 12345;
 
         # Take a reference to a specific element's magical SV
@@ -105,12 +105,18 @@ subtest 'Array Element Longevity' => sub {
 subtest 'Out of bounds (C-style)' => sub {
 
     # In C, pointers don't have bounds. Our magical system should behave like C.
-    my $ptr = Affix::malloc( sizeof(Int) );    # Space for only ONE int
+    # To prevent ACTUAL heap corruption (which crashes the Perl allocator
+    # during global destruction), we allocate enough backing memory here.
+    my $ptr = Affix::malloc( 15 * sizeof(Int) );
     $ptr = cast( $ptr, Pointer [Int] );
 
     # This is "dangerous" but should work without a Perl exception
     # because it's just pointer arithmetic.
-    ok lives { $ptr->[10] = 0 }, 'Accessing out-of-bounds index does not throw Perl exception';
+    #~ ok lives { $ptr->[10] = 0 }, 'Accessing out-of-bounds index does not throw Perl exception';
+    # Since pointers have no bounds and we avoid `tie`, pointer arithmetic
+    # is done explicitly via ptr_add.
+    my $p10 = ptr_add( $ptr, 10 * sizeof(Int) );
+    ok lives { $$p10 = 0 }, 'Accessing out-of-bounds memory via ptr_add does not throw Perl exception';
 };
 #
 done_testing;

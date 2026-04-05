@@ -61,9 +61,9 @@ subtest 'Recursive Liveness: Live array of Structs' => sub {
 
     # Accessing $live_arr->[0] returns an Affix::Live blessed hash
     my $p0 = $live_arr->[0];
-     $p0->{x} = 30;
+    $p0->{x} = 30;
     is $live_arr->[0]{x}, 30, 'Changes to live element reflect in original memory';
- };
+};
 subtest 'Recursive Liveness: Live struct with Array' => sub {
 
     # Using typedef to ensure member names are preserved in the infix registry
@@ -75,6 +75,6 @@ subtest 'Recursive Liveness: Live struct with Array' => sub {
     my $items = $live_struct->{items};
     $items->[0] = 100;
     is $live_struct->{items}[0], 100, 'Changes to live array field reflect in struct';
- };
+};
 #
 done_testing;
