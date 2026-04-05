@@ -5084,7 +5084,6 @@ static const void * _resolve_readable_ptr(pTHX_ SV * sv) {
     return nullptr;
 }
 
-
 XS_INTERNAL(Affix_dump) {
     dVAR;
     dXSARGS;
@@ -5120,6 +5119,28 @@ XS_INTERNAL(Affix_dump) {
     XSRETURN(1);
 }
 
+XS_INTERNAL(Affix_raw) {
+    dVAR;
+    dXSARGS;
+    if (items != 2)
+        croak_xs_usage(cv, "scalar, length_in_bytes");
+
+    const void * ptr = _resolve_readable_ptr(aTHX_ ST(0));
+
+    if (!ptr) {
+        warn("scalar is not a valid pointer, memory address, or string");
+        XSRETURN_UNDEF;
+    }
+
+    UV length = SvUV(ST(1));
+    if (length == 0) {
+        ST(0) = sv_2mortal(newSVpvn("", 0));
+        XSRETURN(1);
+    }
+
+    ST(0) = sv_2mortal(newSVpvn((const char *)ptr, length));
+    XSRETURN(1);
+}
 
 XS_INTERNAL(Affix_memcpy) {
     dXSARGS;
@@ -5665,7 +5686,8 @@ void boot_Affix(pTHX_ CV * cv) {
         XSUB_EXPORT(calloc, "$$", "memory");
         XSUB_EXPORT(realloc, "$$", "memory");
         XSUB_EXPORT(free, "$", "memory");
-        XSUB_EXPORT(dump, nullptr, "memory");
+        XSUB_EXPORT(dump, "$$", "memory");
+        XSUB_EXPORT(raw, "$$", "memory");
         XSUB_EXPORT(own, nullptr, "memory");
         XSUB_EXPORT(readonly, nullptr, "memory");
         XSUB_EXPORT(cast, "$$", "memory");
