@@ -3442,7 +3442,7 @@ void pull_pointer_as_pin(pTHX_ Affix * affix, SV * sv, const infix_type * type, 
     const infix_type * res_pointee = resolve_type(aTHX_ pointee);
     infix_type_category cat = infix_type_get_category(res_pointee);
 
-    if (cat == INFIX_TYPE_STRUCT || cat == INFIX_TYPE_ARRAY || cat == INFIX_TYPE_VECTOR) {
+    if (cat == INFIX_TYPE_STRUCT || cat == INFIX_TYPE_UNION || cat == INFIX_TYPE_ARRAY || cat == INFIX_TYPE_VECTOR) {
         /* Return HashRef or ArrayRef for complex types */
         SV * rv = bind_aggregate(aTHX_ c_ptr, pointee, NULL, readonly);
         sv_setsv(sv, rv);
