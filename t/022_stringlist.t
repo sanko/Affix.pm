@@ -57,6 +57,6 @@ subtest 'Return Value' => sub {
 };
 subtest 'Edge Cases' => sub {
     is count_args(undef), -1, 'Undef passed as NULL';
-    is count_args( [] ),   0, 'Empty array passed as empty list (only NULL terminator)';
+    is count_args( [] ),   0, 'Empty array passed as empty list (contains only NULL terminator)';
 };
 done_testing;

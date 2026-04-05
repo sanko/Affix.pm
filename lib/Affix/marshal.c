@@ -18,7 +18,9 @@ int is_string_list_type(pTHX_ const infix_type * type) {
         return 0;
 
     const infix_type * p2 = resolve_type(aTHX_ p1->meta.pointer_info.pointee_type);
-    if (!p2 || p2->category != INFIX_TYPE_PRIMITIVE)
+    if (!p2)
+        return 0;
+    if (p2->category != INFIX_TYPE_PRIMITIVE)
         return 0;
 
     /* We treat 'char' and 'uchar' as semantic strings.

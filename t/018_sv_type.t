@@ -37,13 +37,12 @@ eval {
         #undef warn
         #include <EXTERN.h>
         #include <perl.h>
-        static PerlInterpreter *my_perl;
 
         #define NO_XSLOCKS
         #include <XSUB.h>
 
         // Takes an SV*, increments it if it's an integer
-        DLLEXPORT void inc_sv(SV* sv) {
+        DLLEXPORT void inc_sv(SV* sv) { dTHX;
             if (SvIOK(sv)) {
                 int val = SvIV(sv);
                 sv_setiv(sv, val + 1);
@@ -51,7 +50,7 @@ eval {
         }
 
         // Returns a new SV* (Mortal)
-        DLLEXPORT SV* make_sv(int val) {
+        DLLEXPORT SV* make_sv(int val) { dTHX;
             return sv_2mortal(newSViv(val));
         }
         END
@@ -79,7 +78,6 @@ eval {
         #undef warn
         #include <EXTERN.h>
         #include <perl.h>
-        static PerlInterpreter *my_perl;
 
         #define NO_XSLOCKS
         #include <XSUB.h>
@@ -88,7 +86,7 @@ eval {
         // Pointer[SV] -> Pointer[SV]  ==  SV* (*)(SV*)
         typedef SV* (*cb_t)(SV*);
 
-        DLLEXPORT int call_perl(cb_t cb, int val) {
+        DLLEXPORT int call_perl(cb_t cb, int val) { dTHX;
             // Create a mortal SV to pass to the callback
             SV* arg = sv_2mortal(newSViv(val));
 

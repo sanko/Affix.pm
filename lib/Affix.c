@@ -746,7 +746,7 @@ static void push_union(pTHX_ Affix * affix, const infix_type * type, SV * sv, vo
         return;                                                                   \
     }
 
-static Affix_Opcode get_opcode_for_type(const infix_type * type) {
+static Affix_Opcode get_opcode_for_type(pTHX_ const infix_type * type) {
     switch (type->category) {
     case INFIX_TYPE_PRIMITIVE:
         switch (type->meta.primitive_id) {
@@ -790,7 +790,11 @@ static Affix_Opcode get_opcode_for_type(const infix_type * type) {
             if (is_perl_sv_type(type))
                 return OP_PUSH_SV;
 
+            if (is_string_list_type(aTHX_ type))
+                return OP_PUSH_POINTER;  // Will trigger sv2ptr -> push_stringlist
+
             const infix_type * pointee = type->meta.pointer_info.pointee_type;
+
             if (is_perl_sv_type(pointee))
                 return OP_PUSH_SV;
 
@@ -827,7 +831,7 @@ static Affix_Opcode get_opcode_for_type(const infix_type * type) {
     }
 }
 
-static Affix_Opcode get_ret_opcode_for_type(const infix_type * type) {
+static Affix_Opcode get_ret_opcode_for_type(pTHX_ const infix_type * type) {
     if (type->category == INFIX_TYPE_VOID)
         return OP_RET_VOID;
 
@@ -868,17 +872,20 @@ static Affix_Opcode get_ret_opcode_for_type(const infix_type * type) {
         }
     }
 
+    if (is_string_list_type(aTHX_ type))
+        return OP_RET_CUSTOM;
+
     if (type->category == INFIX_TYPE_POINTER) {
         if (is_perl_sv_type(type))
             return OP_RET_SV;
 
-        const char * name = infix_type_get_name(type);
-        if (!name && type->category == INFIX_TYPE_NAMED_REFERENCE)
-            name = type->meta.named_reference.name;
-        if (name) {
-            if (strEQ(name, "StringList") || strEQ(name, "@StringList") || strEQ(name, "SV") || strEQ(name, "@SV"))
-                return OP_RET_CUSTOM;
-        }
+        //~ const char * name = infix_type_get_name(type);
+        //~ if (!name && type->category == INFIX_TYPE_NAMED_REFERENCE)
+        //~ name = type->meta.named_reference.name;
+        //~ if (name) {
+        //~ if (strEQ(name, "StringList") || strEQ(name, "@StringList") || strEQ(name, "SV") || strEQ(name, "@SV"))
+        //~ return OP_RET_CUSTOM;
+        //~ }
 
         const infix_type * pointee = type->meta.pointer_info.pointee_type;
         if (is_perl_sv_type(pointee))
@@ -1086,9 +1093,10 @@ static void plan_step_push_pointer(pTHX_ Affix * affix,
     const char * type_name = infix_type_get_name(type);
     if (!type_name && type->category == INFIX_TYPE_NAMED_REFERENCE)
         type_name = type->meta.named_reference.name;
-    if (type_name &&
-        (strEQ(type_name, "Buffer") || strEQ(type_name, "@Buffer") || strEQ(type_name, "SockAddr") ||
-         strEQ(type_name, "@SockAddr") || strEQ(type_name, "StringList") || strEQ(type_name, "@StringList"))) {
+    if ((type_name &&
+         (strEQ(type_name, "Buffer") || strEQ(type_name, "@Buffer") || strEQ(type_name, "SockAddr") ||
+          strEQ(type_name, "@SockAddr") || strEQ(type_name, "StringList") || strEQ(type_name, "@StringList"))) ||
+        (is_string_list_type(aTHX_ type) && SvROK(sv) && SvTYPE(SvRV(sv)) == SVt_PVAV)) {
         sv2ptr(aTHX_ affix, sv, c_arg_ptr, type);
         return;
     }
@@ -1562,9 +1570,13 @@ static void writeback_pointer_to_string(pTHX_ Affix * affix,
     PERL_UNUSED_VAR(info);
     if (UNLIKELY(SvTYPE(perl_sv) >= SVt_PVAV))
         return;
-    sv_setpv(perl_sv, **(char ***)c_arg_ptr);
-}
 
+    char ** p = *(char ***)c_arg_ptr;
+    if (p && *p)
+        sv_setpv(perl_sv, *p);
+    else
+        sv_setsv(perl_sv, &PL_sv_undef);
+}
 static void writeback_pointer_generic(pTHX_ Affix * affix, const OutParamInfo * info, SV * perl_sv, void * c_arg_ptr) {
     void * inner_ptr = *(void **)c_arg_ptr;
     // If the function didn't touch the output slot, inner_ptr might be a nullptr
@@ -2356,7 +2368,7 @@ static void rebuild_affix_data(pTHX_ Affix * affix) {
         current_offset += size;
 
         affix->plan[i].executor = get_plan_step_executor(original_type);
-        affix->plan[i].opcode = get_opcode_for_type(original_type);
+        affix->plan[i].opcode = get_opcode_for_type(aTHX_ original_type);
         affix->plan[i].data.type = original_type;
         affix->plan[i].data.index = i;
 
@@ -2813,7 +2825,7 @@ XS_INTERNAL(Affix_affix) {
         backend->ret_type = infix_forward_get_return_type(backend->infix);
 
         backend->pull_handler = get_pull_handler(aTHX_ backend->ret_type);
-        backend->ret_opcode = get_ret_opcode_for_type(backend->ret_type);
+        backend->ret_opcode = get_ret_opcode_for_type(aTHX_ backend->ret_type);
 
         if (!backend->pull_handler) {
             infix_forward_destroy(backend->infix);
@@ -2934,7 +2946,7 @@ XS_INTERNAL(Affix_affix) {
     affix->ret_type = infix_forward_get_return_type(affix->infix);
     affix->unwrapped_ret_type = _unwrap_pin_type(affix->ret_type);
     affix->ret_pull_handler = get_pull_handler(aTHX_ affix->ret_type);
-    affix->ret_opcode = get_ret_opcode_for_type(affix->ret_type);
+    affix->ret_opcode = get_ret_opcode_for_type(aTHX_ affix->ret_type);
 
     // Extract outer constness if specified for the return type
     affix->ret_readonly = false;
@@ -2991,7 +3003,7 @@ XS_INTERNAL(Affix_affix) {
         current_offset += size;
 
         affix->plan[i].executor = get_plan_step_executor(original_type);
-        affix->plan[i].opcode = get_opcode_for_type(original_type);
+        affix->plan[i].opcode = get_opcode_for_type(aTHX_ original_type);
         affix->plan[i].data.type = original_type;  // Now points to persistent memory
         affix->plan[i].data.index = i;
 
@@ -3797,10 +3809,12 @@ void sv2ptr(pTHX_ Affix * affix, SV * perl_sv, void * c_ptr, const infix_type * 
                     push_sockaddr(aTHX_ affix, perl_sv, c_ptr);
                     return;
                 }
-                if (strEQ(type_name, "StringList") || strEQ(type_name, "@StringList")) {
-                    push_stringlist(aTHX_ affix, perl_sv, c_ptr);
-                    return;
-                }
+            }
+
+            if ((type_name && (strEQ(type_name, "StringList") || strEQ(type_name, "@StringList"))) ||
+                is_string_list_type(aTHX_ type)) {
+                push_stringlist(aTHX_ affix, perl_sv, c_ptr);
+                return;
             }
             const infix_type * pointee_type = type->meta.pointer_info.pointee_type;
 
