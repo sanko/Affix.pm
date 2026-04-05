@@ -1,6 +1,7 @@
 use v5.40;
 use Affix::Wrap;
 use Test2::Tools::Affix qw[:all];
+use Test2::V0 -no_srand => 1;
 use Path::Tiny;
 use Capture::Tiny qw[capture];
 

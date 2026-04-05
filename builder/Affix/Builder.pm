@@ -22,7 +22,7 @@ class    #
     # infix and Affix stuff
     use Config qw[%Config];
     field $force : param //= 0;
-    field $debug : param = 0;
+    field $debug : param //= 0;
     field $libver;
     field $cflags;
     field $ldflags;
@@ -303,7 +303,14 @@ END_C
         my $cwd = cwd->absolute;
         my @objs;
         require ExtUtils::CBuilder;
-        my $builder = ExtUtils::CBuilder->new( quiet => !$verbose, config => {} );
+        my %config = %Config;
+        if ($debug) {
+            $config{ldflags}   =~ s/-s //g;
+            $config{ldflags}   =~ s/ -s//g;
+            $config{lddlflags} =~ s/-s //g;
+            $config{lddlflags} =~ s/ -s//g;
+        }
+        my $builder = ExtUtils::CBuilder->new( quiet => !$verbose, config => \%config );
         my $pre     = $cwd->child(qw[blib arch auto])->absolute;
         require DynaLoader;
         my $mod2fname = defined &DynaLoader::mod2fname ? \&DynaLoader::mod2fname : sub { return $_[0][-1] };

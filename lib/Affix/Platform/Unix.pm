@@ -63,11 +63,11 @@ package Affix::Platform::Unix v0.12.0 {
         CORE::state $compiler;
         $compiler //= sub {
             my $ret = `which gcc 2>&1`;
-            chomp($ret);
-            $ret = `which cc 2>&1` unless -x $ret;
-            chomp($ret);
-            return undef unless -x $ret;
-            chomp($ret);
+            chomp($ret) if $ret;
+            $ret = `which cc 2>&1` unless $ret && -x $ret;
+            chomp($ret) if $ret;
+            chomp($ret) if $ret;
+            $ret //= 'gcc' unless `gcc --version`;
             $ret;
             }
             ->();
@@ -76,6 +76,7 @@ package Affix::Platform::Unix v0.12.0 {
             use File::Temp qw[tempfile];
             my ( $fh, $temp_file ) = tempfile();
             $trace = `$compiler -Wl,-t -o $temp_file -l$name 2>&1`;    # Redirect stderr to stdout
+            $trace //= `$compiler --print-file-name=lib$name.$so 2>&1`;
         };
         grep {/^.*?\/lib$name\.[^\s]+$/} split /\n/, $trace;
     }
