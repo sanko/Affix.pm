@@ -66,7 +66,7 @@ default. You can control imports using tags:
 ```perl
 use Affix qw[:all];    # Import everything
 use Affix qw[:lib];    # Library helpers (libc, libm, load_library...)
-use Affix qw[:memory]; # malloc, free, memcpy, cast, dump, raw...
+use Affix qw[:memory]; # malloc, free, memcpy, cast, dump, raw, snapshot...
 use Affix qw[:pin];    # Variable binding (pin, unpin)
 use Affix qw[:types];  # Types only (Int, Struct, Pointer...)
 ```
@@ -539,6 +539,12 @@ Safe string length calculation. Checks the pointer for a `NULL` terminator, scan
 
 Returns a Perl string containing the raw, un-decoded binary data extracted directly from the memory address. This is
 the programmatic, binary equivalent of `dump()`.
+
+### `snapshot( $pin )`
+
+Deeply reads the C memory backing a Pin and returns a pure, non-magical native Perl data structure (ArrayRef, HashRef,
+or Scalar). Because it does not apply VTable magic to the returned values, reading elements from the returned structure
+in a bulk operation (like summing a 10,000 element array) is exceptionally fast.
 
 # Raw Memory Operations
 

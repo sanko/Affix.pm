@@ -3279,10 +3279,15 @@ static void pull_array(pTHX_ Affix * affix, SV * sv, const infix_type * type, vo
     size_t num_elements = type->meta.array_info.num_elements;
     size_t element_size = infix_type_get_size(element_type);
     av_extend(av, num_elements);
+
+    Affix_Pull h = get_pull_handler(aTHX_ element_type);
+    if (!h)
+        croak("Cannot convert C array element type to Perl SV");
+
     for (size_t i = 0; i < num_elements; ++i) {
         void * element_ptr = (char *)p + (i * element_size);
         SV * element_sv = newSV(0);
-        ptr2sv(aTHX_ affix, element_ptr, element_sv, element_type, readonly);
+        h(aTHX_ affix, element_sv, element_type, element_ptr, readonly);
         av_push(av, element_sv);
     }
 }
@@ -3392,10 +3397,15 @@ static void pull_vector(pTHX_ Affix * affix, SV * sv, const infix_type * type, v
     size_t num_elements = type->meta.vector_info.num_elements;
     size_t element_size = infix_type_get_size(element_type);
     av_extend(av, num_elements);
+
+    Affix_Pull h = get_pull_handler(aTHX_ element_type);
+    if (!h)
+        croak("Cannot convert C vector element type to Perl SV");
+
     for (size_t i = 0; i < num_elements; ++i) {
         void * element_ptr = (char *)p + (i * element_size);
         SV * element_sv = newSV(0);
-        ptr2sv(aTHX_ affix, element_ptr, element_sv, element_type, readonly);
+        h(aTHX_ affix, element_sv, element_type, element_ptr, readonly);
         av_push(av, element_sv);
     }
 }
@@ -5126,6 +5136,24 @@ XS_INTERNAL(Affix_raw) {
     XSRETURN(1);
 }
 
+XS_INTERNAL(Affix_snapshot) {
+    dVAR;
+    dXSARGS;
+    if (items != 1)
+        croak_xs_usage(cv, "pin");
+
+    Affix_Pin_2_Point_Oh * pin = get_pin_v2(aTHX_ ST(0));
+    if (!pin || !pin->type || !pin->ptr) {
+        warn("Argument is not a pinned pointer");
+        XSRETURN_UNDEF;
+    }
+
+    SV * ret_val = sv_newmortal();
+    ptr2sv(aTHX_ nullptr, pin->ptr, ret_val, pin->type, pin->readonly);
+    ST(0) = ret_val;
+    XSRETURN(1);
+}
+
 XS_INTERNAL(Affix_memcpy) {
     dXSARGS;
     if (items != 3)
@@ -5650,7 +5678,6 @@ void boot_Affix(pTHX_ CV * cv) {
         XSUB_EXPORT(find_symbol, "$$", "lib");
         XSUB_EXPORT(get_last_error_message, "", "core");
 
-
         // Introspection
         XSUB_EXPORT(sizeof, "$", "core");
         XSUB_EXPORT(alignof, "$", "core");
@@ -5672,6 +5699,7 @@ void boot_Affix(pTHX_ CV * cv) {
         XSUB_EXPORT(free, "$", "memory");
         XSUB_EXPORT(dump, "$$", "memory");
         XSUB_EXPORT(raw, "$$", "memory");
+        XSUB_EXPORT(snapshot, "$", "memory");
         XSUB_EXPORT(own, nullptr, "memory");
         XSUB_EXPORT(readonly, nullptr, "memory");
         XSUB_EXPORT(cast, "$$", "memory");
