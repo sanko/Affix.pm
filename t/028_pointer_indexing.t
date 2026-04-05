@@ -5,8 +5,7 @@ use Affix               qw[:all];
 use Test2::Tools::Affix qw[:all];
 use Test2::V0 -no_srand => 1;
 #
-my $ptr = calloc( 4, Int );
-Affix::dump( $ptr, sizeof( Array [ Int, 4 ] ) );
+my $ptr = cast( calloc( 4, sizeof sizeof( Array [ Int, 4 ] ) ), Array [ Int, 4 ] );
 
 # Test FETCH
 is $ptr->[0], 0, 'FETCH index 0';

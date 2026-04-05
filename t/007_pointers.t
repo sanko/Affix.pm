@@ -202,7 +202,7 @@ subtest 'Memory Management (malloc, calloc, free)' => sub {
     #~ p $ptr;
     #~ diag length $ptr;
     #~ diag Affix::dump( $ptr, 32 );
-    ok my $array_ptr = calloc( 4, Int ), 'calloc returns an array';
+    ok my $array_ptr = calloc( 4, sizeof Int ), 'calloc returns an array';
 
     #~ diag Affix::dump( $array_ptr, 32 );
     ok $array_ptr, 'calloc returns an Affix::Pointer object';
@@ -211,12 +211,12 @@ subtest 'Memory Management (malloc, calloc, free)' => sub {
 subtest 'Pointer Arithmetic and String Utils' => sub {
     imported_ok qw[ptr_add ptr_diff strdup strnlen is_null];
     subtest 'ptr_add and ptr_diff' => sub {
-        my $buf = calloc( 10, Int );    # 40 bytes
+        my $buf = calloc( 10, sizeof Int );    # 40 bytes
         ok !is_null($buf), 'buffer is not null';
-        my $p2 = ptr_add( $buf, 8 );    # width of 2 ints
+        my $p2 = ptr_add( $buf, 8 );           # width of 2 ints
         is ptr_diff( $p2,  $buf ),  8, 'ptr_diff calculates 8 bytes';
         is ptr_diff( $buf, $p2 ),  -8, 'ptr_diff calculates -8 bytes';
-        $$p2 = 999;                     # Write to offset
+        $$p2 = 999;                            # Write to offset
 
         # Verify via original array pointer
         my $arr = cast( $buf, Array [ Int, 10 ] );

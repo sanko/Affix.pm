@@ -211,7 +211,6 @@ subtest complex => sub {
         is scalar(@lines), 2, 'File has 2 lines';
         like $lines[0], qr/\[1\] First message/,  'Line 1 matches';
         like $lines[1], qr/\[2\] Second message/, 'Line 2 matches';
-        free($logger);
 
         # Keep $fh alive until test end to avoid closing underneath C
         close $fh;
@@ -352,7 +351,6 @@ END_C
             is scalar(@lines), 2, 'File has 2 lines';
             like $lines[0], qr/Original Content/,    'Line 1 matches';
             like $lines[1], qr/Appended via Struct/, 'Line 2 matches';
-            free($logger);
         };
         subtest 'PerlIO inside Struct (Value Return)' => sub {
             my $file     = tempfile( { realpath => 1 } );
