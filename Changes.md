@@ -5,6 +5,15 @@ All notable changes to Affix.pm will be documented in this file.
 The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.0.0/),
 and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0.html).
 
+## [Unreleased]
+
+### Changed
+- **Reimplemented Memory System:** Migrated from slow tied-variables to high-performance Perl Magic VTables.
+
+### Fixed
+- Fixed a sign-extension bug in 128-bit integer parsing.
+- Fixed bitfield write-back logic to use proper bitmasking, preventing neighboring bit corruption.
+- Corrected `wstring` (UTF-16/32) conversion to handle null-terminators properly in fixed-size arrays.
 ## [v1.0.9] - 2026-03-05
 
 This release focuses on refining the "Live" zero-copy system (ugh) and fixing bitfield write-back support (yay).

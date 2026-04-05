@@ -4289,6 +4289,12 @@ XS_INTERNAL(Affix_sizeof) {
     if (items != 1)
         croak_xs_usage(cv, "type_signature");
     SV * type_sv = ST(0);
+
+    if (SvIOK(type_sv) && !sv_isobject(type_sv)) {
+        ST(0) = sv_2mortal(newSVuv(SvUV(type_sv)));
+        XSRETURN(1);
+    }
+
     const char * signature = _get_string_from_type_obj(aTHX_ type_sv);
     infix_type * type = nullptr;
     infix_arena_t * arena = nullptr;
@@ -4772,7 +4778,7 @@ XS_INTERNAL(Affix_malloc) {
         XSRETURN_UNDEF;
 
     SV * mem_obj = sv_2mortal(alloc_owned(aTHX_ size));
-    ST(0) = sv_2mortal(cast(aTHX_ mem_obj, "void"));
+    ST(0) = sv_2mortal(cast(aTHX_ mem_obj, "*void"));
     XSRETURN(1);
 }
 
@@ -4781,35 +4787,13 @@ XS_INTERNAL(Affix_calloc) {
     dXSARGS;
     dMY_CXT;
     if (items != 2)
-        croak_xs_usage(cv, "count, type_signature_or_size");
+        croak_xs_usage(cv, "count, size");
+
     UV count = SvUV(ST(0));
+    UV size = SvUV(ST(1));
 
-    SV * type_sv = ST(1);
-
-    // Support C-style numeric sizes: calloc(10, 4)
-    if (SvIOK(type_sv) && !sv_isobject(type_sv)) {
-        UV size = SvUV(type_sv);
-        SV * mem_obj = sv_2mortal(alloc_owned(aTHX_ count * size));
-        // Return a Pointer[Void] pin so the user can realloc/cast it
-        ST(0) = sv_2mortal(cast(aTHX_ mem_obj, "*void"));
-        XSRETURN(1);
-    }
-
-    const char * signature = _get_string_from_type_obj(aTHX_ type_sv);
-    if (!signature)
-        signature = SvPV_nolen(type_sv);
-
-    size_t elem_size = sizeof_type(aTHX_ signature);
-    if (elem_size == 0) {
-        warn("Affix::calloc: Unknown type '%s'", signature);
-        XSRETURN_UNDEF;
-    }
-
-    SV * mem_obj = sv_2mortal(alloc_owned(aTHX_ count * elem_size));
-
-    char arr_sig[512];
-    snprintf(arr_sig, sizeof(arr_sig), "[%lu:%s]", (unsigned long)count, signature);
-    ST(0) = sv_2mortal(cast(aTHX_ mem_obj, arr_sig));
+    SV * mem_obj = sv_2mortal(alloc_owned(aTHX_ count * size));
+    ST(0) = sv_2mortal(cast(aTHX_ mem_obj, "*void"));
 
     XSRETURN(1);
 }

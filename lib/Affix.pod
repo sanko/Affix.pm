@@ -67,7 +67,7 @@ default. You can control imports using tags:
 
     use Affix qw[:all];    # Import everything
     use Affix qw[:lib];    # Library helpers (libc, libm, load_library...)
-    use Affix qw[:memory]; # malloc, free, memcpy, cast, dump...
+    use Affix qw[:memory]; # malloc, free, memcpy, cast, dump, raw...
     use Affix qw[:pin];    # Variable binding (pin, unpin)
     use Affix qw[:types];  # Types only (Int, Struct, Pointer...)
 
@@ -264,14 +264,17 @@ Use these when a C library explicitly requests a C<stdint.h> type.
 
 =head3 C<Pointer[ $type ]>
 
-A pointer to another type. When used as an argument, you can pass a B<reference to a scalar> for automatic temporary
-allocation and write-back.
+A pointer to another type. When used as an argument in a callback or as a return value, Affix returns a B<Scalar
+Reference> to a magical scalar.
 
-    # C: void get_val(int *val);
-    affix $lib, 'get_val', [ Pointer[Int] ] => Void;
-    my $val = 0;
-    get_val(\$val);
-    say $val; # Updated by C
+    # In a callback receiving (int *a)
+    sub {
+        my ($p_a) = @_;
+        say $$p_a; # Magic: reads the integer from C memory
+    }
+
+If C<$type> is C<Void>, the pointer is "terminal." Dereferencing it will return C<undef>. In this case, use C<cast()>
+or C<address()> to work with the raw memory address.
 
 =head3 Specialized Pointers
 
@@ -324,24 +327,22 @@ Specify bit widths using the pipe (C<|>) operator within Structs/Unions. Affix h
 
 =head2 Live Views (Zero-Copy Aggregates)
 
-Standard structs and arrays copy data between Perl and C. Live views allow you to directly manipulate C memory through
-Perl references.
+In Affix, memory structures are live by design. When C returns a pointer to an aggregate (Struct, Union, or Array), or
+when you use C<cast()> to overlay a type onto a memory address, Affix does not copy the data.
 
-C<Live[ $type ]> Returns a live, zero-copy view of the memory as defined by C<$type>.
+Instead, it returns a magical Perl reference (blessed into C<Affix::Pointer>) mapped directly to the C memory via Perl
+VTables. This means zero-copy performance without the overhead of C<tie>.
 
-If C<$type> is a C<Struct> or C<Union>, it returns an C<Affix::Live> tied hash. Modifying keys in this hash updates C
-memory immediately.
-
-If C<$type> is an C<Array>, it returns an C<Affix::Pointer> object. Modifying elements (e.g. C<< $arr->[0] = 5 >>)
-writes directly to memory.
+Modifying keys or elements in these structures updates C memory immediately, and reading them reads directly from the C
+heap.
 
     # Example: Live view of a struct
-    my $live = cast( $ptr, Live[ Struct[ x => Int, y => Int ] ] );
+    my $live = cast( $ptr, Struct[ x => Int, y => Int ] );
     $live->{x} = 42; # Updates C memory
 
 =head3 Unified Access
 
-C<Affix::Pointer> objects for aggregates allow direct field access (C<< $p->{field} >>) without explicit casting.
+Magical C<Affix::Pointer> references allow direct field access (C<< $p->{field} >>) without explicit casting.
 
     affix $lib, 'get_ptr', [] => Pointer[Point];
     my $p = get_ptr();
@@ -442,9 +443,8 @@ Vectors are first-class types. You can interact with them using standard B<Array
 
 When bridging Perl and C, handling raw memory safely is critical. Affix uses B<Pins> to manage this boundary.
 
-Affix now features a completely reimagined memory access system using Perl's internal magic to
-map Perl variables directly to native C memory. This provides zero-copy performance with the ergonomics of native Perl
-Hashes and Arrays.
+Affix now features a completely reimagined memory access system using Perl's internal magic to map Perl variables
+directly to native C memory. This provides zero-copy performance with the ergonomics of native Perl Hashes and Arrays.
 
 =head2 Managed vs. Unmanaged Memory
 
@@ -464,15 +464,16 @@ These functions allocate memory on the C heap. Memory allocated via these functi
 
 =head3 C<malloc( $size )>
 
-Allocates C<$size> bytes of uninitialized memory.
+Allocates C<$size> bytes of uninitialized memory. Returns a C<Pointer[Void]> pin.
 
     my $ptr = malloc(1024); # Allocates 1KB
 
 =head3 C<calloc( $count, $size )>
 
-Allocates memory for an array of C<$count> elements of the given C<$size>, and zero-initializes the memory.
+Allocates zero-initialized memory for C<$count> elements of C<$size>. Returns a C<Pointer[Void]> pin.
 
-    my $arr = calloc( 10, sizeof(Int) );
+    my $ptr = calloc( 10, sizeof(Int) );
+    my $arr = cast( $ptr, Array[Int, 10] );
 
 =head3 C<realloc( $ptr, $new_size )>
 
@@ -559,6 +560,11 @@ Returns true if the address is C<NULL> (C<0x0>).
 
 Safe string length calculation. Checks the pointer for a C<NULL> terminator, scanning at most C<$max> bytes.
 
+=head3 C<raw( $ptr, $length_in_bytes )>
+
+Returns a Perl string containing the raw, un-decoded binary data extracted directly from the memory address. This is
+the programmatic, binary equivalent of C<dump()>.
+
 =head1 Raw Memory Operations
 
 Affix exposes standard C memory operations for high-performance, raw byte manipulation. These functions accept either
@@ -578,38 +584,52 @@ Pins or raw integer addresses.
 
 =back
 
-=head2 Const-Correctness
+=head1 C<Const> & Readonly Memory
 
-When interfacing with C, it is critical to respect `const` boundaries to prevent segmentation faults or undefined behavior. Affix provides both declarative and imperative ways to protect memory.
+In C, C<const> is a contract. Affix enforces this contract at the Perl level using magical VTables. If a memory block
+is marked as readonly, any attempt to modify it from Perl will throw a fatal exception: C<Modification of a read-only C
+value attempted>.
 
-=head3 Declarative: C<Const[ $type ]>
+=head2 Declarative Const: C<Const[ $type ]>
 
-You can declare a type as read-only directly in the signature. Affix will enforce this protection automatically.
+You can wrap any type in C<Const[ ... ]> within a signature.
 
-    typedef HardwareInfo => Struct[
-        device_id   => Const[ Int ],             # Immutable hardware ID
-        temperature => Float,                    # Mutable sensor reading
-        name        => Array[ Const[Char], 32 ]  # Immutable string buffer
-    ];
+    # C: void process(const char* name, const int* values);
+    affix $lib, 'process', [ Const[String], Pointer[ Const[Int] ] ] => Void;
 
-If you try to write to `$info->{device_id}`, Affix will throw a fatal exception: C<Modification of a read-only C value attempted>.
+=head2 Imperative Const: C<readonly( $pin, [$bool] )>
 
-=head3 Imperative: C<readonly( $pin, [$bool] )>
+The C<readonly()> function allows you to inspect or toggle the const status of a Pin or Aggregate at runtime. This acts
+as an I<FFI Escape Hatch> (similar to C<const_cast> in C++).
 
-Sometimes you need to dynamically lock memory, or you need an "escape hatch" (akin to C++'s `const_cast`) to bypass a `Const` signature.
+    my $point = cast($addr, 'struct { x: int, y: int }');
 
-    my $info = cast($mem, HardwareInfo());
+    readonly($point, 1); # Lock the entire struct
+    $point->{x} = 10;    # FATAL ERROR
 
-    # Force bypass the Const declaration
-    Affix::readonly($info->{device_id}, 0);
-    $info->{device_id} = 999;
+=head2 Recursive Protection
 
-    # Re-lock the memory
-    Affix::readonly($info->{device_id}, 1);
+When an aggregate (Struct or Array) is marked as read-only, Affix automatically propagates that protection to all of
+its members.
 
-=head1 ZERO-COPY AGGREGATES
+    my $rect = cast($addr, '+struct { top: {x:int, y:int}, bottom: {x:int, y:int} }');
 
-When C returns a pointer to a struct or an array, Affix does not copy the data. Instead, it returns a magical Perl variable that maps directly to the C memory.
+    # Even though 'x' wasn't explicitly marked Const, it inherited protection
+    # from the parent struct.
+    $rect->{top}{x} = 5; # FATAL ERROR
+
+=head2 Casting with Const
+
+When using C<cast( ... )>, you can prepend a C<+> to the type signature to create an immutable view of a raw memory
+address.
+
+    my $view = cast($raw_addr, "+MyStruct");
+    # $view is now a read-only HashRef mapping to C memory.
+
+=head1 Zero-copy Aggregates
+
+When C returns a pointer to a struct or an array, Affix does not perform a deep copy. Instead, it returns a magical
+Perl variable that maps directly to the C memory.
 
 =head3 Native Array Indexing
 
@@ -623,7 +643,9 @@ C Arrays are traversed using standard Perl array syntax.
 
 =head3 Deep Null Safety
 
-Traversing a `NULL` pointer in C causes a segfault. Affix wraps C memory in Perl safety rails. If you try to traverse a `NULL` pointer inside a struct, Affix intercepts it and throws a standard Perl exception (C<Can't use an undefined value as a HASH reference>).
+Traversing a `NULL` pointer in C causes a segfault. Affix wraps C memory in Perl safety rails. If you try to traverse a
+`NULL` pointer inside a struct, Affix intercepts it and throws a standard Perl exception (C<Can't use an undefined
+value as a HASH reference>).
 
 =head1 LIBRARIES & SYMBOLS
 
