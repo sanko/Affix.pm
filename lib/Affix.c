@@ -4726,7 +4726,7 @@ static SV * _borrow_lifeline(pTHX_ SV * src) {
     if (SvROK(src)) {
         SV * target = SvRV(src);
         if (sv_isobject(src) && sv_derived_from(src, "Affix::Memory"))
-            return target;
+            return src;
         if (SvMAGICAL(target)) {
             MAGIC * mg = mg_find(target, PERL_MAGIC_ext);
             while (mg && !is_v2_vtable(mg->mg_virtual))
