@@ -134,14 +134,17 @@ subtest 'Advanced Structs and Unions' => sub {
 };
 subtest 'Advanced Callbacks (Reverse FFI) (with Typedefs)' => sub {
     diag 'Testing callbacks that send and receive structs by passing coderefs directly.';
-    isa_ok my $harness1 = wrap( $lib_path, 'process_struct_with_cb', [ Pointer [ MyStruct() ], Callback [ [ MyStruct() ] => Float64 ] ] => Float64 ),
+
+    #~ DLLEXPORT double process_struct_with_cb(MyStruct* s, double (*cb)(MyStruct*)) {
+    isa_ok my $harness1
+        = wrap( $lib_path, 'process_struct_with_cb', [ Pointer [ MyStruct() ], Callback [ [ Pointer [ MyStruct() ] ] => Float64 ] ] => Float64 ),
         ['Affix'];
     my $struct_to_pass = { id => 100, value => 5.5, label => 'Callback Struct' };
     my $cb1            = sub ($struct) {
         return $struct->{value} * 2;
     };
     is $harness1->( $struct_to_pass, $cb1 ), 11.0, 'Callback coderef received struct pointer and returned correct value';
-    isa_ok my $harness2 = wrap( $lib_path, 'check_returned_struct_from_cb', '( *(()->void  )->@Point )->int32' ), ['Affix'];
+    isa_ok my $harness2 = wrap( $lib_path, 'check_returned_struct_from_cb', [ Callback [ [] => Point() ] ], Int32 ), ['Affix'];
     is $harness2->(
         sub {
             pass "Inside callback that will return a struct";
