@@ -2,7 +2,9 @@ use v5.40;
 use lib '../lib', 'lib';
 use blib;
 use Test2::Tools::Affix qw[:all];
-use Affix               qw[:all];
+use Path::Tiny          qw[path tempfile tempdir];
+use Test2::V0 -no_srand => 1;
+use Affix qw[:all];
 $|++;
 #
 subtest simple => sub {

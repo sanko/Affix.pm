@@ -317,7 +317,7 @@ void _DD(pTHX_ SV *, const char *, int);
 #include <string.h>
 #include <wchar.h>
 
-
+void * _extract_pointer_value(pTHX_ SV * sv, MAGIC * ignore_mg);
 void * get_address_v2(pTHX_ SV * sv);
 bool is_pin_v2(pTHX_ SV * sv);
 const infix_type * resolve_type(pTHX_ const infix_type * type);

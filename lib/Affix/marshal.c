@@ -2,7 +2,6 @@
 typedef uint16_t float16_t;
 
 bool is_pin_v2(pTHX_ SV * sv);
-static void * _extract_pointer_value(pTHX_ SV * sv, MAGIC * ignore_mg);
 const infix_type * resolve_type(pTHX_ const infix_type * type);
 SV * bind_aggregate(pTHX_ void * ptr, const infix_type * type, SV * owner, bool);
 int is_v2_vtable(MGVTBL * v);
@@ -115,7 +114,35 @@ int free_v2_pin(pTHX_ SV * sv, MAGIC * mg) {
     return 0;
 }
 
+static int dup_v2_pin(pTHX_ MAGIC * mg, CLONE_PARAMS * param) {
+#ifdef USE_ITHREADS
+    Affix_Pin_2_Point_Oh * old_pin = (Affix_Pin_2_Point_Oh *)mg->mg_ptr;
+    if (!old_pin)
+        return 0;
 
+    Affix_Pin_2_Point_Oh * new_pin;
+    Newxz(new_pin, 1, Affix_Pin_2_Point_Oh);
+    memcpy(new_pin, old_pin, sizeof(Affix_Pin_2_Point_Oh));
+
+    // Lifeline Tracking (Library handles)
+    if (old_pin->destructor_lib_sv) {
+        new_pin->destructor_lib_sv = sv_dup(old_pin->destructor_lib_sv, param);
+        SvREFCNT_inc(new_pin->destructor_lib_sv);
+    }
+
+    // Type Metadata (Deep Copy)
+    if (old_pin->arena) {
+        // If the pin owns a private type arena (anonymous signatures),
+        // we must clone the arena and re-point the type into the new arena.
+        new_pin->arena = infix_arena_create(4096);
+        new_pin->type = _copy_type_graph_to_arena(new_pin->arena, old_pin->type);
+    }
+    // Else: Global types from the registry are handled via CLONE in Affix.c
+
+    mg->mg_ptr = (char *)new_pin;
+#endif
+    return 0;
+}
 /**
  * @brief Heuristic algorithm to determine if an array type should be treated as a string.
  * @details C has no real strings, only arrays. This checks if the array consists of
@@ -187,6 +214,8 @@ const infix_type * resolve_type(pTHX_ const infix_type * type) {
     return type;
 }
 
+#define MG_V2_TABLE(get, set, len) {get, set, len, nullptr, free_v2_pin, nullptr, dup_v2_pin}
+
 /*
    FAST DISPATCH VTABLES:
    These Virtual Tables hook into Perl's SV read/write events. Instead of
@@ -216,7 +245,7 @@ const infix_type * resolve_type(pTHX_ const infix_type * type) {
         SvSMAGICAL_on(sv);                                              \
         return 0;                                                       \
     }                                                                   \
-    MGVTBL vtbl_##NAME = {get_##NAME, set_##NAME, nullptr, nullptr, free_v2_pin};
+    MGVTBL vtbl_##NAME = MG_V2_TABLE(get_##NAME, set_##NAME, nullptr);
 MAKE_PRIMITIVE_DISPATCH(sint8, int8_t, sv_setiv, SvIV)
 MAKE_PRIMITIVE_DISPATCH(uint8, uint8_t, sv_setuv, SvUV)
 MAKE_PRIMITIVE_DISPATCH(sint16, int16_t, sv_setiv, SvIV)
@@ -456,18 +485,22 @@ int string_mg_set(pTHX_ SV * sv, MAGIC * mg) {
     Affix_Pin_2_Point_Oh * im = (Affix_Pin_2_Point_Oh *)mg->mg_ptr;
     if (im->readonly)
         croak("Modification of a read-only C value attempted");
+    if (!im->ptr)
+        return 0;
+
     const infix_type * t = resolve_type(aTHX_ im->type);
     size_t max_len = t->meta.array_info.num_elements;
-    if (!im->ptr || max_len == 0)
+    if (max_len == 0)
         return 0;
+
     SvGMAGICAL_off(sv);
     STRLEN len;
-    char * str = SvPV(sv, len);
-    /* Ensure safety against buffer overflow while writing C strings */
-    if (len >= max_len)
-        len = max_len - 1;
-    strncpy((char *)im->ptr, str, len);
-    ((char *)im->ptr)[len] = '\0';
+    const char * str = SvPV(sv, len);
+
+    size_t to_copy = (len < max_len) ? len : max_len - 1;
+    memcpy(im->ptr, str, to_copy);
+    ((char *)im->ptr)[to_copy] = '\0';
+
     SvGMAGICAL_on(sv);
     return 0;
 }
@@ -772,8 +805,8 @@ int get_ptr(pTHX_ SV * sv, MAGIC * mg) {
     Affix_Pin_2_Point_Oh * im = (Affix_Pin_2_Point_Oh *)mg->mg_ptr;
     SvGMAGICAL_off(sv);
 
-    /* If it's absolute (malloc/cast/ptr_add), use address directly.
-       If it's a variable (struct member), dereference the address variable. */
+    /* If it's absolute (malloc/cast/pin), im->ptr is the memory address of the data.
+       If it's relative (struct member), im->ptr is the address of a pointer variable. */
     void * addr = im->absolute ? im->ptr : (im->ptr ? *(void **)im->ptr : nullptr);
 
     if (!addr) {
@@ -788,10 +821,14 @@ int get_ptr(pTHX_ SV * sv, MAGIC * mg) {
             puller(aTHX_ nullptr, sv, res, &addr, im->readonly);
         }
         else {
-            const infix_type * pointee_type = res->meta.pointer_info.pointee_type;
-            /* Create the new Pin. Note we pass &addr because pull_pointer_as_pin
-               expects p to be the address OF the pointer variable. */
-            pull_pointer_as_pin(aTHX_ nullptr, sv, pointee_type, &addr, im->readonly);
+            /* If the type is a pointer, step down one level. */
+            const infix_type * pointee =
+                (res->category == INFIX_TYPE_POINTER) ? res->meta.pointer_info.pointee_type : res;
+
+            /* Unwrap terminal string/void protections for the inner pin if needed */
+            const infix_type * pin_type = _unwrap_pin_type(pointee);
+
+            pull_pointer_as_pin(aTHX_ nullptr, sv, pin_type, &addr, im->readonly);
         }
     }
 
@@ -1351,7 +1388,8 @@ static SV * _bind_aggregate_internal(
         if (is_string_array(aTHX_ type, nullptr)) {
             SV * sv = newSV(0);
             bind_placeholder(aTHX_ sv, ptr, type, 0, 0, true, owner, arena, readonly, false);
-            return sv;
+            /* WRAP IN REFERENCE to ensure magic persists across assignments */
+            return newRV_noinc(sv);
         }
 
         size_t n, step;
@@ -1474,12 +1512,17 @@ SV * cast(pTHX_ SV * in, const char * name) {
     if (infix_type_from_signature(&new_type, &local_arena, name, MY_CXT.registry) != INFIX_SUCCESS)
         croak("Type not found: %s", name);
 
-    infix_type_category cat = infix_type_get_category(resolve_type(aTHX_ new_type));
-    if (cat == INFIX_TYPE_STRUCT || cat == INFIX_TYPE_UNION || cat == INFIX_TYPE_ARRAY || cat == INFIX_TYPE_VECTOR)
-        return bind_aggregate_anon(aTHX_ addr, new_type, owner, local_arena, false);
+    const infix_type * resolved = resolve_type(aTHX_ new_type);
+    infix_type_category cat = infix_type_get_category(resolved);
 
+    /* AGGREGATES: Return a Reference (HashRef, ArrayRef, or ScalarRef for strings) */
+    if (cat == INFIX_TYPE_STRUCT || cat == INFIX_TYPE_UNION || cat == INFIX_TYPE_ARRAY || cat == INFIX_TYPE_VECTOR ||
+        cat == INFIX_TYPE_COMPLEX) {
+        return bind_aggregate_anon(aTHX_ addr, new_type, owner, local_arena, false);
+    }
+
+    /* PRIMITIVES: Return a scalar reference ($$ptr) to allow writes back to C */
     SV * sv = newSV(0);
-    /* Set absolute=true: addr is the direct location of data */
     bind_placeholder(aTHX_ sv, addr, new_type, 0, 0, true, owner, local_arena, false, true);
     return newRV_noinc(sv);
 }
@@ -1898,33 +1941,30 @@ int is_v2_vtable(MGVTBL * v) {
  * @param ignore_mg A specific magic pointer to skip (prevents self-extraction during assignment).
  * @return The raw C pointer address, or NULL if extraction fails.
  */
-static void * _extract_pointer_value(pTHX_ SV * sv, MAGIC * ignore_mg) {
+void * _extract_pointer_value(pTHX_ SV * sv, MAGIC * ignore_mg) {
     if (!sv)
         return nullptr;
 
-    /* 1. Handle Magic Pins FIRST.
-       A Pin to 'void' is !SvOK (undef), but it still has a valid im->ptr.
-       We handle both the Pin scalar itself and references to it. */
-    SV * target = (SvROK(sv) && !sv_isobject(sv)) ? SvRV(sv) : sv;
+    // Use a secondary pointer for unwrapping to preserve the original SV (the potential object)
+    SV * target = sv;
+    if (SvROK(sv))
+        target = SvRV(sv);
+
+    /* 1. Handle Magic Pins (even inside blessed objects) */
     if (SvMAGICAL(target)) {
         MAGIC * mg = mg_find(target, PERL_MAGIC_ext);
         while (mg) {
             if (is_v2_vtable(mg->mg_virtual) && mg != ignore_mg) {
                 Affix_Pin_2_Point_Oh * im = (Affix_Pin_2_Point_Oh *)mg->mg_ptr;
-                /* If the personality is 'Pointer', check terminality */
-                if (mg->mg_virtual == &vtbl_pointer) {
-                    if (im->absolute)
-                        return im->ptr;
-                    return im->ptr ? *(void **)im->ptr : nullptr;
-                }
-                /* For all other personalities (Void, Int, Struct), im->ptr is the address */
+                if (mg->mg_virtual == &vtbl_pointer)
+                    return im->absolute ? im->ptr : (im->ptr ? *(void **)im->ptr : nullptr);
                 return im->ptr;
             }
             mg = mg->mg_moremagic;
         }
     }
 
-    /* 2. Handle Affix::Memory Handles (The raw result of malloc/calloc) */
+    /* 2. Handle Affix::Memory Handles */
     if (sv_isobject(sv) && sv_derived_from(sv, "Affix::Memory")) {
         SV * rv = SvRV(sv);
         if (SvTYPE(rv) == SVt_PVAV) {

@@ -1,7 +1,8 @@
 use v5.40;
 use blib;
-use Affix                qw[:all];
+use Affix               qw[:all];
 use Test2::Tools::Affix qw[:all];
+use Test2::V0 -no_srand => 1;
 $|++;
 #
 my $C_CODE = <<'END_C';
@@ -377,7 +378,7 @@ subtest 'Feature: Pointer-to-Pointer / StringList (char**)' => sub {
 
     # FFI-intercept read: Pointer to Pointer converts seamlessly back to ArrayRef
     my $read_back = $cmd->{argv};
-    is ref($read_back), 'ARRAY', 'StringList reads back as a native Perl ArrayRef';
+    is ref($read_back),     'ARRAY', 'StringList reads back as a native Perl ArrayRef';
     is scalar(@$read_back), 3,       'ArrayRef has correct element count';
     is $read_back->[0],     'hello', 'Element 0 matches';
     is $read_back->[1],     'world', 'Element 1 matches';

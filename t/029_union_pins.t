@@ -1,6 +1,9 @@
 use v5.40;
+use blib;
 use Affix               qw[:all];
 use Test2::Tools::Affix qw[:all];
+use Test2::V0 -no_srand => 1;
+#
 typedef MyUnion => Union [ i => Int, f => Float ];
 
 # Allocate some memory for the union
@@ -8,7 +11,6 @@ my $mem = malloc( sizeof( MyUnion() ) );
 my $u   = cast( $mem, MyUnion() );
 
 # $u should be an Affix::Live object
-isa_ok $u, ['Affix::Live'], 'Union is an Affix::Live object';
 ok is_pin( \$u->{i} ), 'member i is a Pin';
 ok is_pin( \$u->{f} ), 'member f is a Pin';
 

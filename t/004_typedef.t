@@ -1,8 +1,8 @@
 use v5.40;
-use lib '../lib', 'lib';
 use blib;
 use Test2::Tools::Affix qw[:all];
-use Affix               qw[:all];
+use Test2::V0 -no_srand => 1;
+use Affix qw[:all];
 #
 $|++;
 #
@@ -43,8 +43,6 @@ DLLEXPORT int sum_struct_ids(MyStruct* structs, int count) {
     }
     return total;
 }
-
-
 
 typedef struct {
     int x;
@@ -136,12 +134,10 @@ subtest 'Advanced Structs and Unions' => sub {
 };
 subtest 'Advanced Callbacks (Reverse FFI) (with Typedefs)' => sub {
     diag 'Testing callbacks that send and receive structs by passing coderefs directly.';
-    isa_ok my $harness1 = wrap( $lib_path, 'process_struct_with_cb', '(*@MyStruct, (*(@MyStruct))->float64)->float64' ), ['Affix'];
+    isa_ok my $harness1 = wrap( $lib_path, 'process_struct_with_cb', [ Pointer [ MyStruct() ], Callback [ [ MyStruct() ] => Float64 ] ] => Float64 ),
+        ['Affix'];
     my $struct_to_pass = { id => 100, value => 5.5, label => 'Callback Struct' };
-    my $cb1            = sub ($struct_ref) {
-
-        # Struct Pointer comes as a Pin (Scalar Ref). Dereference it.
-        my $struct = $$struct_ref;
+    my $cb1            = sub ($struct) {
         return $struct->{value} * 2;
     };
     is $harness1->( $struct_to_pass, $cb1 ), 11.0, 'Callback coderef received struct pointer and returned correct value';

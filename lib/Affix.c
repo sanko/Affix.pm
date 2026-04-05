@@ -13,6 +13,7 @@ perl_mutex affix_callback_mutex;
 static void rebuild_backend_data(pTHX_ Affix_Backend * backend);
 static void rebuild_affix_data(pTHX_ Affix * affix);
 static const infix_type * _resolve_type(pTHX_ const infix_type * type);
+static infix_library_t * _get_lib_from_registry(pTHX_ const char * path);
 
 static MGVTBL Affix_cv_vtbl;
 static MGVTBL Affix_backend_vtbl;
@@ -173,7 +174,106 @@ static float half_to_float(uint16_t h) {
     memcpy(&f, &i, 4);
     return f;
 }
+static const char * _get_string_from_type_obj(pTHX_ SV * type_sv);
+static SV * _borrow_lifeline(pTHX_ SV * src);
 
+XS_INTERNAL(Affix_pin) {
+    dXSARGS;
+    dMY_CXT;
+    if (items < 2 || items > 4)
+        croak_xs_usage(cv, "scalar, [address_or_lib], [symbol_or_type], [type]");
+
+    SV * target_sv = ST(0);
+    void * addr = nullptr;
+    const char * type_sig = nullptr;
+    SV * owner = nullptr;
+    infix_library_t * lib_handle = nullptr;
+
+    if (items == 2) {
+        // Usage: pin($scalar, $pin_to_copy)
+        Affix_Pin_2_Point_Oh * src = get_pin_v2(aTHX_ ST(1));
+        if (!src)
+            croak("pin($scalar, $source) requires $source to be an existing pin");
+        addr = src->ptr;
+        owner = _borrow_lifeline(aTHX_ ST(1));
+
+        char buf[256];
+        if (infix_type_print(buf, sizeof(buf), src->type, INFIX_DIALECT_SIGNATURE) == INFIX_SUCCESS)
+            type_sig = savepv(buf);
+    }
+    else if (items == 3) {
+        // Usage: pin($scalar, $address, $type)
+        addr = get_address_v2(aTHX_ ST(1));
+        type_sig = _get_string_from_type_obj(aTHX_ ST(2));
+        owner = _borrow_lifeline(aTHX_ ST(1));
+    }
+    else if (items == 4) {
+        // Usage: pin($scalar, $lib, $symbol, $type)
+        SV * lib_sv = ST(1);
+        const char * sym_name = SvPV_nolen(ST(2));
+        type_sig = _get_string_from_type_obj(aTHX_ ST(3));
+
+        if (sv_isobject(lib_sv) && sv_derived_from(lib_sv, "Affix::Lib")) {
+            lib_handle = INT2PTR(infix_library_t *, SvIV((SV *)SvRV(lib_sv)));
+        }
+        else {
+            const char * path = SvOK(lib_sv) ? SvPV_nolen(lib_sv) : nullptr;
+            lib_handle = _get_lib_from_registry(aTHX_ path);
+        }
+
+        if (lib_handle) {
+            addr = infix_library_get_symbol(lib_handle, sym_name);
+            owner = lib_sv;
+        }
+    }
+
+    if (!addr)
+        croak("Could not resolve memory address for pin");
+    if (!type_sig)
+        croak("Type signature required for pin");
+
+    infix_type * type = nullptr;
+    infix_arena_t * arena = nullptr;
+    if (infix_type_from_signature(&type, &arena, type_sig, MY_CXT.registry) != INFIX_SUCCESS) {
+        if (arena)
+            infix_arena_destroy(arena);
+        croak("Invalid type signature: %s", type_sig);
+    }
+
+    // Bind to the target scalar
+    bind_placeholder(aTHX_ target_sv, addr, type, 0, 0, true, owner, arena, false, true);
+
+    // Clean up temporary type_sig if we generated it from infix_type_print
+    if (items == 2 && type_sig)
+        safefree((void *)type_sig);
+
+    ST(0) = target_sv;
+    XSRETURN(1);
+}
+XS_INTERNAL(Affix_unpin) {
+    dXSARGS;
+    if (items != 1)
+        croak_xs_usage(cv, "var");
+
+    SV * sv = ST(0);
+    // Pins are often references to magical scalars; unwrap if necessary
+    if (SvROK(sv) && !sv_isobject(sv))
+        sv = SvRV(sv);
+
+    if (SvMAGICAL(sv)) {
+        MAGIC * mg = mg_find(sv, PERL_MAGIC_ext);
+        while (mg) {
+            // Check if this magic belongs to the Affix 2.0 memory system
+            if (is_v2_vtable(mg->mg_virtual)) {
+                // sv_unmagicext returns 0 on success
+                if (sv_unmagicext(sv, PERL_MAGIC_ext, mg->mg_virtual) == 0)
+                    XSRETURN_YES;
+            }
+            mg = mg->mg_moremagic;
+        }
+    }
+    XSRETURN_NO;
+}
 // Handles UTF-16LE (Windows) and UTF-32 (Linux/Mac) conversion to UTF-8 SV
 static void pull_pointer_as_wstring(pTHX_ Affix * affix, SV * sv, const infix_type * type, void * p, bool readonly) {
     PERL_UNUSED_VAR(affix);
@@ -4662,21 +4762,34 @@ XS_INTERNAL(Affix_malloc) {
     XSRETURN(1);
 }
 
+
 XS_INTERNAL(Affix_calloc) {
     dXSARGS;
     dMY_CXT;
     if (items != 2)
-        croak_xs_usage(cv, "count, type_signature");
+        croak_xs_usage(cv, "count, type_signature_or_size");
     UV count = SvUV(ST(0));
-    const char * signature = nullptr;
+
     SV * type_sv = ST(1);
-    signature = _get_string_from_type_obj(aTHX_ type_sv);
+
+    // Support C-style numeric sizes: calloc(10, 4)
+    if (SvIOK(type_sv) && !sv_isobject(type_sv)) {
+        UV size = SvUV(type_sv);
+        SV * mem_obj = sv_2mortal(alloc_owned(aTHX_ count * size));
+        // Return a Pointer[Void] pin so the user can realloc/cast it
+        ST(0) = sv_2mortal(cast(aTHX_ mem_obj, "*void"));
+        XSRETURN(1);
+    }
+
+    const char * signature = _get_string_from_type_obj(aTHX_ type_sv);
     if (!signature)
         signature = SvPV_nolen(type_sv);
 
     size_t elem_size = sizeof_type(aTHX_ signature);
-    if (elem_size == 0)
+    if (elem_size == 0) {
+        warn("Affix::calloc: Unknown type '%s'", signature);
         XSRETURN_UNDEF;
+    }
 
     SV * mem_obj = sv_2mortal(alloc_owned(aTHX_ count * elem_size));
 
@@ -4692,18 +4805,43 @@ XS_INTERNAL(Affix_realloc) {
     if (items != 2)
         croak_xs_usage(cv, "self, new_size");
 
-    Affix_Pin_2_Point_Oh * pin = get_pin_v2(aTHX_ ST(0));
-    if (!pin) {
-        warn("Can only realloc a v2 pinned pointer");
+    SV * arg = ST(0);
+    UV new_size = SvUV(ST(1));
+
+    // 1. Extract the current pointer address robustly
+    void * old_ptr = get_address_v2(aTHX_ arg);
+    if (!old_ptr) {
+        warn("realloc: argument is not a valid pinned pointer or memory handle");
         XSRETURN_NO;
     }
 
-    UV new_size = SvUV(ST(1));
-    /* Note: v2 pins track memory via the .ptr member */
-    void * new_ptr = saferealloc(pin->ptr, new_size);
-    pin->ptr = new_ptr;
+    // 2. Perform the reallocation
+    void * new_ptr = saferealloc(old_ptr, new_size);
+    if (!new_ptr)
+        XSRETURN_NO;
+
+    // 3. Update the local Pin metadata if the argument is a Pin
+    Affix_Pin_2_Point_Oh * pin = get_pin_v2(aTHX_ arg);
+    if (pin)
+        pin->ptr = new_ptr;
+
+    // 4. Update the Root Lifeline (the Affix::Memory internal container)
+    // We trace back to the SV/AV that actually holds the address for the GC.
+    SV * owner = _borrow_lifeline(aTHX_ arg);
+    if (owner) {
+        if (SvTYPE(owner) == SVt_PVAV) {
+            SV ** p = av_fetch((AV *)owner, 0, 0);
+            if (p && *p)
+                sv_setuv(*p, PTR2UV(new_ptr));
+        }
+        else {
+            sv_setuv(owner, PTR2UV(new_ptr));
+        }
+    }
+
     XSRETURN_YES;
 }
+
 XS_INTERNAL(Affix_own) {
     dXSARGS;
     if (items < 1)
@@ -4727,7 +4865,7 @@ XS_INTERNAL(Affix_free) {
         free_owned(aTHX_ owner);
         XSRETURN_YES;
     }
-    //~ warn("Affix::free called on a pointer that was not allocated by Affix");
+    warn("Affix::free called on an unmanaged pointer");
     XSRETURN_NO;
 }
 
@@ -5099,7 +5237,7 @@ XS_INTERNAL(Affix_ptr_add) {
     SV * sv = newSV(0);
     /* Set absolute=true: new_addr is the direct target location */
     bind_placeholder(aTHX_ sv, new_addr, type, 0, 0, false, owner, nullptr, readonly, true);
-    ST(0) = sv_2mortal(sv);
+    ST(0) = sv_2mortal(newRV_noinc(sv));
     XSRETURN(1);
 }
 XS_INTERNAL(Affix_ptr_diff) {
@@ -5517,6 +5655,8 @@ void boot_Affix(pTHX_ CV * cv) {
         XSUB_EXPORT(own, nullptr, "memory");
         XSUB_EXPORT(readonly, nullptr, "memory");
         XSUB_EXPORT(cast, "$$", "memory");
+        XSUB_EXPORT(pin, "$$$;$", "memory");
+        XSUB_EXPORT(unpin, "$", "memory");
 
         // Raw memory operations
         XSUB_EXPORT(memcpy, "$$$", "memory");
