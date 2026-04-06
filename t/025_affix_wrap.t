@@ -1,4 +1,5 @@
 use v5.40;
+use blib;
 use Affix::Wrap;
 use Test2::Tools::Affix qw[:all];
 use Test2::V0 -no_srand => 1;
@@ -209,7 +210,7 @@ EOF
             }
             my ($dp) = grep { $_->name eq 'double_ptr' } @objs;
             ok( $dp, 'Found double_ptr' );
-            is( $dp->underlying->affix_type, 'Pointer[Pointer[Char]]', 'double_ptr affix_type' );
+            is( $dp->underlying->affix_type, 'Pointer[Const[Pointer[Const[Char]]]]', 'double_ptr affix_type' );
             my ($ap) = grep { $_->name eq 'array_of_pointers' } @objs;
             ok( $ap, 'Found array_of_pointers' );
             is( $ap->underlying->affix_type, 'Array[Pointer[Int], 5]', 'array_of_pointers affix_type' );

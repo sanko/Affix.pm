@@ -886,7 +886,6 @@ static Affix_Opcode get_ret_opcode_for_type(pTHX_ const infix_type * type) {
         //~ if (strEQ(name, "StringList") || strEQ(name, "@StringList") || strEQ(name, "SV") || strEQ(name, "@SV"))
         //~ return OP_RET_CUSTOM;
         //~ }
-
         const infix_type * pointee = type->meta.pointer_info.pointee_type;
         if (is_perl_sv_type(pointee))
             return OP_RET_SV;
@@ -2413,6 +2412,15 @@ static MGVTBL Affix_cv_vtbl = {0, 0, 0, 0, Affix_cv_free, 0, Affix_cv_dup, 0};
 
 static MGVTBL Affix_coercion_vtbl = {0};  // Marker vtable for coerced values
 
+// Centralized helper to check if an SV is a Const type object
+static bool _is_const_obj(pTHX_ SV * sv) {
+    if (!sv || !SvOK(sv))
+        return false;
+    if (sv_isobject(sv) && sv_derived_from(sv, "Affix::Type::Const"))
+        return true;
+    return false;
+}
+
 // Helper to extract the signature string from a coerced SV
 static const char * _get_coerced_sig(pTHX_ SV * sv) {
     if (SvMAGICAL(sv)) {
@@ -2553,6 +2561,7 @@ XS_INTERNAL(Affix_coerce) {
     ST(0) = target_sv;
     XSRETURN(1);
 }
+
 XS_INTERNAL(Affix_affix) {
     dXSARGS;
     dXSI32;
@@ -2761,34 +2770,13 @@ XS_INTERNAL(Affix_affix) {
         size_t num_args = 0, num_fixed = 0;
 
         backend->ret_readonly = false;
-        char * ret_ptr = strstr(signature, "->");
-        if (ret_ptr && strchr(ret_ptr, '+'))
+        if (ret_sv && _is_const_obj(aTHX_ ret_sv))
+            backend->ret_readonly = true;
+        else if (sig_sv && _is_const_obj(aTHX_ sig_sv))
             backend->ret_readonly = true;
 
-        const char * sig_to_parse = signature;
-        char * clean_sig = nullptr;
-        if (strstr(signature, "+")) {
-            clean_sig = savepv(signature);
-            const char * p = signature;
-            char * d = clean_sig;
-            while (*p) {
-                // Strip '+' only if it precedes a signature character: * [ { ! < ( @
-                if (*p == '+' &&
-                    (p[1] == '*' || p[1] == '[' || p[1] == '{' || p[1] == '!' || p[1] == '<' || p[1] == '(' ||
-                     p[1] == '@'))
-                    p++;
-                else
-                    *d++ = *p++;
-            }
-            *d = '\0';
-            sig_to_parse = clean_sig;
-        }
-
         infix_status status =
-            infix_signature_parse(sig_to_parse, &parse_arena, &ret_type, &args, &num_args, &num_fixed, MY_CXT.registry);
-
-        if (clean_sig)
-            safefree(clean_sig);
+            infix_signature_parse(signature, &parse_arena, &ret_type, &args, &num_args, &num_fixed, MY_CXT.registry);
 
         if (status != INFIX_SUCCESS) {
             safefree(backend);
@@ -2853,29 +2841,8 @@ XS_INTERNAL(Affix_affix) {
     infix_function_argument * args = nullptr;
     size_t num_args = 0, num_fixed = 0;
 
-    const char * sig_to_parse = signature;
-    char * clean_sig = nullptr;
-    if (strstr(signature, "+")) {
-        clean_sig = savepv(signature);
-        const char * p = signature;
-        char * d = clean_sig;
-        while (*p) {
-            // Strip '+' only if it precedes a signature character: * [ { ! < ( @
-            if (*p == '+' &&
-                (p[1] == '*' || p[1] == '[' || p[1] == '{' || p[1] == '!' || p[1] == '<' || p[1] == '(' || p[1] == '@'))
-                p++;
-            else
-                *d++ = *p++;
-        }
-        *d = '\0';
-        sig_to_parse = clean_sig;
-    }
-
     infix_status status =
-        infix_signature_parse(sig_to_parse, &parse_arena, &ret_type, &args, &num_args, &num_fixed, MY_CXT.registry);
-
-    if (clean_sig)
-        safefree(clean_sig);
+        infix_signature_parse(signature, &parse_arena, &ret_type, &args, &num_args, &num_fixed, MY_CXT.registry);
 
     if (status != INFIX_SUCCESS) {
         infix_error_details_t err = infix_get_last_error();
@@ -2948,14 +2915,12 @@ XS_INTERNAL(Affix_affix) {
     affix->ret_pull_handler = get_pull_handler(aTHX_ affix->ret_type);
     affix->ret_opcode = get_ret_opcode_for_type(aTHX_ affix->ret_type);
 
-    // Extract outer constness if specified for the return type
+    // Extract outer constness if specified for the return type via objects
     affix->ret_readonly = false;
-    if (signature && strrchr(signature, '>') != nullptr) {
-        // Simple heuristic: If the return signature block has a '+', it's readonly
-        char * ret_start = strstr(signature, "->");
-        if (ret_start && strchr(ret_start, '+'))
-            affix->ret_readonly = true;
-    }
+    if (ret_sv && _is_const_obj(aTHX_ ret_sv))
+        affix->ret_readonly = true;
+    else if (sig_sv && _is_const_obj(aTHX_ sig_sv))
+        affix->ret_readonly = true;
 
     if (affix->ret_pull_handler == nullptr) {
         _affix_destroy(aTHX_ affix);
@@ -3685,7 +3650,6 @@ Affix_Pull get_pull_handler(pTHX_ const infix_type * type) {
     const char * name = infix_type_get_name(type);
     if (!name && type->category == INFIX_TYPE_NAMED_REFERENCE)
         name = type->meta.named_reference.name;
-    bool live_hint = name && name[0] == '+';
 
     switch (type->category) {
     case INFIX_TYPE_PRIMITIVE:
@@ -4306,6 +4270,7 @@ XS_INTERNAL(Affix_sizeof) {
     }
 
     const char * signature = _get_string_from_type_obj(aTHX_ type_sv);
+
     infix_type * type = nullptr;
     infix_arena_t * arena = nullptr;
     if (infix_type_from_signature(&type, &arena, signature, MY_CXT.registry) != INFIX_SUCCESS) {
@@ -4593,26 +4558,20 @@ XS_INTERNAL(Affix_typedef) {
     dMY_CXT;
     if (items < 1 || items > 2)
         croak_xs_usage(cv, "$name, [$type]");
-    SV * name_sv = ST(0);
 
+    SV * name_sv = ST(0);
     const char * raw_name = SvPV_nolen(name_sv);
-    const char * name = raw_name;
-    if (name[0] == '@')
-        name++;
+    const char * name = (raw_name[0] == '@') ? raw_name + 1 : raw_name;
+
     SV * def_sv = sv_2mortal(newSVpvf("@%s", name));
     if (items == 2) {
         sv_catpv(def_sv, " = ");
         SV * type_sv = ST(1);
         const char * type_str = _get_string_from_type_obj(aTHX_ type_sv);
-        if (!type_str)
-            type_str = SvPV_nolen(type_sv);
-        // Const() prepends '+' to signatures. Infix doesn't support this character.
-        if (type_str[0] == '+')
-            type_str++;
-        sv_catpv(def_sv, type_str);
+        sv_catpv(def_sv, type_str ? type_str : SvPV_nolen(type_sv));
     }
     sv_catpv(def_sv, ";");
-    //~ warn("Affix: Registering types: %s", SvPV_nolen(def_sv));
+
     if (infix_register_types(MY_CXT.registry, SvPV_nolen(def_sv)) != INFIX_SUCCESS) {
         SV * err_sv = _format_parse_error(aTHX_ "in typedef", SvPV_nolen(def_sv), infix_get_last_error());
         warn_sv(err_sv);
@@ -4624,7 +4583,10 @@ XS_INTERNAL(Affix_typedef) {
     Newxz(blah, 1024 * 5, char);
     infix_registry_print(blah, 1024 * 5, MY_CXT.registry);
     warn("registry: %s", blah);
+    safefree(blah);
 #endif
+
+    // Export the constant sub so users can use the type name in Perl
     HV * stash = CopSTASH(PL_curcop);
     bool sub_exists = false;
     if (stash) {
@@ -4895,12 +4857,12 @@ XS_INTERNAL(Affix_cast) {
     if (!signature)
         signature = SvPV_nolen(type_sv);
 
-    /* Handle the "+" readonly/const hint (e.g. Affix::cast($p, "+MyStruct")) */
-    bool readonly = false;
-    if ((signature[0] == '+')) {
-        signature++;
-        readonly = true;
-    }
+    /* Determine Return Strategy: Value (Copy) vs Reference (Pin) */
+    bool return_as_value = false;
+    bool is_string_type = false;
+
+    // Check if the type object is a Const wrapper
+    bool readonly = _is_const_obj(aTHX_ type_sv);
 
     /* Resolve the type object and create an arena if it's a dynamic signature */
     infix_type * new_type = nullptr;
@@ -4914,9 +4876,6 @@ XS_INTERNAL(Affix_cast) {
         XSRETURN_UNDEF;
     }
 
-    /* Determine Return Strategy: Value (Copy) vs Reference (Pin) */
-    bool return_as_value = false;
-    bool is_string_type = false;
     const infix_type * resolved = resolve_type(aTHX_ new_type);
 
     if (resolved->category == INFIX_TYPE_PRIMITIVE || resolved->category == INFIX_TYPE_ENUM) {
@@ -5378,37 +5337,7 @@ void _populate_hv_from_c_struct(
         if (member->name) {
             void * member_ptr = (char *)p + member->offset;
             SV * member_sv = nullptr;
-#if 0
-            if (live) {
-                // Live mode: Create a Pin or Live view for this member
-                const infix_type * resolved = _resolve_type(aTHX_ member->type);
-                if (resolved->category == INFIX_TYPE_STRUCT || resolved->category == INFIX_TYPE_UNION) {
-                    HV * sub_hv = newHV();
-                    SV * sub_rv = newRV_noinc(MUTABLE_SV(sub_hv));
-                    //~ sv_bless(sub_rv, gv_stashpv("Affix::Live", GV_ADD));
-                    _populate_hv_from_c_struct(aTHX_ affix, sub_hv, resolved, member_ptr, true, owner_sv, readonly);
-                    member_sv = sub_rv;
-                }
-                else if (resolved->category == INFIX_TYPE_ARRAY) {
-                    SV * sub_pin_sv = newSV(0);
-                    bind_placeholder(aTHX_ sub_pin_sv, member_ptr, member->type, 0, 0, false, owner_sv, nullptr, readonly, false);
-                    member_sv = sub_pin_sv;
-                }
-                else {
-                    member_sv = newSV(0);
-                    bind_placeholder(aTHX_ member_sv,
-                                     member_ptr,
-                                     member->type,
-                                     member->bit_offset,
-                                     member->bit_width,
-                                     true, // prime: read value from C immediately
-                                     owner_sv,
-                                     nullptr,
-                                     readonly, false);
-        }
-    }
-    else
-#endif
+
             if (member->is_bitfield) {
                 // Bitfield pull: mask and shift
                 member_sv = newSV(0);

@@ -12,8 +12,9 @@ package Affix::Wrap v1.0.9 {
     class    #
         Affix::Wrap::Type {
         use Affix qw[Void];
-        field $name : reader : param //= 'void';
-        method to_string { $self->name }
+        field $name     : reader : param //= 'void';
+        field $is_const : reader : param //= 0;
+        method to_string { ( $is_const ? 'const ' : '' ) . $self->name }
         use overload '""' => 'to_string', fallback => 1;
 
         # Factory method to parse a C type string into objects
@@ -22,6 +23,8 @@ package Affix::Wrap v1.0.9 {
 
             # Cleanup attributes and whitespace
             $t =~ s/__attribute__\s*\(\(.*\)\)//g;
+            $t =~ s/^\s+|\s+$//g;
+            $t =~ s/\b(restrict|volatile)\b//g;
             $t =~ s/^\s+|\s+$//g;
 
             # Function Pointer: Ret (*)(Args)
@@ -38,19 +41,23 @@ package Affix::Wrap v1.0.9 {
             if ( $t =~ /^(.*)\s*\[(\d+)\]$/ ) {
                 return Affix::Wrap::Type::Array->new( of => $class->parse($1), count => $2 );
             }
-            $t =~ s/(\*)\s*(?:const|restrict)\s*$/$1/;
-            $t =~ /^(.+)\s*\*$/ ? Affix::Wrap::Type::Pointer->new( of => $class->parse($1) ) : $class->new( name => $t );
+
+            # Pointer check
+            if ( $t =~ /^(.+?)\s*\*\s*(const)?$/ ) {
+                my $inner = $1;
+                my $const = $2 ? 1 : 0;
+                return Affix::Wrap::Type::Pointer->new( of => $class->parse($inner), is_const => $const );
+            }
+
+            # Identify if this specific level is const
+            # We strip it for the name, but pass it to the constructor
+            my $const = ( $t =~ s/\bconst\b//g ) ? 1 : 0;
+            $t =~ s/^\s+|\s+$//g;
+            return $class->new( name => $t, is_const => $const );
         }
 
-        method affix_type {
-            my $t = $self->name;
-            $t =~ s/^(?:struct|union|enum)\s+//;
-            $t =~ s/consts?\s+//g;
-            $t =~ s/(\s+\**)const$/$1/g;
-            $t =~ s/(\s+\**)restrict$/$1/g;
-            $t =~ s/\s+$//;
-            #
-            state $type_map //= {
+        method _type_map () {
+            state $type_map = {
                 void                 => 'Void',
                 bool                 => 'Bool',
                 short                => 'Short',
@@ -67,75 +74,119 @@ package Affix::Wrap v1.0.9 {
                 float                => 'Float',
                 double               => 'Double',
                 'long double'        => 'LongDouble',
-                int8_t               => 'Int8',
-                sint8_t              => 'SInt8',
-                uint8_t              => 'UInt8',
-                int16_t              => 'Int16',
-                sint16_t             => 'SInt16',
-                uint16_t             => 'UInt16',
-                int32_t              => 'Int32',
-                sint32_t             => 'SInt32',
-                uint32_t             => 'UInt32',
-                int64_t              => 'Int64',
-                sint64_t             => 'SInt64',
-                uint64_t             => 'UInt64',
-                int128_t             => 'Int128',
-                sint128_t            => 'SInt128',
-                uint128_t            => 'UInt128',
-                size_t               => 'Size_t',
-                ssize_t              => 'SSize_t',
-                ptrdiff_t            => 'SSize_t',
-                wchar_t              => 'WChar',
-                time_t               => 'Int64',
-                '...'                => 'VarArgs',
-                'va_list'            => 'VarArgs',
-                '__builtin_va_list'  => 'VarArgs',      # Clang
 
-                #
-                'char[]'  => 'String',
-                'file*'   => 'File',
-                file      => 'Void',                    # Fixes FILE* -> Pointer[Void]
-                'time_t'  => 'Int64',                   # Standard timestamp
-                'jmp_buf' => 'Void',                    # Opaque handle for setjmp
-                '_jbtype' => 'Void',                    # Internal jmp_buf typedef
+                # Extended stdint.h
+                int8_t    => 'Int8',
+                sint8_t   => 'SInt8',
+                uint8_t   => 'UInt8',
+                int16_t   => 'Int16',
+                sint16_t  => 'SInt16',
+                uint16_t  => 'UInt16',
+                int32_t   => 'Int32',
+                sint32_t  => 'SInt32',
+                uint32_t  => 'UInt32',
+                int64_t   => 'Int64',
+                sint64_t  => 'SInt64',
+                uint64_t  => 'UInt64',
+                int128_t  => 'Int128',
+                sint128_t => 'SInt128',
+                uint128_t => 'UInt128',
 
-                # 'tm' (struct tm) is undefined because we skip system headers.
-                # Mapping to Void ensures 'struct tm *' becomes 'Pointer[Void]'
+                # Fast & Least stdint.h types
+                uint_fast8_t   => 'UInt8',
+                int_fast8_t    => 'Int8',
+                uint_fast16_t  => 'UInt16',
+                int_fast16_t   => 'Int16',
+                uint_fast32_t  => 'UInt32',
+                int_fast32_t   => 'Int32',
+                uint_fast64_t  => 'UInt64',
+                int_fast64_t   => 'Int64',
+                uint_least8_t  => 'UInt8',
+                int_least8_t   => 'Int8',
+                uint_least16_t => 'UInt16',
+                int_least16_t  => 'Int16',
+                uint_least32_t => 'UInt32',
+                int_least32_t  => 'Int32',
+                uint_least64_t => 'UInt64',
+                int_least64_t  => 'Int64',
+
+                # Architecture specific
+                size_t    => 'Size_t',
+                ssize_t   => 'SSize_t',
+                ptrdiff_t => 'SSize_t',
+                intptr_t  => 'SSize_t',
+                uintptr_t => 'Size_t',
+                off_t     => 'SSize_t',
+                pid_t     => 'Int',
+                wchar_t   => 'WChar',
+                time_t    => 'Int64',
+
+                # Variadic
+                '...'               => 'VarArgs',
+                'va_list'           => 'VarArgs',
+                '__builtin_va_list' => 'VarArgs',
+
+                # Standard library structures mapped to pointers
+                'char[]'    => 'String',
+                'file*'     => 'File',
+                file        => 'Void',
+                'jmp_buf'   => 'Void',
+                '_jbtype'   => 'Void',
                 'tm'        => Affix::Pointer( [Void] ),
                 'struct tm' => Affix::Pointer( [Void] )
             };
+            return $type_map;
+        }
 
-            # Case-insensitive lookup (handled by existing code)
-            return $type_map->{ lc $t } if defined $type_map->{ lc $t };
-            return "'$t'"               if $t =~ /^[a-z_]\w*$/i;
-            warn "WARNING: Unknown C type '$t' mapped to Void\n";
-            'Void';
+        method _clean_name {
+            my $t = $self->name;
+            $t =~ s/^(?:struct|union|enum)\s+//;
+            $t =~ s/\s*\*+$//;
+            $t =~ s/^\s+|\s+$//g;
+            return lc $t;
+        }
+
+        method affix_type {
+            my $clean = $self->_clean_name;
+            my $map   = $self->_type_map;
+            my $out   = exists $map->{$clean} ? $map->{$clean} : ( $clean =~ /^[a-z_]\w*$/i ? "'\@$clean'" : 'Void' );
+
+            # Wrap in Const[] if the flag was found during parsing
+            return $is_const ? "Const[$out]" : $out;
         }
 
         method affix {
-            use Affix qw[Void];
-            my $type_str = $self->affix_type;
-
-            # Case 1: Simple named type (e.g. "Int", "UChar")
-            if ( $type_str =~ /^(\w+)$/ ) {
+            use Affix qw[Void Const];
+            my $clean = $self->_clean_name;
+            my $map   = $self->_type_map;
+            my $res;
+            if ( exists $map->{$clean} ) {
+                my $mapped = $map->{$clean};
                 no strict 'refs';
-                my $fn = "Affix::$type_str";
-                return $fn->() if defined &{$fn};    # Return Affix::Int() object
-                return '@' . $type_str;              # Return string "@png_byte"
+                my $fn = "Affix::$mapped";
+                $res = defined &{$fn} ? $fn->() : "\@$mapped";
             }
-
-            # Case 2: Complex string (e.g. "Pointer[Void]")
-            # We return the string directly so Affix::affix() can parse it
-            return $type_str;
+            else {
+                $res = ( $clean =~ /^[a-z_]\w*$/i ) ? "\@$clean" : Void();
+            }
+            return $is_const ? Const [$res] : $res;
         }
     }
     class    #
         Affix::Wrap::Type::Pointer : isa(Affix::Wrap::Type) {
-        use Affix qw[Pointer];
+        use Affix qw[Pointer Const];
         field $of : reader : param;
-        method name       { $of->name . '*' }
-        method affix_type { 'Pointer[' . $of->affix_type . ']' }
-        method affix      { Pointer [ $of->affix ] }
+        method name { $of->name . '*' }
+
+        method affix_type {
+            my $out = 'Pointer[' . $of->affix_type . ']';
+            return $self->is_const ? "Const[$out]" : $out;
+        }
+
+        method affix {
+            my $res = Pointer [ $of->affix ];
+            return $self->is_const ? Const [$res] : $res;
+        }
         };
     class    #
         Affix::Wrap::Type::Array : isa(Affix::Wrap::Type) {
@@ -324,7 +375,9 @@ package Affix::Wrap v1.0.9 {
             }
             sub () {$value};
         }
-        } class Affix::Wrap::Variable : isa(Affix::Wrap::Entity) {
+        };
+    class    #
+        Affix::Wrap::Variable : isa(Affix::Wrap::Entity) {
         field $type : reader : param;
         method affix_type { sprintf 'pin my $%s, $lib, \'%s\' => %s', $self->name, $self->name, $type->affix_type }
 
@@ -333,13 +386,21 @@ package Affix::Wrap v1.0.9 {
                 my $t = $type->affix;
                 if ($pkg) {
                     no strict 'refs';
-
-                    # Vivify package variable and bind it
-                    Affix::pin( ${ "${pkg}::" . $self->name }, $lib, $self->name, $t );
+                    try {
+                        Affix::pin( ${ "${pkg}::" . $self->name }, $lib, $self->name, $t );
+                    }
+                    catch ($e) {
+                        warn sprintf "Affix::Wrap FFI Warning: Could not pin variable '%s' (Library may not have loaded)\n", $self->name;
+                    }
                 }
                 else {
                     my $var;
-                    Affix::pin( $var, $lib, $self->name, $t );
+                    try {
+                        Affix::pin( $var, $lib, $self->name, $t );
+                    }
+                    catch ($e) {
+                        warn sprintf "Affix::Wrap FFI Warning: Could not pin variable '%s'\n", $self->name;
+                    }
                     return $var;
                 }
             }
@@ -364,7 +425,10 @@ package Affix::Wrap v1.0.9 {
                 }
             }
         }
-        } class Affix::Wrap::Struct : isa(Affix::Wrap::Entity) {
+        }
+        #
+        class    #
+        Affix::Wrap::Struct : isa(Affix::Wrap::Entity) {
         field $tag     : reader : param //= 'struct';
         field $members : reader : param //= [];
 
@@ -585,7 +649,9 @@ package Affix::Wrap v1.0.9 {
             return 0 if $f =~ m{^/usr/(include|lib|share|local/include)};
             return 0 if $f =~ m{^/System/Library};
             return 1 if $allowed_files->{$f};
-            for my $dir (@$project_dirs) { return 1 if index( $f, $dir ) == 0; }
+            for my $dir (@$project_dirs) {
+                return 1 if index( $f, $dir ) == 0 && ( length($f) == length($dir) || substr( $f, length($dir), 1 ) eq '/' );
+            }
             return 0;
         }
 
@@ -1391,8 +1457,13 @@ package Affix::Wrap v1.0.9 {
                 else                         { die "Unknown driver '$driver'"; }
             }
             elsif ( !defined $driver ) {
-                my ( $out, $err, $exit ) = Capture::Tiny::capture { system( 'clang', '--version' ); };
-                my $use_clang = $exit == 0;
+
+                # Wrap in a localized warn-handler to suppress the internal "Can't spawn" error
+                my $exit = do {
+                    local $SIG{__WARN__} = sub { };
+                    system( 'clang', '--version', '>', File::Spec->devnull, '2>&1' );
+                };
+                my $use_clang = ( $exit == 0 );
                 $driver = $use_clang ? Affix::Wrap::Driver::Clang->new( project_files => $project_files ) :
                     Affix::Wrap::Driver::Regex->new( project_files => $project_files );
             }
@@ -1462,17 +1533,19 @@ package Affix::Wrap v1.0.9 {
         method generate ( $lib, $pkg, $file ) {
             my @nodes = $self->parse;
             $self->_resolve_macros( \@nodes );
-            my $out =<<~"";
-            package $pkg {
-                use v5.36;
-                use Affix;
-                #
-                my \$lib = '$lib';
 
+            # Using standard named heredoc to prevent premature EOF issues
+            my $out = <<~"PERL";
+            package $pkg {
+                use v5.40;
+                use Affix;
+
+                my \$lib = '$lib';
+            PERL
             for my $name ( keys %$types ) {
                 my $type     = $types->{$name};
-                my $type_str = builtin::blessed($type) ? $type : "'$type'";    # Quote user types
-                $out .= "typedef '$name' => $type_str;\n";
+                my $type_str = ( builtin::blessed($type) && $type->can('affix_type') ) ? $type->affix_type : "'$type'";
+                $out .= "    typedef '$name' => $type_str;\n";
             }
             for my $node (@nodes) {
                 if ( ( $node isa Affix::Wrap::Typedef || $node isa Affix::Wrap::Struct || $node isa Affix::Wrap::Enum ) &&
@@ -1480,32 +1553,22 @@ package Affix::Wrap v1.0.9 {
                     next;
                 }
                 my $code = $node->affix_type;
-                if ($code) { $out .= "$code;\n"; }
+                if ($code) { $out .= "    $code;\n"; }
             }
-            $out .= "\n};\n1;\n";
+            $out .= "};\n1;\n";
             Path::Tiny::path($file)->spew_utf8($out);
         }
 
         method wrap ( $lib, $target //= [caller]->[0] ) {
-
-            # Pre-register User Types
-            # This ensures they are available in the Affix registry before signatures are parsed,
-            # and allows using them in recursive definitions or opaque handles.
             for my $name ( keys %$types ) {
                 my $type     = $types->{$name};
                 my $type_str = builtin::blessed($type) ? $type : "$type";
                 Affix::typedef( $name, $type_str );
             }
             my @nodes = $self->parse;
-
-            #  Macro resolution pass
             $self->_resolve_macros( \@nodes );
-
-            # Generation pass
             my @installed;
             for my $node (@nodes) {
-
-                # Skip definitions if the user provided a manual type override
                 if ( ( $node isa Affix::Wrap::Typedef || $node isa Affix::Wrap::Struct || $node isa Affix::Wrap::Enum ) &&
                     exists $types->{ $node->name } ) {
                     next;
@@ -1516,6 +1579,63 @@ package Affix::Wrap v1.0.9 {
                 }
             }
             @installed;
+        }
+
+        method list_symbols ($lib_path) {
+            my $abs = path($lib_path)->absolute->stringify;
+            return [] unless -e $abs;
+            my @symbols;
+            my ( $out, $err, $exit );
+
+            # Tool 1: llvm-nm (Great if available)
+            # We use --extern-only to find the public API
+            ( $out, $err, $exit ) = capture { system( 'llvm-nm', '--extern-only', '--defined-only', $abs ) };
+            if ( $exit == 0 && $out ) {
+                for ( split /\n/, $out ) {
+                    if (/ [TRG] (?:_)?(\w+)$/) { push @symbols, $1; }
+                }
+            }
+
+            # Tool 2: objdump (Nearly guaranteed with Strawberry Perl in C:\Strawberry\c\bin)
+            if ( !@symbols ) {
+                ( $out, $err, $exit ) = capture { system( 'objdump', '-p', $abs ) };
+                if ( $exit == 0 && $out ) {
+
+                    # objdump -p displays the "Export Address Table"
+                    # We look for the lines following the table header
+                    my $in_exports = 0;
+                    for ( split /\n/, $out ) {
+                        if (/^\[Ordinal\/Name Pointer\] Table$/) { $in_exports = 1; next; }
+                        if ($in_exports) {
+                            last if /^\s*$/;    # End of table
+
+                            # Format:  [   0] lsquic_engine_new
+                            if (/\[\s*\d+\]\s+(\w+)/) { push @symbols, $1; }
+                        }
+                    }
+                }
+            }
+
+            # Tool 3: dumpbin (MSVC standard)
+            if ( !@symbols ) {
+                ( $out, $err, $exit ) = capture { system( 'dumpbin', '/EXPORTS', $abs ) };
+                if ( $exit == 0 && $out ) {
+                    my $in_exports = 0;
+                    for ( split /\n/, $out ) {
+                        if (/ordinal\s+hint\s+RVA\s+name/) { $in_exports = 1; next; }
+                        if ($in_exports) {
+
+                            # Format: 1    0 00001234 lsquic_engine_new
+                            if (/^\s+\d+\s+[A-F0-9]+\s+[A-F0-9]+\s+(\w+)/) { push @symbols, $1; }
+                        }
+                    }
+                }
+            }
+            @symbols = sort @symbols;
+            if ( !@symbols ) {
+                warn "[!] list_symbols: No symbols found in $abs using llvm-nm, objdump, or dumpbin.\n";
+            }
+            return \@symbols;
         }
     }
 }

@@ -266,12 +266,7 @@ package Affix v1.0.9 {    # 'FFI' is my middle name!
             if   ( @$t == 1 ) { $t = $t->[0]; }
             else              { $t = ( @$t == 2 && !ref( $t->[1] ) && $t->[1] =~ /^\d+$/ ) ? Array($t) : Struct($t); }
         }
-        return '+' . $t->signature if builtin::blessed($t);
-        if ( !ref $t ) {
-            return '+' . $t  if $t =~ /^[\{\<@]/;
-            return '+*' . $t if $t =~ /^\[/;
-        }
-        return '+' . $t;
+        return Affix::Type::Const->new( inner => $t );
     }
 
     # Union[ i => Int, f => Float ] -> <i:int,f:float>
@@ -432,7 +427,17 @@ package Affix v1.0.9 {    # 'FFI' is my middle name!
         Affix::Type {
         use overload '""' => sub { shift->signature() }, fallback => 1;
         sub new       { my ( $class, %args ) = @_; bless \%args, $class }
-        sub signature { die "Abstract method" }
+        sub signature {...}
+    }
+    package    #
+        Affix::Type::Const {
+        our @ISA = qw[Affix::Type];
+        sub new { my ( $class, %args ) = @_; bless \%args, $class }
+
+        sub signature {
+            my $self = shift;
+            return builtin::blessed( $self->{inner} ) ? $self->{inner}->signature : $self->{inner};
+        }
     }
     package    #
         Affix::Type::Reference {
