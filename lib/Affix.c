@@ -174,6 +174,7 @@ static float half_to_float(uint16_t h) {
     memcpy(&f, &i, 4);
     return f;
 }
+
 static const char * _get_string_from_type_obj(pTHX_ SV * type_sv);
 static SV * _borrow_lifeline(pTHX_ SV * src);
 
@@ -610,6 +611,7 @@ static const char * _get_string_from_type_obj(pTHX_ SV * type_sv) {
 
         const char * p = str;
         const char * start = str;
+
         while ((p = strstr(p, "SV"))) {
             // Check boundaries: Ensure we match whole word "SV"
             // Start boundary: Beginning of string OR prev char is not alnum/_/@
@@ -630,6 +632,7 @@ static const char * _get_string_from_type_obj(pTHX_ SV * type_sv) {
             else  // Not a standalone "SV", skip this occurrence
                 p++;
         }
+
         // Append remainder
         sv_catpv(modified, start);
 
@@ -1046,7 +1049,6 @@ static void plan_step_push_pointer(pTHX_ Affix * affix,
     SV * sv = perl_stack_frame[step->data.index];
     void * c_arg_ptr = (char *)args_buffer + step->data.c_arg_offset;
     c_args[step->data.index] = c_arg_ptr;
-
 
     void * addr = get_address_v2(aTHX_ sv);
     if (addr) {
@@ -4570,6 +4572,11 @@ XS_INTERNAL(Affix_typedef) {
         const char * type_str = _get_string_from_type_obj(aTHX_ type_sv);
         sv_catpv(def_sv, type_str ? type_str : SvPV_nolen(type_sv));
     }
+    //~ else
+    // If no type is provided, define it as an empty (opaque) struct
+    // This prevents "Unexpected token" errors in infix.
+    //~ sv_catpv(def_sv, ";");
+
     sv_catpv(def_sv, ";");
 
     if (infix_register_types(MY_CXT.registry, SvPV_nolen(def_sv)) != INFIX_SUCCESS) {
@@ -4601,6 +4608,52 @@ XS_INTERNAL(Affix_typedef) {
         newCONSTSUB(stash, (char *)name, type_name_sv);
     }
     XSRETURN_YES;
+}
+XS_INTERNAL(Affix_register_types_raw) {
+    dXSARGS;
+    dMY_CXT;
+    if (items != 1)
+        croak_xs_usage(cv, "definitions_string");
+
+    const char * defs = SvPV_nolen(ST(0));
+    if (infix_register_types(MY_CXT.registry, defs) != INFIX_SUCCESS) {
+        infix_error_details_t err = infix_get_last_error();
+        STRLEN sig_len = strlen(defs);
+        int radius = 20;
+        size_t start = (err.position > radius) ? (err.position - radius) : 0;
+        size_t end = (err.position + radius < sig_len) ? (err.position + radius) : sig_len;
+        const char * start_indicator = (start > 0) ? "... " : "";
+        const char * end_indicator = (end < sig_len) ? " ..." : "";
+        int start_indicator_len = (start > 0) ? 4 : 0;
+        char snippet[256];
+        snprintf(
+            snippet, sizeof(snippet), "%s%.*s%s", start_indicator, (int)(end - start), defs + start, end_indicator);
+        char pointer[256];
+        int caret_pos = err.position - start + start_indicator_len;
+        snprintf(pointer, sizeof(pointer), "%*s^", caret_pos, "");
+
+        warn("Failed to parse batch signature:\n\n  %s\n  %s\n\nError: %s (at position %zu)",
+             snippet,
+             pointer,
+             err.message,
+             err.position);
+    }
+    XSRETURN_YES;
+}
+XS_INTERNAL(Affix_dump_registry) {
+    dXSARGS;
+    dMY_CXT;
+    char * buffer;
+    size_t size = 1024 * 128;  // 128KB
+    Newxz(buffer, size, char);
+
+    if (infix_registry_print(buffer, size, MY_CXT.registry) == INFIX_SUCCESS)
+        ST(0) = sv_2mortal(newSVpv(buffer, 0));
+    else
+        ST(0) = sv_2mortal(newSVpvs("[Registry too large or print failed]"));
+
+    safefree(buffer);
+    XSRETURN(1);
 }
 
 XS_INTERNAL(Affix_defined_types) {
@@ -5614,7 +5667,9 @@ void boot_Affix(pTHX_ CV * cv) {
 
         // Type registry
         (void)newXSproto_portable("Affix::_typedef", Affix_typedef, __FILE__, "$;$");
+        (void)newXSproto_portable("Affix::dump_registry", Affix_dump_registry, __FILE__, "");
         (void)newXSproto_portable("Affix::_register_enum_values", Affix_register_enum_values, __FILE__, "$$$");
+        (void)newXSproto_portable("Affix::_register_types_raw", Affix_register_types_raw, __FILE__, "$");
         (void)newXSproto_portable("Affix::types", Affix_defined_types, __FILE__, "");
 
         // Debugging
