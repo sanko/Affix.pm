@@ -257,7 +257,7 @@ EOF
             my $content = $pm_file->slurp_utf8;
             like $content, qr/package\s+StaticLib\s*{/,                                                         'Package decl';
             like $content, qr/use constant STATIC_VAL => 42;/,                                                  'Constant generated';
-            like $content, qr/typedef 'StaticStruct' => Struct\[ x => Int \];/,                                 'Struct typedef generated';
+            like $content, qr/typedef StaticStruct => Struct\[ x => Int \];/,                                   'Struct typedef generated';
             like $content, qr/affix \$lib, ('static_func'|\[_static_func => 'static_func'\]) => \[Int\], Int;/, 'Function affix generated';
 
             # Syntax check
