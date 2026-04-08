@@ -364,15 +364,13 @@ package Affix::Wrap v1.0.9 {
             # Sanitize C string concatenations in macros (e.g. "a" "b" -> "ab")
             $v =~ s/"\s+"//g;
 
-            # If the macro contains unresolved C calls or backslashes, comment it out
-            return '# use constant ' . $self->name . " => $v" if $v =~ /[\\()]/;
+            # Protect against Perl-internal reserved names (starting with __)
+            # and macros containing unresolved C calls or backslashes
+            if ( $self->name =~ /^__/ || $v =~ /[\\()]/ ) {
+                return '# use constant ' . $self->name . " => $v";
+            }
             if ( $v =~ /^-?(?:0x[\da-fA-F]+|\d+(?:\.\d+)?)$/ ) {
                 return sprintf 'use constant %s => %s', $self->name, $v;
-            }
-            if ( $v =~ /^"(.*)"$/ || $v =~ /^'(.*)'$/ ) {
-                my $s = $1;
-                $s =~ s/'/\\'/g;
-                return "use constant " . $self->name . " => '$s'";
             }
             $v =~ s/'/\\'/g;
             return "use constant " . $self->name . " => '$v'";
@@ -1488,7 +1486,9 @@ package Affix::Wrap v1.0.9 {
 
         method parse( $entry_point //= () ) {
             $entry_point //= $project_files->[0];
-            $driver->parse( $entry_point, $include_dirs );
+            my @nodes = $driver->parse( $entry_point, $include_dirs );
+            $self->_resolve_macros( \@nodes );
+            return @nodes;
         }
 
         method _resolve_macros ($nodes) {
@@ -1496,7 +1496,7 @@ package Affix::Wrap v1.0.9 {
             for my $node (@$nodes) {
                 if ( $node isa Affix::Wrap::Macro ) {
                     my $val = $node->value // '';
-                    $val =~ s/(?<=\d)[Uu][Ll]{0,2}//g;
+                    $val =~ s/(?<=\d)[Uu][Ll]{0,2}//g;    # Strip C suffixes like 100ULL
                     $macros{ $node->name } = $val;
                 }
             }
@@ -1505,44 +1505,40 @@ package Affix::Wrap v1.0.9 {
             $resolve = sub {
                 my ($token) = @_;
                 return undef unless defined $token;
-                $token =~ s/^\s+|\s+$//g;    # Trim whitespace
-
-                # Is it a literal number?
-                return oct($token) if $token =~ /^0x[\da-fA-F]+$/i;    # Hex -> Int
-                return int($token) if $token =~ /^-?\d+$/;             # Dec -> Int
-
-                # Check cache (recursion guard)
+                $token =~ s/^\s+|\s+$//g;
+                return oct($token)    if $token =~ /^0x[\da-fA-F]+$/i;
+                return $token + 0     if $token =~ /^-?\d+(?:\.\d+)?$/;
                 return $cache{$token} if exists $cache{$token};
                 local $cache{$token} = undef;
-
-                # Look up definition
                 my $expr = $macros{$token};
-                return undef unless defined $expr;                     # Not found (maybe a string or unknown)
+                return undef unless defined $expr;
+                1 while $expr =~ s/^\((.*)\)$/$1/;    # Strip outer parens
 
-                # Parse expression
-                # Strip outer parentheses recursively: ((A|B)) -> A|B
-                1 while $expr =~ s/^\((.*)\)$/$1/;
+                # Resolve bitwise and arithmetic expressions
+                if ( $expr =~ /[|&<>+\-*\/]/ ) {
+                    my $evaluable = $expr;
 
-                # Handle bitwise OR chains (e.g. "FLAG_A | FLAG_B")
-                if ( $expr =~ /\|/ ) {
-                    my $accum = 0;
-                    for my $part ( split /\|/, $expr ) {
-                        my $val = $resolve->($part);
-                        return undef unless defined $val;    # Abort if any part is non-numeric
-                        $accum |= $val;
+                    # Using {} delimiters so the // operator doesn't break the regex parser
+                    $evaluable =~ s{\b([a-zA-Z_]\w*)\b}{ $resolve->($1) // $1 }ge;
+
+                    # Clean up any C-style suffixes that might have survived
+                    $evaluable =~ s/\b(\d+)L+\b/$1/g;
+
+                    # If everything is now numeric/operators/whitespace, we can safely eval
+                    if ( $evaluable =~ /^[0-9\s|&<>\+\-\*\/\(\).xXa-fA-F]+$/ ) {
+
+                        # Using a string eval here to let Perl's engine handle C-like precedence
+                        my $res = eval $evaluable;
+                        return $cache{$token} = $res if defined $res;
                     }
-                    return $cache{$token} = $accum;
                 }
-
                 # Fallback: Treat as simple alias (A -> B)
                 return $cache{$token} = $resolve->($expr);
             };
             for my $node (@$nodes) {
                 if ( $node isa Affix::Wrap::Macro ) {
                     my $val = $resolve->( $node->name );
-                    if ( defined $val ) {
-                        $node->set_value($val);
-                    }
+                    $node->set_value($val) if defined $val;
                 }
             }
         }

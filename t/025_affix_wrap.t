@@ -5,6 +5,7 @@ use Test2::Tools::Affix qw[:all];
 use Test2::V0 -no_srand => 1;
 use Path::Tiny;
 use Capture::Tiny qw[capture];
+$|++;
 
 # Determine if Clang is available
 my $CLANG_AVAIL = do {
