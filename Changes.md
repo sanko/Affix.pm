@@ -37,6 +37,7 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 - Fixed a sign-extension bug in 128-bit integer parsing.
 - Fixed bitfield write-back logic to use proper bitmasking, preventing neighboring bit corruption.
 - Corrected `wstring` (UTF-16/32) conversion to handle null-terminators properly in fixed-size arrays.
+- Fixed `Affix::Wrap` eval-generated bindings on macOS where Clang emits Mach-O underscore-prefixed `mangledName` (`_return_six`), but `dlsym` expects the source-level name (`return_six`).
 - [infix] Fixed RAX register preservation in Windows x64 reverse trampoline epilogue for void functions, preventing clobber of the return value register.
 - [infix] Fixed SysV x64 reverse trampoline handling of `ARG_LOCATION_GPR_REFERENCE` for aggregates >16 bytes passed by reference.
 - [infix] Corrected handling of aggregates classified as `MEMORY` during reverse trampoline calls in SysV.
