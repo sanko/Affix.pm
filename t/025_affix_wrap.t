@@ -1,9 +1,11 @@
 use v5.40;
+use blib;
 use Affix::Wrap;
 use Test2::Tools::Affix qw[:all];
 use Test2::V0 -no_srand => 1;
 use Path::Tiny;
 use Capture::Tiny qw[capture];
+$|++;
 
 # Determine if Clang is available
 my $CLANG_AVAIL = do {
@@ -209,7 +211,7 @@ EOF
             }
             my ($dp) = grep { $_->name eq 'double_ptr' } @objs;
             ok( $dp, 'Found double_ptr' );
-            is( $dp->underlying->affix_type, 'Pointer[Pointer[Char]]', 'double_ptr affix_type' );
+            is( $dp->underlying->affix_type, 'Pointer[Const[Pointer[Const[Char]]]]', 'double_ptr affix_type' );
             my ($ap) = grep { $_->name eq 'array_of_pointers' } @objs;
             ok( $ap, 'Found array_of_pointers' );
             is( $ap->underlying->affix_type, 'Array[Pointer[Int], 5]', 'array_of_pointers affix_type' );
@@ -256,7 +258,7 @@ EOF
             my $content = $pm_file->slurp_utf8;
             like $content, qr/package\s+StaticLib\s*{/,                                                         'Package decl';
             like $content, qr/use constant STATIC_VAL => 42;/,                                                  'Constant generated';
-            like $content, qr/typedef 'StaticStruct' => Struct\[ x => Int \];/,                                 'Struct typedef generated';
+            like $content, qr/typedef StaticStruct => Struct\[ x => Int \];/,                                   'Struct typedef generated';
             like $content, qr/affix \$lib, ('static_func'|\[_static_func => 'static_func'\]) => \[Int\], Int;/, 'Function affix generated';
 
             # Syntax check
