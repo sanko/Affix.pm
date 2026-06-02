@@ -504,10 +504,15 @@ package Affix::Wrap v1.0.9 {
         field $mangled_name : reader : param //= ();
 
         method affix_type {
-
-            # Ensure arguments and return types are string signatures in the generated affix() call
+            my $sym = $self->name;
+            if ( defined $self->mangled_name && $self->mangled_name ne $self->name ) {
+                $sym = $self->mangled_name;
+                # Mach-O prepends a leading underscore to C symbols (e.g., _return_six)
+                # but dlsym expects the source-level name without it.
+                $sym = $self->name if $sym eq '_' . $self->name;
+            }
             sprintf "affix \$lib, %s => [%s], %s",
-                ( $self->mangled_name ne $self->name ? ( sprintf q[[%s => '%s']], $self->mangled_name, $self->name ) :
+                ( $sym ne $self->name ? ( sprintf q[[%s => '%s']], $sym, $self->name ) :
                     ( sprintf q['%s'], $self->name ) ), join( ', ', map { $_->affix_type } @$args ), $ret->affix_type;
         }
 
