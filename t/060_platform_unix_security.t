@@ -82,6 +82,7 @@ subtest 'find_library: graceful handling' => sub {
     }
 };
 subtest 'is_elf: binary detection' => sub {
+    skip_all 'No /tmp on Windows' if $^O eq 'MSWin32';
 
     # Create a fake ELF file
     my $fake_elf = '/tmp/_test_fake_elf_' . $$;

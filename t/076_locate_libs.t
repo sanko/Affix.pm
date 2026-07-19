@@ -35,6 +35,6 @@ subtest 'libm and libc return values' => sub {
 subtest 'libm and libc are usable for loading' => sub {
     my $m = libm();
     skip_all 'libm() returned undef' unless defined $m;
-    ok ref($m) eq 'Affix::Memory' || !ref($m), 'libm() returns Affix::Memory or path string';
+    ok ref($m) eq 'Affix::Memory' || ref($m) eq 'Path::Tiny' || !ref($m), 'libm() returns Affix::Memory, Path::Tiny, or path string';
 };
 done_testing;

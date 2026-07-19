@@ -111,8 +111,8 @@ subtest 'Deeply nested struct allocation' => sub {
     $inner->{value} = 2.71;
     is $view->{id},     42,   'outer id preserved';
     is $inner->{id},    99,   'inner id written';
-    is $view->{value},  3.14, 'outer value preserved';
-    is $inner->{value}, 2.71, 'inner value written';
+    is $view->{value},  float(3.14), 'outer value preserved';
+    is $inner->{value}, float(2.71), 'inner value written';
 };
 #
 subtest 'Stress test: timing baseline' => sub {
