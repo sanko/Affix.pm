@@ -52,7 +52,7 @@ class    #
         my $is_bsd = $^O =~ /bsd/i;
         my $is_win = $^O =~ /MSWin32/i;
         $cflags  = $is_bsd ? '' : '-fPIC ';
-        $ldflags = $is_bsd ? '' : ' -flto=auto ';
+        $ldflags = $is_bsd ? '' : ' -flto ';
         if ( $debug > 0 ) {
             $cflags
                 .= '-DDEBUG=' .
@@ -66,7 +66,7 @@ class    #
         }
         elsif ( !$is_win ) {
             $cflags
-                .= ' -DNDEBUG -DBOOST_DISABLE_ASSERTS -Ofast -ftree-vectorize -ffast-math -fno-align-functions -fno-align-loops -fno-omit-frame-pointer -flto=auto';
+                .= ' -DNDEBUG -DBOOST_DISABLE_ASSERTS -O3 -ftree-vectorize -ffast-math -fno-align-functions -fno-align-loops -fno-omit-frame-pointer -flto';
         }
 
         # Threading support (Critical for shm_open/librt on Linux)
@@ -88,7 +88,7 @@ class    #
         my %module_shared = map { $_ => catfile( qw[blib lib auto share module], abs2rel( $_, 'module-share' ) ) } find( qr/(?:)/, 'module-share' );
         pm_to_blib( { %modules, %docs, %scripts, %dist_shared, %module_shared }, catdir(qw[blib lib auto]) );
         make_executable($_) for values %scripts;
-        make_path( catdir(qw[blib arch]), { chmod => 0777, verbose => $verbose } );
+        make_path( catdir(qw[blib arch]), { chmod => 0755, verbose => $verbose } );
         0;
     }
     method step_clean() { remove_tree( $_, { verbose => $verbose } ) for qw[blib temp]; 0 }
@@ -173,8 +173,9 @@ use %s;
 
     # infix builder
     method step_clone_infix() {
-        return                      if cwd->absolute->child('infix')->exists;
-        die 'Failed to clone infix' if system 'git clone --verbose https://github.com/sanko/infix.git';
+        return if cwd->absolute->child('infix')->exists;
+        my $clone_dir = cwd->absolute->child('infix');
+        die 'Failed to clone infix' if system( 'git', 'clone', '--depth', '1', 'https://github.com/sanko/infix.git', $clone_dir->stringify );
     }
 
     method step_infix () {
@@ -281,21 +282,33 @@ END_C
         close $fh;
         my ( $ofh, $out ) = tempfile( UNLINK => 1 );
         close $ofh;
-        my $null = '/dev/null';
 
-        # Try without -lrt
-        system("$cc -o $out $src >$null 2>&1") == 0 and return '';
+        # Try without -lrt (list-form system to avoid shell injection)
+        open( my $devnull, '>', '/dev/null' ) if $^O ne 'MSWin32';
+        my $old_stdout = select $devnull      if $devnull;
+        system( $cc, '-o', $out, $src );
+        select $old_stdout if $old_stdout;
+        close $devnull     if $devnull;
+        return ''          if $? == 0;
 
         # Try with -lrt
-        system("$cc -o $out $src -lrt >$null 2>&1") == 0 and return '-lrt';
+        open( $devnull, '>', '/dev/null' ) if $^O ne 'MSWin32';
+        $old_stdout = select $devnull      if $devnull;
+        system( $cc, '-o', $out, $src, '-lrt' );
+        select $old_stdout if $old_stdout;
+        close $devnull     if $devnull;
+        return '-lrt'      if $? == 0;
         return '';
     }
 
     sub command_exists {
-        my ($cmd)       = @_;
-        my $null_device = $Config{osname} eq 'MSWin32' ? 'NUL'                            : '/dev/null';
-        my $search_cmd  = $Config{osname} eq 'MSWin32' ? "where $cmd > $null_device 2>&1" : "command -v $cmd > $null_device 2>&1";
-        return system($search_cmd) == 0;
+        my ($cmd) = @_;
+        if ( $Config{osname} eq 'MSWin32' ) {
+            return system( 'where', $cmd ) == 0;
+        }
+        else {
+            return system( 'command', '-v', $cmd ) == 0;
+        }
     }
 
     method step_affix {
@@ -336,10 +349,19 @@ END_C
             my $obj     = $builder->object_file($source);
 
             #~ warn "Checking obj: $obj\n";
+            # Check mtimes of all .c and .h files under lib/ (includes Affix.c, marshal.c, Affix.h)
+            my $newest_dep = $source->stat->mtime;
+            my $iter       = path('lib')->iterator;
+            while ( my $entry = $iter->() ) {
+                next unless $entry->is_file;
+                next unless $entry =~ /\.[ch]$/;
+                my $dep_mtime = $entry->stat->mtime;
+                $newest_dep = $dep_mtime if $dep_mtime > $newest_dep;
+            }
             my $should_compile
                 = ( $force ||
                     ( !-f $obj ) ||
-                    ( $source->stat->mtime >= path($obj)->stat->mtime ) ||
+                    ( $newest_dep >= path($obj)->stat->mtime ) ||
                     ( path(__FILE__)->stat->mtime > path($obj)->stat->mtime ) );
 
             #~ warn "Should compile: $should_compile\n";
@@ -372,10 +394,11 @@ END_C
 
             # Removed incorrect -lstdc++ logic. Added -lm for math.
             # -pthread is already in $ldflags via ADJUST
-            extra_linker_flags => ( $ldflags . ' -L' . $infix_build_lib . ' -linfix ' . $lrt_flag . ' -lm' ),
-            objects            => [@objs],
-            lib_file           => $lib_file,
-            module_name        => join '::',
+            extra_linker_flags =>
+                [ split( ' ', $ldflags ), "-L$infix_build_lib", '-linfix', ( $lrt_flag ? ( split( ' ', $lrt_flag ) ) : () ), '-lm' ],
+            objects     => [@objs],
+            lib_file    => $lib_file,
+            module_name => join '::',
             @parts
         };
         return $builder->link(%$data);

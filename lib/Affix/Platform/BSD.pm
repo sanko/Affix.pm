@@ -11,7 +11,7 @@ package Affix::Platform::BSD v0.12.0 {
             return $name                             # if is_elf($name);
         }
         CORE::state $cache;
-        my $regex = qr[-l$name\.[^\s]+.+\s*=>\s*(.+)$];
+        my $regex = qr[-l\Q$name\E\.[^\s]+.+\s*=>\s*(.+)$];
         ( $cache->{$name}{$version} ) = map { -l $_ ? readlink($_) : $_ } map { $_ =~ $regex; defined $1 ? $1 : () } split /\n\s*/,
             `export LC_ALL 'C'; export LANG 'C'; /sbin/ldconfig -r`;
         $cache->{$name}{$version} // ();

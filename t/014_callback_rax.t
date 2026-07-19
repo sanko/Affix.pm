@@ -10,7 +10,6 @@ $|++;
 # RAX is often used for the return value of functions.
 # If the trampoline clobbers RAX and doesn't restore it,
 # the caller might see a wrong return value or corrupt state.
-
 my $C_CODE = <<'END_C';
 #define DLLEXPORT __attribute__((visibility("default")))
 #include <stdio.h>
@@ -36,14 +35,10 @@ END_C
 #
 my $lib_path = compile_ok($C_CODE);
 ok( $lib_path && -e $lib_path, 'Compiled a test shared library successfully' );
-
 subtest 'RAX Preservation' => sub {
-    isa_ok my $harness
-        = wrap( $lib_path, 'call_with_rax_dependent_return',
-        [ Callback [ [ SInt32 ] => SInt32 ] ] => SInt32 ),
-        ['Affix'];
+    isa_ok my $harness = wrap( $lib_path, 'call_with_rax_dependent_return', [ Callback [ [SInt32] => SInt32 ] ] => SInt32 ), ['Affix'];
+    my $callback_sub = sub($val) {
 
-    my $callback_sub = sub( $val ) {
         # This callback will return 42.
         return $val + 32;
     };
@@ -53,5 +48,4 @@ subtest 'RAX Preservation' => sub {
     # or the final return value might be corrupted.
     is $harness->($callback_sub), 43, 'RAX preservation: callback return value maintained';
 };
-
 done_testing;

@@ -10,6 +10,8 @@ static SV * _bind_aggregate_internal(
     pTHX_ void * ptr, const infix_type * type, SV * owner, infix_arena_t * arena, bool, bool);
 int is_string_list_type(pTHX_ const infix_type * type) {
     const infix_type * t = resolve_type(aTHX_ type);
+    if (!t)
+        return 0;
     if (t->category != INFIX_TYPE_POINTER)
         return 0;
 
@@ -228,12 +230,12 @@ const infix_type * resolve_type(pTHX_ const infix_type * type) {
 #define MAKE_PRIMITIVE_DISPATCH(NAME, C_TYPE, SV_SET, SV_GET)           \
     int get_##NAME(pTHX_ SV * sv, MAGIC * mg) {                         \
         Affix_Pin_2_Point_Oh * im = (Affix_Pin_2_Point_Oh *)mg->mg_ptr; \
-        SvGMAGICAL_off(sv);                                             \
+        SvSMAGICAL_off(sv);                                             \
         if (!im->ptr)                                                   \
             sv_setsv(sv, &PL_sv_undef);                                 \
         else                                                            \
             SV_SET(sv, *(C_TYPE *)im->ptr);                             \
-        SvGMAGICAL_on(sv);                                              \
+        SvSMAGICAL_on(sv);                                              \
         return 0;                                                       \
     }                                                                   \
     int set_##NAME(pTHX_ SV * sv, MAGIC * mg) {                         \
@@ -242,9 +244,9 @@ const infix_type * resolve_type(pTHX_ const infix_type * type) {
             croak("Modification of a read-only C value attempted");     \
         if (!im->ptr)                                                   \
             return 0;                                                   \
-        SvSMAGICAL_off(sv);                                             \
+        SvGMAGICAL_off(sv);                                             \
         *(C_TYPE *)im->ptr = (C_TYPE)SV_GET(sv);                        \
-        SvSMAGICAL_on(sv);                                              \
+        SvGMAGICAL_on(sv);                                              \
         return 0;                                                       \
     }                                                                   \
     MGVTBL vtbl_##NAME = MG_V2_TABLE(get_##NAME, set_##NAME, nullptr);
@@ -371,6 +373,8 @@ unsigned __int128 _alt_sv_to_int128(pTHX_ SV * sv) {
                                              : -1;
             if (v == -1)
                 break;
+            if (res > (unsigned __int128)~(unsigned __int128)0 / 16)
+                croak("Overflow parsing 128-bit hex literal");
             res = res * 16 + v;
             p++;
             len--;
@@ -378,6 +382,8 @@ unsigned __int128 _alt_sv_to_int128(pTHX_ SV * sv) {
     }
     else {
         while (len > 0 && *p >= '0' && *p <= '9') {
+            if (res > (unsigned __int128)~(unsigned __int128)0 / 10)
+                croak("Overflow parsing 128-bit decimal literal");
             res = res * 10 + (*p - '0');
             p++;
             len--;
@@ -452,6 +458,7 @@ MGVTBL * get_primitive_vtable(const infix_type * type) {
     case INFIX_PRIMITIVE_UINT128:
         return &vtbl_uint128;
     default:
+        warn("Affix: unknown primitive type ID %d, falling back to sint32", type->meta.primitive_id);
         return &vtbl_sint32;
     }
 }
@@ -466,7 +473,7 @@ int string_mg_get(pTHX_ SV * sv, MAGIC * mg) {
     Affix_Pin_2_Point_Oh * im = (Affix_Pin_2_Point_Oh *)mg->mg_ptr;
     const infix_type * t = resolve_type(aTHX_ im->type);
     size_t max_len = t->meta.array_info.num_elements;
-    SvGMAGICAL_off(sv);
+    SvSMAGICAL_off(sv);
     char * target = (char *)im->ptr;
     if (!target) {
         sv_setsv(sv, &PL_sv_undef);
@@ -480,7 +487,7 @@ int string_mg_get(pTHX_ SV * sv, MAGIC * mg) {
             actual++;
         sv_setpvn(sv, target, actual);
     }
-    SvGMAGICAL_on(sv);
+    SvSMAGICAL_on(sv);
     return 0;
 }
 int string_mg_set(pTHX_ SV * sv, MAGIC * mg) {
@@ -805,7 +812,7 @@ SV * wrap_callable_pointer(pTHX_ void * addr, const infix_type * type) {
 }
 int get_ptr(pTHX_ SV * sv, MAGIC * mg) {
     Affix_Pin_2_Point_Oh * im = (Affix_Pin_2_Point_Oh *)mg->mg_ptr;
-    SvGMAGICAL_off(sv);
+    SvSMAGICAL_off(sv);
 
     /* If it's absolute (malloc/cast/pin), im->ptr is the memory address of the data.
        If it's relative (struct member), im->ptr is the address of a pointer variable. */
@@ -834,7 +841,7 @@ int get_ptr(pTHX_ SV * sv, MAGIC * mg) {
         }
     }
 
-    SvGMAGICAL_on(sv);
+    SvSMAGICAL_on(sv);
     return 0;
 }
 int set_ptr(pTHX_ SV * sv, MAGIC * mg) {
@@ -844,7 +851,7 @@ int set_ptr(pTHX_ SV * sv, MAGIC * mg) {
     if (!im || !im->ptr)
         return 0;
 
-    SvSMAGICAL_off(sv);
+    SvGMAGICAL_off(sv);
     void * new_addr = nullptr;
 
     /* Priority 1: Subroutines */
@@ -947,7 +954,7 @@ int set_ptr(pTHX_ SV * sv, MAGIC * mg) {
 
     *(void **)im->ptr = new_addr;
 
-    SvSMAGICAL_on(sv);
+    SvGMAGICAL_on(sv);
     return 0;
 }
 
@@ -980,7 +987,7 @@ int lazy_agg_get(pTHX_ SV * sv, MAGIC * mg) {
     if (SvROK(sv) || SvTYPE(sv) >= SVt_PVAV)
         return 0;
 
-    SvGMAGICAL_off(sv);
+    SvSMAGICAL_off(sv);
     if (!im->ptr) {
         SV * rv = _bind_aggregate_internal(aTHX_ nullptr, im->type, mg->mg_obj, im->arena, true, im->readonly);
         sv_setsv(sv, rv);
@@ -995,7 +1002,7 @@ int lazy_agg_get(pTHX_ SV * sv, MAGIC * mg) {
         sv_setsv(sv, rv);
         SvREFCNT_dec(rv);
     }
-    SvGMAGICAL_on(sv);
+    SvSMAGICAL_on(sv);
     return 0;
 }
 /**
@@ -1237,7 +1244,7 @@ int buffer_mg_get(pTHX_ SV * sv, MAGIC * mg) {
     /* For arrays, num_elements is our buffer size */
     size_t max_len = t->meta.array_info.num_elements;
 
-    SvGMAGICAL_off(sv);
+    SvSMAGICAL_off(sv);
     if (!im->ptr) {
         sv_setsv(sv, &PL_sv_undef);
     }
@@ -1245,7 +1252,7 @@ int buffer_mg_get(pTHX_ SV * sv, MAGIC * mg) {
         /* FIX: Use sv_setpvn to copy the full length, nulls and all */
         sv_setpvn(sv, (char *)im->ptr, max_len);
     }
-    SvGMAGICAL_on(sv);
+    SvSMAGICAL_on(sv);
     return 0;
 }
 

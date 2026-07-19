@@ -19,8 +19,8 @@ package Affix v1.0.9 {    # 'FFI' is my middle name!
 
     BEGIN {
         use XSLoader;
-        $DynaLoad::dl_debug = $DynaLoad::dl_debug = 1;
-        $okay               = XSLoader::load();
+        $DynaLoader::dl_debug = 0;
+        $okay                 = XSLoader::load();
         my $platform
             = 'Affix::Platform::' .
             ( ( $^O eq 'MSWin32' ) ? 'Windows' :
@@ -30,7 +30,7 @@ package Affix v1.0.9 {    # 'FFI' is my middle name!
 
         #~ warn $platform;
         #~ use base $platform;
-        eval 'use ' . $platform . ' qw[:all];';
+        eval "use $platform qw[:all]";
         $@ && die $@;
         our @ISA = ($platform);
     }
@@ -621,8 +621,8 @@ package Affix v1.0.9 {    # 'FFI' is my middle name!
                     if    ( $token eq '+' )  { push @stack, $a + $b; }
                     elsif ( $token eq '-' )  { push @stack, $a - $b; }
                     elsif ( $token eq '*' )  { push @stack, $a * $b; }
-                    elsif ( $token eq '/' )  { push @stack, int( $a / $b ); }
-                    elsif ( $token eq '%' )  { push @stack, $a % $b; }
+                    elsif ( $token eq '/' )  { push @stack, $b ? int( $a / $b ) : 0; }
+                    elsif ( $token eq '%' )  { push @stack, $b ? $a % $b        : 0; }
                     elsif ( $token eq '<<' ) { push @stack, $a << $b; }
                     elsif ( $token eq '>>' ) { push @stack, $a >> $b; }
                     elsif ( $token eq '|' )  { push @stack, $a | $b; }
