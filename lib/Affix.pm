@@ -182,19 +182,7 @@ package Affix v1.0.9 {    # 'FFI' is my middle name!
 
     sub _is_type ($thing) {
         return 1 if builtin::blessed($thing) && $thing->isa('Affix::Type');
-        return 0 if !defined $thing || ref $thing;
-
-        # Strictly check for signature characters
-        return 1 if $thing =~ /^[\*\[\{\!<\\@\+]/;
-
-        # Complex (c[...]), Vector (v[...]), or Enum (e:...)
-        return 1 if $thing =~ /^[cv]\[/;
-        return 1 if $thing =~ /^e:/;
-
-        # Primitive types must match exactly or be followed by a delimiter
-        return 1
-            if $thing
-            =~ /^(?:void|bool|[usw]?char|u?short|u?int|u?long(?:long)?|float|double|longdouble|s?size_t|s?int\d+|uint\d+|float\d+|m\d+[a-z]*)$/;
+        return 1 if !ref($thing) && defined $thing && index('*@({;<', substr( $thing, 0, 1 )) >= 0;
         return 0;
     }
 
@@ -371,7 +359,7 @@ package Affix v1.0.9 {    # 'FFI' is my middle name!
                 next;
             }
             my $next = $args->[ $i + 1 ];
-            if ( defined $next && _is_type($next) && !_is_type($curr) ) {
+            if ( defined $next && _is_type($next) && !ref($curr) ) {
                 push @parts, "$curr:$next";
                 $i++;
             }
