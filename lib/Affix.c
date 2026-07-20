@@ -5767,7 +5767,7 @@ void boot_Affix(pTHX_ CV * cv) {
         XSUB_EXPORT(own, nullptr, "memory");
         XSUB_EXPORT(readonly, nullptr, "memory");
         XSUB_EXPORT(cast, "$$", "memory");
-        XSUB_EXPORT(pin, "$$$;$", "memory");
+        XSUB_EXPORT(pin, "$$;$$", "memory");
         XSUB_EXPORT(unpin, "$", "memory");
 
         // Raw memory operations

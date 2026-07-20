@@ -36,6 +36,7 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 ### Fixed
 
 - Fixed packed struct layout where `Packed(Struct[...])` and `Packed[N, Struct[...]]` returned sizeof values matching unpacked structs. The `is_packed` flag in the infix layout engine was only suppressing struct-level alignment but not forcing member alignment to 1, causing spurious inter-member padding.
+- Fixed `pin` XS prototype (`"$$$;$"` → `"$$;$$"`) which blocked the 2-arg `pin($scalar, $existing_pin)` clone form at the Perl level despite the C implementation correctly handling it.
 - Restored `Packed[N, Struct[...]]` alignment form. The `$` prototype was correct (single array ref), but the check needed to inspect `$_[0]` as a 2-element array ref rather than relying on a dead `@_ == 2` branch.
 - Fixed a sign-extension bug in 128-bit integer parsing.
 - Fixed bitfield write-back logic to use proper bitmasking, preventing neighboring bit corruption.
