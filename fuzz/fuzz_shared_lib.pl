@@ -407,6 +407,104 @@ END_C
     };
 }
 
+# Packed struct by value (tests #pragma pack + Packed() sizeof/layout)
+sub generate_packed_struct_fn {
+    my ($fn_name)   = @_;
+    my $nfields     = 2 + int( rand(3) );
+    my @all         = @PRIMITIVES;
+    my @fields      = pick_n( $nfields, @all );
+    my $struct_name = 'PS' . int( rand(99999) );
+    my ( @struct_members, @struct_perl_fields, @struct_sig_fields, @c_params, @perl_args, @sig_args, @gen_values );
+    for my $f (@fields) {
+        my $fname = 'm' . scalar(@struct_members);
+        push @struct_members,     "$f->{c} $fname;";
+        push @struct_perl_fields, $fname, $f->{perl}->();
+        push @struct_sig_fields,  "$fname:" . $f->{sig};
+        my $pname = 'p' . scalar(@c_params);
+        push @c_params,  "$f->{c} $pname";
+        push @perl_args, $f->{perl}->();
+        push @sig_args,  $f->{sig};
+        my $val = $f->{gen}->();
+        push @gen_values, sub {$val};
+    }
+    my $struct_body = join( ' ', @struct_members );
+    my $struct_sig  = '!' . '{' . join( ',', @struct_sig_fields ) . '}';
+    my $params_str  = join( ', ', @c_params );
+    my @inits       = map {"r.m$_ = p$_;"} 0 .. $#fields;
+    my $init_block  = join( "\n    ", @inits );
+    my $c_code      = <<"END_C";
+#pragma pack(push, 1)
+typedef struct { $struct_body } $struct_name;
+#pragma pack(pop)
+
+$struct_name $fn_name($params_str) {
+    $struct_name r = {0};
+    $init_block
+    return r;
+}
+END_C
+    return {
+        c_code     => $c_code,
+        c_name     => $fn_name,
+        sig_args   => \@sig_args,
+        sig_ret    => $struct_sig,
+        perl_args  => \@perl_args,
+        perl_ret   => Packed( Struct [@struct_perl_fields] ),
+        gen_values => \@gen_values,
+    };
+}
+
+# Packed struct pointer roundtrip
+sub generate_packed_struct_ptr_fn {
+    my ($fn_name)   = @_;
+    my $nfields     = 2 + int( rand(3) );
+    my @all         = @PRIMITIVES;
+    my @fields      = pick_n( $nfields, @all );
+    my $struct_name = 'PP' . int( rand(99999) );
+    my ( @struct_members, @struct_perl_fields, @struct_sig_fields );
+    for my $f (@fields) {
+        my $fname = 'm' . scalar(@struct_members);
+        push @struct_members,     "$f->{c} $fname;";
+        push @struct_perl_fields, $fname, $f->{perl}->();
+        push @struct_sig_fields,  "$fname:" . $f->{sig};
+    }
+    my $struct_body = join( ' ', @struct_members );
+    my $struct_sig  = '!' . '{' . join( ',', @struct_sig_fields ) . '}';
+    my $first       = $fields[0];
+    my $c_code      = <<"END_C";
+#pragma pack(push, 1)
+typedef struct { $struct_body } $struct_name;
+#pragma pack(pop)
+
+$first->{c} ${fn_name}($struct_name *s) {
+    return s ? s->m0 : 0;
+}
+END_C
+    my $val         = $first->{gen}->();
+    my @perl        = @struct_perl_fields;
+    my $struct_type = Packed( Struct [@perl] );
+    my $is_float    = ( $first->{c} eq 'float' || $first->{c} eq 'double' );
+    my @keep_alive;
+    return {
+        c_code     => $c_code,
+        c_name     => $fn_name,
+        sig_args   => ["*$struct_sig"],
+        sig_ret    => $first->{sig},
+        perl_args  => [ Pointer [$struct_type] ],
+        perl_ret   => $first->{perl}->(),
+        gen_values => [
+            sub {
+                my $mem = Affix::malloc( sizeof($struct_type) );
+                my $pin = cast( $mem, $struct_type );
+                $pin->{m0} = $val;
+                push @keep_alive, $mem;
+                return $pin;
+            }
+        ],
+        verify => $is_float ? sub ($result) { abs( $result - $val ) < 0.01 } : sub ($result) { $result == $val },
+    };
+}
+
 # Struct pointer roundtrip
 sub generate_struct_ptr_fn {
     my ($fn_name)   = @_;
@@ -458,17 +556,19 @@ END_C
 # Build + verify one function
 sub fuzz_one {
     my $fn_name = unique_name();
-    my $variant = pick(qw[primitive struct union enum mega_arg pointer callback string struct_ptr]);
+    my $variant = pick(qw[primitive struct union enum mega_arg pointer callback string struct_ptr packed_struct packed_struct_ptr]);
     my $spec;
-    if    ( $variant eq 'primitive' )  { $spec = generate_function($fn_name); }
-    elsif ( $variant eq 'struct' )     { $spec = generate_struct_fn($fn_name); }
-    elsif ( $variant eq 'union' )      { $spec = generate_union_fn($fn_name); }
-    elsif ( $variant eq 'enum' )       { $spec = generate_enum_fn($fn_name); }
-    elsif ( $variant eq 'mega_arg' )   { $spec = generate_mega_arg_fn($fn_name); }
-    elsif ( $variant eq 'pointer' )    { $spec = generate_pointer_fn($fn_name); }
-    elsif ( $variant eq 'callback' )   { $spec = generate_callback_fn($fn_name); }
-    elsif ( $variant eq 'string' )     { $spec = generate_string_fn($fn_name); }
-    elsif ( $variant eq 'struct_ptr' ) { $spec = generate_struct_ptr_fn($fn_name); }
+    if    ( $variant eq 'primitive' )         { $spec = generate_function($fn_name); }
+    elsif ( $variant eq 'struct' )            { $spec = generate_struct_fn($fn_name); }
+    elsif ( $variant eq 'union' )             { $spec = generate_union_fn($fn_name); }
+    elsif ( $variant eq 'enum' )              { $spec = generate_enum_fn($fn_name); }
+    elsif ( $variant eq 'mega_arg' )          { $spec = generate_mega_arg_fn($fn_name); }
+    elsif ( $variant eq 'pointer' )           { $spec = generate_pointer_fn($fn_name); }
+    elsif ( $variant eq 'callback' )          { $spec = generate_callback_fn($fn_name); }
+    elsif ( $variant eq 'string' )            { $spec = generate_string_fn($fn_name); }
+    elsif ( $variant eq 'struct_ptr' )        { $spec = generate_struct_ptr_fn($fn_name); }
+    elsif ( $variant eq 'packed_struct' )     { $spec = generate_packed_struct_fn($fn_name); }
+    elsif ( $variant eq 'packed_struct_ptr' ) { $spec = generate_packed_struct_ptr_fn($fn_name); }
     return unless $spec;
     note "--- Variant: $variant ---"                                                             if $verbose;
     note "C Code:\n$spec->{c_code}"                                                              if $verbose;

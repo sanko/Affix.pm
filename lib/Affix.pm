@@ -323,15 +323,15 @@ package Affix v1.1.0 {    # 'FFI' is my middle name!
     }
 
     # Packed[ Struct[...] ]        -> !{...}
-    # Packed( 4, [ Struct[...] ] ) -> !4:{...}
+    # Packed[ N, Struct[...] ]     -> !N:{...}
     sub Packed : prototype($) {
-        if ( @_ == 2 && !ref( $_[0] ) ) {
-            my ( $align, $content ) = @_;
-            my $agg = ref($content) eq 'ARRAY' ? _build_aggregate( $content, '{%s}' ) : $content;
+        my $content = $_[0];
+        if ( ref($content) eq 'ARRAY' && @$content == 2 && !ref( $content->[0] ) ) {
+            my ( $align, $struct ) = @$content;
+            my $agg = ref($struct) eq 'ARRAY' ? _build_aggregate( $struct, '{%s}' ) : $struct;
             return "!$align:$agg";
         }
-        my $content = $_[0];
-        my $agg     = ref($content) eq 'ARRAY' ? _build_aggregate( $content, '{%s}' ) : $content;
+        my $agg = ref($content) eq 'ARRAY' ? _build_aggregate( $content, '{%s}' ) : $content;
         return "!$agg";
     }
 

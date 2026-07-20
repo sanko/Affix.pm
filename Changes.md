@@ -22,6 +22,7 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 - Enum definitions now accept explicit integer values and arithmetic expressions (e.g., `FOO => BAR | 0x8`) in addition to sequential auto-increment.
 - [infix] Added support for preserving character-specific primitive names (`wchar_t`, `char16_t`, `char32_t`, `char8_t`), enabling correct identification of string buffers via `infix_type_get_name()`.
 - Test dependency updated from `Test2::V0` to `Test2::V1`.
+- Added test coverage for `Packed` structs (sizeof, field access via magic, C-level roundtrip), `own()`, `pin()` conventions (2-arg clone, 3-arg raw address, 4-arg with library object), `IntEnum`/`CharEnum`/`UIntEnum` alias exports, and SIMD M256/M512 types.
 
 ### Changed
 
@@ -34,6 +35,8 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ### Fixed
 
+- Fixed packed struct layout where `Packed(Struct[...])` and `Packed[N, Struct[...]]` returned sizeof values matching unpacked structs. The `is_packed` flag in the infix layout engine was only suppressing struct-level alignment but not forcing member alignment to 1, causing spurious inter-member padding.
+- Restored `Packed[N, Struct[...]]` alignment form. The `$` prototype was correct (single array ref), but the check needed to inspect `$_[0]` as a 2-element array ref rather than relying on a dead `@_ == 2` branch.
 - Fixed a sign-extension bug in 128-bit integer parsing.
 - Fixed bitfield write-back logic to use proper bitmasking, preventing neighboring bit corruption.
 - Corrected `wstring` (UTF-16/32) conversion to handle null-terminators properly in fixed-size arrays.
