@@ -182,7 +182,7 @@ package Affix v1.0.9 {    # 'FFI' is my middle name!
 
     sub _is_type ($thing) {
         return 1 if builtin::blessed($thing) && $thing->isa('Affix::Type');
-        return 1 if !ref($thing) && defined $thing && index('*@({;<', substr( $thing, 0, 1 )) >= 0;
+        return 1 if !ref($thing) && defined $thing && index( '*@({;<', substr( $thing, 0, 1 ) ) >= 0;
         return 0;
     }
 

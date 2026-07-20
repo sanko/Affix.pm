@@ -149,12 +149,12 @@ class    #
 
         # Perl fuzz target metadata
         my %perl_targets = (
-            wrap     => { script => 'fuzz_wrap_type_sig.pl',  desc => 'Affix::Wrap::Type->parse()',    needs_lib => 1 },
-            grammar  => { script => 'fuzz_grammar_mutate.pl', desc => 'Grammar-aware C sig mutations', needs_lib => 1, extra_inc => 1 },
+            wrap     => { script => 'fuzz_wrap_type_sig.pl',  desc => 'Affix::Wrap::Type->parse()',          needs_lib => 1 },
+            grammar  => { script => 'fuzz_grammar_mutate.pl', desc => 'Grammar-aware C sig mutations',       needs_lib => 1, extra_inc => 1 },
             register => { script => 'fuzz_register_types.pl', desc => 'Affix::_typedef() — C parser direct', needs_lib => 1 },
-            cross    => { script => 'fuzz_cross_boundary.pl', desc => 'Cross-boundary Perl->C->JIT',   needs_lib => 1 },
-            compile  => { script => 'fuzz_compile_ok.pl',     desc => 'compile_ok() C compilation',    needs_lib => 1 },
-            shared   => { script => 'fuzz_shared_lib.pl',     desc => 'Compile→load→affix→call→verify ABI', needs_lib => 1 },
+            cross    => { script => 'fuzz_cross_boundary.pl', desc => 'Cross-boundary Perl->C->JIT',         needs_lib => 1 },
+            compile  => { script => 'fuzz_compile_ok.pl',     desc => 'compile_ok() C compilation',          needs_lib => 1 },
+            shared   => { script => 'fuzz_shared_lib.pl',     desc => 'Compile→load→affix→call→verify ABI',  needs_lib => 1 },
         );
 
         # C fuzz targets (delegate to infix/build.pl)
@@ -172,25 +172,33 @@ class    #
         my $iters    = $args{smoke} ? 100 : $max_iter;
         my $to       = $args{smoke} ? 3   : $timeout;
 
-        # Run Perl fuzz targets
+        # Run Perl fuzz targets via TAP::Harness for proper TAP output
+        require TAP::Harness::Env;
+        my @fuzz_scripts;
         for my $name (@targets) {
             my $target = $perl_targets{$name} // do { warn "Unknown Perl fuzz target: $name\n"; $failures++; next };
             my $script = $fuzz_dir->child( $target->{script} );
-            die "Fuzz script not found: $script\n" unless -f $script;
+            unless ( -f $script ) {
+                warn "Fuzz script not found: $script\n";
+                $failures++;
+                next;
+            }
             say "=" x 60;
             say "Fuzzing: $target->{desc}";
             say "  Script: $target->{script}";
             say "  Iterations: $iters, Timeout: ${to}s";
             say "=" x 60;
-            my @cmd = ($^X);
-            push @cmd, '-Ilib', '-Iblib/lib'         if $target->{needs_lib};
-            push @cmd, '-I',    $fuzz_dir->stringify if $target->{extra_inc};
-            push @cmd, $script->stringify;
+            push @fuzz_scripts, $script->stringify;
+        }
+        if (@fuzz_scripts) {
             local $ENV{FUZZ_MAX_ITER} = $iters;
             local $ENV{FUZZ_TIMEOUT}  = $to;
             local $ENV{FUZZ_VERBOSE}  = $verbose_fuzz;
-            my $exit = system @cmd;
-            $failures++ if $exit != 0;
+            my %harness_args
+                = ( ( verbosity => $verbose ), ( color => -t STDOUT ), lib => [ map { rel2abs( catdir( 'blib', $_ ) ) } qw[arch lib] ], );
+            my $harness = TAP::Harness::Env->create( \%harness_args );
+            my $aggr    = $harness->runtests( sort @fuzz_scripts );
+            $failures++ if $aggr->has_errors;
             say "";
         }
 
