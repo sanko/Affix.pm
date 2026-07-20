@@ -66,8 +66,7 @@ default. You can control imports using tags:
 ```perl
 use Affix qw[:all];    # Import everything
 use Affix qw[:lib];    # Library helpers (libc, libm, load_library...)
-use Affix qw[:memory]; # malloc, free, memcpy, cast, dump, raw, snapshot...
-use Affix qw[:pin];    # Variable binding (pin, unpin)
+use Affix qw[:memory]; # malloc, free, memcpy, cast, dump, raw, snapshot, pin, unpin...
 use Affix qw[:types];  # Types only (Int, Struct, Pointer...)
 ```
 
@@ -142,17 +141,33 @@ coerce( Float, 1.5 );
 
 Affix allows you to link Perl scalars directly to global or external variables exported by C libraries.
 
-## `pin( $var, $lib, $symbol, $type )`
+## `pin( ... )`
 
-Binds a scalar to a C variable. Reading the scalar reads C memory; writing to it updates C memory immediately.
+Binds a scalar to a C variable. Reading the scalar reads C memory; writing to it updates C memory immediately. Three
+calling conventions are supported:
 
-```perl
-# C: extern int errno;
-my $errno;
-pin $errno, libc(), 'errno', Int;
+- **pin( $var, $lib, $symbol, $type )** — Binds to an exported symbol. This is the most common form.
 
-$errno = 0;   # Writes directly to C memory
-```
+    ```perl
+    # C: extern int errno;
+    my $errno;
+    pin $errno, libc(), 'errno', Int;
+
+    $errno = 0;   # Writes directly to C memory
+    ```
+
+- **pin( $var, $address, $type )** — Binds to a raw memory address (e.g., from `find_symbol` or pointer arithmetic).
+
+    ```perl
+    my $addr = address($some_ptr);
+    pin my $val, $addr, Int;
+    ```
+
+- **pin( $var, $existing\_pin )** — Clones the binding from an existing pin (copies the address and type).
+
+    ```perl
+    pin my $copy, $original_pin;
+    ```
 
 ## `unpin( $var )`
 
@@ -220,16 +235,72 @@ Use these when a C library explicitly requests a `stdint.h` type.
 
 ### `Pointer[ $type ]`
 
-A pointer to another type. When used as an argument in a callback or as a return value, Affix returns a **Scalar
-Reference** to a magical scalar.
+A pointer to another type. Affix wraps pointers in magical Perl scalar references that read and write C memory directly
+via the `$$` dereference operator.
+
+#### Reading
+
+Dereferencing reads the value from C memory:
 
 ```perl
-# In a callback receiving (int *a)
-sub {
-    my ($p_a) = @_;
-    say $$p_a; # Magic: reads the integer from C memory
-}
+affix $lib, 'get_ptr', [] => Pointer[Int];
+my $ptr = get_ptr();
+say $$ptr;  # Reads the int value from C memory
 ```
+
+#### Writing
+
+Assigning through the dereference writes directly to C memory:
+
+```
+$$ptr = 42;  # Writes 42 to the C memory address
+```
+
+This works for deep pointer chains as well:
+
+```perl
+# int*** ptr; ***ptr = 5;
+my $ppp = cast( $mem, Pointer[ Pointer[ Pointer[Int] ] ] );
+$$ppp = $pp_val;  # Writes the pointer address through the chain
+```
+
+#### Passing Scalars as Pointers
+
+When a function expects a `Pointer[$type]` argument, pass a **scalar reference** (`\$var`) to send the address of a
+Perl scalar. Affix automatically handles the marshalling:
+
+```perl
+# C: int deref_and_add(int* p);
+affix $lib, 'deref_and_add', [ Pointer[Int] ] => Int;
+
+my $val = 50;
+is deref_and_add( \$val ), 60;  # Passes address of $val as int*
+
+# C: void modify_int_ptr(int* p, int new_val);
+affix $lib, 'modify_int_ptr', [ Pointer[Int], Int ] => Void;
+modify_int_ptr( \$val, 999 );
+say $val;  # 1000 — C function wrote through the pointer
+```
+
+#### Array Indexing
+
+Pointers to arrays support direct element access via array subscript syntax. Reads and writes go directly to C memory:
+
+```perl
+affix $lib, 'get_array_ptr', [] => Pointer[ Array[ Int, 4 ] ];
+my $arr = get_array_ptr();
+say $arr->[0];   # Read first element from C memory
+$arr->[2] = 99;  # Write third element in C memory
+```
+
+To take a deep copy (snapshot), dereference into an anonymous array ref:
+
+```perl
+my $snapshot = [@$arr];
+$snapshot->[0] = 100;  # Modifying snapshot does NOT affect C memory
+```
+
+#### Void Pointers
 
 If `$type` is `Void`, the pointer is "terminal." Dereferencing it will return `undef`. In this case, use `cast()`
 or `address()` to work with the raw memory address.
@@ -260,13 +331,16 @@ A C union, mapped to a Perl `HashRef` with exactly one key.
 typedef Event => Union[ key_code => Int, pressure => Float ];
 ```
 
-### `Packed[ $align, $aggregate ]`
+### `Packed[ $aggregate ]` / `Packed[ $align, $aggregate ]`
 
 Forces specific byte alignment on a Struct or Union (e.g., `#pragma pack(1)`).
 
 ```perl
-# C: #pragma pack(push, 1) ...
-Packed[ 1, Struct[ flag => Char, data => Int ] ];
+# Without explicit alignment (default):
+Packed[ Struct[ flag => Char, data => Int ] ];
+
+# With explicit alignment (e.g., #pragma pack(push, 1)):
+Packed( 1, Struct[ flag => Char, data => Int ] );
 ```
 
 ### `Array[ $type, $count ]`
@@ -462,6 +536,30 @@ a segmentation fault.
 
 ```
 free($ptr);
+```
+
+### `own( $pin )`
+
+Returns true if the given pin is an owned `Affix::Memory` object (i.e., memory allocated via `malloc` or `calloc`
+that Perl manages directly). Returns false for unmanaged pins or raw scalars.
+
+```
+if (own($ptr)) {
+    say "Perl owns this memory; it will be freed automatically.";
+}
+```
+
+### `is_pin( $var )`
+
+Returns true if the variable is currently bound to C memory via `pin`, `cast`, or pointer dereferencing. Returns
+false for ordinary Perl scalars.
+
+```perl
+my $x = 42;
+say is_pin($x); # false
+
+pin $x, libc(), 'errno', Int;
+say is_pin($x); # true
 ```
 
 ## Lifecycle & Ownership
