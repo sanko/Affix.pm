@@ -1,0 +1,58 @@
+---
+jobs:
+  fuzz:
+    name: '${{ matrix.title }}'
+    runs-on: '${{ matrix.os }}'
+    steps:
+      - uses: actions/checkout@v4
+      - name: Set up Perl
+        uses: shogo82148/actions-setup-perl@v1
+        with:
+          distribution: "${{ matrix.distribution || 'default' }}"
+          perl-version: 5.40
+      - name: Install dependencies
+        run: |
+          cpanm --notest -q Module::Build::Tiny
+          perl Build.PL
+          perl Build
+      - env:
+          MINUTES: '${{ inputs.minutes }}'
+        name: Run fuzzers
+        run: |
+          FUZZ_TIME="${MINUTES:-10}"
+          export FUZZ_MAX_ITER=$(( FUZZ_TIME * 200 ))
+          export FUZZ_TIMEOUT=5
+          export FUZZ_VERBOSE=0
+          for f in fuzz/fuzz_*.pl; do
+            echo "=== Running $f ==="
+            perl -Ilib "$f" || exit 1
+          done
+        shell: bash
+    strategy:
+      fail-fast: false
+      matrix:
+        include:
+          - os: ubuntu-latest
+            title: Linux x64
+          - os: ubuntu-24.04-arm
+            title: Linux ARM64
+          - os: macos-15
+            title: macOS ARM
+          - os: macos-15-intel
+            title: macOS Intel
+          - os: windows-2022
+            title: Windows x64
+            distribution: strawberry
+name: Fuzz
+on:
+  schedule:
+    - cron: 0 6 * * *
+  workflow_dispatch:
+    inputs:
+      minutes:
+        default: 10
+        description: Fuzzing time per runner (approximate)
+        required: false
+        type: number
+permissions:
+  contents: read
