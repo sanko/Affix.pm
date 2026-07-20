@@ -123,6 +123,105 @@ class    #
         TAP::Harness::Env->create( \%test_args )->runtests( sort map { $_->stringify } find( qr/\.t$/, 't' ) )->has_errors;
     }
 
+    method step_fuzz(@args) {
+        my %args = @args;
+        $self->step_build() unless -d 'blib';
+
+        # Fuzz config via env vars (or caller can pass %args)
+        my $max_iter     = $ENV{FUZZ_MAX_ITER} // $args{iter}    // 10000;
+        my $timeout      = $ENV{FUZZ_TIMEOUT}  // $args{timeout} // 5;
+        my $verbose_fuzz = $ENV{FUZZ_VERBOSE}  // $args{verbose} // 0;
+
+        # Determine which Perl targets to run
+        my @targets;
+        if ( $args{all} ) {
+            @targets = qw[wrap grammar register cross compile];
+        }
+        elsif ( $args{smoke} ) {
+            @targets = qw[wrap grammar register cross];
+        }
+        elsif ( $args{target} ) {
+            @targets = ref $args{target} ? @{ $args{target} } : ( $args{target} );
+        }
+        else {
+            @targets = qw[wrap grammar register cross];
+        }
+
+        # Perl fuzz target metadata
+        my %perl_targets = (
+            wrap     => { script => 'fuzz_wrap_type_sig.pl',  desc => 'Affix::Wrap::Type->parse()',    needs_lib => 1 },
+            grammar  => { script => 'fuzz_grammar_mutate.pl', desc => 'Grammar-aware C sig mutations', needs_lib => 1, extra_inc => 1 },
+            register => { script => 'fuzz_register_types.pl', desc => 'Affix::_typedef() — C parser direct', needs_lib => 1 },
+            cross    => { script => 'fuzz_cross_boundary.pl', desc => 'Cross-boundary Perl->C->JIT',   needs_lib => 1 },
+            compile  => { script => 'fuzz_compile_ok.pl',     desc => 'compile_ok() C compilation',    needs_lib => 1 },
+            shared   => { script => 'fuzz_shared_lib.pl',     desc => 'Compile→load→affix→call→verify ABI', needs_lib => 1 },
+        );
+
+        # C fuzz targets (delegate to infix/build.pl)
+        my %c_targets = (
+            signature  => 'Parser crashes + arena stress',
+            abi        => 'ABI classification',
+            types      => 'Type generator bugs',
+            roundtrip  => 'Type->String->Type consistency',
+            trampoline => 'JIT trampoline creation',
+            direct     => 'Direct marshalling JIT',
+        );
+        my $fuzz_dir = path('fuzz');
+        die "fuzz/ directory not found\n" unless -d $fuzz_dir;
+        my $failures = 0;
+        my $iters    = $args{smoke} ? 100 : $max_iter;
+        my $to       = $args{smoke} ? 3   : $timeout;
+
+        # Run Perl fuzz targets
+        for my $name (@targets) {
+            my $target = $perl_targets{$name} // do { warn "Unknown Perl fuzz target: $name\n"; $failures++; next };
+            my $script = $fuzz_dir->child( $target->{script} );
+            die "Fuzz script not found: $script\n" unless -f $script;
+            say "=" x 60;
+            say "Fuzzing: $target->{desc}";
+            say "  Script: $target->{script}";
+            say "  Iterations: $iters, Timeout: ${to}s";
+            say "=" x 60;
+            my @cmd = ($^X);
+            push @cmd, '-Ilib', '-Iblib/lib'         if $target->{needs_lib};
+            push @cmd, '-I',    $fuzz_dir->stringify if $target->{extra_inc};
+            push @cmd, $script->stringify;
+            local $ENV{FUZZ_MAX_ITER} = $iters;
+            local $ENV{FUZZ_TIMEOUT}  = $to;
+            local $ENV{FUZZ_VERBOSE}  = $verbose_fuzz;
+            my $exit = system @cmd;
+            $failures++ if $exit != 0;
+            say "";
+        }
+
+        # Smoke test: also quick-build C targets if available
+        if ( $args{smoke} || $args{all} ) {
+            my $build_pl = path('infix/build.pl');
+            if ( -f $build_pl ) {
+                for my $name ( sort keys %c_targets ) {
+                    say "=" x 60;
+                    say "Building C fuzz target: fuzz:$name";
+                    say "  $c_targets{$name}";
+                    say "=" x 60;
+                    my $exit = system( $^X, $build_pl->stringify, "fuzz:$name" );
+                    $failures++ if $exit != 0;
+                    say "";
+                }
+            }
+            else {
+                say "Skipping C fuzz targets (infix/build.pl not found)";
+            }
+        }
+        say "=" x 60;
+        if ($failures) {
+            say "FAILED: $failures target(s) reported crashes or build errors";
+        }
+        else {
+            say "All fuzz targets clean.";
+        }
+        return $failures > 0 ? 1 : 0;
+    }
+
     method get_arguments (@sources) {
         $_ = detildefy($_) for grep {defined} $install_base, $destdir, $prefix, values %{$install_paths};
         $install_paths = ExtUtils::InstallPaths->new( dist_name => $meta->name );
@@ -132,7 +231,7 @@ class    #
     method Build(@args) {
         my $method = $self->can( 'step_' . $action );
         $method // die "No such action '$action'\n";
-        exit $method->($self);
+        exit $method->( $self, @args );
     }
 
     method Build_PL() {
@@ -142,8 +241,14 @@ class    #
 #!%s
 use lib 'builder';
 use %s;
-%s->new( @ARGV && $ARGV[0] =~ /\A\w+\z/ ? ( action => shift @ARGV ) : (),
-    map { /^--/ ? ( shift(@ARGV) =~ s[^--][]r => 1 ) : /^-/ ? ( shift(@ARGV) =~ s[^-][]r => shift @ARGV ) : () } @ARGV )->Build();
+my $action = @ARGV && $ARGV[0] =~ /\A\w+\z/ ? shift @ARGV : 'build';
+my $opts = {};
+while ( @ARGV ) {
+    my $a = shift @ARGV;
+    if ( $a =~ /^-(\w+)$/ ) { $opts->{$1} = shift @ARGV // 1; }
+    elsif ( $a =~ /^-(\w+)=(.+)$/ ) { $opts->{$1} = $2; }
+}
+%s->new( action => $action )->Build( %%$opts );
 
         make_executable('Build');
         my @env = defined $ENV{PERL_MB_OPT} ? split_like_shell( $ENV{PERL_MB_OPT} ) : ();
