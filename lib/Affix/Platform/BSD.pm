@@ -1,4 +1,4 @@
-package Affix::Platform::BSD v0.12.0 {
+package Affix::Platform::BSD v1.1.0 {
     use v5.40;
     use parent 'Affix::Platform::Unix';
     use parent 'Exporter';

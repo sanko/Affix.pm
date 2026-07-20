@@ -1,4 +1,4 @@
-package Affix::Wrap v1.0.9 {
+package Affix::Wrap v1.1.0 {
     use v5.40;
     use feature 'class';
     no warnings 'experimental::class';
