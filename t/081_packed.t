@@ -3,6 +3,7 @@ use blib;
 use Test2::Tools::Affix qw[:all];
 use Test2::V0 -no_srand => 1;
 use Affix qw[:all];
+no warnings 'portable';
 #
 $|++;
 my $C_CODE = <<'END_C';
@@ -45,23 +46,40 @@ DLLEXPORT int check_unpacked(UnpackedCharInt *p) { return (p->a == 65 && p->b ==
 DLLEXPORT void fill_packed_u64(PackedCharU64 *p) { p->a = 'X'; p->b = 0xDEADBEEFCAFEBABEULL; }
 DLLEXPORT char     get_packed_u64_char(PackedCharU64 *p) { return p->a; }
 DLLEXPORT uint64_t get_packed_u64_val(PackedCharU64 *p)  { return p->b; }
+
+#pragma pack(push, 1)
+typedef struct {
+    int32_t a;
+    int8_t  b;
+    int32_t c;
+} PackedABC;
+#pragma pack(pop)
+
+DLLEXPORT PackedABC make_packed_abc(int32_t a, int8_t b, int32_t c) {
+    PackedABC r = {0};
+    r.a = a;
+    r.b = b;
+    r.c = c;
+    return r;
+}
 END_C
 #
 my $lib = compile_ok($C_CODE);
 ok( $lib && -e $lib, 'Compiled shared library' );
 #
-affix $lib, 'sizeof_packed_char_int',   []                 => Int;
-affix $lib, 'sizeof_unpacked_char_int', []                 => Int;
-affix $lib, 'sizeof_packed_char_u64',   []                 => Int;
-affix $lib, 'offset_packed_b',          []                 => Int;
-affix $lib, 'offset_unpacked_b',        []                 => Int;
-affix $lib, 'fill_packed',              [ Pointer [Void] ] => Void;
-affix $lib, 'fill_unpacked',            [ Pointer [Void] ] => Void;
-affix $lib, 'check_packed',             [ Pointer [Void] ] => Bool;
-affix $lib, 'check_unpacked',           [ Pointer [Void] ] => Bool;
-affix $lib, 'fill_packed_u64',          [ Pointer [Void] ] => Void;
-affix $lib, 'get_packed_u64_char',      [ Pointer [Void] ] => Char;
-affix $lib, 'get_packed_u64_val',       [ Pointer [Void] ] => UInt64;
+affix $lib, 'sizeof_packed_char_int',   []                        => Int;
+affix $lib, 'sizeof_unpacked_char_int', []                        => Int;
+affix $lib, 'sizeof_packed_char_u64',   []                        => Int;
+affix $lib, 'offset_packed_b',          []                        => Int;
+affix $lib, 'offset_unpacked_b',        []                        => Int;
+affix $lib, 'fill_packed',              [ Pointer [Void] ]        => Void;
+affix $lib, 'fill_unpacked',            [ Pointer [Void] ]        => Void;
+affix $lib, 'check_packed',             [ Pointer [Void] ]        => Bool;
+affix $lib, 'check_unpacked',           [ Pointer [Void] ]        => Bool;
+affix $lib, 'fill_packed_u64',          [ Pointer [Void] ]        => Void;
+affix $lib, 'get_packed_u64_char',      [ Pointer [Void] ]        => Char;
+affix $lib, 'get_packed_u64_val',       [ Pointer [Void] ]        => UInt64;
+affix $lib, 'make_packed_abc',          [ SInt32, SInt8, SInt32 ] => Packed( Struct [ a => SInt32, b => SInt8, c => SInt32 ] );
 #
 subtest 'C-level size and layout' => sub {
     is sizeof_packed_char_int(),   5, 'C sizeof(PackedCharInt) is 5 bytes';
@@ -123,6 +141,14 @@ subtest 'Packed char + uint64_t -- C-level roundtrip' => sub {
     is get_packed_u64_char($mem), 90, 'C sees char updated via magic';
     $p->{b} = 0x1122334455667788;
     is get_packed_u64_val($mem), 0x1122334455667788, 'C sees u64 updated via magic';
+};
+#
+subtest 'Packed struct -- by-value return' => sub {
+    my $ret = make_packed_abc( 42, -66, 99 );
+    is ref($ret), 'HASH', 'Return value is a hashref';
+    is $ret->{a},  42,    'Field a returned correctly';
+    is $ret->{b}, -66,    'Field b returned correctly';
+    is $ret->{c},  99,    'Field c returned correctly';
 };
 #
 done_testing;

@@ -158,9 +158,16 @@ END_C
 
 # Struct by value
 sub generate_struct_fn {
-    my ($fn_name)   = @_;
-    my $nfields     = 1 + int( rand(3) );
-    my @all         = @PRIMITIVES;
+    my ($fn_name) = @_;
+    my $nfields   = 1 + int( rand(3) );
+    my @all       = grep {
+        $_->{c} ne 'float'             &&
+            $_->{c} ne 'double'        &&
+            $_->{c} ne 'char'          &&
+            $_->{c} ne 'unsigned char' &&
+            $_->{c} ne 'bool'          &&
+            sizeof( $_->{perl}->() ) * 8 <= 53
+    } @PRIMITIVES;
     my @fields      = pick_n( $nfields, @all );
     my $struct_name = 'S' . int( rand(99999) );
     my ( @struct_members, @struct_perl_fields, @struct_sig_fields, @c_params, @perl_args, @sig_args, @gen_values );
@@ -191,6 +198,9 @@ $struct_name $fn_name($params_str) {
     return r;
 }
 END_C
+    my @field_names = map { 'm' . $_ } 0 .. $#fields;
+    my @check_gens  = @gen_values;
+    my @check_names = @field_names;
     return {
         c_code     => $c_code,
         c_name     => $fn_name,
@@ -199,6 +209,16 @@ END_C
         perl_args  => \@perl_args,
         perl_ret   => Struct [@struct_perl_fields],
         gen_values => \@gen_values,
+        verify     => sub ($result) {
+            my %expected;
+            @expected{@check_names} = map { $_->() } @check_gens;
+            local $ENV{TABLE_TERM_SIZE} = 200;
+            my $ok = is( $result, \%expected, "struct fields match" );
+            unless ($ok) {
+                diag "GOT:     " . join( ", ", map {"$_=$result->{$_}"} sort keys %$result );
+                diag "EXPECTED:" . join( ", ", map {"$_=$expected{$_}"} sort keys %expected );
+            }
+        },
     };
 }
 
@@ -403,15 +423,22 @@ END_C
         perl_args  => [ String() ],
         perl_ret   => Int(),
         gen_values => [ sub {$test_str} ],
-        verify     => sub ($result) { $result == length($test_str) },
+        verify     => sub ($result) { ok( $result == length($test_str), "string length roundtrip" ) },
     };
 }
 
 # Packed struct by value (tests #pragma pack + Packed() sizeof/layout)
 sub generate_packed_struct_fn {
-    my ($fn_name)   = @_;
-    my $nfields     = 2 + int( rand(3) );
-    my @all         = @PRIMITIVES;
+    my ($fn_name) = @_;
+    my $nfields   = 2 + int( rand(3) );
+    my @all       = grep {
+        $_->{c} ne 'float'             &&
+            $_->{c} ne 'double'        &&
+            $_->{c} ne 'char'          &&
+            $_->{c} ne 'unsigned char' &&
+            $_->{c} ne 'bool'          &&
+            sizeof( $_->{perl}->() ) * 8 <= 53
+    } @PRIMITIVES;
     my @fields      = pick_n( $nfields, @all );
     my $struct_name = 'PS' . int( rand(99999) );
     my ( @struct_members, @struct_perl_fields, @struct_sig_fields, @c_params, @perl_args, @sig_args, @gen_values );
@@ -443,6 +470,9 @@ $struct_name $fn_name($params_str) {
     return r;
 }
 END_C
+    my @field_names = map { 'm' . $_ } 0 .. $#fields;
+    my @check_gens  = @gen_values;
+    my @check_names = @field_names;
     return {
         c_code     => $c_code,
         c_name     => $fn_name,
@@ -451,6 +481,16 @@ END_C
         perl_args  => \@perl_args,
         perl_ret   => Packed( Struct [@struct_perl_fields] ),
         gen_values => \@gen_values,
+        verify     => sub ($result) {
+            my %expected;
+            @expected{@check_names} = map { $_->() } @check_gens;
+            local $ENV{TABLE_TERM_SIZE} = 200;
+            my $ok = is( $result, \%expected, "packed struct fields match" );
+            unless ($ok) {
+                diag "GOT:     " . join( ", ", map {"$_=$result->{$_}"} sort keys %$result );
+                diag "EXPECTED:" . join( ", ", map {"$_=$expected{$_}"} sort keys %expected );
+            }
+        },
     };
 }
 
@@ -501,7 +541,9 @@ END_C
                 return $pin;
             }
         ],
-        verify => $is_float ? sub ($result) { abs( $result - $val ) < 0.01 } : sub ($result) { $result == $val },
+        verify => $is_float ?
+            sub ($result) { ok( abs( $result - $val ) < 0.01, "roundtrip" ) }
+        : sub ($result) { ok( $result == $val, "roundtrip" ) },
     };
 }
 
@@ -549,14 +591,51 @@ END_C
                 return $pin;
             }
         ],
-        verify => $is_float ? sub ($result) { abs( $result - $val ) < 0.01 } : sub ($result) { $result == $val },
+        verify => $is_float ?
+            sub ($result) { ok( abs( $result - $val ) < 0.01, "roundtrip" ) }
+        : sub ($result) { ok( $result == $val, "roundtrip" ) },
+    };
+}
+
+# Array roundtrip (tests Array[Type,N] marshalling)
+sub generate_array_fn {
+    my ($fn_name) = @_;
+    my @ints      = grep { $_->{c} ne 'float' && $_->{c} ne 'double' && sizeof( $_->{perl}->() ) <= 2 } @PRIMITIVES;
+    my $base      = pick(@ints);
+    my $count     = 2 + int( rand(4) );                                                                                # 2..5 elements
+    my @vals      = map { $base->{gen}->() } 1 .. $count;
+    my $c_code    = <<"END_C";
+int $fn_name($base->{c} arr[$count]) {
+    int sum = 0;
+    for (int i = 0; i < $count; i++) sum += (int)arr[i];
+    return sum;
+}
+END_C
+    my $array_type = Array [ $base->{perl}->(), $count ];
+    my $expected   = 0;
+    $expected += $_ for @vals;
+    return {
+        c_code     => $c_code,
+        c_name     => $fn_name,
+        sig_args   => [ "[$count:" . $base->{sig} . "]" ],
+        sig_ret    => 'int',
+        perl_args  => [$array_type],
+        perl_ret   => Int(),
+        gen_values => [ sub { \@vals } ],
+        verify     => sub ($result) {
+            my $ok = $result == $expected;
+            unless ($ok) {
+                diag "array sum: got=$result expected=$expected count=$count type=$base->{c}";
+            }
+            ok( $ok, "array sum roundtrip" );
+        },
     };
 }
 
 # Build + verify one function
 sub fuzz_one {
     my $fn_name = unique_name();
-    my $variant = pick(qw[primitive struct union enum mega_arg pointer callback string struct_ptr packed_struct packed_struct_ptr]);
+    my $variant = pick(qw[primitive struct union enum mega_arg pointer callback string struct_ptr packed_struct packed_struct_ptr array]);
     my $spec;
     if    ( $variant eq 'primitive' )         { $spec = generate_function($fn_name); }
     elsif ( $variant eq 'struct' )            { $spec = generate_struct_fn($fn_name); }
@@ -569,6 +648,7 @@ sub fuzz_one {
     elsif ( $variant eq 'struct_ptr' )        { $spec = generate_struct_ptr_fn($fn_name); }
     elsif ( $variant eq 'packed_struct' )     { $spec = generate_packed_struct_fn($fn_name); }
     elsif ( $variant eq 'packed_struct_ptr' ) { $spec = generate_packed_struct_ptr_fn($fn_name); }
+    elsif ( $variant eq 'array' )             { $spec = generate_array_fn($fn_name); }
     return unless $spec;
     note "--- Variant: $variant ---"                                                             if $verbose;
     note "C Code:\n$spec->{c_code}"                                                              if $verbose;
@@ -618,7 +698,7 @@ sub fuzz_one {
 
         # Verify
         if ( $spec->{verify} ) {
-            ok $spec->{verify}->($result), "$variant $spec->{c_name} = $result";
+            $spec->{verify}->($result);
         }
         else {
             pass "$variant $spec->{c_name} survived (result=$result)";

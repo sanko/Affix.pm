@@ -22,7 +22,7 @@ DLLEXPORT int check_mode(FileMode m) { return m; }
 DLLEXPORT FileMode next_mode(FileMode m) { return (m + 1) % 3; }
 
 DLLEXPORT char get_char_val(void) { return 42; }
-DLLEXPORT int verify_char_range(char v) { return (v >= -128 && v <= 127) ? 1 : 0; }
+DLLEXPORT int verify_char_range(signed char v) { return (v >= -128 && v <= 127) ? 1 : 0; }
 
 DLLEXPORT unsigned int get_uint_val(void) { return 300; }
 DLLEXPORT int verify_uint(unsigned int v) { return (v == 300) ? 1 : 0; }
