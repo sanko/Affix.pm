@@ -146,7 +146,9 @@ Affix allows you to link Perl scalars directly to global or external variables e
 Binds a scalar to a C variable. Reading the scalar reads C memory; writing to it updates C memory immediately. Three
 calling conventions are supported:
 
-- **pin( $var, $lib, $symbol, $type )** — Binds to an exported symbol. This is the most common form.
+- **pin( $var, $lib, $symbol, $type )**
+
+    Binds to an exported symbol. This is the most common form.
 
     ```perl
     # C: extern int errno;
@@ -156,14 +158,18 @@ calling conventions are supported:
     $errno = 0;   # Writes directly to C memory
     ```
 
-- **pin( $var, $address, $type )** — Binds to a raw memory address (e.g., from `find_symbol` or pointer arithmetic).
+- **pin( $var, $address, $type )**
+
+    Binds to a raw memory address (e.g., from `find_symbol` or pointer arithmetic).
 
     ```perl
     my $addr = address($some_ptr);
     pin my $val, $addr, Int;
     ```
 
-- **pin( $var, $existing\_pin )** — Clones the binding from an existing pin (copies the address and type).
+- **pin( $var, $existing\_pin )**
+
+    Clones the binding from an existing pin (copies the address and type).
 
     ```perl
     pin my $copy, $original_pin;
@@ -279,7 +285,7 @@ is deref_and_add( \$val ), 60;  # Passes address of $val as int*
 # C: void modify_int_ptr(int* p, int new_val);
 affix $lib, 'modify_int_ptr', [ Pointer[Int], Int ] => Void;
 modify_int_ptr( \$val, 999 );
-say $val;  # 1000 — C function wrote through the pointer
+say $val;  # 1000; C function wrote through the pointer
 ```
 
 #### Array Indexing

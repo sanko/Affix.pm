@@ -771,8 +771,10 @@ SV * wrap_callable_pointer(pTHX_ void * addr, const infix_type * type) {
 
     char sig[512];
     /* Serialize the AST back into a string signature */
-    if (infix_type_print(sig, sizeof(sig), type, INFIX_DIALECT_SIGNATURE) != INFIX_SUCCESS)
-        return newSVuv(PTR2UV(addr)); /* Fallback on failure */
+    if (infix_type_print(sig, sizeof(sig), type, INFIX_DIALECT_SIGNATURE) != INFIX_SUCCESS) {
+        warn("Affix: failed to serialize callback type signature, wrapping as raw pointer");
+        return newSVuv(PTR2UV(addr));
+    }
 
     /* Strip the callback indicator '!' so Affix::wrap treats it as a standard function */
     char * sig_ptr = sig;
@@ -864,6 +866,8 @@ int set_ptr(pTHX_ SV * sv, MAGIC * mg) {
             ft = resolve_type(aTHX_ ft->meta.pointer_info.pointee_type);
 
         size_t n = (ft && ft->category == INFIX_TYPE_REVERSE_TRAMPOLINE) ? ft->meta.func_ptr_info.num_args : 0;
+        if (ft && ft->category != INFIX_TYPE_REVERSE_TRAMPOLINE)
+            croak("Expected a callback type for struct member assignment");
         infix_type ** at = n ? (infix_type **)safecalloc(n, sizeof(infix_type *)) : nullptr;
         for (size_t i = 0; i < n; i++)
             at[i] = ft->meta.func_ptr_info.args[i].type;

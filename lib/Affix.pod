@@ -147,7 +147,9 @@ calling conventions are supported:
 
 =over
 
-=item B<pin( $var, $lib, $symbol, $type )> — Binds to an exported symbol. This is the most common form.
+=item B<pin( $var, $lib, $symbol, $type )>
+
+Binds to an exported symbol. This is the most common form.
 
     # C: extern int errno;
     my $errno;
@@ -155,12 +157,16 @@ calling conventions are supported:
 
     $errno = 0;   # Writes directly to C memory
 
-=item B<pin( $var, $address, $type )> — Binds to a raw memory address (e.g., from C<find_symbol> or pointer arithmetic).
+=item B<pin( $var, $address, $type )>
+
+Binds to a raw memory address (e.g., from C<find_symbol> or pointer arithmetic).
 
     my $addr = address($some_ptr);
     pin my $val, $addr, Int;
 
-=item B<pin( $var, $existing_pin )> — Clones the binding from an existing pin (copies the address and type).
+=item B<pin( $var, $existing_pin )>
+
+Clones the binding from an existing pin (copies the address and type).
 
     pin my $copy, $original_pin;
 
@@ -316,7 +322,7 @@ Perl scalar. Affix automatically handles the marshalling:
     # C: void modify_int_ptr(int* p, int new_val);
     affix $lib, 'modify_int_ptr', [ Pointer[Int], Int ] => Void;
     modify_int_ptr( \$val, 999 );
-    say $val;  # 1000 — C function wrote through the pointer
+    say $val;  # 1000; C function wrote through the pointer
 
 =head4 Array Indexing
 

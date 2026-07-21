@@ -45,7 +45,7 @@ polyglot extensions. It abstracts away the complexity of invoking various compil
 extensions, handling platform-specific linker flags (such as MinGW vs. MSVC on Windows), and ensuring that language
 runtimes (like the Go GC or .NET Runtime) are correctly initialized.
 
-It serves as a powerful, polyglot alternative to C<Inline::*> modules—allowing you to write native code in your
+It serves as a powerful, polyglot alternative to C<Inline::*> modules. This allows you to write native code in your
 language of choice and instantly bind to it from Perl using L<Affix>.
 
 =head2 Build Strategies

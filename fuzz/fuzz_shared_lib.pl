@@ -1730,44 +1730,346 @@ END_C
     };
 }
 
+# Two callbacks called in sequence. tests simultaneous forward trampolines
+sub generate_multi_cb_fn {
+    my ($fn_name) = @_;
+    my @safe      = grep { sizeof( $_->{perl}->() ) == 4 && $_->{c} =~ /^int/ } @PRIMITIVES;
+    my $a         = pick(@safe);
+    my $b         = pick(@safe);
+    my $ret       = pick(@safe);
+    my $cb1_name  = 'cb_add_' . int( rand(99999) );
+    my $cb2_name  = 'cb_mul_' . int( rand(99999) );
+    my $c_code    = <<"END_C";
+typedef $ret->{c} (*$cb1_name)($a->{c}, $b->{c});
+typedef $ret->{c} (*$cb2_name)($a->{c}, $b->{c});
+
+$ret->{c} $fn_name($cb1_name op1, $cb2_name op2, $a->{c} x, $b->{c} y) {
+    return op1(x, y) + op2(x, y);
+}
+END_C
+    my $v1     = $a->{gen}->();
+    my $v2     = $b->{gen}->();
+    my $cb_sig = "(*($a->{sig},$b->{sig})->$ret->{sig})";
+    return {
+        c_code    => $c_code,
+        c_name    => $fn_name,
+        sig_args  => [ $cb_sig, $cb_sig, $a->{sig}, $b->{sig} ],
+        sig_ret   => $ret->{sig},
+        perl_args => [
+            Callback [ [ $a->{perl}->(), $b->{perl}->() ] => $ret->{perl}->() ],
+            Callback [ [ $a->{perl}->(), $b->{perl}->() ] => $ret->{perl}->() ],
+            $a->{perl}->(),
+            $b->{perl}->()
+        ],
+        perl_ret   => $ret->{perl}->(),
+        gen_values => [
+            sub {
+                sub ( $x, $y ) { $x + $y }
+            },
+            sub {
+                sub ( $x, $y ) { $x * $y }
+            },
+            sub {$v1},
+            sub {$v2},
+        ],
+        verify => sub ($result) {
+            my $add      = unpack( 'l', pack( 'l', $v1 + $v2 ) );
+            my $mul      = unpack( 'l', pack( 'l', $v1 * $v2 ) );
+            my $expected = unpack( 'l', pack( 'l', $add + $mul ) );
+            my $ok       = $result == $expected;
+            unless ($ok) {
+                diag "multi_cb: got=$result expected=$expected (v1=$v1 v2=$v2 add=$add mul=$mul)";
+            }
+            ok( $ok, "multi-callback roundtrip" );
+        },
+    };
+}
+
+# Struct with multiple callback members to test nested type resolution
+sub generate_struct_multi_cb_fn {
+    my ($fn_name)   = @_;
+    my $struct_name = 'SM' . int( rand(99999) );
+    my @safe        = grep { sizeof( $_->{perl}->() ) == 4 && $_->{c} =~ /^int/ } @PRIMITIVES;
+    my $a           = pick(@safe);
+    my $ret         = pick(@safe);
+    my $cb1_name    = 'cb1_' . int( rand(99999) );
+    my $cb2_name    = 'cb2_' . int( rand(99999) );
+    my $c_code      = <<"END_C";
+typedef $ret->{c} (*$cb1_name)($a->{c});
+typedef $ret->{c} (*$cb2_name)($a->{c});
+
+typedef struct {
+    $cb1_name fn1;
+    $cb2_name fn2;
+    $a->{c} data;
+} $struct_name;
+
+$ret->{c} $fn_name($struct_name *s) {
+    return s->fn1(s->data) + s->fn2(s->data);
+}
+END_C
+    my $perl_struct = Struct [
+        fn1  => Pointer [ Callback [ [ $a->{perl}->() ] => $ret->{perl}->() ] ],
+        fn2  => Pointer [ Callback [ [ $a->{perl}->() ] => $ret->{perl}->() ] ],
+        data => $a->{perl}->()
+    ];
+    my $struct_sig = '{fn1:*((*' . $a->{sig} . ')->' . $ret->{sig} . '),fn2:*((*' . $a->{sig} . ')->' . $ret->{sig} . '),data:' . $a->{sig} . '}';
+    my $v1         = $a->{gen}->();
+    my @keep_alive;
+    return {
+        c_code     => $c_code,
+        c_name     => $fn_name,
+        sig_args   => ["*$struct_sig"],
+        sig_ret    => $ret->{sig},
+        perl_args  => [ Pointer [$perl_struct] ],
+        perl_ret   => $ret->{perl}->(),
+        gen_values => [
+            sub {
+                my $mem = Affix::malloc( sizeof($perl_struct) );
+                my $pin = cast( $mem, $perl_struct );
+                $pin->{fn1}  = sub ($x) { $x + 1 };
+                $pin->{fn2}  = sub ($x) { $x + 2 };
+                $pin->{data} = $v1;
+                push @keep_alive, $mem;
+                return $pin;
+            }
+        ],
+        verify => sub ($result) {
+            my $fn1_ret  = unpack( 'l', pack( 'l', $v1 + 1 ) );
+            my $fn2_ret  = unpack( 'l', pack( 'l', $v1 + 2 ) );
+            my $expected = unpack( 'l', pack( 'l', $fn1_ret + $fn2_ret ) );
+            my $ok       = $result == $expected;
+            unless ($ok) {
+                diag "struct_multi_cb: got=$result expected=$expected";
+            }
+            ok( $ok, "struct with multiple callbacks roundtrip" );
+        },
+    };
+}
+
+# Self-referential struct (linked list with Pointer[Self] in struct layout)
+sub generate_linked_list_fn {
+    my ($fn_name)   = @_;
+    my $struct_name = 'LL' . int( rand(99999) );
+    my $depth       = 2 + int( rand(2) );                          # 2..3 nodes
+    my @vals        = map { int( rand(100) ) - 50 } 1 .. $depth;
+    my $expected    = 0;
+    $expected += $_ for @vals;
+    my $c_code = <<"END_C";
+typedef struct $struct_name {
+    int val;
+    struct $struct_name *next;
+} $struct_name;
+
+int $fn_name($struct_name *head) {
+    int sum = 0;
+    $struct_name *n = head;
+    while (n) {
+        sum += n->val;
+        n = n->next;
+    }
+    return sum;
+}
+END_C
+    my $node_type = Struct [ val => Int(), next => Pointer [ Void() ] ];
+    my @keep_alive;
+    return {
+        c_code     => $c_code,
+        c_name     => $fn_name,
+        sig_args   => ['*{val:int,next:*void}'],
+        sig_ret    => 'int',
+        perl_args  => [ Pointer [$node_type] ],
+        perl_ret   => Int(),
+        gen_values => [
+            sub {
+                @keep_alive = ();
+                my @nodes;
+                for my $v ( reverse @vals ) {
+                    my $mem = Affix::malloc( sizeof($node_type) );
+                    my $pin = cast( $mem, $node_type );
+                    $pin->{val} = $v;
+                    if (@nodes) {
+                        $pin->{next} = $nodes[-1];
+                    }
+                    else {
+                        $pin->{next} = undef;
+                    }
+                    push @keep_alive, $mem;
+                    push @nodes,      $pin;
+                }
+                return $nodes[-1];
+            }
+        ],
+        verify => sub ($result) {
+            my $ok = $result == $expected;
+            unless ($ok) {
+                diag "linked_list($depth): got=$result expected=$expected vals=[@vals]";
+            }
+            ok( $ok, "linked list sum roundtrip" );
+        },
+    };
+}
+
+# Callback receiving Pointer[Struct]
+sub generate_cb_passing_struct_ptr_fn {
+    my ($fn_name) = @_;
+    my @safe      = grep { sizeof( $_->{perl}->() ) == 4 && $_->{c} =~ /^int/ } @PRIMITIVES;
+    my @fields    = pick_n( 2, @safe );
+    my ( @struct_members, @struct_perl_fields, @struct_sig_fields );
+    for my $i ( 0 .. $#fields ) {
+        my $f = $fields[$i];
+        push @struct_members,     "$f->{c} m$i;";
+        push @struct_perl_fields, "m$i", $f->{perl}->();
+        push @struct_sig_fields,  "m$i:" . $f->{sig};
+    }
+    my $struct_body = join( ' ', @struct_members );
+    my $struct_sig  = '{' . join( ',', @struct_sig_fields ) . '}';
+    my $struct_name = 'CP' . int( rand(99999) );
+    my $cb_name     = 'cb_' . int( rand(99999) );
+    my $m0_val      = $fields[0]->{gen}->();
+    my $m1_val      = $fields[1]->{gen}->();
+    my $c_code      = <<"END_C";
+typedef struct { $struct_body } $struct_name;
+typedef int (*$cb_name)($struct_name*);
+
+int $fn_name($cb_name op, $fields[0]->{c} v0, $fields[1]->{c} v1) {
+    $struct_name s;
+    s.m0 = v0;
+    s.m1 = v1;
+    return op(&s);
+}
+END_C
+    my $perl_struct = Struct [@struct_perl_fields];
+    my @keep_alive;
+    return {
+        c_code     => $c_code,
+        c_name     => $fn_name,
+        sig_args   => [ "(*($struct_sig)->int)", $fields[0]->{sig}, $fields[1]->{sig} ],
+        sig_ret    => 'int',
+        perl_args  => [ Callback [ [ Pointer [$perl_struct] ] => Int() ], $fields[0]->{perl}->(), $fields[1]->{perl}->() ],
+        perl_ret   => Int(),
+        gen_values => [
+            sub {
+                sub ($ptr) {
+                    my $s = cast( $ptr, $perl_struct );
+                    return $s->{m0} + $s->{m1};
+                }
+            },
+            sub {$m0_val},
+            sub {$m1_val},
+        ],
+        verify => sub ($result) {
+            my $expected = unpack( 'l', pack( 'l', $m0_val + $m1_val ) );
+            my $ok       = $result == $expected;
+            unless ($ok) {
+                diag "cb_passing_struct_ptr: got=$result expected=$expected";
+            }
+            ok( $ok, "callback receiving struct pointer roundtrip" );
+        },
+    };
+}
+
+# Deeply nested struct-with-callback-in-pointer
+sub generate_deep_nest_fn {
+    my ($fn_name)   = @_;
+    my $struct_name = 'DN' . int( rand(99999) );
+    my $cb_name     = 'cb_' . int( rand(99999) );
+    my $val         = int( rand(200) ) - 100;
+
+    # struct DN { int (*cb)(int); int data; }
+    # int fn(DN **pp) { return pp[0]->cb(pp[0]->data); }
+    my $c_code = <<"END_C";
+typedef int (*$cb_name)(int);
+
+typedef struct {
+    $cb_name cb;
+    int data;
+} $struct_name;
+
+int $fn_name($struct_name **pp) {
+    return pp[0]->cb(pp[0]->data);
+}
+END_C
+    my $inner_struct = Struct [ cb => Pointer [ Callback [ [ Int() ] => Int() ] ], data => Int() ];
+    my @keep_alive;
+    return {
+        c_code     => $c_code,
+        c_name     => $fn_name,
+        sig_args   => ['*{cb:*((*int)->int),data:int}'],
+        sig_ret    => 'int',
+        perl_args  => [ Pointer [ Pointer [$inner_struct] ] ],
+        perl_ret   => Int(),
+        gen_values => [
+            sub {
+                # Build inner struct
+                my $s_mem = Affix::malloc( sizeof($inner_struct) );
+                my $s_pin = cast( $s_mem, $inner_struct );
+                $s_pin->{cb}   = sub ($x) { $x + 42 };
+                $s_pin->{data} = $val;
+                push @keep_alive, $s_mem;
+
+                # Build pointer-to-pointer
+                my $pp_mem = Affix::malloc( sizeof( Pointer [ Void() ] ) );
+                my $pp_pin = cast( $pp_mem, Pointer [ Pointer [$inner_struct] ] );
+                $$pp_pin = $s_pin;
+                push @keep_alive, $pp_mem;
+                return $pp_pin;
+            }
+        ],
+        verify => sub ($result) {
+            my $expected = $val + 42;
+            my $ok       = $result == $expected;
+            unless ($ok) {
+                diag "deep_nest: got=$result expected=$expected";
+            }
+            ok( $ok, "deeply nested struct-pointer-callback roundtrip" );
+        },
+    };
+}
+
 # Build + verify one function
 sub fuzz_one {
     my $fn_name = unique_name();
     my $variant
         = pick(
-        qw[primitive struct struct_float nested_struct struct_array_member union union_byval enum enum_type mega_arg pointer callback callback_enum callback_struct callback_struct_ret longdouble complex bitfield simd float16 flexible_array wstring struct_callback deep_ptr void_ptr string struct_ptr packed_struct packed_struct_ptr array]
+        qw[primitive struct struct_float nested_struct struct_array_member union union_byval enum enum_type mega_arg pointer callback callback_enum callback_struct callback_struct_ret longdouble complex bitfield simd float16 flexible_array wstring struct_callback deep_ptr void_ptr string struct_ptr packed_struct packed_struct_ptr array multi_cb struct_multi_cb linked_list cb_passing_struct_ptr deep_nest]
         );
     my $spec;
-    if    ( $variant eq 'primitive' )           { $spec = generate_function($fn_name); }
-    elsif ( $variant eq 'struct' )              { $spec = generate_struct_fn($fn_name); }
-    elsif ( $variant eq 'struct_float' )        { $spec = generate_struct_float_fn($fn_name); }
-    elsif ( $variant eq 'nested_struct' )       { $spec = generate_nested_struct_fn($fn_name); }
-    elsif ( $variant eq 'struct_array_member' ) { $spec = generate_struct_array_member_fn($fn_name); }
-    elsif ( $variant eq 'union' )               { $spec = generate_union_fn($fn_name); }
-    elsif ( $variant eq 'union_byval' )         { $spec = generate_union_byval_fn($fn_name); }
-    elsif ( $variant eq 'enum' )                { $spec = generate_enum_fn($fn_name); }
-    elsif ( $variant eq 'enum_type' )           { $spec = generate_enum_type_fn($fn_name); }
-    elsif ( $variant eq 'mega_arg' )            { $spec = generate_mega_arg_fn($fn_name); }
-    elsif ( $variant eq 'pointer' )             { $spec = generate_pointer_fn($fn_name); }
-    elsif ( $variant eq 'callback' )            { $spec = generate_callback_fn($fn_name); }
-    elsif ( $variant eq 'callback_enum' )       { $spec = generate_callback_enum_fn($fn_name); }
-    elsif ( $variant eq 'callback_struct' )     { $spec = generate_callback_struct_fn($fn_name); }
-    elsif ( $variant eq 'callback_struct_ret' ) { $spec = generate_callback_struct_ret_fn($fn_name); }
-    elsif ( $variant eq 'longdouble' )          { $spec = generate_longdouble_fn($fn_name); }
-    elsif ( $variant eq 'complex' )             { $spec = generate_complex_fn($fn_name); }
-    elsif ( $variant eq 'bitfield' )            { $spec = generate_bitfield_fn($fn_name); }
-    elsif ( $variant eq 'simd' )                { $spec = generate_simd_fn($fn_name); }
-    elsif ( $variant eq 'float16' )             { $spec = generate_float16_fn($fn_name); }
-    elsif ( $variant eq 'flexible_array' )      { $spec = generate_flexible_array_fn($fn_name); }
-    elsif ( $variant eq 'wstring' )             { $spec = generate_wstring_fn($fn_name); }
-    elsif ( $variant eq 'struct_callback' )     { $spec = generate_struct_callback_fn($fn_name); }
-    elsif ( $variant eq 'deep_ptr' )            { $spec = generate_deep_ptr_fn($fn_name); }
-    elsif ( $variant eq 'void_ptr' )            { $spec = generate_void_ptr_fn($fn_name); }
-    elsif ( $variant eq 'string' )              { $spec = generate_string_fn($fn_name); }
-    elsif ( $variant eq 'struct_ptr' )          { $spec = generate_struct_ptr_fn($fn_name); }
-    elsif ( $variant eq 'packed_struct' )       { $spec = generate_packed_struct_fn($fn_name); }
-    elsif ( $variant eq 'packed_struct_ptr' )   { $spec = generate_packed_struct_ptr_fn($fn_name); }
-    elsif ( $variant eq 'array' )               { $spec = generate_array_fn($fn_name); }
+    if    ( $variant eq 'primitive' )             { $spec = generate_function($fn_name); }
+    elsif ( $variant eq 'struct' )                { $spec = generate_struct_fn($fn_name); }
+    elsif ( $variant eq 'struct_float' )          { $spec = generate_struct_float_fn($fn_name); }
+    elsif ( $variant eq 'nested_struct' )         { $spec = generate_nested_struct_fn($fn_name); }
+    elsif ( $variant eq 'struct_array_member' )   { $spec = generate_struct_array_member_fn($fn_name); }
+    elsif ( $variant eq 'union' )                 { $spec = generate_union_fn($fn_name); }
+    elsif ( $variant eq 'union_byval' )           { $spec = generate_union_byval_fn($fn_name); }
+    elsif ( $variant eq 'enum' )                  { $spec = generate_enum_fn($fn_name); }
+    elsif ( $variant eq 'enum_type' )             { $spec = generate_enum_type_fn($fn_name); }
+    elsif ( $variant eq 'mega_arg' )              { $spec = generate_mega_arg_fn($fn_name); }
+    elsif ( $variant eq 'pointer' )               { $spec = generate_pointer_fn($fn_name); }
+    elsif ( $variant eq 'callback' )              { $spec = generate_callback_fn($fn_name); }
+    elsif ( $variant eq 'callback_enum' )         { $spec = generate_callback_enum_fn($fn_name); }
+    elsif ( $variant eq 'callback_struct' )       { $spec = generate_callback_struct_fn($fn_name); }
+    elsif ( $variant eq 'callback_struct_ret' )   { $spec = generate_callback_struct_ret_fn($fn_name); }
+    elsif ( $variant eq 'longdouble' )            { $spec = generate_longdouble_fn($fn_name); }
+    elsif ( $variant eq 'complex' )               { $spec = generate_complex_fn($fn_name); }
+    elsif ( $variant eq 'bitfield' )              { $spec = generate_bitfield_fn($fn_name); }
+    elsif ( $variant eq 'simd' )                  { $spec = generate_simd_fn($fn_name); }
+    elsif ( $variant eq 'float16' )               { $spec = generate_float16_fn($fn_name); }
+    elsif ( $variant eq 'flexible_array' )        { $spec = generate_flexible_array_fn($fn_name); }
+    elsif ( $variant eq 'wstring' )               { $spec = generate_wstring_fn($fn_name); }
+    elsif ( $variant eq 'struct_callback' )       { $spec = generate_struct_callback_fn($fn_name); }
+    elsif ( $variant eq 'deep_ptr' )              { $spec = generate_deep_ptr_fn($fn_name); }
+    elsif ( $variant eq 'void_ptr' )              { $spec = generate_void_ptr_fn($fn_name); }
+    elsif ( $variant eq 'string' )                { $spec = generate_string_fn($fn_name); }
+    elsif ( $variant eq 'struct_ptr' )            { $spec = generate_struct_ptr_fn($fn_name); }
+    elsif ( $variant eq 'packed_struct' )         { $spec = generate_packed_struct_fn($fn_name); }
+    elsif ( $variant eq 'packed_struct_ptr' )     { $spec = generate_packed_struct_ptr_fn($fn_name); }
+    elsif ( $variant eq 'array' )                 { $spec = generate_array_fn($fn_name); }
+    elsif ( $variant eq 'multi_cb' )              { $spec = generate_multi_cb_fn($fn_name); }
+    elsif ( $variant eq 'struct_multi_cb' )       { $spec = generate_struct_multi_cb_fn($fn_name); }
+    elsif ( $variant eq 'linked_list' )           { $spec = generate_linked_list_fn($fn_name); }
+    elsif ( $variant eq 'cb_passing_struct_ptr' ) { $spec = generate_cb_passing_struct_ptr_fn($fn_name); }
+    elsif ( $variant eq 'deep_nest' )             { $spec = generate_deep_nest_fn($fn_name); }
     return unless $spec;
     note "--- Variant: $variant ---"                                                             if $verbose;
     note "C Code:\n$spec->{c_code}"                                                              if $verbose;

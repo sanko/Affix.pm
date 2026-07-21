@@ -26,6 +26,10 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ### Fixed
 
+- Fixed struct member callback assignment where `$pin->{fn} = sub { ... }` silently created a trampoline with 0 arguments, causing "Too few arguments" errors or crashes when C called through the function pointer. `Pointer[Callback[...]]` creates a double-pointer type chain; `set_ptr` and `push_reverse_trampoline` now walk through all Pointer levels to reach `REVERSE_TRAMPOLINE`.
+- `set_ptr` now croaks when a coderef is assigned to a non-callback pointer type instead of silently creating a broken 0-argument trampoline.
+- Replaced silent fallbacks with proper errors: unknown primitive type IDs in opcode dispatch and enum size handling now croak instead of silently misinterpreting memory.
+- Added warning when callback type signature serialization fails instead of silently returning a raw pointer value.
 - Fixed a sign-extension bug in 128-bit integer parsing.
 - Fixed bitfield write-back logic to use proper bitmasking, preventing neighboring bit corruption.
 - Corrected `wstring` (UTF-16/32) conversion to handle null-terminators properly in fixed-size arrays.

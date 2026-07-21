@@ -6,10 +6,6 @@
 |---3--------------------------------|------------------3----------------||
 */
 
-#ifdef USE_ITHREADS
-// affix_callback_mutex removed — was declared but never locked/unlocked
-#endif
-
 static void rebuild_backend_data(pTHX_ Affix_Backend * backend);
 static void rebuild_affix_data(pTHX_ Affix * affix);
 static const infix_type * _resolve_type(pTHX_ const infix_type * type);
@@ -799,7 +795,7 @@ static Affix_Opcode get_opcode_for_type(pTHX_ const infix_type * type) {
             return OP_PUSH_UINT128;
 #endif
         default:
-            return OP_PUSH_SINT32;  // Fallback
+            croak("Affix: unhandled primitive type ID %d in get_opcode_for_type", type->meta.primitive_id);
         }
     case INFIX_TYPE_POINTER:
         {
@@ -3353,7 +3349,7 @@ static void pull_enum_dualvar(pTHX_ Affix * affix, SV * sv, const infix_type * t
     else if (size == 2)
         val = *(int16_t *)p;
     else
-        val = *(int *)p;  // Fallback?
+        croak("Affix: unsupported enum underlying type size %zu", size);
 
     // Set the Integer Value
     sv_setiv(sv, val);
