@@ -12,32 +12,20 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 - V2 Pin System: Replaced the old `Affix_Pin` struct with `Affix_Pin_2_Point_Oh` backed by Perl Magic VTables, eliminating tied-variable overhead for all memory access.
 - Reworked `Affix::Wrap` type parser to handle `const`, `restrict`, and `volatile` qualifiers, improved function pointer matching, and refactored the type map for cleaner code generation.
 - Generated `Affix::Wrap` bindings now emit `Const[...]` for C `const`-qualified types, enabling compile-time safety in wrapper output.
-- Added `Const[...]` type wrapper that prevents Perl-side mutation of C memory marked `const`. Replaces the old `Live(...)` helper.
-- Added cookbook Chapter 45 covering C++ virtual method subclassing via Perl proxy classes.
-- Added comprehensive marshalling test suite (`t/999_marshaller_2.t`) exercising struct by-value and by-pointer marshalling, nested structs, and arrays within structs.
-- Added magic struct write-back test (`t/035_magic_struct.t`) validating hash→C memory synchronization via the V2 pin system.
-- Added RAX register preservation test (`t/014_callback_rax.t`) for x64 callbacks.
-- Added `marshal.c` as an extracted marshalling core compilation unit, including float16 conversion and string-list type resolution.
+- Added `Const[...]` type wrapper that prevents Perl-side mutation of C memory marked `const`. Replaces the old `Live` helper.
 - Added struct bitfield array syntax so members can be declared as `[$name, $type, $width]`.
-- Enum definitions now accept explicit integer values and arithmetic expressions (e.g., `FOO => BAR | 0x8`) in addition to sequential auto-increment.
+- Enum definitions now accept explicit integer values and arithmetic expressions (`FOO => BAR | 0x8`) in addition to sequential auto-increment.
 - [infix] Added support for preserving character-specific primitive names (`wchar_t`, `char16_t`, `char32_t`, `char8_t`), enabling correct identification of string buffers via `infix_type_get_name()`.
-- Test dependency updated from `Test2::V0` to `Test2::V1`.
-- Added test coverage for `Packed` structs (sizeof, field access via magic, C-level roundtrip), `own()`, `pin()` conventions (2-arg clone, 3-arg raw address, 4-arg with library object), `IntEnum`/`CharEnum`/`UIntEnum` alias exports, and SIMD M256/M512 types.
 
 ### Changed
 
-- Reimplemented Memory System: Migrated from slow tied-variables to high-performance Perl Magic VTables.
 - WChar now maps to the platform-correct `wchar_t` type (uint16 on Windows, uint32 elsewhere) instead of hardcoded `uint16`.
 - WString now platform-dependent (`*uint16` on Windows, `*uint32` elsewhere).
 - StringList redefined as `Pointer[Pointer[Char]]` instead of the `@StringList` alias.
 - Extended `_is_signature_string` to recognize `+`, `c[...]`, `v[...]`, and `e:` prefixed type strings.
-- Removed the old `Live` function in favor of `Const[...]` and the V2 pin system.
 
 ### Fixed
 
-- Fixed packed struct layout where `Packed(Struct[...])` and `Packed[N, Struct[...]]` returned sizeof values matching unpacked structs. The `is_packed` flag in the infix layout engine was only suppressing struct-level alignment but not forcing member alignment to 1, causing spurious inter-member padding.
-- Fixed `pin` XS prototype (`"$$$;$"` → `"$$;$$"`) which blocked the 2-arg `pin($scalar, $existing_pin)` clone form at the Perl level despite the C implementation correctly handling it.
-- Restored `Packed[N, Struct[...]]` alignment form. The `$` prototype was correct (single array ref), but the check needed to inspect `$_[0]` as a 2-element array ref rather than relying on a dead `@_ == 2` branch.
 - Fixed a sign-extension bug in 128-bit integer parsing.
 - Fixed bitfield write-back logic to use proper bitmasking, preventing neighboring bit corruption.
 - Corrected `wstring` (UTF-16/32) conversion to handle null-terminators properly in fixed-size arrays.

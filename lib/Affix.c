@@ -4156,18 +4156,28 @@ void push_reverse_trampoline(pTHX_ Affix * affix, const infix_type * type, SV * 
             *(void **)p = infix_reverse_get_code(magic_data->reverse_ctx);
         }
         else {
+            // Dereference through any Pointer wrappers to reach the REVERSE_TRAMPOLINE type with func_ptr_info.
+            // Callback signature already includes the pointer (*((args)->ret)), so Pointer[Callback[...]] is
+            // Pointer[Pointer[Function]].
+            const infix_type * ft = resolve_type(aTHX_ type);
+            while (ft && ft->category == INFIX_TYPE_POINTER)
+                ft = resolve_type(aTHX_ ft->meta.pointer_info.pointee_type);
+
+            if (!ft || ft->category != INFIX_TYPE_REVERSE_TRAMPOLINE)
+                croak("Expected a callback type for struct member");
+
             Affix_Callback_Data * cb_data;
             Newxz(cb_data, 1, Affix_Callback_Data);
             cb_data->coderef_rv = newRV_inc(coderef_cv);
             storeTHX(cb_data->perl);
-            infix_type * ret_type = type->meta.func_ptr_info.return_type;
-            size_t num_args = type->meta.func_ptr_info.num_args;
-            size_t num_fixed_args = type->meta.func_ptr_info.num_fixed_args;
+            infix_type * ret_type = ft->meta.func_ptr_info.return_type;
+            size_t num_args = ft->meta.func_ptr_info.num_args;
+            size_t num_fixed_args = ft->meta.func_ptr_info.num_fixed_args;
             infix_type ** arg_types = nullptr;
             if (num_args > 0) {
                 Newx(arg_types, num_args, infix_type *);
                 for (size_t i = 0; i < num_args; ++i)
-                    arg_types[i] = type->meta.func_ptr_info.args[i].type;
+                    arg_types[i] = ft->meta.func_ptr_info.args[i].type;
             }
             infix_reverse_t * reverse_ctx = nullptr;
 

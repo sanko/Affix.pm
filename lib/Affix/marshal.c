@@ -859,17 +859,17 @@ int set_ptr(pTHX_ SV * sv, MAGIC * mg) {
         CV * cv = (CV *)SvRV(sv);
         SvREFCNT_inc(cv);
         infix_reverse_t * rc = nullptr;
-        const infix_type * ft_raw = resolve_type(aTHX_ im->type);
-        const infix_type * ft = (ft_raw->category == INFIX_TYPE_POINTER)
-            ? resolve_type(aTHX_ ft_raw->meta.pointer_info.pointee_type)
-            : ft_raw;
+        const infix_type * ft = resolve_type(aTHX_ im->type);
+        while (ft && ft->category == INFIX_TYPE_POINTER)
+            ft = resolve_type(aTHX_ ft->meta.pointer_info.pointee_type);
 
-        size_t n = ft->meta.func_ptr_info.num_args;
+        size_t n = (ft && ft->category == INFIX_TYPE_REVERSE_TRAMPOLINE) ? ft->meta.func_ptr_info.num_args : 0;
         infix_type ** at = n ? (infix_type **)safecalloc(n, sizeof(infix_type *)) : nullptr;
         for (size_t i = 0; i < n; i++)
             at[i] = ft->meta.func_ptr_info.args[i].type;
 
-        if (infix_reverse_create_closure_manual(&rc,
+        if (ft && ft->category == INFIX_TYPE_REVERSE_TRAMPOLINE &&
+            infix_reverse_create_closure_manual(&rc,
                                                 ft->meta.func_ptr_info.return_type,
                                                 at,
                                                 n,

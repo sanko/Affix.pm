@@ -447,8 +447,9 @@ END_C
         my $lib_file = catfile( $archdir, $mod2fname->( \@parts ) . '.' . $Config{dlext} );
         my @dirs;
         push @dirs, '../';
-        my $has_cxx = !1;
-        my @sources = $cwd->child('lib/Affix.c');
+        my $has_cxx    = !1;
+        my $recompiled = 0;
+        my @sources    = $cwd->child('lib/Affix.c');
 
         #~ warn "Sources to process: @sources\n";
         for my $source (@sources) {
@@ -476,8 +477,15 @@ END_C
                     ( !-f $obj ) ||
                     ( $newest_dep >= path($obj)->stat->mtime ) ||
                     ( path(__FILE__)->stat->mtime > path($obj)->stat->mtime ) );
-
-            #~ warn "Should compile: $should_compile\n";
+            if ($should_compile) {
+                my $reason
+                    = !-f $obj                                            ? 'object file missing' :
+                    $newest_dep >= path($obj)->stat->mtime                ? 'source newer than object' :
+                    path(__FILE__)->stat->mtime > path($obj)->stat->mtime ? 'builder changed' :
+                    'forced';
+                warn "Compiling $source ($reason)\n";
+                $recompiled = 1;
+            }
             push @dirs, $source->dirname();
             $has_cxx = 1 if $cxx;
             push @objs,
@@ -514,6 +522,7 @@ END_C
             module_name => join '::',
             @parts
         };
+        warn "Linking $lib_file\n" if $recompiled;
         return $builder->link(%$data);
     }
     };
