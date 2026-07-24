@@ -52,7 +52,7 @@ class    #
         my $is_bsd = $^O =~ /bsd/i;
         my $is_win = $^O =~ /MSWin32/i;
         $cflags  = $is_bsd ? '' : '-fPIC ';
-        $ldflags = $is_bsd ? '' : ' -flto ';
+        $ldflags = $is_bsd ? '' : ' -flto=auto ';
         if ( $debug > 0 ) {
             $cflags
                 .= '-DDEBUG=' .
@@ -60,7 +60,7 @@ class    #
                 ' -g3 -gdwarf-4 ' .
                 ' -Wno-deprecated -pipe ' .
                 ' -Wall -Wextra -Wpedantic -Wvla -Wnull-dereference ' .
-                ' -Wswitch-enum  -Wduplicated-cond ' .
+                ' -Wswitch-enum -Wduplicated-cond ' .
                 ' -Wduplicated-branches';
             $cflags .= ' -fvar-tracking-assignments' unless $Config{osname} eq 'darwin';
         }
