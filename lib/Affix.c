@@ -1743,7 +1743,7 @@ static void rebuild_affix_data(pTHX_ Affix * affix);
         }                                                                                                       \
                                                                                                                 \
         /* ALLOCATION STRATEGY */                                                                               \
-        size_t arena_mark = affix->args_arena->current_offset;                                                  \
+        /* size_t arena_mark = affix->args_arena->current_offset;*/                                             \
         void * args_buffer;                                                                                     \
         if (USE_STACK_ALLOC && affix->total_args_size <= 2048) {                                                \
             /* Fast path: Stack allocation if under 2k */                                                       \
@@ -1752,7 +1752,7 @@ static void rebuild_affix_data(pTHX_ Affix * affix);
         }                                                                                                       \
         else {                                                                                                  \
             /* Slow path: Arena allocation */                                                                   \
-            arena_mark = affix->args_arena->current_offset;                                                     \
+            /*arena_mark = affix->args_arena->current_offset;*/                                                 \
             /* Alignment 64 is safe for AVX-512 vectors */                                                      \
             args_buffer = infix_arena_calloc(affix->args_arena, 1, affix->total_args_size, 64);                 \
         }                                                                                                       \
@@ -2112,8 +2112,7 @@ CASE_OP_DONE:                                                                   
                     info->writer(aTHX_ affix, info, arg_sv, c_args[info->perl_stack_index]);                    \
             }                                                                                                   \
         }                                                                                                       \
-                                                                                                                \
-        affix->args_arena->current_offset = arena_mark;                                                         \
+        /*affix->args_arena->current_offset = arena_mark;*/                                                     \
         affix->ret_arena->current_offset = 0;                                                                   \
                                                                                                                 \
         ST(0) = TARG;                                                                                           \
@@ -2458,7 +2457,7 @@ void Affix_trigger_variadic(pTHX_ CV * cv) {
     size_t items = (size_t)items_raw;
 
     // Save arena state to prevent leaks
-    size_t arena_mark = affix->args_arena->current_offset;
+    /* size_t arena_mark = affix->args_arena->current_offset;*/
 
     // Build the dynamic signature string
     SV * sig_sv = sv_2mortal(newSVpv("", 0));
@@ -2565,7 +2564,8 @@ void Affix_trigger_variadic(pTHX_ CV * cv) {
     ptr2sv(aTHX_ affix, ret_buffer, TARG, infix_forward_get_return_type(trampoline), affix->ret_readonly);
 
     // Cleanup arenas
-    affix->args_arena->current_offset = arena_mark;
+    /* affix->args_arena->current_offset = arena_mark; */
+    // Do NOT rewind args_arena: same reason as non-variadic path (use-after-free fix)
     affix->ret_arena->current_offset = 0;
     ST(0) = TARG;
     XSRETURN(1);

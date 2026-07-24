@@ -23,11 +23,14 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 - WString now platform-dependent (`*uint16` on Windows, `*uint32` elsewhere).
 - StringList redefined as `Pointer[Pointer[Char]]` instead of the `@StringList` alias.
 - Extended `_is_signature_string` to recognize `+`, `c[...]`, `v[...]`, and `e:` prefixed type strings.
+- Do not rewind `args_arena` so pointers survive XSUB return (hopefully callee stored them).
 
 ### Fixed
 
 - Fixed struct member callback assignment where `$pin->{fn} = sub { ... }` silently created a trampoline with 0 arguments, causing "Too few arguments" errors or crashes when C called through the function pointer. `Pointer[Callback[...]]` creates a double-pointer type chain; `set_ptr` and `push_reverse_trampoline` now walk through all Pointer levels to reach `REVERSE_TRAMPOLINE`.
 - `set_ptr` now croaks when a coderef is assigned to a non-callback pointer type instead of silently creating a broken 0-argument trampoline.
+- Fixed fuzzer `struct_callback` variant's verify function to truncate expected values to the callback return type's width.
+- Fixed packed struct layout where `Packed(Struct[...])` returned sizeof values matching unpacked structs.
 - Replaced silent fallbacks with proper errors: unknown primitive type IDs in opcode dispatch and enum size handling now croak instead of silently misinterpreting memory.
 - Added warning when callback type signature serialization fails instead of silently returning a raw pointer value.
 - Fixed a sign-extension bug in 128-bit integer parsing.
