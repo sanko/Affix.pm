@@ -6,10 +6,6 @@
 |---3--------------------------------|------------------3----------------||
 */
 
-#ifdef USE_ITHREADS
-perl_mutex affix_callback_mutex;
-#endif
-
 static void rebuild_backend_data(pTHX_ Affix_Backend * backend);
 static void rebuild_affix_data(pTHX_ Affix * affix);
 static const infix_type * _resolve_type(pTHX_ const infix_type * type);
@@ -50,7 +46,10 @@ static __int128_t sv_to_int128(pTHX_ SV * sv) {
     else if (*s == '+')
         s++;
     while (*s >= '0' && *s <= '9') {
-        res = res * 10 + (*s - '0');
+        int digit = *s - '0';
+        if (res > (__int128_t)(((__uint128_t)0x7FFFFFFFFFFFFFFFULL << 64) | 0xFFFFFFFFFFFFFFFFULL - digit) / 10)
+            croak("Integer overflow in int128 parsing");
+        res = res * 10 + digit;
         s++;
     }
     return res * sign;
@@ -70,7 +69,10 @@ static __uint128_t sv_to_uint128(pTHX_ SV * sv) {
         s++;  // skip optional +
 
     while (*s >= '0' && *s <= '9') {
-        res = res * 10 + (*s - '0');
+        int digit = *s - '0';
+        if (res > (((__uint128_t)0xFFFFFFFFFFFFFFFFULL << 64) | 0xFFFFFFFFFFFFFFFFULL - digit) / 10)
+            croak("Integer overflow in uint128 parsing");
+        res = res * 10 + digit;
         s++;
     }
     return res;
@@ -147,7 +149,7 @@ static uint16_t float_to_half(float f) {
 
 static float half_to_float(uint16_t h) {
     uint32_t s = (h & 0x8000) << 16;
-    uint32_t e = (h & 0x7C00) >> 10;
+    int32_t e = (h & 0x7C00) >> 10;
     uint32_t m = (h & 0x03FF) << 13;
     if (e == 0) {
         if (m == 0) {
@@ -155,7 +157,7 @@ static float half_to_float(uint16_t h) {
             memcpy(&f, &s, 4);
             return f;
         }
-        while (!(m & 0x00800000)) {
+        while (!(m & 0x00800000) && e > -16) {
             m <<= 1;
             e--;
         }
@@ -336,7 +338,14 @@ void Affix_trigger_backend(pTHX_ CV * cv) {
               (UV)backend->num_args,
               (UV)(SP - MARK));
 
-    void * ret_buffer = alloca(infix_type_get_size(backend->ret_type));
+    size_t ret_size = infix_type_get_size(backend->ret_type);
+    void * ret_buffer;
+    if (ret_size <= 2048)
+        ret_buffer = alloca(ret_size);
+    else {
+        Newxz(ret_buffer, ret_size, char);
+        SAVEFREEPV(ret_buffer);
+    }
     SV ** perl_stack_frame = &ST(0);
 
     backend->cif(ret_buffer, (void **)perl_stack_frame);
@@ -786,7 +795,7 @@ static Affix_Opcode get_opcode_for_type(pTHX_ const infix_type * type) {
             return OP_PUSH_UINT128;
 #endif
         default:
-            return OP_PUSH_SINT32;  // Fallback
+            croak("Affix: unhandled primitive type ID %d in get_opcode_for_type", type->meta.primitive_id);
         }
     case INFIX_TYPE_POINTER:
         {
@@ -1056,12 +1065,6 @@ static void plan_step_push_pointer(pTHX_ Affix * affix,
         return;
     }
 
-    void * addr_v2 = get_address_v2(aTHX_ sv);
-    if (addr_v2) {
-        *(void **)c_arg_ptr = addr_v2;
-        return;
-    }
-
     const infix_type * pointee_type = type->meta.pointer_info.pointee_type;
     if (pointee_type == nullptr)
         croak("Internal error in push_pointer: pointee_type is nullptr");
@@ -1136,6 +1139,8 @@ static void plan_step_push_pointer(pTHX_ Affix * affix,
             AV * av = (AV *)rv;
             size_t len = av_len(av) + 1;
             size_t element_size = infix_type_get_size(pointee_type);
+            if (element_size > 0 && len > SIZE_MAX / element_size)
+                croak("Array size overflow: %zu elements * %zu bytes", len, element_size);
             size_t total_size = len * element_size;
             char * c_array = (char *)infix_arena_alloc(affix->args_arena, total_size, _Alignof(void *));
             if (!c_array)
@@ -1179,7 +1184,8 @@ static void plan_step_push_pointer(pTHX_ Affix * affix,
     char signature_buf[256];
     if (infix_type_print(signature_buf, sizeof(signature_buf), (infix_type *)type, INFIX_DIALECT_SIGNATURE) !=
         INFIX_SUCCESS) {
-        strncpy(signature_buf, "[error printing type]", sizeof(signature_buf));
+        strncpy(signature_buf, "[error printing type]", sizeof(signature_buf) - 1);
+        signature_buf[sizeof(signature_buf) - 1] = '\0';
     }
     croak("Don't know how to handle this type of scalar as a pointer argument yet: %s", signature_buf);
 }
@@ -1268,6 +1274,8 @@ static void plan_step_push_array(pTHX_ Affix * affix,
 
     size_t fixed_len = type->meta.array_info.num_elements;
     size_t alloc_len = (fixed_len > 0 && fixed_len > input_len) ? fixed_len : input_len;
+    if (element_size > 0 && alloc_len > SIZE_MAX / element_size)
+        croak("Array size overflow: %zu elements * %zu bytes", alloc_len, element_size);
     size_t total_size = alloc_len * element_size;
 
 
@@ -1735,7 +1743,7 @@ static void rebuild_affix_data(pTHX_ Affix * affix);
         }                                                                                                       \
                                                                                                                 \
         /* ALLOCATION STRATEGY */                                                                               \
-        size_t arena_mark = affix->args_arena->current_offset;                                                  \
+        /* size_t arena_mark = affix->args_arena->current_offset;*/                                             \
         void * args_buffer;                                                                                     \
         if (USE_STACK_ALLOC && affix->total_args_size <= 2048) {                                                \
             /* Fast path: Stack allocation if under 2k */                                                       \
@@ -1744,13 +1752,20 @@ static void rebuild_affix_data(pTHX_ Affix * affix);
         }                                                                                                       \
         else {                                                                                                  \
             /* Slow path: Arena allocation */                                                                   \
-            arena_mark = affix->args_arena->current_offset;                                                     \
+            /*arena_mark = affix->args_arena->current_offset;*/                                                 \
             /* Alignment 64 is safe for AVX-512 vectors */                                                      \
             args_buffer = infix_arena_calloc(affix->args_arena, 1, affix->total_args_size, 64);                 \
         }                                                                                                       \
                                                                                                                 \
-        register void ** c_args = (void **)alloca(affix->num_args * sizeof(void *));                            \
-        memset(c_args, 0, affix->num_args * sizeof(void *));                                                    \
+        size_t c_args_alloc_size = affix->num_args * sizeof(void *);                                            \
+        register void ** c_args;                                                                                \
+        if (c_args_alloc_size <= 2048)                                                                          \
+            c_args = (void **)alloca(c_args_alloc_size);                                                        \
+        else {                                                                                                  \
+            Newx(c_args, affix->num_args, void *);                                                              \
+            SAVEFREEPV(c_args);                                                                                 \
+        }                                                                                                       \
+        memset(c_args, 0, c_args_alloc_size);                                                                   \
                                                                                                                 \
         size_t ret_align = affix->ret_type->alignment;                                                          \
         if (ret_align < 1)                                                                                      \
@@ -2097,8 +2112,7 @@ CASE_OP_DONE:                                                                   
                     info->writer(aTHX_ affix, info, arg_sv, c_args[info->perl_stack_index]);                    \
             }                                                                                                   \
         }                                                                                                       \
-                                                                                                                \
-        affix->args_arena->current_offset = arena_mark;                                                         \
+        /*affix->args_arena->current_offset = arena_mark;*/                                                     \
         affix->ret_arena->current_offset = 0;                                                                   \
                                                                                                                 \
         ST(0) = TARG;                                                                                           \
@@ -2437,10 +2451,13 @@ void Affix_trigger_variadic(pTHX_ CV * cv) {
     dAXMARK;
     dXSTARG;
     Affix * affix = (Affix *)CvXSUBANY(cv).any_ptr;
-    size_t items = SP - MARK;
+    I32 items_raw = SP - MARK;
+    if (items_raw < 0)
+        croak("Affix: internal error, negative argument count");
+    size_t items = (size_t)items_raw;
 
     // Save arena state to prevent leaks
-    size_t arena_mark = affix->args_arena->current_offset;
+    /* size_t arena_mark = affix->args_arena->current_offset;*/
 
     // Build the dynamic signature string
     SV * sig_sv = sv_2mortal(newSVpv("", 0));
@@ -2522,8 +2539,19 @@ void Affix_trigger_variadic(pTHX_ CV * cv) {
     }
 
     // Execution
-    void ** c_args = alloca(sizeof(void *) * items);
-    void * ret_buffer = infix_arena_alloc(affix->ret_arena, 16, 8);
+    size_t c_args_size = sizeof(void *) * items;
+    void ** c_args;
+    if (c_args_size <= 2048)
+        c_args = alloca(c_args_size);
+    else {
+        Newx(c_args, items, void *);
+        SAVEFREEPV(c_args);
+    }
+    const infix_type * variadic_ret_type = infix_forward_get_return_type(trampoline);
+    size_t ret_size = infix_type_get_size(variadic_ret_type);
+    if (ret_size < sizeof(void *))
+        ret_size = sizeof(void *);
+    void * ret_buffer = infix_arena_alloc(affix->ret_arena, ret_size, 8);
 
     for (size_t i = 0; i < items; ++i) {
         const infix_type * arg_type = infix_forward_get_arg_type(trampoline, i);
@@ -2536,7 +2564,9 @@ void Affix_trigger_variadic(pTHX_ CV * cv) {
     ptr2sv(aTHX_ affix, ret_buffer, TARG, infix_forward_get_return_type(trampoline), affix->ret_readonly);
 
     // Cleanup arenas
-    affix->args_arena->current_offset = arena_mark;
+    /* affix->args_arena->current_offset = arena_mark; */
+    // Do NOT rewind args_arena: same reason as non-variadic path (use-after-free fix)
+    affix->ret_arena->current_offset = 0;
     ST(0) = TARG;
     XSRETURN(1);
 }
@@ -2715,13 +2745,16 @@ XS_INTERNAL(Affix_affix) {
 
     // Build infix signature string
     char signature_buf[1024] = {0};
+    size_t sig_pos = 0;
+    size_t sig_remaining = sizeof(signature_buf) - 1;
     const char * signature = nullptr;
 
     if (explicit_args) {
         if (!SvROK(args_sv) || SvTYPE(SvRV(args_sv)) != SVt_PVAV)
             croak("Usage: affix(..., \\@args, $ret_type) - args must be an array reference");
 
-        strcat(signature_buf, "(");
+        signature_buf[sig_pos++] = '(';
+        sig_remaining--;
         AV * args_av = (AV *)SvRV(args_sv);
         SSize_t num_args = av_len(args_av) + 1;
 
@@ -2733,7 +2766,12 @@ XS_INTERNAL(Affix_affix) {
             if (!arg_sig)
                 croak("Invalid type object in signature");
 
-            strcat(signature_buf, arg_sig);
+            size_t arg_len = strlen(arg_sig);
+            if (arg_len >= sig_remaining)
+                croak("Signature too long (buffer overflow)");
+            memcpy(signature_buf + sig_pos, arg_sig, arg_len);
+            sig_pos += arg_len;
+            sig_remaining -= arg_len;
 
             // Logic to prevent adding commas around ';', which denotes VarArgs start
             if (i < num_args - 1) {
@@ -2745,14 +2783,30 @@ XS_INTERNAL(Affix_affix) {
                     if (next_sig && strEQ(next_sig, ";"))
                         continue;
                 }
-                strcat(signature_buf, ",");
+                if (sig_remaining < 2)
+                    croak("Signature too long (buffer overflow)");
+                signature_buf[sig_pos++] = ',';
+                sig_remaining--;
             }
         }
-        strcat(signature_buf, ") -> ");
+        {
+            const char * close_arrow = ") -> ";
+            size_t ca_len = strlen(close_arrow);
+            if (ca_len >= sig_remaining)
+                croak("Signature too long (buffer overflow)");
+            memcpy(signature_buf + sig_pos, close_arrow, ca_len);
+            sig_pos += ca_len;
+            sig_remaining -= ca_len;
+        }
         const char * ret_sig = _get_string_from_type_obj(aTHX_ ret_sv);
         if (!ret_sig)
             croak("Invalid return type object");
-        strcat(signature_buf, ret_sig);
+        size_t ret_len = strlen(ret_sig);
+        if (ret_len >= sig_remaining)
+            croak("Signature too long (buffer overflow)");
+        memcpy(signature_buf + sig_pos, ret_sig, ret_len);
+        sig_pos += ret_len;
+        signature_buf[sig_pos] = '\0';
         signature = signature_buf;
     }
     else {
@@ -3014,8 +3068,16 @@ XS_INTERNAL(Affix_affix) {
     safefree(temp_out_info);
 
     char prototype_buf[256] = {0};
-    for (size_t i = 0; i < affix->num_args; ++i)
-        strcat(prototype_buf, "$");
+    size_t proto_pos = 0;
+    if (affix->num_args < sizeof(prototype_buf) - 1) {
+        memset(prototype_buf, '$', affix->num_args);
+        proto_pos = affix->num_args;
+    }
+    else {
+        memset(prototype_buf, '$', sizeof(prototype_buf) - 2);
+        proto_pos = sizeof(prototype_buf) - 2;
+    }
+    prototype_buf[proto_pos] = '\0';
 
     // Install XSUB
     XSUBADDR_t trigger;
@@ -3287,7 +3349,7 @@ static void pull_enum_dualvar(pTHX_ Affix * affix, SV * sv, const infix_type * t
     else if (size == 2)
         val = *(int16_t *)p;
     else
-        val = *(int *)p;  // Fallback?
+        croak("Affix: unsupported enum underlying type size %zu", size);
 
     // Set the Integer Value
     sv_setiv(sv, val);
@@ -3853,6 +3915,8 @@ void sv2ptr(pTHX_ Affix * affix, SV * perl_sv, void * c_ptr, const infix_type * 
                     AV * av = (AV *)SvRV(perl_sv);
                     size_t len = av_len(av) + 1;
                     size_t element_size = infix_type_get_size(pointee_type);
+                    if (element_size > 0 && len > SIZE_MAX / element_size)
+                        croak("Array size overflow: %zu elements * %zu bytes", len, element_size);
                     size_t total_size = len * element_size;
                     char * c_array;
                     Newxz(c_array, total_size, char);
@@ -3872,8 +3936,10 @@ void sv2ptr(pTHX_ Affix * affix, SV * perl_sv, void * c_ptr, const infix_type * 
                     void * temp_ptr;
                     if (affix && affix->args_arena)
                         temp_ptr = infix_arena_alloc(affix->args_arena, size, align);
-                    else
+                    else {
                         temp_ptr = safecalloc(1, size);
+                        SAVEFREEPV(temp_ptr);
+                    }
                     memset(temp_ptr, 0, size);
                     sv2ptr(aTHX_ affix, rv, temp_ptr, pointee_type);
                     *(void **)c_ptr = temp_ptr;
@@ -3887,8 +3953,10 @@ void sv2ptr(pTHX_ Affix * affix, SV * perl_sv, void * c_ptr, const infix_type * 
                 void * temp_ptr;
                 if (affix && affix->args_arena)
                     temp_ptr = infix_arena_alloc(affix->args_arena, size, align);
-                else
+                else {
                     temp_ptr = safecalloc(1, size);
+                    SAVEFREEPV(temp_ptr);
+                }
                 memset(temp_ptr, 0, size);
 
                 if (pointee_type->category == INFIX_TYPE_PRIMITIVE || pointee_type->category == INFIX_TYPE_ENUM)
@@ -3902,7 +3970,8 @@ void sv2ptr(pTHX_ Affix * affix, SV * perl_sv, void * c_ptr, const infix_type * 
                 if (infix_type_print(
                         signature_buf, sizeof(signature_buf), (infix_type *)type, INFIX_DIALECT_SIGNATURE) !=
                     INFIX_SUCCESS) {
-                    strncpy(signature_buf, "[error printing type]", sizeof(signature_buf));
+                    strncpy(signature_buf, "[error printing type]", sizeof(signature_buf) - 1);
+                    signature_buf[sizeof(signature_buf) - 1] = '\0';
                 }
                 croak("sv2ptr cannot handle this kind of pointer conversion yet: %s", signature_buf);
             }
@@ -4040,6 +4109,8 @@ void push_array(pTHX_ Affix * affix, const infix_type * type, SV * sv, void * p)
         (element_type->meta.primitive_id == INFIX_PRIMITIVE_SINT8 ||
          element_type->meta.primitive_id == INFIX_PRIMITIVE_UINT8) &&
         SvPOK(sv)) {
+        if (c_array_len == 0)
+            return;
         STRLEN perl_len;
         const char * perl_str = SvPV(sv, perl_len);
         if (perl_len >= c_array_len) {
@@ -4081,18 +4152,28 @@ void push_reverse_trampoline(pTHX_ Affix * affix, const infix_type * type, SV * 
             *(void **)p = infix_reverse_get_code(magic_data->reverse_ctx);
         }
         else {
+            // Dereference through any Pointer wrappers to reach the REVERSE_TRAMPOLINE type with func_ptr_info.
+            // Callback signature already includes the pointer (*((args)->ret)), so Pointer[Callback[...]] is
+            // Pointer[Pointer[Function]].
+            const infix_type * ft = resolve_type(aTHX_ type);
+            while (ft && ft->category == INFIX_TYPE_POINTER)
+                ft = resolve_type(aTHX_ ft->meta.pointer_info.pointee_type);
+
+            if (!ft || ft->category != INFIX_TYPE_REVERSE_TRAMPOLINE)
+                croak("Expected a callback type for struct member");
+
             Affix_Callback_Data * cb_data;
             Newxz(cb_data, 1, Affix_Callback_Data);
             cb_data->coderef_rv = newRV_inc(coderef_cv);
             storeTHX(cb_data->perl);
-            infix_type * ret_type = type->meta.func_ptr_info.return_type;
-            size_t num_args = type->meta.func_ptr_info.num_args;
-            size_t num_fixed_args = type->meta.func_ptr_info.num_fixed_args;
+            infix_type * ret_type = ft->meta.func_ptr_info.return_type;
+            size_t num_args = ft->meta.func_ptr_info.num_args;
+            size_t num_fixed_args = ft->meta.func_ptr_info.num_fixed_args;
             infix_type ** arg_types = nullptr;
             if (num_args > 0) {
                 Newx(arg_types, num_args, infix_type *);
                 for (size_t i = 0; i < num_args; ++i)
-                    arg_types[i] = type->meta.func_ptr_info.args[i].type;
+                    arg_types[i] = ft->meta.func_ptr_info.args[i].type;
             }
             infix_reverse_t * reverse_ctx = nullptr;
 
@@ -4429,7 +4510,9 @@ XS_INTERNAL(Affix_as_string) {
         else
             croak("affix is not of type Affix");
         RETVAL = (char *)affix->infix->target_fn;
-        sv_setpv(TARG, RETVAL);
+        char addr_buf[32];
+        snprintf(addr_buf, sizeof(addr_buf), "0x%p", RETVAL);
+        sv_setpv(TARG, addr_buf);
         XSprePUSH;
         PUSHTARG;
     }
@@ -4816,6 +4899,9 @@ XS_INTERNAL(Affix_calloc) {
 
     UV count = SvUV(ST(0));
     UV size = SvUV(ST(1));
+
+    if (size != 0 && count > SIZE_MAX / size)
+        croak("Affix::calloc: integer overflow (%" UVuf " x %" UVuf ")", count, size);
 
     SV * mem_obj = sv_2mortal(alloc_owned(aTHX_ count * size));
     ST(0) = sv_2mortal(cast(aTHX_ mem_obj, "*void"));
@@ -5687,7 +5773,7 @@ void boot_Affix(pTHX_ CV * cv) {
         XSUB_EXPORT(own, nullptr, "memory");
         XSUB_EXPORT(readonly, nullptr, "memory");
         XSUB_EXPORT(cast, "$$", "memory");
-        XSUB_EXPORT(pin, "$$$;$", "memory");
+        XSUB_EXPORT(pin, "$$;$$", "memory");
         XSUB_EXPORT(unpin, "$", "memory");
 
         // Raw memory operations

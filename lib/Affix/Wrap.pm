@@ -1,4 +1,4 @@
-package Affix::Wrap v1.0.9 {
+package Affix::Wrap v1.1.0 {
     use v5.40;
     use feature 'class';
     no warnings 'experimental::class';
@@ -7,6 +7,7 @@ package Affix::Wrap v1.0.9 {
     use Capture::Tiny qw[capture];
     use JSON::PP;
     use File::Basename qw[basename];
+    use Carp           qw[];
     use Affix          qw[];
     #
     class    #
@@ -364,6 +365,10 @@ package Affix::Wrap v1.0.9 {
             # Sanitize C string concatenations in macros (e.g. "a" "b" -> "ab")
             $v =~ s/"\s+"//g;
 
+            # Strip outer quotes from C string literals
+            if    ( $v =~ /^"(.*)"$/ ) { $v = $1; $v =~ s/\\(.)/$1/g; }
+            elsif ( $v =~ /^'(.*)'$/ ) { $v = $1; }
+
             # Protect against Perl-internal reserved names (starting with __)
             # and macros containing unresolved C calls or backslashes
             if ( $self->name =~ /^__/ || $v =~ /[\\()]/ ) {
@@ -380,9 +385,11 @@ package Affix::Wrap v1.0.9 {
             if ( $pkg && defined $value && length $value ) {
                 my $val = $value;
                 if ( $val =~ /^"(.*)"$/ || $val =~ /^'(.*)'$/ ) { $val = $1; }
-                no strict 'refs';
-                no warnings 'redefine';
-                *{ "${pkg}::" . $self->name } = sub () {$val};
+                if ( $pkg =~ /^[a-zA-Z_]\w*(::\w+)*$/ && $self->name =~ /^[a-zA-Z_]\w*$/ ) {
+                    no strict 'refs';
+                    no warnings 'redefine';
+                    *{ "${pkg}::" . $self->name } = sub () {$val};
+                }
             }
             sub () {$value};
         }
@@ -489,6 +496,7 @@ package Affix::Wrap v1.0.9 {
                 my ( $const_map, $val_map ) = $type->resolve();
                 no strict 'refs';
                 while ( my ( $const_name, $val ) = each %$const_map ) {
+                    next unless $const_name =~ /^[a-zA-Z_]\w*$/;
                     *{"${pkg}::${const_name}"} = sub () {$val};
                 }
             }
@@ -507,13 +515,14 @@ package Affix::Wrap v1.0.9 {
             my $sym = $self->name;
             if ( defined $self->mangled_name && $self->mangled_name ne $self->name ) {
                 $sym = $self->mangled_name;
+
                 # Mach-O prepends a leading underscore to C symbols (e.g., _return_six)
                 # but dlsym expects the source-level name without it.
                 $sym = $self->name if $sym eq '_' . $self->name;
             }
             sprintf "affix \$lib, %s => [%s], %s",
-                ( $sym ne $self->name ? ( sprintf q[[%s => '%s']], $sym, $self->name ) :
-                    ( sprintf q['%s'], $self->name ) ), join( ', ', map { $_->affix_type } @$args ), $ret->affix_type;
+                ( $sym ne $self->name ? ( sprintf q[[%s => '%s']], $sym, $self->name ) : ( sprintf q['%s'], $self->name ) ),
+                join( ', ', map { $_->affix_type } @$args ), $ret->affix_type;
         }
 
         method affix ( $lib, $pkg //= () ) {
@@ -1537,6 +1546,7 @@ package Affix::Wrap v1.0.9 {
                         return $cache{$token} = $res if defined $res;
                     }
                 }
+
                 # Fallback: Treat as simple alias (A -> B)
                 return $cache{$token} = $resolve->($expr);
             };
@@ -1549,6 +1559,7 @@ package Affix::Wrap v1.0.9 {
         }
 
         method _generate_code( $lib, $pkg ) {
+            Carp::croak("Affix::Wrap::generate/wrap requires a valid package name") unless defined $pkg && $pkg =~ /^[a-zA-Z_]\w*(::\w+)*$/;
             my @nodes = $self->parse;
             my %unique_types;
             my %referenced_names;
@@ -1573,8 +1584,15 @@ package Affix::Wrap v1.0.9 {
             my $batch_str = @batch_lines ? join( "\n", @batch_lines ) . "\n" : "";
 
             # Perl Module Construction
-            my $_lib = defined $lib ? 'my $lib = q[' . $lib . '];' : '';
-            my $out  = <<~"PERL";
+            # Safely quote $lib: escape \ and ] within q[...] delimiters
+            my $_lib = '';
+            if ( defined $lib ) {
+                my $safe_lib = $lib;
+                $safe_lib =~ s/\\/\\\\/g;
+                $safe_lib =~ s/\]/\\]/g;
+                $_lib = "my \$lib = q[$safe_lib];";
+            }
+            my $out = <<~"PERL";
             package $pkg {
                 use v5.40;
                 use Affix qw[:all];

@@ -1,4 +1,4 @@
-package Affix v1.0.9 {    # 'FFI' is my middle name!
+package Affix v1.1.0 {    # 'FFI' is my middle name!
 
     #~ |-----------------------------------|-----------------------------------||
     #~ |--------------------------4---5~---|--4--------------------------------||
@@ -19,8 +19,8 @@ package Affix v1.0.9 {    # 'FFI' is my middle name!
 
     BEGIN {
         use XSLoader;
-        $DynaLoad::dl_debug = $DynaLoad::dl_debug = 1;
-        $okay               = XSLoader::load();
+        $DynaLoader::dl_debug = 0;
+        $okay                 = XSLoader::load();
         my $platform
             = 'Affix::Platform::' .
             ( ( $^O eq 'MSWin32' ) ? 'Windows' :
@@ -30,7 +30,7 @@ package Affix v1.0.9 {    # 'FFI' is my middle name!
 
         #~ warn $platform;
         #~ use base $platform;
-        eval 'use ' . $platform . ' qw[:all];';
+        eval "use $platform qw[:all]";
         $@ && die $@;
         our @ISA = ($platform);
     }
@@ -182,19 +182,7 @@ package Affix v1.0.9 {    # 'FFI' is my middle name!
 
     sub _is_type ($thing) {
         return 1 if builtin::blessed($thing) && $thing->isa('Affix::Type');
-        return 0 if !defined $thing || ref $thing;
-
-        # Strictly check for signature characters
-        return 1 if $thing =~ /^[\*\[\{\!<\\@\+]/;
-
-        # Complex (c[...]), Vector (v[...]), or Enum (e:...)
-        return 1 if $thing =~ /^[cv]\[/;
-        return 1 if $thing =~ /^e:/;
-
-        # Primitive types must match exactly or be followed by a delimiter
-        return 1
-            if $thing
-            =~ /^(?:void|bool|[usw]?char|u?short|u?int|u?long(?:long)?|float|double|longdouble|s?size_t|s?int\d+|uint\d+|float\d+|m\d+[a-z]*)$/;
+        return 1 if !ref($thing) && defined $thing && index( '*@({;<', substr( $thing, 0, 1 ) ) >= 0;
         return 0;
     }
 
@@ -335,15 +323,15 @@ package Affix v1.0.9 {    # 'FFI' is my middle name!
     }
 
     # Packed[ Struct[...] ]        -> !{...}
-    # Packed( 4, [ Struct[...] ] ) -> !4:{...}
+    # Packed[ N, Struct[...] ]     -> !N:{...}
     sub Packed : prototype($) {
-        if ( @_ == 2 && !ref( $_[0] ) ) {
-            my ( $align, $content ) = @_;
-            my $agg = ref($content) eq 'ARRAY' ? _build_aggregate( $content, '{%s}' ) : $content;
+        my $content = $_[0];
+        if ( ref($content) eq 'ARRAY' && @$content == 2 && !ref( $content->[0] ) ) {
+            my ( $align, $struct ) = @$content;
+            my $agg = ref($struct) eq 'ARRAY' ? _build_aggregate( $struct, '{%s}' ) : $struct;
             return "!$align:$agg";
         }
-        my $content = $_[0];
-        my $agg     = ref($content) eq 'ARRAY' ? _build_aggregate( $content, '{%s}' ) : $content;
+        my $agg = ref($content) eq 'ARRAY' ? _build_aggregate( $content, '{%s}' ) : $content;
         return "!$agg";
     }
 
@@ -371,7 +359,7 @@ package Affix v1.0.9 {    # 'FFI' is my middle name!
                 next;
             }
             my $next = $args->[ $i + 1 ];
-            if ( defined $next && _is_type($next) && !_is_type($curr) ) {
+            if ( defined $next && _is_type($next) && !ref($curr) ) {
                 push @parts, "$curr:$next";
                 $i++;
             }
@@ -621,8 +609,8 @@ package Affix v1.0.9 {    # 'FFI' is my middle name!
                     if    ( $token eq '+' )  { push @stack, $a + $b; }
                     elsif ( $token eq '-' )  { push @stack, $a - $b; }
                     elsif ( $token eq '*' )  { push @stack, $a * $b; }
-                    elsif ( $token eq '/' )  { push @stack, int( $a / $b ); }
-                    elsif ( $token eq '%' )  { push @stack, $a % $b; }
+                    elsif ( $token eq '/' )  { push @stack, $b ? int( $a / $b ) : 0; }
+                    elsif ( $token eq '%' )  { push @stack, $b ? $a % $b        : 0; }
                     elsif ( $token eq '<<' ) { push @stack, $a << $b; }
                     elsif ( $token eq '>>' ) { push @stack, $a >> $b; }
                     elsif ( $token eq '|' )  { push @stack, $a | $b; }
