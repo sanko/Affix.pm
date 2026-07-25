@@ -20,6 +20,9 @@ say pow( 2.0, 10.0 ); # 1024
 typedef Point => Struct[ x => Int, y => Int ];
 affix $lib, 'draw_point', [ Point() ] => Void;
 draw_point( { x => 10, y => 20 } );
+affix $lib, 'get_pos', [] => Point();
+my $pt = get_pos();
+say sprintf 'x: %d, y: %d', $pt->{x}, $pt->{y};
 
 # We can also allocate and manage raw memory and write data to it
 my $ptr = Affix::malloc(1024);
@@ -39,29 +42,21 @@ Affix::free($ptr);
 
 # DESCRIPTION
 
-Affix is a high-performance, developer friendly Foreign Function Interface (FFI) extension for Perl. It serves as a
-universal bridge to the vast ecosystem of native software including those written in C, Rust, Zig, C++, Go, Fortran,
-and more without writing XS code, managing a compiler, or compromising on execution speed. Affix also comes with an
-extensive type system including native support for primitives (including half-width floats and 128bit integers), nested
-C style structs, union, fixed size arrays, smart handling of enums, SIMD vector types, and, of course, pointers.
+Call native code from Perl without XS, compilers, or runtime overhead.
 
-At its core, Affix is powered by [infix](https://github.com/sanko/infix/), a lightweight JIT (Just-In-Time) compilation
-engine designed with speed and portability as its primary objectives. Unlike traditional FFI solutions that rely on
-generic, per-call dispatch loops, Affix generates optimized machine code trampolines at runtime. These trampolines
-handle argument marshalling and return value processing directly, significantly reducing the overhead of crossing the
-boundary between Perl and native code. The underlying infix engine is [rigorously tested across a diverse range of
-environments](https://github.com/sanko/infix/actions/workflows/ci.yml), ensuring reliable performance on Linux, Windows,
-macOS, Solaris, and various BSD flavors. It supports multiple CPU architectures including `x86_64` and `AArch64`
-(ARM64).
+Affix is a high-performance Foreign Function Interface (FFI) for Perl. It bridges Perl to C, Rust, Zig, C++, Go,
+Fortran, and more via JIT-compiled trampolines that handle argument marshalling at runtime—no generic dispatch loops.
+The result is near-native call speed with a rich type system covering primitives, structs, unions, enums, SIMD vectors, and pointers.
 
-Affix serves as a universal bridge to the vast ecosystem of native software. Whether you're tapping into a legacy
-Fortran math routine, a modern Rust crate, or a system-level C library, Affix makes the integration safe, idiomatic,
-and exceptionally fast.
+Powered by [infix](https://github.com/sanko/infix/), which has been tested on Linux, Windows, macOS, Solaris, BSD, and across
+`x86_64` and `AArch64` (ARM64).
 
 # EXPORTS
 
-Affix exports standard types (`Int`, `Double`, etc.) and core functions (`affix`, `wrap`, `load_library`) by
-default. You can control imports using tags:
+Import types and functions with built-in tags. By default, Affix exports standard types (`Int`, `Double`, etc.) and
+core functions (`affix`, `wrap`, `load_library`).
+
+Control what gets imported:
 
 ```perl
 use Affix qw[:all];    # Import everything
@@ -72,7 +67,8 @@ use Affix qw[:types];  # Types only (Int, Struct, Pointer...)
 
 # CORE API
 
-These functions are the primary entry points for interacting with foreign libraries.
+Bind functions to Perl subroutines and define custom types. These are the primary entry points for interacting with
+foreign libraries.
 
 ## `affix( $lib, $symbol, $params, $return )`
 
@@ -106,11 +102,6 @@ my $pow = wrap $lib, 'pow', [ Double, Double ] => Double;
 my $result = $pow->( 2, 5 );
 ```
 
-## `direct_affix( ... )` / `direct_wrap( ... )`
-
-**Experimental:** Bypasses standard safety checks and intermediate processing for maximum performance with simple
-primitives. Generates highly specialized trampolines that read Perl SVs directly from the stack.
-
 ## `typedef( $name => $type )`
 
 Registers a named type alias. This makes signatures more readable and is required for recursive types and smart Enums.
@@ -139,7 +130,7 @@ coerce( Float, 1.5 );
 
 # VARIABLES & PINNING
 
-Affix allows you to link Perl scalars directly to global or external variables exported by C libraries.
+Bind Perl scalars directly to C global variables for real-time, two-way access to C memory.
 
 ## `pin( ... )`
 
@@ -181,8 +172,8 @@ Removes the magic applied by `pin`. The variable retains its last value but is n
 
 # TYPE SYSTEM
 
-Affix signatures are built using helper functions that map precisely to C types. These are exported by default, or can
-be imported explicitly using the `:types` tag.
+Map C types to Perl with a rich, built-in vocabulary. Affix signatures are built using helper functions that map
+precisely to C types. These are exported by default, or can be imported explicitly using the `:types` tag.
 
 ## Primitive Types
 
@@ -481,7 +472,8 @@ my $packed_res = add_vecs( $v1, $v2 );
 
 # MEMORY MANAGEMENT
 
-When bridging Perl and C, handling raw memory safely is critical. Affix uses **Pins** to manage this boundary.
+Allocate, cast, and manage C memory safely from Perl using zero-copy VTable magic. When bridging Perl and C, handling
+raw memory safely is critical. Affix uses **Pins** to manage this boundary.
 
 Affix now features a completely reimagined memory access system using Perl's internal magic to map Perl variables
 directly to native C memory. This provides zero-copy performance with the ergonomics of native Perl Hashes and Arrays.
@@ -607,6 +599,8 @@ $point->{x} = 10;
 
 # POINTER UTILITIES
 
+Navigate and inspect raw pointers with helper functions for address arithmetic, null checks, and more.
+
 ### `address( $ptr )`
 
 Returns the virtual memory address of the pointer as a Perl Unsigned Integer (`UInt64`). Useful for passing addresses
@@ -652,8 +646,8 @@ in a bulk operation (like summing a 10,000 element array) is exceptionally fast.
 
 # Raw Memory Operations
 
-Affix exposes standard C memory operations for high-performance, raw byte manipulation. These functions accept either
-Pins or raw integer addresses.
+Classic C memory functions (memcpy, memset, etc.) available directly from Perl for high-performance byte manipulation.
+These functions accept either Pins or raw integer addresses.
 
 - `memcpy( $dest, $src, $bytes )`: Copies exactly `$bytes` from `$src` to `$dest`.
 - `memmove( $dest, $src, $bytes )`: Copies `$bytes` from `$src` to `$dest`. Safe to use if the memory regions overlap.
@@ -663,9 +657,8 @@ Pins or raw integer addresses.
 
 # `Const` & Readonly Memory
 
-In C, `const` is a contract. Affix enforces this contract at the Perl level using magical VTables. If a memory block
-is marked as readonly, any attempt to modify it from Perl will throw a fatal exception: `Modification of a read-only C
-value attempted`.
+Enforce C's const contract at the Perl level. Affix intercepts writes to read-only memory and throws a fatal exception:
+`Modification of a read-only C value attempted`.
 
 ## Declarative Const: `Const[ $type ]`
 
@@ -713,8 +706,8 @@ my $view = cast($raw_addr, "+MyStruct");
 
 # Zero-copy Aggregates
 
-When C returns a pointer to a struct or an array, Affix does not perform a deep copy. Instead, it returns a magical
-Perl variable that maps directly to the C memory.
+Structs, unions, and arrays map directly to C memory—no deep copies required. When C returns a pointer to an aggregate,
+Affix wraps it in a magical Perl reference that reads and writes C memory in real time.
 
 ### Native Array Indexing
 
@@ -736,8 +729,8 @@ value as a HASH reference`).
 
 # LIBRARIES & SYMBOLS
 
-Loading dynamic libraries across different operating systems (Windows, macOS, Linux, BSD) can be a nightmare of varying
-extensions, prefixes, and search paths. Affix abstracts this complexity away with a smart library discovery engine.
+Load and inspect dynamic libraries across platforms. Affix's smart discovery engine handles varying extensions,
+prefixes, and search paths automatically.
 
 ## Library Discovery
 
@@ -824,8 +817,8 @@ if (!$lib) {
 
 # INTROSPECTION
 
-When working with C APIs, you often need to know exactly how much memory a structure consumes or where a specific field
-is located within a block of memory. Affix provides compiler-grade type introspection.
+Query type sizes, alignments, and field offsets like a compiler would. When working with C APIs, you often need to know
+exactly how much memory a structure consumes or where a specific field is located within a block of memory.
 
 ### `sizeof( $type )`
 
@@ -875,9 +868,9 @@ say "Registered types: " . join(', ', @known_types);
 
 # INTERFACING WITH OTHER LANGUAGES
 
-Because Affix dynamically loads symbols according to the C Application Binary Interface (C ABI), it can interact with
-libraries written in almost any language, provided they expose their functions correctly. Companion modules like
-[Affix::Build](https://metacpan.org/pod/Affix%3A%3ABuild) make compiling these languages seamless.
+Guidelines for calling into C++, Rust, Fortran, Go, and Assembly from Affix. Because Affix dynamically loads symbols
+according to the C ABI, it can interact with libraries written in almost any language, provided they expose their
+functions correctly. Companion modules like [Affix::Build](https://metacpan.org/pod/Affix%3A%3ABuild) make compiling these languages seamless.
 
 Here are the requirements and quirks for interfacing with non-C languages.
 
@@ -934,8 +927,8 @@ internal metadata (length/capacity) and do not map directly to C arrays or `char
 
 # ERROR HANDLING & DEBUGGING
 
-Bridging two entirely different runtimes can lead to spectacular crashes if types or memory boundaries are mismatched.
-Affix provides built-in tools to help you identify what went wrong.
+Diagnose FFI issues with built-in error reporting, memory inspection, and hex dumps. Bridging two entirely different
+runtimes can lead to spectacular crashes if types or memory boundaries are mismatched.
 
 ## Error Handling
 
@@ -1010,15 +1003,16 @@ set_destruct_level(2);
 
 # COMPANION MODULES
 
-Affix ships with two powerful companion modules to streamline your FFI development:
+Auto-generate bindings from C/C++ headers and compile polyglot source with two companion modules:
 
 - [**Affix::Wrap**](https://metacpan.org/pod/Affix%3A%3AWrap): Parses C/C++ headers using the Clang AST to automatically generate Affix bindings for entire libraries.
 - [**Affix::Build**](https://metacpan.org/pod/Affix%3A%3ABuild): A polyglot builder that compiles inline C, C++, Rust, Zig, Go, and 15+ other languages into dynamic libraries you can bind instantly.
 
 # THREAD SAFETY & CONCURRENCY
 
-Affix bridges Perl (a single-threaded interpreter, generally) with libraries that may be multi-threaded. This creates
-potential hazards that you must manage.
+Understand the threading model: what's safe to do from callbacks, and what must happen in the main thread before
+spawning any threads. Affix bridges Perl (a single-threaded interpreter, generally) with libraries that may be
+multi-threaded. This creates potential hazards that you must manage.
 
 ## 1. Initialization Phase vs. Execution Phase
 
@@ -1041,7 +1035,8 @@ to attach a temporary Perl context to that thread. This should be sufficient but
 
 # RECIPES & EXAMPLES
 
-See [The Affix Cookbook](https://github.com/sanko/Affix.pm/discussions/categories/recipes) for comprehensive guides to
+Real-world patterns including linked lists and C++ vtable calls. See
+[The Affix Cookbook](https://github.com/sanko/Affix.pm/discussions/categories/recipes) for comprehensive guides to
 using Affix.
 
 ## Linked List Implementation
