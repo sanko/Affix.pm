@@ -1,4 +1,3 @@
-#!/usr/bin/env perl
 use v5.40;
 use blib;
 use lib 'blib/lib', 'lib';
@@ -6,6 +5,8 @@ use Affix               qw[:all];
 use Test2::Tools::Affix qw[:all];
 use Test2::V0 -no_srand => 1;
 use Config;
+use Data::Dumper;
+$Data::Dumper::Terse = 1;
 $|++;
 #
 my $max_iter = $ENV{FUZZ_MAX_ITER} // 1000;
@@ -66,7 +67,7 @@ my @PRIMITIVES;
         [ 'short',     'short',    sub { Short() } ],
         [ 'int',       'int',      sub { Int() } ],
         [ 'long',      'long',     sub { Long() } ],
-        [ 'long long', 'longlong', sub { LongLong() } ],
+        [ 'long long', 'longlong', sub { LongLong() } ]
     );
     my @unsigned_ints = (
         [ 'uint8_t',            'uint8',     sub { UInt8() } ],
@@ -77,10 +78,10 @@ my @PRIMITIVES;
         [ 'unsigned short',     'ushort',    sub { UShort() } ],
         [ 'unsigned int',       'uint',      sub { UInt() } ],
         [ 'unsigned long',      'ulong',     sub { ULong() } ],
-        [ 'unsigned long long', 'ulonglong', sub { ULongLong() } ],
+        [ 'unsigned long long', 'ulonglong', sub { ULongLong() } ]
     );
-    my @floats = ( [ 'float', 'float', sub { Float() } ], [ 'double', 'double', sub { Double() } ], );
-    my @bool   = ( [ 'bool',  'bool',  sub { Bool() } ], );
+    my @floats = ( [ 'float', 'float', sub { Float() } ], [ 'double', 'double', sub { Double() } ] );
+    my @bool   = ( [ 'bool',  'bool',  sub { Bool() } ] );
     for my $entry (@signed_ints) {
         my ( $c, $sig, $perl ) = @$entry;
         my $bits = sizeof( $perl->() ) * 8;
@@ -140,11 +141,11 @@ sub generate_function {
     my $params_str = join( ', ', @c_params );
     my $ret_sig    = $ret_type->{sig};
     my $ret_c      = $ret_type->{c};
-    my $c_code     = <<"END_C";
-$ret_c $fn_name($params_str) {
-    return ($ret_c) p0;
-}
-END_C
+    my $c_code     = <<~"";
+        $ret_c $fn_name($params_str) {
+            return ($ret_c) p0;
+        }
+
     return {
         c_code     => $c_code,
         c_name     => $fn_name,
@@ -152,7 +153,7 @@ END_C
         sig_ret    => $ret_sig,
         perl_args  => \@perl_args,
         perl_ret   => $ret_type->{perl}->(),
-        gen_values => \@gen_values,
+        gen_values => \@gen_values
     };
 }
 
@@ -185,19 +186,18 @@ sub generate_struct_fn {
     }
     my $struct_body = join( ' ', @struct_members );
     my $struct_def  = "typedef struct { $struct_body } $struct_name;";
-    my $struct_sig  = '{' . join( ',', @struct_sig_fields ) . '}';
+    my $struct_sig  = '{ ' . join( ',', @struct_sig_fields ) . ' }';
     my $params_str  = join( ', ', @c_params );
     my @inits       = map {"r.m$_ = p$_;"} 0 .. $#fields;
     my $init_block  = join( "\n    ", @inits );
-    my $c_code      = <<"END_C";
-$struct_def
+    my $c_code      = <<~"";
+        $struct_def
+        $struct_name $fn_name($params_str) {
+            $struct_name r = {0};
+            $init_block
+            return r;
+        }
 
-$struct_name $fn_name($params_str) {
-    $struct_name r = {0};
-    $init_block
-    return r;
-}
-END_C
     my @field_names = map { 'm' . $_ } 0 .. $#fields;
     my @check_gens  = @gen_values;
     my @check_names = @field_names;
@@ -215,10 +215,10 @@ END_C
             local $ENV{TABLE_TERM_SIZE} = 200;
             my $ok = is( $result, \%expected, "struct fields match" );
             unless ($ok) {
-                diag "GOT:     " . join( ", ", map {"$_=$result->{$_}"} sort keys %$result );
-                diag "EXPECTED:" . join( ", ", map {"$_=$expected{$_}"} sort keys %expected );
+                diag 'GOT:      ' . join( ", ", map {"$_=$result->{$_}"} sort keys %$result );
+                diag 'EXPECTED: ' . join( ", ", map {"$_=$expected{$_}"} sort keys %expected );
             }
-        },
+        }
     };
 }
 
@@ -306,7 +306,7 @@ sub generate_struct_float_fn {
         @float_base = ($f);
     }
     my $struct_body = join( ' ', @struct_members );
-    my $struct_sig  = '{' . join( ',', @struct_sig_fields ) . '}';
+    my $struct_sig  = '{ ' . join( ',', @struct_sig_fields ) . ' }';
 
     # Build C parameter list
     @c_params   = ();
@@ -324,15 +324,14 @@ sub generate_struct_float_fn {
     }
     my $params = join( ', ',     @c_params );
     my $inits  = join( "\n    ", map {"r.m$_ = p$_;"} 0 .. $#field_specs );
-    my $c_code = <<"END_C";
-typedef struct { $struct_body } $struct_name;
+    my $c_code = <<~"";
+        typedef struct { $struct_body } $struct_name;
+        $struct_name $fn_name($params) {
+            $struct_name r = {0};
+            $inits
+            return r;
+        }
 
-$struct_name $fn_name($params) {
-    $struct_name r = {0};
-    $inits
-    return r;
-}
-END_C
     my @check_gens  = @gen_values;
     my @check_names = map {"m$_"} 0 .. $#field_specs;
 
@@ -370,7 +369,7 @@ END_C
                 diag "GOT:     " . join( ", ", map {"$_=$result->{$_}"} sort keys %$result );
                 diag "EXPECTED:" . join( ", ", map {"$_=$expected_vals[$_]"} 0 .. $#check_names );
             }
-        },
+        }
     };
 }
 
@@ -415,15 +414,13 @@ sub generate_nested_struct_fn {
     # C code: take outer by value, return inner.a0
     my $ret_c   = $inner_fields[0]->{c};
     my $ret_sig = $inner_fields[0]->{sig};
-    my $c_code  = <<"END_C";
-typedef struct { $inner_body } $inner_name;
+    my $c_code  = <<~"";
+        typedef struct { $inner_body } $inner_name;
+        typedef struct { $inner_name inner; $outer_scalar->{c} z; } $outer_name;
+        $ret_c $fn_name($outer_name s) {
+            return s.inner.a0;
+        }
 
-typedef struct { $inner_name inner; $outer_scalar->{c} z; } $outer_name;
-
-$ret_c $fn_name($outer_name s) {
-    return s.inner.a0;
-}
-END_C
 
     # Perl types
     my $inner_type = Struct [@inner_perl_fields];
@@ -452,8 +449,9 @@ END_C
             },
         ],
         verify => sub ($result) {
-            is( $result, $captured_a0, "nested struct inner.a0 roundtrip" );
-        },
+            is $result, $captured_a0, 'nested struct inner.a0 roundtrip';
+            diag Dumper $result;
+        }
     };
 }
 
@@ -477,18 +475,17 @@ sub generate_struct_array_member_fn {
     my @arr_vals   = map { $base->{gen}->() } 1 .. $count;
     my $scalar_gen = $base->{gen};
     my $scalar_val = $scalar_gen->();
-    my $c_code     = <<"END_C";
-typedef struct {
-    $base->{c} arr[$count];
-    $base->{c} x;
-} $struct_name;
+    my $c_code     = <<~"";
+        typedef struct {
+            $base->{c} arr[$count];
+            $base->{c} x;
+        } $struct_name;
+        int $fn_name($struct_name s) {
+            int sum = (int)s.x;
+            for (int i = 0; i < $count; i++) sum += (int)s.arr[i];
+            return sum;
+        }
 
-int $fn_name($struct_name s) {
-    int sum = (int)s.x;
-    for (int i = 0; i < $count; i++) sum += (int)s.arr[i];
-    return sum;
-}
-END_C
     my $array_type  = Array [ $base->{perl}->(), $count ];
     my $struct_type = Struct [ arr => $array_type, x => $base->{perl}->() ];
     my $struct_sig  = '{arr:[' . $count . ':' . $base->{sig} . '],x:' . $base->{sig} . '}';
@@ -507,12 +504,9 @@ END_C
             },
         ],
         verify => sub ($result) {
-            my $ok = $result == $expected;
-            unless ($ok) {
-                diag "struct+array sum: got=$result expected=$expected";
-            }
-            ok( $ok, "struct array member roundtrip" );
-        },
+            is $result, $expected, 'struct array member roundtrip';
+            diag Dumper $result;
+        }
     };
 }
 
@@ -609,8 +603,9 @@ END_C
             unless ($ok) {
                 diag "union byval: got=$result expected=$val";
             }
-            ok( $ok, "union by-value roundtrip" );
-        },
+            ok $ok, 'union by-value roundtrip';
+            diag Dumper $result;
+        }
     };
 }
 
@@ -2030,10 +2025,18 @@ END_C
 # Build + verify one function
 sub fuzz_one {
     my $fn_name = unique_name();
-    my $variant
-        = pick(
-        qw[primitive struct struct_float nested_struct struct_array_member union union_byval enum enum_type mega_arg pointer callback callback_enum callback_struct callback_struct_ret longdouble complex bitfield simd float16 flexible_array wstring struct_callback deep_ptr void_ptr string struct_ptr packed_struct packed_struct_ptr array multi_cb struct_multi_cb linked_list cb_passing_struct_ptr deep_nest]
-        );
+    my $variant = pick(
+        qw[primitive struct struct_float nested_struct struct_array_member
+            union union_byval
+            enum enum_type
+            mega_arg
+            pointer
+            callback callback_enum callback_struct callback_struct_ret struct_callback
+            longdouble complex
+            bitfield simd float16 flexible_array wstring  deep_ptr void_ptr string
+            struct_ptr packed_struct packed_struct_ptr array multi_cb struct_multi_cb
+            linked_list cb_passing_struct_ptr deep_nest]
+    );
     my $spec;
     if    ( $variant eq 'primitive' )             { $spec = generate_function($fn_name); }
     elsif ( $variant eq 'struct' )                { $spec = generate_struct_fn($fn_name); }
@@ -2093,16 +2096,13 @@ sub fuzz_one {
 
         # Generate call arguments
         my @call_args;
-        my $gen_ok = eval {
+        subtest 'gen_values' => sub {
             for my $gv ( @{ $spec->{gen_values} } ) {
+                my $v;
+                ok lives { $v = $gv->() }, Dumper $v;
                 push @call_args, $gv->();
             }
-            1;
         };
-        unless ($gen_ok) {
-            note $@;
-        }
-        ok $gen_ok, 'gen_values';
 
         # Call
         my $result = eval {
