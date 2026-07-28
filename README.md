@@ -675,7 +675,7 @@ The `readonly()` function allows you to inspect or toggle the const status of a 
 as an _FFI Escape Hatch_ (similar to `const_cast` in C++).
 
 ```perl
-my $point = cast($addr, 'struct { x: int, y: int }');
+my $point = cast($addr, Struct[ x => Int, y => Int ]);
 
 readonly($point, 1); # Lock the entire struct
 $point->{x} = 10;    # FATAL ERROR
@@ -687,7 +687,7 @@ When an aggregate (Struct or Array) is marked as read-only, Affix automatically 
 its members.
 
 ```perl
-my $rect = cast($addr, '+struct { top: {x:int, y:int}, bottom: {x:int, y:int} }');
+my $rect = cast($addr, Const[Struct[top => Struct[ x => Int, y => Int ], bottom => Struct[ x => Int, y => Int ] ]]);
 
 # Even though 'x' wasn't explicitly marked Const, it inherited protection
 # from the parent struct.
@@ -700,7 +700,7 @@ When using `cast( ... )`, you can prepend a `+` to the type signature to create 
 address.
 
 ```perl
-my $view = cast($raw_addr, "+MyStruct");
+my $view = cast($raw_addr, Const[MyStruct]);
 # $view is now a read-only HashRef mapping to C memory.
 ```
 
