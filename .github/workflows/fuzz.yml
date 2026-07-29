@@ -4,9 +4,9 @@ jobs:
     name: '${{ matrix.title }}'
     runs-on: '${{ matrix.os }}'
     steps:
-      - uses: actions/checkout@v4
+      - uses: actions/checkout@v7.0.1
       - name: Set up Perl
-        uses: shogo82148/actions-setup-perl@v1
+        uses: shogo82148/actions-setup-perl@v1.42.0
         with:
           distribution: "${{ matrix.distribution || 'default' }}"
           perl-version: 5.40

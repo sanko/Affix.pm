@@ -4,11 +4,11 @@ jobs:
     name: "${{ inputs.flags == '-Dusethreads' && 'Strawberry' || 'Default' }}"
     runs-on: '${{ inputs.os }}'
     steps:
-      - uses: actions/checkout@v5.0.0
+      - uses: actions/checkout@v7.0.1
         with:
           submodules: true
       - name: Setup Perl environment
-        uses: shogo82148/actions-setup-perl@v1.37.1
+        uses: shogo82148/actions-setup-perl@v1.42.0
         with:
           distribution: "${{ inputs.flags == '-Dusethreads' && 'strawberry' || 'default' }}"
           multi-thread: "${{ inputs.flags == '-Dusethreads' && true || false }}"
@@ -19,7 +19,7 @@ jobs:
         run: |
           perl -V
           cpanm --test-only -v .
-          
+
           if ($LASTEXITCODE -eq 0) {
             perl -V > test-output-${{ inputs.os }}-${{ inputs.perl }}${{ inputs.flags }}.txt
           } else {
@@ -27,7 +27,7 @@ jobs:
             exit $LASTEXITCODE
           }
       - name: Upload results as artifact
-        uses: actions/upload-artifact@v5.0.0
+        uses: actions/upload-artifact@v7.0.1
         with:
           if-no-files-found: error
           name: 'test-output-${{ inputs.os }}-${{ inputs.perl }}${{ inputs.flags }}'
