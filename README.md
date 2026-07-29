@@ -46,10 +46,11 @@ Call native code from Perl without XS, compilers, or runtime overhead.
 
 Affix is a high-performance Foreign Function Interface (FFI) for Perl. It bridges Perl to C, Rust, Zig, C++, Go,
 Fortran, and more via JIT-compiled trampolines that handle argument marshalling at runtime—no generic dispatch loops.
-The result is near-native call speed with a rich type system covering primitives, structs, unions, enums, SIMD vectors, and pointers.
+The result is near-native call speed with a rich type system covering primitives, structs, unions, enums, SIMD vectors,
+and pointers.
 
-Powered by [infix](https://github.com/sanko/infix/), which has been tested on Linux, Windows, macOS, Solaris, BSD, and across
-`x86_64` and `AArch64` (ARM64).
+Powered by [infix](https://github.com/sanko/infix/), which has been tested on Linux, Windows, macOS, Solaris, BSD, and
+across `x86_64` and `AArch64` (ARM64).
 
 # EXPORTS
 
@@ -706,8 +707,8 @@ my $view = cast($raw_addr, Const[MyStruct]);
 
 # Zero-copy Aggregates
 
-Structs, unions, and arrays map directly to C memory—no deep copies required. When C returns a pointer to an aggregate,
-Affix wraps it in a magical Perl reference that reads and writes C memory in real time.
+Structs, unions, and arrays map directly to C memory—no deep copies required. When C returns a pointer to an
+aggregate, Affix wraps it in a magical Perl reference that reads and writes C memory in real time.
 
 ### Native Array Indexing
 
@@ -1035,9 +1036,8 @@ to attach a temporary Perl context to that thread. This should be sufficient but
 
 # RECIPES & EXAMPLES
 
-Real-world patterns including linked lists and C++ vtable calls. See
-[The Affix Cookbook](https://github.com/sanko/Affix.pm/discussions/categories/recipes) for comprehensive guides to
-using Affix.
+Real-world patterns including linked lists and C++ vtable calls. See [The Affix
+Cookbook](https://github.com/sanko/Affix.pm/discussions/categories/recipes) for comprehensive guides to using Affix.
 
 ## Linked List Implementation
 
@@ -1098,6 +1098,6 @@ Sanko Robinson - [https://github.com/sanko](https://github.com/sanko)
 
 # COPYRIGHT
 
-Copyright (C) 2023-2026 by Sanko Robinson.
+Copyright (C) 2022-2026 by Sanko Robinson.
 
 This library is free software; you can redistribute it and/or modify it under the terms of the Artistic License 2.0.
