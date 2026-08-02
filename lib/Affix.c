@@ -5683,6 +5683,16 @@ XS_INTERNAL(Affix_CLONE) {
 
 #include "Affix/marshal.c"
 
+static void * affix_infix_malloc(size_t nbytes) { return Perl_safesysmalloc((MEM_SIZE)nbytes); }
+
+static void * affix_infix_calloc(size_t nelem, size_t size) {
+    return Perl_safesyscalloc((MEM_SIZE)nelem, (MEM_SIZE)size);
+}
+
+static void * affix_infix_realloc(void * ptr, size_t nbytes) { return Perl_safesysrealloc(ptr, (MEM_SIZE)nbytes); }
+
+static void affix_infix_free(void * ptr) { Perl_safesysfree(ptr); }
+
 void boot_Affix(pTHX_ CV * cv) {
     dVAR;
     dXSBOOTARGSXSAPIVERCHK;
@@ -5696,6 +5706,12 @@ void boot_Affix(pTHX_ CV * cv) {
     MY_CXT.enum_registry = newHV();
     MY_CXT.coercion_cache = newHV();
     MY_CXT.stash_pointer = nullptr;
+    infix_set_allocator(&(infix_allocator_t){
+        .malloc = affix_infix_malloc,
+        .calloc = affix_infix_calloc,
+        .realloc = affix_infix_realloc,
+        .free = affix_infix_free,
+    });
     MY_CXT.registry = infix_registry_create();
     if (!MY_CXT.registry)
         croak("Failed to initialize the global type registry");
