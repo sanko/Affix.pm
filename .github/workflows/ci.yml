@@ -57,6 +57,9 @@ jobs:
         exclude:
           - flags: -Dusequadmath
           - flags: -Dusethreads
+          - flags: -Dusethreads -DDEBUGGING=both
+          - flags: -Dusethreads -Duselongdouble -DDEBUGGING=both
+          - flags: -Dusethreads -Dusequadmath -DDEBUGGING=both
         flags: '${{ fromJSON(needs.setup.outputs.matrix).flags }}'
         os:
           - macos-15-intel
@@ -115,7 +118,7 @@ jobs:
           DATA: |
             {
               "perl":  ["5.40.2", "5.42.0"],
-              "flags": ["", "-Dusethreads", "-Duselongdouble", "-Dusequadmath", "--debug", "-DDEBUGGING=both", "-DDEBUGGING=-g", "-Doptimize=-g", "-DDEBUGGING=none", "-UDEBUGGING"]
+              "flags": ["", "-Dusethreads", "-Duselongdouble", "-Dusequadmath", "--debug", "-DDEBUGGING=both", "-DDEBUGGING=-g", "-Doptimize=-g", "-DDEBUGGING=none", "-UDEBUGGING", "-Dusethreads -DDEBUGGING=both", "-Dusethreads -Duselongdouble -DDEBUGGING=both", "-Dusethreads -Dusequadmath -DDEBUGGING=both"]
             }
         id: matrix
         run: "jq -rn 'env.DATA | fromjson | @json \"matrix=\\(.)\"' > $GITHUB_OUTPUT\n"
