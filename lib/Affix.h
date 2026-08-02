@@ -16,10 +16,6 @@
 // Redirect infix's internal memory allocation to use Perl's safe allocation functions.
 // This ensures all memory is tracked by Perl's memory manager, which is safer and
 // helps with leak detection tools like valgrind.
-#define infix_malloc safemalloc
-#define infix_calloc safecalloc
-#define infix_free safefree
-#define infix_realloc saferealloc
 
 #include "common/infix_internals.h"
 #include <infix/infix.h>
