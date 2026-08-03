@@ -7,6 +7,15 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ## [Unreleased]
 
+### Fixed
+
+- `malloc()`/`calloc()` pins no longer lose their `Affix::Memory` lifeline: the memory is kept alive for as long as any derived pin exists (fixes a use-after-free where the block could be handed out to a later allocation), and `free()` now works on pins returned by `malloc`/`calloc` instead of warning "called on an unmanaged pointer".
+- `realloc()` no longer corrupts the `Affix::Memory` reference header when updating the stored address.
+- [infix] Layout recalculation now descends into reverse trampolines, so a `Struct[...]` declared inline in a signature whose members referenced named types no longer has corrupted offsets.
+
+### Added
+- [infix] Support for RISC-V!
+
 ## [v1.2.1] - 2026-08-02
 
 ### Fixed
