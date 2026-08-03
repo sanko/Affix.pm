@@ -5,11 +5,13 @@ jobs:
     runs-on: '${{ matrix.os }}'
     steps:
       - uses: actions/checkout@v7.0.1
+        with:
+          submodules: true
       - name: Set up Perl
         uses: shogo82148/actions-setup-perl@v1.42.0
         with:
           distribution: "${{ matrix.distribution || 'default' }}"
-          perl-version: 5.40
+          perl-version: '5.40'
       - name: Install dependencies
         run: |
           cpanm --notest -q Module::Build::Tiny
@@ -43,6 +45,53 @@ jobs:
           - os: windows-2022
             title: Windows x64
             distribution: strawberry
+  riscv:
+    name: Linux RISC-V
+    runs-on: ubuntu-24.04-riscv
+    steps:
+      - uses: actions/checkout@v7.0.1
+        with:
+          submodules: true
+      - id: cache-perl
+        name: Check Perl Cache
+        uses: actions/cache@v6.1.0
+        with:
+          key: riscv-fuzz-perl-v5.40.2
+          path: ~/perl5/
+      - if: "${{ steps.cache-perl.outputs.cache-hit != 'true' }}"
+        name: Build Perl 5.40.2 from source
+        run: |
+          \curl -L https://install.perlbrew.pl | bash
+          source ~/perl5/perlbrew/etc/bashrc
+
+          perlbrew self-upgrade
+          perlbrew install-patchperl
+          perlbrew install-cpanm
+          cpanm --local-lib=~/perl5 local::lib && eval $(perl -I ~/perl5/lib/perl5/ -Mlocal::lib)
+          cpanm -n -v Devel::PatchPerl
+
+          perlbrew install --switch --verbose --as 'fuzz-riscv' -j 8 --notest --noman perl-5.40.2
+      - name: Install dependencies
+        run: |
+          source ~/perl5/perlbrew/etc/bashrc
+          cpanm --notest -q Module::Build::Tiny
+          perl Build.PL
+          perl Build
+        shell: bash
+      - env:
+          MINUTES: '${{ inputs.minutes }}'
+        name: Run fuzzers
+        run: |
+          source ~/perl5/perlbrew/etc/bashrc
+          FUZZ_TIME="${MINUTES:-10}"
+          export FUZZ_MAX_ITER=$(( FUZZ_TIME * 200 ))
+          export FUZZ_TIMEOUT=5
+          export FUZZ_VERBOSE=0
+          for f in fuzz/fuzz_*.pl; do
+            echo "=== Running $f ==="
+            perl -Ilib "$f" || exit 1
+          done
+        shell: bash
 name: Fuzz
 on:
   schedule:
