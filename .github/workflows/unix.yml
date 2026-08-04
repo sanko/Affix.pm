@@ -40,7 +40,9 @@ jobs:
         run: |
           if [[ $(uname -o) == GNU/Linux ]]; then
             sudo apt-get update -y
-            sudo apt-get install -y valgrind
+            if apt-cache show valgrind >/dev/null 2>&1; then
+              sudo apt-get install -y valgrind
+            fi
           fi
           source ~/perl5/perlbrew/etc/bashrc
           perlbrew switch '${{ steps.build-name.outputs.perl-name }}'
