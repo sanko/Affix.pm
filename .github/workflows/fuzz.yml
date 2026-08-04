@@ -8,10 +8,10 @@ jobs:
         with:
           submodules: true
       - name: Set up Perl
-        uses: shogo82148/actions-setup-perl@v1.42.0
+        uses: shogo82148/actions-setup-perl@v1.43.0
         with:
           distribution: "${{ matrix.distribution || 'default' }}"
-          perl-version: '5.40'
+          perl-version: "5.42"
       - name: Install dependencies
         run: |
           cpanm --notest -q Module::Build::Tiny
@@ -74,7 +74,7 @@ jobs:
       - name: Install dependencies
         run: |
           source ~/perl5/perlbrew/etc/bashrc
-          cpanm --notest -q Module::Build::Tiny
+          cpanm --notest -q Module::Build::Tiny Path::Tiny Capture::Tiny
           perl Build.PL
           perl Build
         shell: bash

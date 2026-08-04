@@ -38,11 +38,9 @@ jobs:
           perlbrew install --switch --verbose --as '${{ steps.build-name.outputs.perl-name }}' -j 12 --notest --noman ${{ inputs.flags }} perl-${{ inputs.perl }}
       - name: Install prereqs
         run: |
-          if [[ $(uname -o) == GNU/Linux ]]; then
+          if [[ $(uname -o) == GNU/Linux && $(uname -m) != riscv64 ]]; then
             sudo apt-get update -y
-            if apt-cache show valgrind >/dev/null 2>&1; then
-              sudo apt-get install -y valgrind
-            fi
+            sudo apt-get install -y valgrind
           fi
           source ~/perl5/perlbrew/etc/bashrc
           perlbrew switch '${{ steps.build-name.outputs.perl-name }}'
