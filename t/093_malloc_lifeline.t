@@ -4,6 +4,11 @@ use Test2::Tools::Affix qw[:all];
 use Test2::V0 -no_srand => 1;
 use Affix qw[:all];
 #
+my $orig_destroy = \&Affix::Memory::DESTROY;
+my $destroyed    = 0;
+no warnings qw[redefine prototype];
+*Affix::Memory::DESTROY = sub { $destroyed++; $orig_destroy->(@_); };
+#
 $|++;
 #
 my $C_CODE = <<'END_C';
@@ -42,17 +47,24 @@ subtest 'malloc: memory survives while the pin is alive' => sub {
 };
 #
 subtest 'malloc: memory is reclaimed once the pin is released' => sub {
+    my $before = $destroyed;
     my $addr;
     {
         my $p = malloc(64);
         $addr = address($p);
     }
+    is $destroyed, $before + 1, 'releasing the pin destroyed the Affix::Memory object and freed the memory';
+
+    # Address reuse is an allocator implementation detail (glibc does not
+    # guarantee prompt reuse and varies with prior heap state), so it is
+    # diagnostic only; the refcount check above is the actual reclaim proof.
     my $reclaimed = 0;
     for ( 1 .. 10000 ) {
         my $p = malloc(64);
         $reclaimed++ if address($p) == $addr;
     }
-    ok $reclaimed > 0, 'freed block is eventually reused';
+    is $destroyed, $before + 1 + 10000, 'every allocation in the reuse loop was destroyed exactly once';
+    note "freed block address was reused $reclaimed/10000 times";
 };
 #
 subtest 'malloc: free() works across statements' => sub {
