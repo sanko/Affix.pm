@@ -6,8 +6,7 @@ use Affix qw[:all];
 #
 my $orig_destroy = \&Affix::Memory::DESTROY;
 my $destroyed    = 0;
-no warnings 'redefine';
-no warnings 'prototype';
+no warnings qw[redefine prototype];
 *Affix::Memory::DESTROY = sub { $destroyed++; $orig_destroy->(@_); };
 #
 $|++;

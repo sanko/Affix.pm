@@ -2,10 +2,12 @@
 
 All notable changes to Affix.pm will be documented in this file.
 
-The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.0.0/),
+The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.1.0/),
 and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0.html).
 
 ## [Unreleased]
+
+The headline is support for RISC-V!
 
 ### Fixed
 
@@ -14,7 +16,7 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 - [infix] Layout recalculation now descends into reverse trampolines, so a `Struct[...]` declared inline in a signature whose members referenced named types no longer has corrupted offsets.
 
 ### Added
-- [infix] Support for RISC-V!
+- [infix] Support for RISC-V (rv64)
 
 ## [v1.2.1] - 2026-08-02
 
