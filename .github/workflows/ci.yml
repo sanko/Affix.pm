@@ -47,6 +47,22 @@ jobs:
       flags: '${{ matrix.flags }}'
       os: '${{ matrix.os }}'
       perl: '${{ matrix.perl }}'
+  riscv:
+    name: 'RISC-V/v${{matrix.perl}}'
+    needs:
+      - setup
+    strategy:
+      fail-fast: false
+      matrix:
+        flags: ['']
+        perl:
+          - "5.42.0"
+      max-parallel: 2
+    uses: ./.github/workflows/unix.yml
+    with:
+      flags: '${{ matrix.flags }}'
+      os: ubuntu-24.04-riscv
+      perl: '${{ matrix.perl }}'
   macos:
     name: "[${{ matrix.os == 'macos-15-intel' && 'Intel' || 'M1' }}] macOS/v${{matrix.perl}}"
     needs:
@@ -75,6 +91,7 @@ jobs:
     name: Results
     needs:
       - macos
+      - riscv
       - win32
       - linux
     runs-on: ubuntu-22.04
