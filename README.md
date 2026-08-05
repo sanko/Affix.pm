@@ -45,9 +45,9 @@ Affix::free($ptr);
 Call native code from Perl without XS, compilers, or runtime overhead.
 
 Affix is a high-performance Foreign Function Interface (FFI) for Perl. It bridges Perl to C, Rust, Zig, C++, Go,
-Fortran, and more via JIT-compiled trampolines that handle argument marshalling at runtime. No generic dispatch loops here.
-The result is near-native call speed with a rich type system covering primitives, structs, unions, enums, SIMD vectors,
-and pointers.
+Fortran, and more via JIT-compiled trampolines that handle argument marshalling at runtime. No generic dispatch loops
+here. The result is near-native call speed with a rich type system covering primitives, structs, unions, enums, SIMD
+vectors, and pointers.
 
 Powered by [infix](https://github.com/sanko/infix/), which has been tested on Linux, Windows, macOS, Solaris, BSD, and
 across x86\_64, ARM64, and RISC-V.
