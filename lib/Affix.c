@@ -11,6 +11,9 @@ static void rebuild_affix_data(pTHX_ Affix * affix);
 static const infix_type * _resolve_type(pTHX_ const infix_type * type);
 static infix_library_t * _get_lib_from_registry(pTHX_ const char * path);
 
+//
+static void _cleanup_arena(pTHX_ void *ptr) { infix_arena_destroy((infix_arena_t *)ptr); }
+
 static MGVTBL Affix_cv_vtbl;
 static MGVTBL Affix_backend_vtbl;
 extern MGVTBL vtbl_sint8, vtbl_uint8, vtbl_sint16, vtbl_uint16, vtbl_sint32, vtbl_uint32, vtbl_sint64, vtbl_uint64,
@@ -1742,6 +1745,12 @@ static void rebuild_affix_data(pTHX_ Affix * affix);
             }                                                                                                   \
         }                                                                                                       \
                                                                                                                 \
+        SAVEVPTR(affix->args_arena);                                                                            \
+        SAVEVPTR(affix->ret_arena);                                                                             \
+        affix->args_arena = infix_arena_create(4096);                                                           \
+        affix->ret_arena = infix_arena_create(1024);                                                            \
+        SAVEDESTRUCTOR_X(_cleanup_arena, affix->args_arena);                                                    \
+        SAVEDESTRUCTOR_X(_cleanup_arena, affix->ret_arena);                                      \
         /* ALLOCATION STRATEGY */                                                                               \
         /* size_t arena_mark = affix->args_arena->current_offset;*/                                             \
         void * args_buffer;                                                                                     \
@@ -2113,7 +2122,7 @@ CASE_OP_DONE:                                                                   
             }                                                                                                   \
         }                                                                                                       \
         /*affix->args_arena->current_offset = arena_mark;*/                                                     \
-        affix->ret_arena->current_offset = 0;                                                                   \
+        /*affix->ret_arena->current_offset = 0;*/                                                              \
                                                                                                                 \
         ST(0) = TARG;                                                                                           \
         XSRETURN(1);                                                                                            \
@@ -2456,8 +2465,12 @@ void Affix_trigger_variadic(pTHX_ CV * cv) {
         croak("Affix: internal error, negative argument count");
     size_t items = (size_t)items_raw;
 
-    // Save arena state to prevent leaks
-    /* size_t arena_mark = affix->args_arena->current_offset;*/
+     SAVEVPTR(affix->args_arena);
+    SAVEVPTR(affix->ret_arena);
+    affix->args_arena = infix_arena_create(4096);
+    affix->ret_arena = infix_arena_create(1024);
+    SAVEDESTRUCTOR_X(_cleanup_arena, affix->args_arena);
+    SAVEDESTRUCTOR_X(_cleanup_arena, affix->ret_arena);
 
     // Build the dynamic signature string
     SV * sig_sv = sv_2mortal(newSVpv("", 0));
@@ -2563,10 +2576,7 @@ void Affix_trigger_variadic(pTHX_ CV * cv) {
     infix_forward_get_code(trampoline)(ret_buffer, c_args);
     ptr2sv(aTHX_ affix, ret_buffer, TARG, infix_forward_get_return_type(trampoline), affix->ret_readonly);
 
-    // Cleanup arenas
-    /* affix->args_arena->current_offset = arena_mark; */
-    // Do NOT rewind args_arena: same reason as non-variadic path (use-after-free fix)
-    affix->ret_arena->current_offset = 0;
+
     ST(0) = TARG;
     XSRETURN(1);
 }
