@@ -12,7 +12,10 @@ static const infix_type * _resolve_type(pTHX_ const infix_type * type);
 static infix_library_t * _get_lib_from_registry(pTHX_ const char * path);
 
 //
-static void _cleanup_arena(pTHX_ void *ptr) { infix_arena_destroy((infix_arena_t *)ptr); }
+static void _cleanup_arena(pTHX_ void * ptr) {
+    if (ptr)
+        infix_arena_destroy((infix_arena_t *)ptr);
+}
 
 static MGVTBL Affix_cv_vtbl;
 static MGVTBL Affix_backend_vtbl;
@@ -510,13 +513,12 @@ static void affix_aggregate_writeback(void * sv_raw, void * src_buffer, const in
     }
 }
 
+
 static void affix_array_writeback(pTHX_ Affix * affix, const OutParamInfo * info, SV * perl_sv, void * c_arg_ptr) {
     AV * av = nullptr;
 
-    // The XSUB unwraps references, so perl_sv might BE the AV.
     if (SvTYPE(perl_sv) == SVt_PVAV)
         av = (AV *)perl_sv;
-    // Just in case it's still wrapped (e.g. nested refs)
     else if (SvROK(perl_sv) && SvTYPE(SvRV(perl_sv)) == SVt_PVAV)
         av = (AV *)SvRV(perl_sv);
     else
@@ -533,9 +535,15 @@ static void affix_array_writeback(pTHX_ Affix * affix, const OutParamInfo * info
 
     for (size_t i = 0; i < count; ++i) {
         void * elem_src = (char *)data_ptr + (i * element_size);
-        SV * sv = newSV(0);
-        ptr2sv(aTHX_ affix, elem_src, sv, element_type, false);
-        av_store(av, i, sv);
+        SV ** sv_ptr = av_fetch(av, i, 0);
+        if (sv_ptr && *sv_ptr)
+            ptr2sv(aTHX_ affix, elem_src, *sv_ptr, element_type, false);
+        else {
+            SV * sv = newSV(0);
+            ptr2sv(aTHX_ affix, elem_src, sv, element_type, false);
+            if (!av_store(av, i, sv))
+                SvREFCNT_dec(sv);
+        }
     }
 }
 
@@ -1476,25 +1484,21 @@ static void writeback_primitive(pTHX_ Affix * affix, const OutParamInfo * info, 
     if (!actual_data_ptr)
         return;
 
-    // Handle the case where perl_sv IS the AV (because it was unwrapped in the trigger)
     if (SvTYPE(perl_sv) == SVt_PVAV) {
-        // Array Decay Writeback: Update each element of the Perl array from the C array
         AV * av = (AV *)perl_sv;
         size_t count = av_len(av) + 1;
         size_t elem_size = infix_type_get_size(info->pointee_type);
 
         for (size_t i = 0; i < count; ++i) {
-            // Calculate pointer to current element in C array
             void * elem_ptr = (char *)actual_data_ptr + (i * elem_size);
-            // Fetch the existing SV* from the AV (to update in place if possible)
             SV ** sv_ptr = av_fetch(av, i, 0);
-            if (sv_ptr)
+            if (sv_ptr && *sv_ptr)
                 ptr2sv(aTHX_ affix, elem_ptr, *sv_ptr, info->pointee_type, false);
             else {
-                // Slot was empty, create new SV and store it
                 SV * val = newSV(0);
                 ptr2sv(aTHX_ affix, elem_ptr, val, info->pointee_type, false);
-                av_store(av, i, val);
+                if (!av_store(av, i, val))
+                    SvREFCNT_dec(val);
             }
         }
         return;
@@ -1506,25 +1510,30 @@ static void writeback_primitive(pTHX_ Affix * affix, const OutParamInfo * info, 
     if (SvROK(perl_sv)) {
         SV * rv = SvRV(perl_sv);
         if (SvTYPE(rv) == SVt_PVAV) {
-            // Array Decay Writeback
             AV * av = (AV *)rv;
             size_t count = av_len(av) + 1;
             size_t elem_size = infix_type_get_size(info->pointee_type);
             for (size_t i = 0; i < count; ++i) {
-                SV * val_sv = newSV(0);
-                ptr2sv(aTHX_ affix, (char *)actual_data_ptr + (i * elem_size), val_sv, info->pointee_type, false);
-                av_store(av, i, val_sv);
+                void * elem_ptr = (char *)actual_data_ptr + (i * elem_size);
+                SV ** sv_ptr = av_fetch(av, i, 0);
+                if (sv_ptr && *sv_ptr)
+                    ptr2sv(aTHX_ affix, elem_ptr, *sv_ptr, info->pointee_type, false);
+                else {
+                    SV * val = newSV(0);
+                    ptr2sv(aTHX_ affix, elem_ptr, val, info->pointee_type, false);
+                    if (!av_store(av, i, val))
+                        SvREFCNT_dec(val);
+                }
             }
             return;
         }
-        // Scalar Ref Writeback
         ptr2sv(aTHX_ affix, actual_data_ptr, rv, info->pointee_type, false);
     }
     else if (!SvREADONLY(perl_sv)) {
-        // Lvalue Writeback
         ptr2sv(aTHX_ affix, actual_data_ptr, perl_sv, info->pointee_type, false);
     }
 }
+
 
 static void writeback_struct(pTHX_ Affix * affix, const OutParamInfo * info, SV * perl_sv, void * c_arg_ptr) {
     void * struct_ptr = *(void **)c_arg_ptr;
@@ -1750,9 +1759,11 @@ static void rebuild_affix_data(pTHX_ Affix * affix);
         affix->args_arena = infix_arena_create(4096);                                                           \
         affix->ret_arena = infix_arena_create(1024);                                                            \
         SAVEDESTRUCTOR_X(_cleanup_arena, affix->args_arena);                                                    \
-        SAVEDESTRUCTOR_X(_cleanup_arena, affix->ret_arena);                                      \
+        SAVEDESTRUCTOR_X(_cleanup_arena, affix->ret_arena);                                                     \
+                                                                                                                \
         /* ALLOCATION STRATEGY */                                                                               \
-        /* size_t arena_mark = affix->args_arena->current_offset;*/                                             \
+        infix_arena_mark_t args_mark = infix_arena_get_mark(affix->args_arena);                                 \
+        infix_arena_mark_t ret_mark = infix_arena_get_mark(affix->ret_arena);                                   \
         void * args_buffer;                                                                                     \
         if (USE_STACK_ALLOC && affix->total_args_size <= 2048) {                                                \
             /* Fast path: Stack allocation if under 2k */                                                       \
@@ -1761,8 +1772,6 @@ static void rebuild_affix_data(pTHX_ Affix * affix);
         }                                                                                                       \
         else {                                                                                                  \
             /* Slow path: Arena allocation */                                                                   \
-            /*arena_mark = affix->args_arena->current_offset;*/                                                 \
-            /* Alignment 64 is safe for AVX-512 vectors */                                                      \
             args_buffer = infix_arena_calloc(affix->args_arena, 1, affix->total_args_size, 64);                 \
         }                                                                                                       \
                                                                                                                 \
@@ -2121,8 +2130,8 @@ CASE_OP_DONE:                                                                   
                     info->writer(aTHX_ affix, info, arg_sv, c_args[info->perl_stack_index]);                    \
             }                                                                                                   \
         }                                                                                                       \
-        /*affix->args_arena->current_offset = arena_mark;*/                                                     \
-        /*affix->ret_arena->current_offset = 0;*/                                                              \
+infix_arena_rewind(affix->args_arena, args_mark);                                                       \
+        infix_arena_rewind(affix->ret_arena, ret_mark);                                                         \
                                                                                                                 \
         ST(0) = TARG;                                                                                           \
         XSRETURN(1);                                                                                            \
@@ -2465,7 +2474,7 @@ void Affix_trigger_variadic(pTHX_ CV * cv) {
         croak("Affix: internal error, negative argument count");
     size_t items = (size_t)items_raw;
 
-     SAVEVPTR(affix->args_arena);
+    SAVEVPTR(affix->args_arena);
     SAVEVPTR(affix->ret_arena);
     affix->args_arena = infix_arena_create(4096);
     affix->ret_arena = infix_arena_create(1024);
@@ -2479,6 +2488,9 @@ void Affix_trigger_variadic(pTHX_ CV * cv) {
     // Copy the fixed portion of the signature exactly as defined
     sv_catpvn(sig_sv, affix->sig_str, (semi_ptr - affix->sig_str));
     sv_catpvs(sig_sv, ";");
+
+    infix_arena_mark_t args_mark = infix_arena_get_mark(affix->args_arena);
+    infix_arena_mark_t ret_mark = infix_arena_get_mark(affix->ret_arena);
 
     // Coerce variadic arguments into types
     for (size_t i = affix->num_fixed_args; i < items; ++i) {
@@ -2576,6 +2588,8 @@ void Affix_trigger_variadic(pTHX_ CV * cv) {
     infix_forward_get_code(trampoline)(ret_buffer, c_args);
     ptr2sv(aTHX_ affix, ret_buffer, TARG, infix_forward_get_return_type(trampoline), affix->ret_readonly);
 
+infix_arena_rewind(affix->args_arena, args_mark);
+    infix_arena_rewind(affix->ret_arena, ret_mark);
 
     ST(0) = TARG;
     XSRETURN(1);
@@ -3254,7 +3268,9 @@ static void pull_struct(pTHX_ Affix * affix, SV * sv, const infix_type * type, v
         hv = (HV *)SvRV(sv);
     else {
         hv = newHV();
-        sv_setsv(sv, sv_2mortal(newRV_noinc(MUTABLE_SV(hv))));
+        SV * rv = newRV_noinc(MUTABLE_SV(hv));
+        sv_setsv(sv, rv);
+        SvREFCNT_dec(rv);
     }
     _populate_hv_from_c_struct(aTHX_ affix, hv, type, p, false, nullptr, live);
 }
@@ -3263,13 +3279,12 @@ static void pull_union(pTHX_ Affix * affix, SV * sv, const infix_type * type, vo
     HV * hv;
     if (SvROK(sv) && SvTYPE(SvRV(sv)) == SVt_PVHV) {
         hv = (HV *)SvRV(sv);
-        hv_clear(hv);
     }
     else {
         hv = newHV();
         SV * rv = newRV_noinc(MUTABLE_SV(hv));
-        //~ sv_bless(rv, gv_stashpv("Affix::Live", GV_ADD));
-        sv_setsv(sv, sv_2mortal(rv));
+        sv_setsv(sv, rv);
+        SvREFCNT_dec(rv);
     }
     _populate_hv_from_c_struct(aTHX_ affix, hv, type, p, true, nullptr, false);
 }
@@ -3288,9 +3303,6 @@ static void pull_array(pTHX_ Affix * affix, SV * sv, const infix_type * type, vo
 
     if (element_type->category == INFIX_TYPE_PRIMITIVE) {
         if (element_type->meta.primitive_id == INFIX_PRIMITIVE_SINT8) {
-            // char[] / int8[]: Treat as fixed buffer but strip trailing nulls.
-            // This satisfies typical C-string in struct usage (padded with nulls)
-            // AND binary usage where nulls are embedded (as long as not trailing).
             size_t len = type->meta.array_info.num_elements;
             const char * ptr = (const char *)p;
             while (len > 0 && ptr[len - 1] == '\0')
@@ -3299,21 +3311,20 @@ static void pull_array(pTHX_ Affix * affix, SV * sv, const infix_type * type, vo
             return;
         }
         if (element_type->meta.primitive_id == INFIX_PRIMITIVE_UINT8) {
-            // uchar[] / uint8[]: Treat as raw binary blob, read full length.
             sv_setpvn(sv, (const char *)p, type->meta.array_info.num_elements);
             return;
         }
     }
 
-    // Standard array handling (ArrayRef of values)
     AV * av;
     if (SvROK(sv) && SvTYPE(SvRV(sv)) == SVt_PVAV) {
         av = (AV *)SvRV(sv);
-        av_clear(av);
     }
     else {
         av = newAV();
-        sv_setsv(sv, sv_2mortal(newRV_noinc(MUTABLE_SV(av))));
+        SV * rv = newRV_noinc(MUTABLE_SV(av));
+        sv_setsv(sv, rv);
+        SvREFCNT_dec(rv);
     }
     size_t num_elements = type->meta.array_info.num_elements;
     size_t element_size = infix_type_get_size(element_type);
@@ -3325,9 +3336,13 @@ static void pull_array(pTHX_ Affix * affix, SV * sv, const infix_type * type, vo
 
     for (size_t i = 0; i < num_elements; ++i) {
         void * element_ptr = (char *)p + (i * element_size);
-        SV * element_sv = newSV(0);
+        SV ** existing_sv_ptr = av_fetch(av, i, 0);
+        SV * element_sv = existing_sv_ptr ? *existing_sv_ptr : newSV(0);
         h(aTHX_ affix, element_sv, element_type, element_ptr, readonly);
-        av_push(av, element_sv);
+        if (!existing_sv_ptr) {
+            if (!av_store(av, i, element_sv))
+                SvREFCNT_dec(element_sv);
+        }
     }
 }
 
@@ -3402,35 +3417,43 @@ static void pull_enum_dualvar(pTHX_ Affix * affix, SV * sv, const infix_type * t
     }
 }
 
+
 static void pull_complex(pTHX_ Affix * affix, SV * sv, const infix_type * type, void * p, bool readonly) {
     AV * av;
     if (SvROK(sv) && SvTYPE(SvRV(sv)) == SVt_PVAV) {
         av = (AV *)SvRV(sv);
-        av_clear(av);
     }
     else {
         av = newAV();
-        sv_setsv(sv, sv_2mortal(newRV_noinc(MUTABLE_SV(av))));
+        SV * rv = newRV_noinc(MUTABLE_SV(av));
+        sv_setsv(sv, rv);
+        SvREFCNT_dec(rv);
     }
     const infix_type * base_type = type->meta.complex_info.base_type;
     size_t base_size = infix_type_get_size(base_type);
-    SV * real_sv = newSV(0);
-    ptr2sv(aTHX_ affix, p, real_sv, base_type, readonly);
-    av_push(av, real_sv);
-    SV * imag_sv = newSV(0);
-    ptr2sv(aTHX_ affix, (char *)p + base_size, imag_sv, base_type, readonly);
-    av_push(av, imag_sv);
-}
 
+    SV ** real_ptr = av_fetch(av, 0, 0);
+    SV * real_sv = real_ptr ? *real_ptr : newSV(0);
+    ptr2sv(aTHX_ affix, p, real_sv, base_type, readonly);
+    if (!real_ptr && !av_store(av, 0, real_sv))
+        SvREFCNT_dec(real_sv);
+
+    SV ** imag_ptr = av_fetch(av, 1, 0);
+    SV * imag_sv = imag_ptr ? *imag_ptr : newSV(0);
+    ptr2sv(aTHX_ affix, (char *)p + base_size, imag_sv, base_type, readonly);
+    if (!imag_ptr && !av_store(av, 1, imag_sv))
+        SvREFCNT_dec(imag_sv);
+}
 static void pull_vector(pTHX_ Affix * affix, SV * sv, const infix_type * type, void * p, bool readonly) {
     AV * av;
     if (SvROK(sv) && SvTYPE(SvRV(sv)) == SVt_PVAV) {
         av = (AV *)SvRV(sv);
-        av_clear(av);
     }
     else {
         av = newAV();
-        sv_setsv(sv, sv_2mortal(newRV_noinc(MUTABLE_SV(av))));
+        SV * rv = newRV_noinc(MUTABLE_SV(av));
+        sv_setsv(sv, rv);
+        SvREFCNT_dec(rv);
     }
     const infix_type * element_type = type->meta.vector_info.element_type;
     size_t num_elements = type->meta.vector_info.num_elements;
@@ -3443,12 +3466,15 @@ static void pull_vector(pTHX_ Affix * affix, SV * sv, const infix_type * type, v
 
     for (size_t i = 0; i < num_elements; ++i) {
         void * element_ptr = (char *)p + (i * element_size);
-        SV * element_sv = newSV(0);
+        SV ** existing_sv_ptr = av_fetch(av, i, 0);
+        SV * element_sv = existing_sv_ptr ? *existing_sv_ptr : newSV(0);
         h(aTHX_ affix, element_sv, element_type, element_ptr, readonly);
-        av_push(av, element_sv);
+        if (!existing_sv_ptr) {
+            if (!av_store(av, i, element_sv))
+                SvREFCNT_dec(element_sv);
+        }
     }
 }
-
 static void pull_pointer_as_string(pTHX_ Affix * affix, SV * sv, const infix_type * type, void * p, bool readonly) {
     void * c_ptr = *(void **)p;
     if (c_ptr == nullptr)
@@ -3928,8 +3954,17 @@ void sv2ptr(pTHX_ Affix * affix, SV * perl_sv, void * c_ptr, const infix_type * 
                     if (element_size > 0 && len > SIZE_MAX / element_size)
                         croak("Array size overflow: %zu elements * %zu bytes", len, element_size);
                     size_t total_size = len * element_size;
+
                     char * c_array;
-                    Newxz(c_array, total_size, char);
+                    if (affix && affix->args_arena) {
+                        c_array = (char *)infix_arena_alloc(affix->args_arena, total_size, _Alignof(void *));
+                    }
+                    else {
+                        Newxz(c_array, total_size, char);
+                        SAVEFREEPV(c_array);
+                    }
+                    memset(c_array, 0, total_size);
+
                     for (size_t i = 0; i < len; ++i) {
                         SV ** elem_sv_ptr = av_fetch(av, i, 0);
                         if (elem_sv_ptr)
@@ -5483,17 +5518,18 @@ static const infix_type * _resolve_type(pTHX_ const infix_type * type) {
 
 void _populate_hv_from_c_struct(
     pTHX_ Affix * affix, HV * hv, const infix_type * type, void * p, bool live, SV * owner_sv, bool readonly) {
-    hv_clear(hv);
     const infix_type * resolved_type = _resolve_type(aTHX_ type);
     for (size_t i = 0; i < resolved_type->meta.aggregate_info.num_members; ++i) {
         const infix_struct_member * member = &resolved_type->meta.aggregate_info.members[i];
         if (member->name) {
             void * member_ptr = (char *)p + member->offset;
-            SV * member_sv = nullptr;
+            SV ** existing_sv_ptr = hv_fetch(hv, member->name, strlen(member->name), 0);
+            SV * member_sv = existing_sv_ptr ? *existing_sv_ptr : nullptr;
 
             if (member->is_bitfield) {
                 // Bitfield pull: mask and shift
-                member_sv = newSV(0);
+                if (!member_sv)
+                    member_sv = newSV(0);
                 size_t sz = infix_type_get_size(member->type);
                 uint64_t raw = 0;
                 memcpy(&raw, member_ptr, sz);
@@ -5502,12 +5538,15 @@ void _populate_hv_from_c_struct(
                 sv_setuv(member_sv, val);
             }
             else {
-                member_sv = newSV(0);
+                if (!member_sv)
+                    member_sv = newSV(0);
                 ptr2sv(aTHX_ affix, member_ptr, member_sv, member->type, readonly);
             }
 
-            if (member_sv)
-                hv_store(hv, member->name, strlen(member->name), member_sv, 0);
+            if (!existing_sv_ptr && member_sv) {
+                if (!hv_store(hv, member->name, strlen(member->name), member_sv, 0))
+                    SvREFCNT_dec(member_sv);
+            }
         }
     }
 }
