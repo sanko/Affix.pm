@@ -85,7 +85,7 @@ package Affix::Platform::Unix v1.2.3 {
         {
             use File::Temp qw[tempfile];
             my ( undef, $temp_file ) = tempfile();
-            if ( open( my $fh, '-|', $compiler, '-Wl,-t', '-o', $temp_file, "-l$name" ) ) {
+            if ( open( my $fh, '-|', $compiler, '-shared', '-Wl,-t', '-o', $temp_file, "-l$name" ) ) {
                 $trace = do { local $/; <$fh> };
                 close $fh;
             }
