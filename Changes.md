@@ -7,9 +7,13 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ## [Unreleased]
 
+Plugging leaks...
+
 ### Fixed
 
 - Use `SAVEVPTR` and `SAVEDESTRUCTOR_X` to swap out arenas to fix leaky allocator in situations where tons of structs are passed in a list and need to be marshalled in only one direction
+- Casting or binding an aggregate (`Affix::cast`, member pins) no longer leaks: member pins borrowed the freshly created parent hash/array as their lifeline, forming a strong reference cycle that Perl's refcounting cannot collect, so the whole pin tree plus its per-cast parse arena was never freed. The SDL3 `rope.pl` demo grew ~5.4 KB per mouse-move event (every `SDL_PollEvent` runs `Affix::cast`). Member pins now borrow the external lifeline instead, so `free_v2_pin()` runs on drop.
+- Passing a union to a wrapped call no longer segfaults: the argument sync read back *every* union member, and reading an inactive pointer/string member dereferenced the active member's float bytes as a C string pointer. Deep writes now skip members still bound to their original C slot.
 
 ## [v1.2.3] - 2026-08-08
 

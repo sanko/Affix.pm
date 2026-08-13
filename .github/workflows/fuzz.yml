@@ -14,7 +14,7 @@ jobs:
           perl-version: "5.42"
       - name: Install dependencies
         run: |
-          cpanm --notest -q Module::Build::Tiny
+          cpanm --installdeps --notest --with-suggests --with-recommends --with-configure -q .
           perl Build.PL
           perl Build
       - env:
@@ -74,7 +74,7 @@ jobs:
       - name: Install dependencies
         run: |
           source ~/perl5/perlbrew/etc/bashrc
-          cpanm --notest -q Module::Build::Tiny Path::Tiny Capture::Tiny
+          cpanm --installdeps --notest --with-suggests --with-recommends --with-configure -q .
           perl Build.PL
           perl Build
         shell: bash
