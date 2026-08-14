@@ -26,13 +26,13 @@ my $lib = compile_ok(<<~'');
 
 typedef Person => Struct [ name => WString ];
 #
-affix $lib, 'get_person',     []       => Pointer [ Person() ];
-affix $lib, 'stored_is_null', []       => Int32;
-affix $lib, 'stored_units',   []       => UInt32;
-affix $lib, 'stored_unit',    [UInt32] => UInt32;
-affix $lib, 'set_fixed_name', []       => Void;
+affix $lib, 'get_person',     []        => Pointer [ Person() ];
+affix $lib, 'stored_is_null', []        => Int32;
+affix $lib, 'stored_units',   []        => UInt32;
+affix $lib, 'stored_unit',    [UInt32]  => UInt32;
+affix $lib, 'set_fixed_name', []        => Void;
 affix $lib, 'wlen_arg',       [WString] => Int32;
-affix $lib, 'wide_ret',       []       => WString;
+affix $lib, 'wide_ret',       []        => WString;
 #
 my $live = cast( get_person(), Struct [ name => WString ] );
 #
@@ -77,14 +77,13 @@ subtest 'deep copy of a struct with a WString field' => sub {
     is $copy->{name}, 'deep', 'deep copy stores and reads back';
 };
 subtest 'WString as a direct argument' => sub {
-    is wlen_arg( 'hello' ), 5,   'wide string argument roundtrips';
-    is wlen_arg( 'héllo' ), 5,   'non-ASCII argument roundtrips';
-    is wlen_arg( undef ),   -1,  'undef becomes a null pointer';
+    is wlen_arg('hello'),  5, 'wide string argument roundtrips';
+    is wlen_arg('héllo'),  5, 'non-ASCII argument roundtrips';
+    is wlen_arg(undef),   -1, 'undef becomes a null pointer';
 };
 subtest 'WString as a return value' => sub {
-    SKIP: {
-        skip 'WString returns resolve to a pin on non-Windows (wchar_t is 4 bytes)', 1
-            unless $^O eq 'MSWin32';
+SKIP: {
+        skip 'WString returns resolve to a pin on non-Windows (wchar_t is 4 bytes)', 1 unless $^O eq 'MSWin32';
         is wide_ret(), 'hello', 'wide string return roundtrips';
     }
 };
