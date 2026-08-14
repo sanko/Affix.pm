@@ -188,20 +188,21 @@ subtest 'Bitfields' => sub {
     is $res, { a => 2, b => 4, c => 8, d => 16 }, 'make_bitfield returns correct hash';
 };
 subtest 'Bitfield trailing-unit marshalling' => sub {
+
     # a,b,c,d : uint32 : 16 fill a trailing 4-byte storage unit at byte 4;
     # `d` sits at bit offset 16 within that unit. Exercises the marshaller
     # with a non-zero storage-unit base (bit_offset >= 8) and verifies a
     # member following the bitfield area is left intact.
     my $trailing = Struct [
-        a => UInt32, 16,    # a : uint32 : 16
-        b => UInt32, 16,    # b : uint32 : 16
-        c => UInt32, 16,    # c : uint32 : 16
-        d => UInt32, 16,    # d : uint32 : 16
-        tail => UInt8       # tail : uint8
+        a => UInt32,
+        16,                    # a : uint32 : 16
+        b    => UInt32, 16,    # b : uint32 : 16
+        c    => UInt32, 16,    # c : uint32 : 16
+        d    => UInt32, 16,    # d : uint32 : 16
+        tail => UInt8          # tail : uint8
     ];
     isa_ok my $check = wrap( $lib_path, 'check_trailing', [$trailing] => UInt8 ), ['Affix'];
-    is $check->( { a => 1, b => 2, c => 3, d => 4, tail => 0x5A } ), 0x5A,
-        'd (bit offset 16) marshals without disturbing the following member';
+    is $check->( { a => 1, b => 2, c => 3, d => 4, tail => 0x5A } ), 0x5A, 'd (bit offset 16) marshals without disturbing the following member';
     is $check->( { a => 0xFFFF, b => 0xFFFF, c => 0xFFFF, d => 0xFFFF, tail => 0x5A } ), 0x5A,
         'max-value d (bit offset 16) marshals without disturbing the following member';
 };

@@ -21,17 +21,10 @@ sub rss_kb {
     close $f;
     return $rss;
 }
-
-typedef 'RopeCommonEvent' => Struct [
-    type      => UInt32,
-    timestamp => UInt64,
-    windowID  => UInt32
-];
-
+typedef 'RopeCommonEvent' => Struct [ type => UInt32, timestamp => UInt64, windowID => UInt32 ];
 my $buf = Affix::malloc(128);
 my $ev  = Affix::cast( $buf, RopeCommonEvent() );
 $ev->{type} = 0x400;
-
 my $warmup = 10_000;
 my $loops  = 200_000;
 my $limit  = 100_000;    # kB of growth allowed (the bug leaked >1GB here)
@@ -41,12 +34,10 @@ my $warmed;
 for my $i ( 1 .. $warmup ) { $warmed = Affix::cast( $buf, RopeCommonEvent() )->{type} }
 my $base = rss_kb();
 ok $warmed == 0x400, 'warmup casts read correctly';
-
 for my $i ( 1 .. $loops ) {
     my $h = Affix::cast( $buf, RopeCommonEvent() );
     is( $h->{type}, 0x400, 'cast member read stays correct' ) if $i == $loops;
 }
 my $growth = rss_kb() - $base;
 ok $growth < $limit, "RSS growth across $loops casts is $growth kB (limit ${limit} kB)";
-
 done_testing;

@@ -2138,7 +2138,7 @@ CASE_OP_DONE:                                                                   
                     info->writer(aTHX_ affix, info, arg_sv, c_args[info->perl_stack_index]);                    \
             }                                                                                                   \
         }                                                                                                       \
-infix_arena_rewind(affix->args_arena, args_mark);                                                       \
+        infix_arena_rewind(affix->args_arena, args_mark);                                                       \
         infix_arena_rewind(affix->ret_arena, ret_mark);                                                         \
                                                                                                                 \
         ST(0) = TARG;                                                                                           \
@@ -2596,7 +2596,7 @@ void Affix_trigger_variadic(pTHX_ CV * cv) {
     infix_forward_get_code(trampoline)(ret_buffer, c_args);
     ptr2sv(aTHX_ affix, ret_buffer, TARG, infix_forward_get_return_type(trampoline), affix->ret_readonly);
 
-infix_arena_rewind(affix->args_arena, args_mark);
+    infix_arena_rewind(affix->args_arena, args_mark);
     infix_arena_rewind(affix->ret_arena, ret_mark);
 
     ST(0) = TARG;

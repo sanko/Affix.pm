@@ -1141,8 +1141,8 @@ int lazy_agg_set(pTHX_ SV * sv, MAGIC * mg) {
             SV ** val_ptr = hv_fetch(user_hv, m->name ? m->name : "", strlen(m->name ? m->name : ""), 0);
             if (val_ptr && *val_ptr) {
                 void * member_slot = (char *)im->ptr + m->offset;
-                if (is_same_slot_pin(aTHX_ *val_ptr, member_slot, m->type))
-                    continue;   /* untouched bound pin: C memory already reflects it */
+                if (is_same_slot_pin(aTHX_ * val_ptr, member_slot, m->type))
+                    continue; /* untouched bound pin: C memory already reflects it */
                 SV * temp = newSV(0);
                 sv_setsv(temp, *val_ptr);
                 bind_placeholder(aTHX_ temp,
@@ -1193,20 +1193,11 @@ int lazy_agg_set(pTHX_ SV * sv, MAGIC * mg) {
             SV ** val_ptr = av_fetch(user_av, i, 0);
             if (val_ptr && *val_ptr) {
                 void * el_slot = (char *)im->ptr + (i * step);
-                if (is_same_slot_pin(aTHX_ *val_ptr, el_slot, el_type))
-                    continue;   /* untouched bound pin: C memory already reflects it */
+                if (is_same_slot_pin(aTHX_ * val_ptr, el_slot, el_type))
+                    continue; /* untouched bound pin: C memory already reflects it */
                 SV * temp = newSV(0);
                 sv_setsv(temp, *val_ptr);
-                bind_placeholder(aTHX_ temp,
-                                 el_slot,
-                                 el_type,
-                                 0,
-                                 0,
-                                 false,
-                                 owner,
-                                 nullptr,
-                                 im->readonly,
-                                 false);
+                bind_placeholder(aTHX_ temp, el_slot, el_type, 0, 0, false, owner, nullptr, im->readonly, false);
                 SvGMAGICAL_off(temp);
                 MAGIC * cmg = mg_find(temp, PERL_MAGIC_ext);
                 if (cmg && cmg->mg_virtual && cmg->mg_virtual->svt_set)

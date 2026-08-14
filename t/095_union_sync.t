@@ -18,22 +18,16 @@ my $lib = compile_ok(<<'');
 // ext: .c
 int poke(void * p) { return 1; }
 
-typedef 'Eventish' => Union [
-    motion => Struct [ x => Float, y => Float ],
-    drop   => Struct [ file => Pointer [ String ] ]
-];
-
+typedef 'Eventish' => Union [ motion => Struct [ x => Float, y => Float ], drop => Struct [ file => Pointer [String] ] ];
 my $buf = Affix::malloc(64);
 my $ev  = Affix::cast( $buf, Eventish() );
 $ev->{motion}->{x} = 100;
 $ev->{motion}->{y} = 100;
-
 ok affix( $lib, 'poke', [ Pointer [ Eventish() ] ] => Int ), 'affix poke( Pointer [Eventish] )';
 is poke($ev), 1, 'poke($ev) syncs the union without reading inactive members';
 
 # A fresh hash assignment still writes plain data into the buffer.
 $ev = { motion => { x => 7, y => 9 } };
-is poke($ev), 1, 'poke({ ... }) writes plain hash members';
+is poke($ev),          1, 'poke({ ... }) writes plain hash members';
 is $ev->{motion}->{x}, 7, 'x was written through the pin tree';
-
 done_testing;
