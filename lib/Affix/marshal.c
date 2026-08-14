@@ -1551,7 +1551,7 @@ static SV * _bind_aggregate_internal(
             void * child_ptr = ptr ? ((char *)ptr + (i * step)) : nullptr;
             // Borrow the external lifeline (see struct branch above): referencing the
             // parent AV here creates an uncollectable refcount cycle.
-            bind_placeholder(aTHX_ el, child_ptr, el_type, 0, 0, true, owner, nullptr, readonly, false);
+            bind_placeholder(aTHX_ el, child_ptr, el_type, 0, 0, false, owner, nullptr, readonly, false);
             av_push(av, el);
         }
         return newRV_noinc((SV *)av);
