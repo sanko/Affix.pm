@@ -49,7 +49,7 @@ package Affix::Platform::Unix v1.2.3 {
 
         # XXX assuming GLIBC's ldconfig (with option -p)
         grep { is_elf($_) } map {
-            /^(?:lib)?${name}(?:\-\S+)?\.\s*.*\(${machine}.*\)\s+=>\s+(.+)$/;
+            /^(?:lib)?\Q$name\E(?:\-\S+)?\.\s*.*\(\Q$machine\E.*\)\s+=>\s+(.+)$/;
             defined $1 ? path($1)->realpath : ()
         } split /\R\s*/, `export LC_ALL 'C'; export LANG 'C'; /sbin/ldconfig -p 2>&1`;
     }
@@ -112,7 +112,7 @@ package Affix::Platform::Unix v1.2.3 {
             @ret = grep { is_elf($_) } _findLib_ld($name)       unless @ret;
             return unless @ret;
             for my $lib ( map { path($_)->realpath } @ret ) {
-                next unless $lib =~ /^.*?\/lib$name.*\.$so(?:\.([\d\.\-]+))?$/;
+                next unless $lib =~ /^.*?\/lib\Q$name\E.*\.\Q$so\E(?:\.([\d\.\-]+))?$/;
                 $version = $1 if defined $1 && $version eq '';
                 $cache->{$name}{$version} //= $lib;
             }
