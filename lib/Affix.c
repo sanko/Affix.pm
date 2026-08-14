@@ -705,53 +705,59 @@ static void push_union(pTHX_ Affix * affix, const infix_type * type, SV * sv, vo
 #define DEFINE_IV_PUSH_HANDLER(name, c_type)                                      \
     static void push_handler_##name(pTHX_ Affix * affix, SV * sv, void * c_ptr) { \
         PERL_UNUSED_VAR(affix);                                                   \
+        c_type val;                                                               \
         U32 flags = SvFLAGS(sv);                                                  \
         if (flags & SVf_IOK) {                                                    \
             if (flags & SVf_IVisUV)                                               \
-                *(c_type *)c_ptr = (c_type)SvUVX(sv);                             \
+                val = (c_type)SvUVX(sv);                                          \
             else                                                                  \
-                *(c_type *)c_ptr = (c_type)SvIVX(sv);                             \
+                val = (c_type)SvIVX(sv);                                          \
         }                                                                         \
         else {                                                                    \
             dTHX;                                                                 \
-            *(c_type *)c_ptr = (c_type)SvIV(sv);                                  \
+            val = (c_type)SvIV(sv);                                               \
         }                                                                         \
+        memcpy(c_ptr, &val, sizeof val);                                          \
         return;                                                                   \
     }
 
 #define DEFINE_UV_PUSH_HANDLER(name, c_type)                                      \
     static void push_handler_##name(pTHX_ Affix * affix, SV * sv, void * c_ptr) { \
         PERL_UNUSED_VAR(affix);                                                   \
+        c_type val;                                                               \
         U32 flags = SvFLAGS(sv);                                                  \
         if (flags & SVf_IOK) {                                                    \
             if (flags & SVf_IVisUV)                                               \
-                *(c_type *)c_ptr = (c_type)SvUVX(sv);                             \
+                val = (c_type)SvUVX(sv);                                          \
             else                                                                  \
-                *(c_type *)c_ptr = (c_type)SvIVX(sv);                             \
+                val = (c_type)SvIVX(sv);                                          \
         }                                                                         \
         else {                                                                    \
             dTHX;                                                                 \
-            *(c_type *)c_ptr = (c_type)SvUV(sv);                                  \
+            val = (c_type)SvUV(sv);                                               \
         }                                                                         \
+        memcpy(c_ptr, &val, sizeof val);                                          \
         return;                                                                   \
     }
 
 #define DEFINE_NV_PUSH_HANDLER(name, c_type)                                      \
     static void push_handler_##name(pTHX_ Affix * affix, SV * sv, void * c_ptr) { \
         PERL_UNUSED_VAR(affix);                                                   \
+        c_type val;                                                               \
         U32 flags = SvFLAGS(sv);                                                  \
         if (LIKELY(flags & SVf_NOK))                                              \
-            *(c_type *)c_ptr = SvNVX(sv);                                         \
+            val = SvNVX(sv);                                                      \
         else if (flags & SVf_IOK) {                                               \
             if (flags & SVf_IVisUV)                                               \
-                *(c_type *)c_ptr = (c_type)SvUVX(sv);                             \
+                val = (c_type)SvUVX(sv);                                          \
             else                                                                  \
-                *(c_type *)c_ptr = (c_type)SvIVX(sv);                             \
+                val = (c_type)SvIVX(sv);                                          \
         }                                                                         \
         else {                                                                    \
             dTHX;                                                                 \
-            *(c_type *)c_ptr = (c_type)SvNV(sv);                                  \
+            val = SvNV(sv);                                                       \
         }                                                                         \
+        memcpy(c_ptr, &val, sizeof val);                                          \
         return;                                                                   \
     }
 
@@ -957,7 +963,8 @@ DEFINE_U128_PUSH_HANDLER(uint128)
 #endif
 static void push_handler_float16(pTHX_ Affix * affix, SV * sv, void * c_ptr) {
     PERL_UNUSED_VAR(affix);
-    *(infix_float16_t *)c_ptr = float_to_half((float)SvNV(sv));
+    infix_float16_t val = float_to_half((float)SvNV(sv));
+    memcpy(c_ptr, &val, sizeof val);
 }
 DEFINE_NV_PUSH_HANDLER(float, float);
 DEFINE_NV_PUSH_HANDLER(double, double);
@@ -965,7 +972,8 @@ DEFINE_NV_PUSH_HANDLER(long_double, long double);
 
 static void push_handler_bool(pTHX_ Affix * affix, SV * perl_sv, void * c_ptr) {
     PERL_UNUSED_VAR(affix);
-    *(bool *)c_ptr = SvTRUE(perl_sv);
+    bool val = SvTRUE(perl_sv);
+    memcpy(c_ptr, &val, sizeof val);
 }
 
 DEFINE_PUSH_PRIMITIVE_EXECUTOR(bool, bool, SvTRUE)
@@ -3214,34 +3222,54 @@ static void pull_uint8(pTHX_ Affix * affix, SV * sv, const infix_type * t, void 
     sv_setuv(sv, *(uint8_t *)p);
 }
 static void pull_sint16(pTHX_ Affix * affix, SV * sv, const infix_type * t, void * p, bool readonly) {
-    sv_setiv(sv, *(int16_t *)p);
+    int16_t val;
+    memcpy(&val, p, sizeof val);
+    sv_setiv(sv, val);
 }
 static void pull_uint16(pTHX_ Affix * affix, SV * sv, const infix_type * t, void * p, bool readonly) {
-    sv_setuv(sv, *(uint16_t *)p);
+    uint16_t val;
+    memcpy(&val, p, sizeof val);
+    sv_setuv(sv, val);
 }
 static void pull_sint32(pTHX_ Affix * affix, SV * sv, const infix_type * t, void * p, bool readonly) {
-    sv_setiv(sv, *(int32_t *)p);
+    int32_t val;
+    memcpy(&val, p, sizeof val);
+    sv_setiv(sv, val);
 }
 static void pull_uint32(pTHX_ Affix * affix, SV * sv, const infix_type * t, void * p, bool readonly) {
-    sv_setuv(sv, *(uint32_t *)p);
+    uint32_t val;
+    memcpy(&val, p, sizeof val);
+    sv_setuv(sv, val);
 }
 static void pull_sint64(pTHX_ Affix * affix, SV * sv, const infix_type * t, void * p, bool readonly) {
-    sv_setiv(sv, *(int64_t *)p);
+    int64_t val;
+    memcpy(&val, p, sizeof val);
+    sv_setiv(sv, val);
 }
 static void pull_uint64(pTHX_ Affix * affix, SV * sv, const infix_type * t, void * p, bool readonly) {
-    sv_setuv(sv, *(uint64_t *)p);
+    uint64_t val;
+    memcpy(&val, p, sizeof val);
+    sv_setuv(sv, val);
 }
 static void pull_float16(pTHX_ Affix * affix, SV * sv, const infix_type * t, void * p, bool readonly) {
-    sv_setnv(sv, (double)half_to_float(*(infix_float16_t *)p));
+    infix_float16_t val;
+    memcpy(&val, p, sizeof val);
+    sv_setnv(sv, (double)half_to_float(val));
 }
 static void pull_float(pTHX_ Affix * affix, SV * sv, const infix_type * t, void * p, bool readonly) {
-    sv_setnv(sv, *(float *)p);
+    float val;
+    memcpy(&val, p, sizeof val);
+    sv_setnv(sv, val);
 }
 static void pull_double(pTHX_ Affix * affix, SV * sv, const infix_type * t, void * p, bool readonly) {
-    sv_setnv(sv, *(double *)p);
+    double val;
+    memcpy(&val, p, sizeof val);
+    sv_setnv(sv, val);
 }
 static void pull_long_double(pTHX_ Affix * affix, SV * sv, const infix_type * t, void * p, bool readonly) {
-    sv_setnv(sv, *(long double *)p);
+    long double val;
+    memcpy(&val, p, sizeof val);
+    sv_setnv(sv, (double)val);
 }
 static void pull_bool(pTHX_ Affix * affix, SV * sv, const infix_type * t, void * p, bool readonly) {
     sv_setbool(sv, *(bool *)p);

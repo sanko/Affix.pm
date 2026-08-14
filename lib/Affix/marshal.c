@@ -234,8 +234,11 @@ const infix_type * resolve_type(pTHX_ const infix_type * type) {
         SvSMAGICAL_off(sv);                                             \
         if (!im->ptr)                                                   \
             sv_setsv(sv, &PL_sv_undef);                                 \
-        else                                                            \
-            SV_SET(sv, *(C_TYPE *)im->ptr);                             \
+        else {                                                          \
+            C_TYPE val;                                                 \
+            memcpy(&val, im->ptr, sizeof(C_TYPE));                      \
+            SV_SET(sv, val);                                            \
+        }                                                               \
         SvSMAGICAL_on(sv);                                              \
         return 0;                                                       \
     }                                                                   \
@@ -246,7 +249,8 @@ const infix_type * resolve_type(pTHX_ const infix_type * type) {
         if (!im->ptr)                                                   \
             return 0;                                                   \
         SvGMAGICAL_off(sv);                                             \
-        *(C_TYPE *)im->ptr = (C_TYPE)SV_GET(sv);                        \
+        C_TYPE val = (C_TYPE)SV_GET(sv);                                \
+        memcpy(im->ptr, &val, sizeof(C_TYPE));                          \
         SvGMAGICAL_on(sv);                                              \
         return 0;                                                       \
     }                                                                   \
@@ -647,13 +651,13 @@ int get_bitfield(pTHX_ SV * sv, MAGIC * mg) {
     uint64_t val = 0;
     size_t sz = type->size;
     if (sz == 1)
-        val = *(uint8_t *)im->ptr;
+        memcpy(&val, im->ptr, 1);
     else if (sz == 2)
-        val = *(uint16_t *)im->ptr;
+        memcpy(&val, im->ptr, 2);
     else if (sz == 4)
-        val = *(uint32_t *)im->ptr;
+        memcpy(&val, im->ptr, 4);
     else if (sz == 8)
-        val = *(uint64_t *)im->ptr;
+        memcpy(&val, im->ptr, 8);
 
     uint64_t mask = (im->bit_width == 64) ? ~0ULL : ((1ULL << im->bit_width) - 1);
     val = (val >> im->bit_offset) & mask;
@@ -689,26 +693,26 @@ int set_bitfield(pTHX_ SV * sv, MAGIC * mg) {
     uint64_t val = 0;
     size_t sz = type->size;
     if (sz == 1)
-        val = *(uint8_t *)im->ptr;
+        memcpy(&val, im->ptr, 1);
     else if (sz == 2)
-        val = *(uint16_t *)im->ptr;
+        memcpy(&val, im->ptr, 2);
     else if (sz == 4)
-        val = *(uint32_t *)im->ptr;
+        memcpy(&val, im->ptr, 4);
     else if (sz == 8)
-        val = *(uint64_t *)im->ptr;
+        memcpy(&val, im->ptr, 8);
     /* Calculate bitmask and apply overflow protection */
     uint64_t wmask = (im->bit_width == 64) ? ~0ULL : ((1ULL << im->bit_width) - 1);
     uint64_t mask = wmask << im->bit_offset;
     uint64_t new_bits = (SvUV(sv) & wmask) << im->bit_offset;
     val = (val & ~mask) | new_bits;
     if (sz == 1)
-        *(uint8_t *)im->ptr = (uint8_t)val;
+        memcpy(im->ptr, &val, 1);
     else if (sz == 2)
-        *(uint16_t *)im->ptr = (uint16_t)val;
+        memcpy(im->ptr, &val, 2);
     else if (sz == 4)
-        *(uint32_t *)im->ptr = (uint32_t)val;
+        memcpy(im->ptr, &val, 4);
     else if (sz == 8)
-        *(uint64_t *)im->ptr = (uint64_t)val;
+        memcpy(im->ptr, &val, 8);
     SvGMAGICAL_on(sv);
     return 0;
 }

@@ -16,6 +16,8 @@ Plugging leaks...
 - Passing a union to a wrapped call no longer segfaults: the argument sync read back *every* union member, and reading an inactive pointer/string member dereferenced the active member's float bytes as a C string pointer. Deep writes now skip members still bound to their original C slot.
 - The embedded-perl test (`t/018_sv_type.t`) no longer emits `-l-lperl` and skips on systems with a shared libperl (e.g. RHEL/Fedora): `$Config{libperl}` already expands to a `-l...` flag, so the extra `-l` prefix was dropped.
 - The library probe in `Affix::Platform::Unix` (`_findLib_gcc`) no longer prints linker errors (`undefined reference to WinMain`/`main`) while searching: it probes with `-shared`, which needs no entry point.
+- Bitfields inside `Struct[...]` are no longer read or written out of bounds: `member->offset` now points at the storage unit base (with `bit_offset` relative to the unit) instead of the bitfield's own byte, so the unit-sized load/store in `push_struct`, the pull path, and the pinned bitfield magic stays within the aggregate (caught by ASan in `t/001`'s `sum_bitfield`).
+- Reading and writing packed struct members (and pinned primitives) no longer uses unaligned native loads/stores: the dispatch vtables, bitfield vtables, pull handlers, and push handlers now round-trip through `memcpy`, which is safe on strict-alignment architectures (e.g. ARM) where `*(int32_t *)unaligned_ptr` traps.
 
 ## [v1.2.3] - 2026-08-08
 
