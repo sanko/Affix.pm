@@ -18,6 +18,9 @@ Plugging leaks...
 - The library probe in `Affix::Platform::Unix` (`_findLib_gcc`) no longer prints linker errors (`undefined reference to WinMain`/`main`) while searching: it probes with `-shared`, which needs no entry point.
 - Bitfields inside `Struct[...]` are no longer read or written out of bounds: `member->offset` now points at the storage unit base (with `bit_offset` relative to the unit) instead of the bitfield's own byte, so the unit-sized load/store in `push_struct`, the pull path, and the pinned bitfield magic stays within the aggregate (caught by ASan in `t/001`'s `sum_bitfield`).
 - Reading and writing packed struct members (and pinned primitives) no longer uses unaligned native loads/stores: the dispatch vtables, bitfield vtables, pull handlers, and push handlers now round-trip through `memcpy`, which is safe on strict-alignment architectures (e.g. ARM) where `*(int32_t *)unaligned_ptr` traps.
+- Passing a wide string (`WString()`, i.e. `*wchar_t`) to a wrapped function now works on all platforms instead of croaking `Don't know how to handle this type of scalar as a pointer argument yet` on non-Windows systems, where the wide-string push opcode selection was gated behind `#if defined(INFIX_OS_WINDOWS)`. Pinned pointers are still passed through untouched, so `*uint32`-sized pointer arguments keep their existing behavior.
+- Returning a `WString` no longer crashes: the wide-string pull handler called `SvGROW` on an uninitialized target SV, faulting before any buffer was allocated.
+- The shared-library fuzzer no longer sums `char`/`unsigned char` array elements on ARM, where `char` is unsigned (the Perl-side expected value was computed as signed, producing `got=416 expected=160` style false failures), and it truncates the expected callback return width arithmetically instead of via `pack 'c'`, which warned `Character in 'c' format wrapped`.
 
 ## [v1.2.3] - 2026-08-08
 

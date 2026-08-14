@@ -15,6 +15,7 @@ jobs:
       - name: Install dependencies
         run: |
           cpanm --installdeps --notest --with-suggests --with-recommends --with-configure -q .
+          cpanm -v .
           perl Build.PL
           perl Build
       - env:

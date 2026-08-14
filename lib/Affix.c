@@ -303,9 +303,8 @@ static void pull_pointer_as_wstring(pTHX_ Affix * affix, SV * sv, const infix_ty
     // Pre-allocate SV buffer.
     // Worst case UTF-8 expansion: 1 wchar (4 bytes) -> 4 UTF-8 bytes.
     // +1 for null terminator.
-    SvGROW(sv, (wlen * sizeof(wchar_t)) + 1);
-
-    char * d = SvPVX(sv);
+    SvPVCLEAR(sv);
+    char * d = SvGROW(sv, (wlen * sizeof(wchar_t)) + 1);
     wchar_t * s = wstr;
 
     while (*s) {
@@ -831,11 +830,9 @@ static Affix_Opcode get_opcode_for_type(pTHX_ const infix_type * type) {
                 if (pointee->meta.primitive_id == INFIX_PRIMITIVE_SINT8 ||
                     pointee->meta.primitive_id == INFIX_PRIMITIVE_UINT8)
                     return OP_PUSH_PTR_CHAR;
-#if defined(INFIX_OS_WINDOWS)
-                // Note: This treats any pointer to 2-byte primitive as potential WString on Windows
+                // A pointer to a wchar_t-sized primitive is a wide string (WString).
                 if (infix_type_get_size(pointee) == sizeof(wchar_t))
                     return OP_PUSH_PTR_WCHAR;
-#endif
             }
             return OP_PUSH_POINTER;
         }

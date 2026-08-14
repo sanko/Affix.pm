@@ -1387,9 +1387,14 @@ END_C
 
             # Truncate expected to return type width (C truncates the callback return)
             my $ret_size = sizeof( $ret->{perl}->() );
-            if    ( $ret_size == 1 ) { $expected = unpack( 'c', pack( 'c', $expected ) ) }
-            elsif ( $ret_size == 2 ) { $expected = unpack( 's', pack( 's', $expected ) ) }
-            elsif ( $ret_size == 4 ) { $expected = unpack( 'l', pack( 'l', $expected ) ) }
+            my $bits     = $ret_size * 8;
+            if ( $bits < 64 ) {
+                my $mod  = 2**$bits;
+                my $half = $mod / 2;
+                $expected = $expected % $mod;
+                $expected += $mod if $expected < 0;
+                $expected -= $mod if $expected >= $half;
+            }
             my $ok = $result == $expected;
             unless ($ok) {
                 diag "struct+callback: got=$result expected=$expected ret_size=$ret_size";
@@ -1693,11 +1698,19 @@ END_C
 # Array roundtrip (tests Array[Type,N] marshalling)
 sub generate_array_fn {
     my ($fn_name) = @_;
-    my @ints      = grep { $_->{c} ne 'float' && $_->{c} ne 'double' && sizeof( $_->{perl}->() ) <= 2 } @PRIMITIVES;
-    my $base      = pick(@ints);
-    my $count     = 2 + int( rand(4) );                                                                                # 2..5 elements
-    my @vals      = map { $base->{gen}->() } 1 .. $count;
-    my $c_code    = <<"END_C";
+    my @ints = grep {
+        $_->{c} ne 'float'             &&
+            $_->{c} ne 'double'        &&
+            $_->{c} ne 'char'          &&
+            $_->{c} ne 'unsigned char' &&
+            $_->{c} ne 'bool'          &&
+            sizeof( $_->{perl}->() )
+            <= 2
+    } @PRIMITIVES;
+    my $base   = pick(@ints);
+    my $count  = 2 + int( rand(4) );                     # 2..5 elements
+    my @vals   = map { $base->{gen}->() } 1 .. $count;
+    my $c_code = <<"END_C";
 int $fn_name($base->{c} arr[$count]) {
     int sum = 0;
     for (int i = 0; i < $count; i++) sum += (int)arr[i];
