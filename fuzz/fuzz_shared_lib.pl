@@ -1,9 +1,7 @@
 use v5.40;
-use blib;
-use lib 'blib/lib', 'lib';
 use Affix               qw[:all];
 use Test2::Tools::Affix qw[:all];
-use Test2::V0 -no_srand => 1;
+use Test2::V0 defined $ENV{FUZZ_SRAND} ? $ENV{FUZZ_SRAND} == 0 ? ( -no_srand => 1 ) : ( -srand => $ENV{FUZZ_SRAND} ) : ();
 use Config;
 use Data::Dumper;
 $Data::Dumper::Terse = 1;
@@ -184,7 +182,7 @@ sub generate_struct_fn {
         my $val = $f->{gen}->();
         push @gen_values, sub {$val};
     }
-    my $struct_body = join( ' ', @struct_members );
+    my $struct_body = join ' ', @struct_members;
     my $struct_def  = "typedef struct { $struct_body } $struct_name;";
     my $struct_sig  = '{ ' . join( ',', @struct_sig_fields ) . ' }';
     my $params_str  = join( ', ', @c_params );
@@ -569,7 +567,7 @@ sub generate_union_byval_fn {
         push @union_perl_fields, $fname, $f->{perl}->();
         push @union_sig_fields,  "$fname:" . $f->{sig};
     }
-    my $union_body = join( ' ', @union_members );
+    my $union_body = join ' ', @union_members;
     my $union_sig  = '<' . join( ',', @union_sig_fields ) . '>';
 
     # C: takes union by value, returns m0 cast to int
@@ -1387,9 +1385,14 @@ END_C
 
             # Truncate expected to return type width (C truncates the callback return)
             my $ret_size = sizeof( $ret->{perl}->() );
-            if    ( $ret_size == 1 ) { $expected = unpack( 'c', pack( 'c', $expected ) ) }
-            elsif ( $ret_size == 2 ) { $expected = unpack( 's', pack( 's', $expected ) ) }
-            elsif ( $ret_size == 4 ) { $expected = unpack( 'l', pack( 'l', $expected ) ) }
+            my $bits     = $ret_size * 8;
+            if ( $bits < 64 ) {
+                my $mod  = 2**$bits;
+                my $half = $mod / 2;
+                $expected = $expected % $mod;
+                $expected += $mod if $expected < 0;
+                $expected -= $mod if $expected >= $half;
+            }
             my $ok = $result == $expected;
             unless ($ok) {
                 diag "struct+callback: got=$result expected=$expected ret_size=$ret_size";
@@ -1693,11 +1696,19 @@ END_C
 # Array roundtrip (tests Array[Type,N] marshalling)
 sub generate_array_fn {
     my ($fn_name) = @_;
-    my @ints      = grep { $_->{c} ne 'float' && $_->{c} ne 'double' && sizeof( $_->{perl}->() ) <= 2 } @PRIMITIVES;
-    my $base      = pick(@ints);
-    my $count     = 2 + int( rand(4) );                                                                                # 2..5 elements
-    my @vals      = map { $base->{gen}->() } 1 .. $count;
-    my $c_code    = <<"END_C";
+    my @ints = grep {
+        $_->{c} ne 'float'             &&
+            $_->{c} ne 'double'        &&
+            $_->{c} ne 'char'          &&
+            $_->{c} ne 'unsigned char' &&
+            $_->{c} ne 'bool'          &&
+            sizeof( $_->{perl}->() )
+            <= 2
+    } @PRIMITIVES;
+    my $base   = pick(@ints);
+    my $count  = 2 + int( rand(4) );                     # 2..5 elements
+    my @vals   = map { $base->{gen}->() } 1 .. $count;
+    my $c_code = <<"END_C";
 int $fn_name($base->{c} arr[$count]) {
     int sum = 0;
     for (int i = 0; i < $count; i++) sum += (int)arr[i];

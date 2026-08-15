@@ -14,22 +14,57 @@ jobs:
           perl-version: "5.42"
       - name: Install dependencies
         run: |
-          cpanm --notest -q Module::Build::Tiny
+          cpanm --installdeps --notest --with-suggests --with-recommends --with-configure -q .
+          cpanm -v .
           perl Build.PL
           perl Build
-      - env:
-          MINUTES: '${{ inputs.minutes }}'
-        name: Run fuzzers
+      # On Windows the default shell (pwsh) resolves `perl` to the Strawberry Perl
+      # added to PATH. Git Bash would resolve it to the MSYS perl bundled with Git,
+      # which cannot load the XS module built by Strawberry Perl, so we never use
+      # `shell: bash` here on Windows.
+      - name: Run fuzzer (Windows)
+        if: inputs.fuzzer != 'all' && runner.os == 'Windows'
+        env:
+          MINUTES: '${{ inputs.minutes || 10 }}'
+          FUZZ_TIMEOUT: '5'
+          FUZZ_VERBOSE: '0'
         run: |
-          FUZZ_TIME="${MINUTES:-10}"
-          export FUZZ_MAX_ITER=$(( FUZZ_TIME * 200 ))
-          export FUZZ_TIMEOUT=5
-          export FUZZ_VERBOSE=0
+          $env:FUZZ_MAX_ITER = [int]($env:MINUTES) * 200
+          perl -Ilib fuzz/${{ inputs.fuzzer || 'fuzz_shared_lib' }}.pl
+      - name: Run fuzzer (Unix)
+        if: inputs.fuzzer != 'all' && runner.os != 'Windows'
+        env:
+          MINUTES: '${{ inputs.minutes || 10 }}'
+          FUZZ_TIMEOUT: '5'
+          FUZZ_VERBOSE: '0'
+        run: |
+          FUZZ_MAX_ITER=$(( MINUTES * 200 ))
+          perl -Ilib fuzz/${{ inputs.fuzzer || 'fuzz_shared_lib' }}.pl
+      - name: Run all fuzzers (Windows)
+        if: inputs.fuzzer == 'all' && runner.os == 'Windows'
+        env:
+          MINUTES: '${{ inputs.minutes || 10 }}'
+          FUZZ_TIMEOUT: '5'
+          FUZZ_VERBOSE: '0'
+        run: |
+          $env:FUZZ_MAX_ITER = [int]($env:MINUTES) * 200
+          Get-ChildItem fuzz/fuzz_*.pl | Sort-Object Name | ForEach-Object {
+            Write-Output "=== Running $_ ==="
+            & perl -Ilib $_
+            if ($LASTEXITCODE -ne 0) { exit 1 }
+          }
+      - name: Run all fuzzers (Unix)
+        if: inputs.fuzzer == 'all' && runner.os != 'Windows'
+        env:
+          MINUTES: '${{ inputs.minutes || 10 }}'
+          FUZZ_TIMEOUT: '5'
+          FUZZ_VERBOSE: '0'
+        run: |
+          FUZZ_MAX_ITER=$(( MINUTES * 200 ))
           for f in fuzz/fuzz_*.pl; do
             echo "=== Running $f ==="
             perl -Ilib "$f" || exit 1
           done
-        shell: bash
     strategy:
       fail-fast: false
       matrix:
@@ -74,19 +109,33 @@ jobs:
       - name: Install dependencies
         run: |
           source ~/perl5/perlbrew/etc/bashrc
-          cpanm --notest -q Module::Build::Tiny Path::Tiny Capture::Tiny
+          perlbrew use fuzz-riscv
+          cpanm --installdeps --notest --with-suggests --with-recommends --with-configure -q .
           perl Build.PL
           perl Build
         shell: bash
-      - env:
-          MINUTES: '${{ inputs.minutes }}'
-        name: Run fuzzers
+      - name: Run fuzzer
+        if: inputs.fuzzer != 'all'
+        env:
+          MINUTES: '${{ inputs.minutes || 10 }}'
+          FUZZ_TIMEOUT: '5'
+          FUZZ_VERBOSE: '0'
         run: |
           source ~/perl5/perlbrew/etc/bashrc
-          FUZZ_TIME="${MINUTES:-10}"
-          export FUZZ_MAX_ITER=$(( FUZZ_TIME * 200 ))
-          export FUZZ_TIMEOUT=5
-          export FUZZ_VERBOSE=0
+          perlbrew use fuzz-riscv
+          FUZZ_MAX_ITER=$(( MINUTES * 200 ))
+          perl -Ilib fuzz/${{ inputs.fuzzer || 'fuzz_shared_lib' }}.pl
+        shell: bash
+      - name: Run all fuzzers
+        if: inputs.fuzzer == 'all'
+        env:
+          MINUTES: '${{ inputs.minutes || 10 }}'
+          FUZZ_TIMEOUT: '5'
+          FUZZ_VERBOSE: '0'
+        run: |
+          source ~/perl5/perlbrew/etc/bashrc
+          perlbrew use fuzz-riscv
+          FUZZ_MAX_ITER=$(( MINUTES * 200 ))
           for f in fuzz/fuzz_*.pl; do
             echo "=== Running $f ==="
             perl -Ilib "$f" || exit 1
@@ -98,6 +147,19 @@ on:
     - cron: 0 6 * * *
   workflow_dispatch:
     inputs:
+      fuzzer:
+        description: Which fuzzer to run
+        default: fuzz_shared_lib
+        required: false
+        type: choice
+        options:
+          - all
+          - fuzz_shared_lib
+          - fuzz_compile_ok
+          - fuzz_cross_boundary
+          - fuzz_grammar_mutate
+          - fuzz_register_types
+          - fuzz_wrap_type_sig
       minutes:
         default: 10
         description: Fuzzing time per runner (approximate)
