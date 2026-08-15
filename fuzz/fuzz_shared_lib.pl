@@ -1,9 +1,7 @@
 use v5.40;
-use blib;
-use lib 'blib/lib', 'lib';
 use Affix               qw[:all];
 use Test2::Tools::Affix qw[:all];
-use Test2::V0 -no_srand => 1;
+use Test2::V0 defined $ENV{FUZZ_SRAND} ? $ENV{FUZZ_SRAND} == 0 ? ( -no_srand => 1 ) : ( -srand => $ENV{FUZZ_SRAND} ) : ();
 use Config;
 use Data::Dumper;
 $Data::Dumper::Terse = 1;
@@ -184,7 +182,7 @@ sub generate_struct_fn {
         my $val = $f->{gen}->();
         push @gen_values, sub {$val};
     }
-    my $struct_body = join( ' ', @struct_members );
+    my $struct_body = join ' ', @struct_members;
     my $struct_def  = "typedef struct { $struct_body } $struct_name;";
     my $struct_sig  = '{ ' . join( ',', @struct_sig_fields ) . ' }';
     my $params_str  = join( ', ', @c_params );
@@ -569,7 +567,7 @@ sub generate_union_byval_fn {
         push @union_perl_fields, $fname, $f->{perl}->();
         push @union_sig_fields,  "$fname:" . $f->{sig};
     }
-    my $union_body = join( ' ', @union_members );
+    my $union_body = join ' ', @union_members;
     my $union_sig  = '<' . join( ',', @union_sig_fields ) . '>';
 
     # C: takes union by value, returns m0 cast to int
