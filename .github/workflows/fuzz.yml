@@ -111,6 +111,7 @@ jobs:
           source ~/perl5/perlbrew/etc/bashrc
           perlbrew use fuzz-riscv
           cpanm --installdeps --notest --with-suggests --with-recommends --with-configure -q .
+          cpanm -v .
           perl Build.PL
           perl Build
         shell: bash

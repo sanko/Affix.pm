@@ -5,6 +5,12 @@ All notable changes to Affix.pm will be documented in this file.
 The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.1.0/),
 and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0.html).
 
+## [Unreleased]
+
+### Fixed
+
+- `SAVEVPTR`/`SAVEDESTRUCTOR_X` 'fix' broke thread safety. When a second thread or fiber entered the same Affix-generated XSUB, its `SAVEVPTR` captured the first fiber's temp arena as "old", so on scope exit the second fiber restored a dangling pointer.
+
 ## [v1.2.4] - 2026-08-15
 
 Plugging leaks...
