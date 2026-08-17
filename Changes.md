@@ -9,7 +9,7 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ### Fixed
 
-- Calling Affix XSUBs from multiple threads or coroutines on the same interpreter caused arenas to be freed early. The old `SAVEVPTR`/`SAVEDESTRUCTOR_X` pattern saved the arena pointer's *value* at push-time; when a second fiber entered the same XSUB, its `SAVEVPTR` captured the first fiber's temp arena as "old", so on scope exit the second fiber restored a dangling pointer. Arena dispatch now writes through dedicated per-call fields (`call_args_arena`/`call_ret_arena`) instead of the persistent `args_arena`/`ret_arena`, and `SAVEDESTRUCTOR_X` captures the pointer value independently, so each fiber's temp arena is freed without affecting the others.
+- `SAVEVPTR`/`SAVEDESTRUCTOR_X` 'fix' broke thread safety. When a second thread or fiber entered the same Affix-generated XSUB, its `SAVEVPTR` captured the first fiber's temp arena as "old", so on scope exit the second fiber restored a dangling pointer.
 
 ## [v1.2.4] - 2026-08-15
 

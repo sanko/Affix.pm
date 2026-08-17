@@ -1760,16 +1760,6 @@ static void rebuild_affix_data(pTHX_ Affix * affix);
             }                                                                                                   \
         }                                                                                                       \
                                                                                                                 \
-        /* Fiber-safe arena setup: write per-call arenas to call_args_arena/call_ret_arena.                     \
-         * Do NOT use SAVEVPTR on the shared affix->args_arena/ret_arena fields:                                \
-         * SAVEVPTR saves the VALUE at push-time; when multiple fibers enter the                                \
-         * same XSUB, the second fiber's SAVEVPTR captures the first fiber's temp                               \
-         * arena as "old".  On scope exit the first fiber frees its temp and restores                           \
-         * the original, but the second fiber then restores the freed pointer →                               \
-         * use-after-free in _affix_destroy.  Instead, we write to separate per-call                            \
-         * fields that are never restored via SAVEVPTR.  Each fiber's                                           \
-         * SAVEDESTRUCTOR_X captures the VALUE of the pointer (the correct arena to                             \
-         * free) and cleans it up independently.                        */                                      \
         affix->call_args_arena = infix_arena_create(4096);                                                      \
         affix->call_ret_arena = infix_arena_create(1024);                                                       \
         SAVEDESTRUCTOR_X(_cleanup_arena, affix->call_args_arena);                                               \
