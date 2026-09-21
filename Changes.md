@@ -5,6 +5,12 @@ All notable changes to Affix.pm will be documented in this file.
 The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.1.0/),
 and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0.html).
 
+## [Unreleased]
+
+### Fixed
+
+- The AVX2 subtests in `t/085_simd_m256.t` have always been skipped on hosts whose compiler defaulted to the baseline x86-64 target.
+
 ## [v1.2.5] - 2026-08-17
 
 ### Fixed
