@@ -1,4 +1,4 @@
-package Affix::Platform::Unix v1.2.5 {
+package Affix::Platform::Unix v1.2.6 {
     use v5.40;
     use Path::Tiny qw[path];
     use Config     qw[%Config];
@@ -21,7 +21,7 @@ package Affix::Platform::Unix v1.2.5 {
     # rejects. Reject any candidate whose ELF class does not match perl's.
     sub _is_usable_lib ($path) {
         return 0 unless is_elf($path);
-        open( my $fh, '<:raw', $path ) or return 0;        # EI_CLASS is at byte 4: 1=32-bit, 2=64-bit
+        open( my $fh, '<:raw', $path )     or return 0;                      # EI_CLASS is at byte 4: 1=32-bit, 2=64-bit
         sysread( $fh, my $header, 5 ) == 5 or do { close($fh); return 0 };
         close($fh);
         my $class64 = substr( $header, 4, 1 ) eq "\x02";
@@ -41,7 +41,7 @@ package Affix::Platform::Unix v1.2.5 {
             'sparc64' => 'SPARC64',
             'ia64'    => 'Itanium',
             'riscv64' => 'RISCV',
-            'riscv'   => 'RISCV',
+            'riscv'   => 'RISCV'
         }->{$arch_part};
 
         # Not a glibc box (Solaris/Illumos, *BSD, Haiku, ...): this probe is
@@ -70,6 +70,7 @@ package Affix::Platform::Unix v1.2.5 {
     }
 
     sub _findLib_dynaloader($name) {
+
         # The bare '-l' guess can come back empty on Solaris/Illumos: dl_findfile's
         # dirlist rarely holds the 64-bit subdir where the real libs live, and the
         # unversioned libc/libm there are symlinks. Probe the explicit dirs instead.

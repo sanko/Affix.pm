@@ -7,9 +7,23 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ## [Unreleased]
 
+I'm doing CI work to make sure things work beyond the big three. BSDs required no changes (I started infix on FreeBSD) but Solaris (and forks) required VMs.
+
 ### Fixed
 
-- The AVX2 subtests in `t/085_simd_m256.t` have always been skipped on hosts whose compiler defaulted to the baseline x86-64 target.
+- The AVX2 subtests in `t/085_simd_m256.t` have always been skipped on hosts whose compiler defaulted to the baseline x86-64 target. Oops. It's not verified in CI.
+- `find_library` works again on Solaris/Illumos/OmniOS. The probe used to kill over looking for 64-bit library directories and no longer hard-fails on non-glibc `ldconfig` setups.
+- `find_library` now rejects candidates whose ELF class doesn't match perl's bitness, so a 32-bit `libc`/`libm` can't be handed to a 64-bit perl and fail to `dlopen`.
+- The `Failed to locate symbol '...'` warning now includes the loader's error detail when the failure came from opening the library, instead of burying the cause.
+- `alloca()` is now declared on Solaris/Illumos (via `<alloca.h>` under `__sun`), fixing implicit declaration errors with GCC 14+.
+- OmniOS no longer fails at link time with a GCC LTO wrapper race. I just disable LTO with ccflags.
+- Solidified MSVC support even on Strawberry Perls (mostly skipped or adapted in unit tests):
+  - Shims export their symbols with `DLLEXPORT`
+  - ABI-incompatible cases:
+    - `long double` == `double`
+    - unavailable `__int128`/SIMD helpers
+    - passing Perl `FILE*` into a cl-built CRT
+    - `usleep` vs `Sleep` (only used in unit test but...)
 
 ## [v1.2.5] - 2026-08-17
 

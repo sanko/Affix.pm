@@ -461,8 +461,7 @@ END_C
         # headers do not expose off64_t, sigjmp_buf, alloca or fileno, so the
         # same source that perl itself builds fails to compile here. Merge them
         # in (harmless duplication when ccflags already contains them).
-        $config{ccflags} = join ' ',
-            grep { length } $config{ccflags}, $config{ccflags_uselargefiles};
+        $config{ccflags} = join ' ', grep {length} $config{ccflags}, $config{ccflags_uselargefiles};
         if ($debug) {
             $config{ldflags}   =~ s/-s //g;
             $config{ldflags}   =~ s/ -s//g;
