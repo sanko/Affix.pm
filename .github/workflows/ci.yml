@@ -286,7 +286,7 @@ jobs:
         cpanm --test-only -v .
       matrix: >-
         [
-          {"platform_name":"omnios","os":"omnios","arch":"x86_64","toolchain":"gcc","perl_version":"5.40.2","configure":"-A'ccflags=-D__EXTENSIONS__'","prepare":"pkg install -v --accept developer/gcc13 system/header developer/build/make web/curl"}
+          {"platform_name":"omnios","os":"omnios","arch":"x86_64","toolchain":"gcc","perl_version":"5.40.2","configure":"-A'ccflags=-D__EXTENSIONS__ -fno-lto'","prepare":"pkg install -v --accept developer/gcc13 system/header developer/build/make web/curl"}
         ]
 
   haiku:

@@ -16,6 +16,18 @@ package Affix::Platform::Unix v1.2.5 {
         return $header eq $elf_header;
     }
 
+    # The loader can hand back a library of the wrong bitness (e.g. the 32-bit
+    # /usr/lib/libm.so on Solaris/Illumos to a 64-bit perl), which dlopen()
+    # rejects. Reject any candidate whose ELF class does not match perl's.
+    sub _is_usable_lib ($path) {
+        return 0 unless is_elf($path);
+        open( my $fh, '<:raw', $path ) or return 0;        # EI_CLASS is at byte 4: 1=32-bit, 2=64-bit
+        sysread( $fh, my $header, 5 ) == 5 or do { close($fh); return 0 };
+        close($fh);
+        my $class64 = substr( $header, 4, 1 ) eq "\x02";
+        return $class64 == ( $Config{ptrsize} == 8 );
+    }
+
     sub _findLib_ldconfig ($name) {
 
         # Get the first part of the architecture name (e.g., "x86_64" from "x86_64-linux-gnu")
@@ -106,10 +118,10 @@ package Affix::Platform::Unix v1.2.5 {
         }
         CORE::state $cache;
         unless ( defined $cache->{$name}{$version} ) {
-            my @ret = grep { is_elf($_) } _findLib_dynaloader($name);
-            @ret = grep { is_elf($_) } _findLib_ldconfig($name) unless @ret;
-            @ret = grep { is_elf($_) } _findLib_gcc($name)      unless @ret;
-            @ret = grep { is_elf($_) } _findLib_ld($name)       unless @ret;
+            my @ret = grep { _is_usable_lib($_) } _findLib_dynaloader($name);
+            @ret = grep { _is_usable_lib($_) } _findLib_ldconfig($name) unless @ret;
+            @ret = grep { _is_usable_lib($_) } _findLib_gcc($name)      unless @ret;
+            @ret = grep { _is_usable_lib($_) } _findLib_ld($name)       unless @ret;
             return unless @ret;
             for my $lib ( map { path($_)->realpath } @ret ) {
                 next unless $lib =~ /^.*?\/lib\Q$name\E.*\.\Q$so\E(?:\.([\d\.\-]+))?$/;
