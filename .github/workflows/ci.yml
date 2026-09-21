@@ -314,7 +314,7 @@ jobs:
         cpanm --test-only -v .
       matrix: >-
         [
-          {"platform_name":"haiku","os":"haiku","arch":"x86_64","toolchain":"clang","perl_version":"5.40.2","configure":"-Dcc=clang","prepare":"pkgman install -y cmd:gcc cmd:make cmd:curl cmd:wget cmd:clang"}
+          {"platform_name":"haiku","os":"haiku","arch":"x86_64","toolchain":"gcc","prepare":"pkgman install -y cmd:gcc cmd:make cmd:curl cmd:wget cmd:perl"}
         ]
 
   windows:
