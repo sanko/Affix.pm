@@ -85,26 +85,7 @@ jobs:
           {"prepare":"sudo apt-get update -y && sudo apt-get install -y valgrind","arch":"aarch64","perl_version":"5.40.2","variant":"default","platform_name":"linux","os":"ubuntu-24.04-arm","toolchain":"gcc"},
           {"prepare":"sudo apt-get update -y && sudo apt-get install -y valgrind","arch":"aarch64","perl_version":"5.40.2","configure":"-Dusethreads","variant":"threads","platform_name":"linux","os":"ubuntu-24.04-arm","toolchain":"gcc"},
           {"prepare":"sudo apt-get update -y && sudo apt-get install -y valgrind","arch":"aarch64","perl_version":"5.42.0","variant":"default","platform_name":"linux","os":"ubuntu-24.04-arm","toolchain":"gcc"},
-          {"prepare":"sudo apt-get update -y && sudo apt-get install -y valgrind clang","arch":"aarch64","perl_version":"5.42.0","configure":"-Dcc=clang","platform_name":"linux","os":"ubuntu-24.04-arm","toolchain":"clang"}
-        ]
-
-  riscv:
-    name: Linux RISC-V
-    uses: sanko/workflow-testing/.github/workflows/run-direct.yml@main
-    with:
-      checkout_submodules: 'recursive'
-      task: |
-        export AUTOMATED_TESTING=1 AUTHOR_TESTING=0
-        #~ Bootstrap cpanm via its canonical one-liner; it installs into the
-        #~ active (source-built) perl's bin dir, which the runner puts on PATH.
-        curl -L https://cpanmin.us | perl - --notest App::cpanminus
-        command -v cpanm
-        cpanm --installdeps --notest --with-suggests --with-recommends --with-configure -v .
-        perl Build.PL
-        ./Build
-        ./Build test --v
-      matrix: >-
-        [
+          {"prepare":"sudo apt-get update -y && sudo apt-get install -y valgrind clang","arch":"aarch64","perl_version":"5.42.0","configure":"-Dcc=clang","platform_name":"linux","os":"ubuntu-24.04-arm","toolchain":"clang"},
           {"platform_name":"riscv","os":"ubuntu-24.04-riscv","arch":"riscv64","toolchain":"gcc","perl_version":"5.42.0","variant":"default"}
         ]
 
@@ -354,7 +335,6 @@ jobs:
     needs:
       - freebsd
       - linux
-      - riscv
       - macos
       - openbsd
       - netbsd
