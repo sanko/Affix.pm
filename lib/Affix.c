@@ -1,4 +1,7 @@
 #include "Affix.h"
+#if defined(__sun) && !defined(alloca)
+#  include <alloca.h>    /* Solaris/Illumos only declare alloca() here (perl.h pulls it in on glibc/MSVC) */
+#endif
 /*
 |-------------------0----------------|--0---4----------------------------||
 |.----------0---3-------0---3---0----|----------3---0-------0---3---0---.||
