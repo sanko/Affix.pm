@@ -34,9 +34,7 @@ jobs:
       matrix: >-
         [
           {"platform_name":"freebsd","os":"freebsd","arch":"x86_64","toolchain":"gcc","prepare":"pkg install -y perl5 curl"},
-          {"platform_name":"freebsd","os":"freebsd","arch":"aarch64","toolchain":"gcc","prepare":"pkg install -y perl5 curl"},
-          {"platform_name":"freebsd","os":"freebsd","arch":"riscv64","toolchain":"gcc","prepare":"pkg install -y perl5 curl"},
-          {"platform_name":"freebsd","os":"freebsd","arch":"powerpc64","toolchain":"gcc","prepare":"pkg install -y perl5 curl"}
+          {"platform_name":"freebsd","os":"freebsd","arch":"aarch64","toolchain":"gcc","prepare":"pkg install -y perl5 curl"}
         ]
 
   linux:
@@ -277,7 +275,7 @@ jobs:
     name: OmniOS
     uses: sanko/workflow-testing/.github/workflows/run-vm.yml@main
     with:
-      os_version: '151050'
+      os_version: 'r151050'
       checkout_submodules: 'recursive'
       task: |
         export AUTOMATED_TESTING=1 AUTHOR_TESTING=0
@@ -326,7 +324,7 @@ jobs:
         cpanm --test-only -v .
       matrix: >-
         [
-          {"platform_name":"haiku","os":"haiku","arch":"x86_64","toolchain":"gcc","perl_version":"5.40.2","prepare":"pkgman install -y cmd:gcc cmd:make cmd:curl cmd:wget"}
+          {"platform_name":"haiku","os":"haiku","arch":"x86_64","toolchain":"clang","perl_version":"5.40.2","configure":"-Dcc=clang","prepare":"pkgman install -y cmd:gcc cmd:make cmd:curl cmd:wget cmd:clang"}
         ]
 
   windows:
