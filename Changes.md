@@ -5,9 +5,9 @@ All notable changes to Affix.pm will be documented in this file.
 The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.1.0/),
 and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0.html).
 
-## [Unreleased]
+## [v1.2.6] - 2026-09-21
 
-I'm doing CI work to make sure things work beyond the big three. BSDs required no changes (I started infix on FreeBSD) but Solaris (and forks) required VMs.
+I'm doing CI work to make sure things function beyond the big three. BSDs required no changes (I started infix on FreeBSD) but Solaris (and forks) required VMs.
 
 ### Fixed
 
@@ -416,7 +416,8 @@ Based on infix v0.1.3
 
   - Affix.pm is born
 
-[Unreleased]: https://github.com/sanko/Affix.pm/compare/v1.2.5...HEAD
+[Unreleased]: https://github.com/sanko/Affix.pm/compare/v1.2.6...HEAD
+[v1.2.6]: https://github.com/sanko/Affix.pm/compare/v1.2.5...v1.2.6
 [v1.2.5]: https://github.com/sanko/Affix.pm/compare/v1.2.4...v1.2.5
 [v1.2.4]: https://github.com/sanko/Affix.pm/compare/v1.2.3...v1.2.4
 [v1.2.3]: https://github.com/sanko/Affix.pm/compare/v1.2.2...v1.2.3
