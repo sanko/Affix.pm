@@ -258,7 +258,7 @@ jobs:
         cpanm --test-only -v .
       matrix: >-
         [
-          {"platform_name":"solaris","os":"solaris","arch":"x86_64","toolchain":"gcc","perl_version":"5.40.2","prepare":"pkg install -v --accept perl-538 gcc developer/build/make bash web/curl"}
+          {"platform_name":"solaris","os":"solaris","arch":"x86_64","toolchain":"gcc","perl_version":"5.40.2","configure":"-A'ccflags=-D__EXTENSIONS__'","prepare":"pkg install -v --accept perl-538 gcc developer/build/make bash web/curl"}
         ]
 
   omnios:
@@ -286,7 +286,7 @@ jobs:
         cpanm --test-only -v .
       matrix: >-
         [
-          {"platform_name":"omnios","os":"omnios","arch":"x86_64","toolchain":"gcc","perl_version":"5.40.2","prepare":"pkg install -v --accept developer/gcc13 system/header developer/build/make web/curl"}
+          {"platform_name":"omnios","os":"omnios","arch":"x86_64","toolchain":"gcc","perl_version":"5.40.2","configure":"-A'ccflags=-D__EXTENSIONS__'","prepare":"pkg install -v --accept developer/gcc13 system/header developer/build/make web/curl"}
         ]
 
   haiku:
