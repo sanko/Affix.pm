@@ -54,7 +54,7 @@ jobs:
         ./Build test --v
       matrix: >-
         [
-          {"prepare":"sudo apt-get update -y && sudo apt-get install -y valgrind","arch":"x86_64","perl_version":"5.40.2","variant":"default","platform_name":"linux","os":"ubuntu-24.04","toolchain":"gcc"},
+          {"prepare":"sudo apt-get update -y && sudo apt-get install -y valgrind","arch":"x86_64","variant":"default","platform_name":"linux","os":"ubuntu-26.04","toolchain":"gcc"},
           {"prepare":"sudo apt-get update -y && sudo apt-get install -y valgrind","arch":"x86_64","perl_version":"5.40.2","configure":"-Dusethreads","variant":"threads","platform_name":"linux","os":"ubuntu-24.04","toolchain":"gcc"},
           {"prepare":"sudo apt-get update -y && sudo apt-get install -y valgrind","arch":"x86_64","perl_version":"5.40.2","configure":"-Duselongdouble","variant":"longdouble","platform_name":"linux","os":"ubuntu-24.04","toolchain":"gcc"},
           {"prepare":"sudo apt-get update -y && sudo apt-get install -y valgrind","arch":"x86_64","perl_version":"5.40.2","configure":"-Dusequadmath","variant":"quadmath","platform_name":"linux","os":"ubuntu-24.04","toolchain":"gcc"},
@@ -82,11 +82,11 @@ jobs:
           {"prepare":"sudo apt-get update -y && sudo apt-get install -y valgrind","arch":"x86_64","perl_version":"5.42.0","configure":"-Dusethreads -Dusequadmath -DDEBUGGING=both","variant":"threads-quadmath-debugging","platform_name":"linux","os":"ubuntu-24.04","toolchain":"gcc"},
           {"prepare":"sudo apt-get update -y && sudo apt-get install -y valgrind clang","arch":"x86_64","perl_version":"5.40.2","configure":"-Dcc=clang","platform_name":"linux","os":"ubuntu-24.04","toolchain":"clang"},
           {"prepare":"sudo apt-get update -y && sudo apt-get install -y valgrind clang","arch":"x86_64","perl_version":"5.42.0","configure":"-Dcc=clang","platform_name":"linux","os":"ubuntu-24.04","toolchain":"clang"},
-          {"prepare":"sudo apt-get update -y && sudo apt-get install -y valgrind","arch":"aarch64","perl_version":"5.40.2","variant":"default","platform_name":"linux","os":"ubuntu-24.04-arm","toolchain":"gcc"},
+          {"prepare":"sudo apt-get update -y && sudo apt-get install -y valgrind","arch":"aarch64","variant":"default","platform_name":"linux","os":"ubuntu-26.04-arm","toolchain":"gcc"},
           {"prepare":"sudo apt-get update -y && sudo apt-get install -y valgrind","arch":"aarch64","perl_version":"5.40.2","configure":"-Dusethreads","variant":"threads","platform_name":"linux","os":"ubuntu-24.04-arm","toolchain":"gcc"},
           {"prepare":"sudo apt-get update -y && sudo apt-get install -y valgrind","arch":"aarch64","perl_version":"5.42.0","variant":"default","platform_name":"linux","os":"ubuntu-24.04-arm","toolchain":"gcc"},
           {"prepare":"sudo apt-get update -y && sudo apt-get install -y valgrind clang","arch":"aarch64","perl_version":"5.42.0","configure":"-Dcc=clang","platform_name":"linux","os":"ubuntu-24.04-arm","toolchain":"clang"},
-          {"platform_name":"riscv","os":"ubuntu-24.04-riscv","arch":"riscv64","toolchain":"gcc","perl_version":"5.42.0","variant":"default"}
+          {"platform_name":"riscv","os":"ubuntu-26.04-riscv","arch":"riscv64","toolchain":"gcc","variant":"default"}
         ]
 
   macos:
@@ -315,7 +315,7 @@ jobs:
       checkout_submodules: 'recursive'
       task: |
         export AUTOMATED_TESTING=1 AUTHOR_TESTING=0
-        export PATH="/c/Strawberry/perl/site/bin:/c/Strawberry/perl/bin:/c/Strawberry/c/bin:$PATH"
+        export PATH="/c/Perl/bin:/c/Strawberry/perl/site/bin:/c/Strawberry/perl/bin:/c/Strawberry/c/bin:$PATH"
         perl -e 'print qq(perl=\$^X :: \$^O\n)'
         curl -L https://cpanmin.us | perl - --notest App::cpanminus
         command -v cpanm
@@ -326,7 +326,8 @@ jobs:
           {"arch":"x86_64","platform_name":"windows","os":"windows-2022","toolchain":"gcc","variant":"5.40.5.1","prepare":"curl -sL -o /c/strawberry.zip https://github.com/StrawberryPerl/Perl-Dist-Strawberry/releases/download/SP_54051_64bit/strawberry-perl-5.40.5.1-64bit-portable.zip && rm -rf /c/Strawberry; powershell -NoProfile -Command Expand-Archive -Path C:/strawberry.zip -DestinationPath C:/Strawberry -Force -ErrorAction Stop; rm -f /c/strawberry.zip"},
           {"arch":"x86_64","platform_name":"windows","os":"windows-2022","toolchain":"gcc","variant":"5.42.3.1","prepare":"curl -sL -o /c/strawberry.zip https://github.com/StrawberryPerl/Perl-Dist-Strawberry/releases/download/SP_54231_64bit/strawberry-perl-5.42.3.1-64bit-portable.zip && rm -rf /c/Strawberry; powershell -NoProfile -Command Expand-Archive -Path C:/strawberry.zip -DestinationPath C:/Strawberry -Force -ErrorAction Stop; rm -f /c/strawberry.zip"},
           {"arch":"x86_64","platform_name":"windows","os":"windows-2022","toolchain":"clang","variant":"5.42.3.1","prepare":"choco install llvm -y; curl -sL -o /c/strawberry.zip https://github.com/StrawberryPerl/Perl-Dist-Strawberry/releases/download/SP_54231_64bit/strawberry-perl-5.42.3.1-64bit-portable.zip && rm -rf /c/Strawberry; powershell -NoProfile -Command Expand-Archive -Path C:/strawberry.zip -DestinationPath C:/Strawberry -Force -ErrorAction Stop; rm -f /c/strawberry.zip"},
-          {"arch":"aarch64","platform_name":"windows","os":"windows-11-arm","toolchain":"gcc","variant":"5.40.5.1","prepare":"choco install make -y; curl -sL -o /c/strawberry.zip https://github.com/StrawberryPerl/Perl-Dist-Strawberry/releases/download/SP_54051_64bit/strawberry-perl-5.40.5.1-64bit-portable.zip && rm -rf /c/Strawberry; powershell -NoProfile -Command Expand-Archive -Path C:/strawberry.zip -DestinationPath C:/Strawberry -Force -ErrorAction Stop; rm -f /c/strawberry.zip"}
+          {"arch":"aarch64","platform_name":"windows","os":"windows-11-arm","toolchain":"gcc","variant":"5.40.5.1","prepare":"choco install make -y; curl -sL -o /c/strawberry.zip https://github.com/StrawberryPerl/Perl-Dist-Strawberry/releases/download/SP_54051_64bit/strawberry-perl-5.40.5.1-64bit-portable.zip && rm -rf /c/Strawberry; powershell -NoProfile -Command Expand-Archive -Path C:/strawberry.zip -DestinationPath C:/Strawberry -Force -ErrorAction Stop; rm -f /c/strawberry.zip"},
+          {"arch":"x86_64","platform_name":"windows","os":"windows-2022","toolchain":"msvc","variant":"","prepare":"set -e; curl -fsSL -o /c/perl-5.40.2.tar.gz https://www.cpan.org/src/5.0/perl-5.40.2.tar.gz; tar -xzf /c/perl-5.40.2.tar.gz -C /c; cd /c/perl-5.40.2/win32; if [ ! -f Makefile ]; then perl configure.bat CCTYPE=MSVC64; fi; nmake; nmake install; rm -f /c/perl-5.40.2.tar.gz; echo 'C:/Perl/bin' >> $GITHUB_PATH"}
         ]
 
   results:
