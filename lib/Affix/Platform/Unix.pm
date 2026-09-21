@@ -43,7 +43,10 @@ package Affix::Platform::Unix v1.2.5 {
             'riscv64' => 'RISCV',
             'riscv'   => 'RISCV',
         }->{$arch_part};
-        $architecture // die "Unsupported architecture for ldconfig lookup: $arch_part";
+
+        # Not a glibc box (Solaris/Illumos, *BSD, Haiku, ...): this probe is
+        # meaningless, so bow out gracefully and let the gcc/ld fallbacks try.
+        return unless defined $architecture;
 
         # Use the portable $Config{longsize} which gives the size of a C long in bytes.
         my $lookup_key = $architecture . ( $Config{longsize} == 8 ? '-64' : '-32' );
@@ -67,6 +70,21 @@ package Affix::Platform::Unix v1.2.5 {
     }
 
     sub _findLib_dynaloader($name) {
+        # The bare '-l' guess can come back empty on Solaris/Illumos: dl_findfile's
+        # dirlist rarely holds the 64-bit subdir where the real libs live, and the
+        # unversioned libc/libm there are symlinks. Probe the explicit dirs instead.
+        if ( $^O eq 'solaris' ) {
+            my $arch_dir = ( $Config{archname} =~ /^(?:sparc|sun4)/i ) ? 'sparcv9' : '64';
+            my @dirs;
+            for my $base ( split /[ \t]+/, $Config{libpth} // '' ) {
+                next unless $base;
+                push @dirs, "$base/$arch_dir" if -d "$base/$arch_dir";
+                push @dirs, $base;
+            }
+            push @dirs, "/usr/lib/$arch_dir" if -d "/usr/lib/$arch_dir";
+            my @found = DynaLoader::dl_findfile( @dirs, "lib$name.so" );
+            return @found if @found;
+        }
         DynaLoader::dl_findfile( '-l' . $name );
     }
 
