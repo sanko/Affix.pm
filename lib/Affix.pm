@@ -25,6 +25,7 @@ package Affix v1.2.5 {    # 'FFI' is my middle name!
             = 'Affix::Platform::' .
             ( ( $^O eq 'MSWin32' ) ? 'Windows' :
                 $^O eq 'darwin'                                                                   ? 'MacOS' :
+                $^O eq 'haiku'                                                                    ? 'Haiku' :
                 ( $^O eq 'freebsd' || $^O eq 'openbsd' || $^O eq 'netbsd' || $^O eq 'dragonfly' ) ? 'BSD' :
                 'Unix' );
 

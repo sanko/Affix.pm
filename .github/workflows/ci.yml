@@ -174,7 +174,7 @@ jobs:
         cpanm --test-only -v .
       matrix: >-
         [
-          {"platform_name":"openbsd","os":"openbsd","arch":"x86_64","toolchain":"gcc","perl_version":"5.40.2","prepare":"pkg_add gmake"}
+          {"platform_name":"openbsd","os":"openbsd","arch":"x86_64","toolchain":"gcc","perl_version":"5.40.2","prepare":"pkg_add gmake curl"}
         ]
 
   netbsd:

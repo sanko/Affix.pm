@@ -22,9 +22,8 @@ package Affix::Build v1.2.5 {
         # Global flags applied to all compilations of that type
         # cflags, cxxflags, ldflags, rustflags, etc.
         field $flags : param : reader //= {};
-
-        field $cc  : param : reader //= $ENV{AFFIX_CC}  // $Config{cc} // 'cc';
-        field $cxx : param : reader //= $ENV{AFFIX_CXX} // '';
+        field $cc    : param : reader //= $ENV{AFFIX_CC}  // $Config{cc} // 'cc';
+        field $cxx   : param : reader //= $ENV{AFFIX_CXX} // '';
 
         # Internal State
         field @sources;
@@ -49,17 +48,11 @@ package Affix::Build v1.2.5 {
             $libname = $build_dir->child("$prefix$safe_name.$so_ext$suffix")->absolute;
 
             # A C++ driver override defaults to the C++ sibling of the C compiler.
-            $cxx ||=
-                  $self->_is_msvc($cc) ? $cc
-                : $cc =~ /clang/i     ? 'clang++'
-                : $cc =~ /gcc/        ? 'g++'
-                :                       'c++';
+            $cxx ||= $self->_is_msvc($cc) ? $cc : $cc =~ /clang/i ? 'clang++' : $cc =~ /gcc/ ? 'g++' : 'c++';
 
             # We prefer C++ drivers (g++, clang++) to handle standard libraries for mixed code (C+Rust, C+C++)
-            $linker
-                = $self->_is_msvc($cc)
-                ? ( $self->_can_run(qw[cl link]) // 'link' )
-                : ( $self->_can_run(qw[g++ clang++ c++ icpx]) || $self->_can_run(qw[cc gcc clang icx cl]) || 'c++' );
+            $linker = $self->_is_msvc($cc) ? ( $self->_can_run(qw[cl link]) // 'link' ) :
+                ( $self->_can_run(qw[g++ clang++ c++ icpx]) || $self->_can_run(qw[cc gcc clang icx cl]) || 'c++' );
 
             # Parse global flags...
             @cflags   = map { chomp; $_ } grep { defined && length } Text::ParseWords::parse_line( q/ /, 1, $flags->{cflags}   // '' );
@@ -227,9 +220,8 @@ package Affix::Build v1.2.5 {
 
         # Object/static-library extensions follow the active compiler, not perl's
         # Config (Strawberry's Config reports .o/.a even when cl is selected).
-        method _obj_ext { $self->_is_msvc ? '.obj' : $Config{_o} }
-        method _lib_ext { $self->_is_msvc ? '.lib' : $Config{_a} }
-
+        method _obj_ext      { $self->_is_msvc ? '.obj' : $Config{_o} }
+        method _lib_ext      { $self->_is_msvc ? '.lib' : $Config{_a} }
         method _base ($file) { return $file->basename(qr/\.[^.]+$/); }
         #
         method _build_c ( $src, $out, $mode ) {
