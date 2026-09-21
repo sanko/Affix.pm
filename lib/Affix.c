@@ -1,4 +1,7 @@
 #include "Affix.h"
+#if defined(__sun) && !defined(alloca)
+#  include <alloca.h>    /* Solaris/Illumos only declare alloca() here (perl.h pulls it in on glibc/MSVC) */
+#endif
 /*
 |-------------------0----------------|--0---4----------------------------||
 |.----------0---3-------0---3---0----|----------3---0-------0---3---0---.||
@@ -2725,6 +2728,7 @@ XS_INTERNAL(Affix_affix) {
         }
 
         if (symbol == nullptr) {
+            const infix_error_details_t load_err = created_implicit_handle ? infix_get_last_error() : (infix_error_details_t){0};
             if (created_implicit_handle) {
                 const char * lookup_path = SvOK(target_sv) ? SvPV_nolen(target_sv) : "";
                 SV ** entry_sv_ptr = hv_fetch(MY_CXT.lib_registry, lookup_path, strlen(lookup_path), 0);
@@ -2738,7 +2742,10 @@ XS_INTERNAL(Affix_affix) {
                     }
                 }
             }
-            warn("Failed to locate symbol '%s'", symbol_name_str ? symbol_name_str : "(null)");
+            if (load_err.message[0] != '\0')
+                warn("Failed to locate symbol '%s': %s", symbol_name_str ? symbol_name_str : "(null)", load_err.message);
+            else
+                warn("Failed to locate symbol '%s'", symbol_name_str ? symbol_name_str : "(null)");
             XSRETURN_UNDEF;
         }
     }
