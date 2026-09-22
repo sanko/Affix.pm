@@ -5,6 +5,13 @@ All notable changes to Affix.pm will be documented in this file.
 The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.1.0/),
 and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0.html).
 
+## [Unreleased]
+
+### Fixed
+
+- All `alloca()` uses now expand to the compiler builtin (`AFFIX_ALLOCA`) instead of the libc declaration. NetBSD doesn't export an `alloca` symbol, and on aarch64 GCC emits a real external reference, so the built library carried an undefined PLT symbol that made every `dlopen` (and thus every test) fail on NetBSD/arm.
+- NetBSD CI now runs on 11.0 and covers x86_64, aarch64, and riscv64. The x86_64 leg is built against the same perl (5.42.3) and gcc as [this failing CPAN smoke tester](https://www.cpantesters.org/cpan/report/0b92f61a-b620-11f1-a0c9-8e4f39490bb5).
+
 ## [v1.2.6] - 2026-09-21
 
 I'm doing CI work to make sure things function beyond the big three. BSDs required no changes (I started infix on FreeBSD) but Solaris (and forks) required VMs.
