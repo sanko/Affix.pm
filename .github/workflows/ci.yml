@@ -181,7 +181,7 @@ jobs:
     name: NetBSD
     uses: sanko/workflow-testing/.github/workflows/run-vm.yml@main
     with:
-      os_version: '10.1'
+      os_version: '11.0'
       checkout_submodules: 'recursive'
       task: |
         export AUTOMATED_TESTING=1 AUTHOR_TESTING=0
@@ -202,7 +202,9 @@ jobs:
         cpanm --test-only -v .
       matrix: >-
         [
-          {"platform_name":"netbsd","os":"netbsd","arch":"x86_64","toolchain":"gcc","perl_version":"5.40.2","prepare":"/usr/sbin/pkg_add perl curl gmake"}
+          {"platform_name":"netbsd","os":"netbsd","arch":"x86_64","toolchain":"gcc","perl_version":"5.42.3","prepare":"/usr/sbin/pkg_add perl curl gmake"},
+          {"platform_name":"netbsd","os":"netbsd","arch":"aarch64","toolchain":"gcc","prepare":"/usr/sbin/pkg_add perl curl gmake"},
+          {"platform_name":"netbsd","os":"netbsd","arch":"riscv64","toolchain":"gcc","prepare":"/usr/sbin/pkg_add perl curl gmake"}
         ]
 
   dragonflybsd:
