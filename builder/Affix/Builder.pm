@@ -46,13 +46,21 @@ class    #
     field $prefix        : param    //= '';
     #
     ADJUST {
-        -e 'META.json' or die "No META information provided\n";
+        die "No META information provided\n" unless -e 'META.json';
+        die "OS unsupported: Affix requires a 64-bit architecture\n" if $Config{ptrsize} < 8;
 
         # Configure Flags
         my $is_bsd = $^O =~ /bsd/i;
         my $is_win = $^O =~ /MSWin32/i;
+        my $is_sun = $^O =~ /(solaris|sunos)/i;
         $cflags  = $is_bsd ? '' : '-fPIC ';
         $ldflags = $is_bsd ? '' : ' -flto=auto ';
+
+
+            $cflags .= ' -D__EXTENSIONS__ -D_LARGEFILE64_SOURCE'  if $is_sun;
+
+
+
         if ( $debug > 0 ) {
             $cflags
                 .= '-DDEBUG=' .
@@ -371,6 +379,8 @@ while ( @ARGV ) {
 
             # Pass pthread to compilation of static lib too (safe practice)
             push @cflags, '-pthread' unless $^O eq 'MSWin32';
+            #
+            push @cflags, '-D__EXTENSIONS__', '-D_LARGEFILE64_SOURCE' if $^O =~ /(solaris|sunos)/i;
         }
 
         # Compile infix.c -> infix.o
