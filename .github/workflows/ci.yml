@@ -261,7 +261,8 @@ jobs:
         cpanm --test-only -v .
       matrix: >-
         [
-          {"platform_name":"solaris","os":"solaris","arch":"x86_64","toolchain":"gcc","perl_version":"5.40.2","configure":"-A'ccflags=-D__EXTENSIONS__'","prepare":"pkg install -v --accept perl-538 gcc developer/build/make bash web/curl"}
+          {"platform_name":"solaris","os":"solaris","arch":"x86_64","toolchain":"gcc","perl_version":"5.40.2","variant":"stock","prepare":"pkg install -v --accept perl-538 gcc developer/build/make bash web/curl"},
+          {"platform_name":"solaris","os":"solaris","arch":"x86_64","toolchain":"gcc","perl_version":"5.40.2","configure":"-A'ccflags=-D__EXTENSIONS__'","variant":"configured-extensions","prepare":"pkg install -v --accept perl-538 gcc developer/build/make bash web/curl"}
         ]
 
   omnios:
@@ -342,6 +343,28 @@ jobs:
           {"arch":"x86_64","platform_name":"windows","os":"windows-2022","toolchain":"msvc","variant":"5.42.3.1","prepare":"curl -sL -o /c/strawberry.zip https://github.com/StrawberryPerl/Perl-Dist-Strawberry/releases/download/SP_54231_64bit/strawberry-perl-5.42.3.1-64bit-portable.zip && rm -rf /c/Strawberry; powershell -NoProfile -Command Expand-Archive -Path C:/strawberry.zip -DestinationPath C:/Strawberry -Force -ErrorAction Stop; rm -f /c/strawberry.zip; set -e; export PATH=\"$(cygpath -u \"$VCToolsInstallDir\")bin/Hostx64/x64:$PATH\"; cl 2>&1 | head -n 1 || true; printf 'AFFIX_CC=cl\\nAFFIX_CXX=cl\\n' >> \"$GITHUB_ENV\""}
         ]
 
+  cygwin:
+    name: Cygwin
+    uses: sanko/workflow-testing/.github/workflows/run-direct.yml@main
+    with:
+      checkout_submodules: 'recursive'
+      task: |
+        export AUTOMATED_TESTING=1 AUTHOR_TESTING=0
+        #~ Run within Cygwin bash environment so $^O is 'cygwin' and paths/DLLs match
+        /c/cygwin/bin/bash.exe --login -eo pipefail -o igncr -c "
+          set -e
+          cd \"\$(cygpath -u \"$GITHUB_WORKSPACE\")\"
+          curl -fsSL https://cpanmin.us -o /tmp/cpanmin.pl
+          perl /tmp/cpanmin.pl --notest App::cpanminus Module::Build::Tiny
+          rm -f /tmp/cpanmin.pl
+          cpanm --installdeps --notest -v .
+          cpanm --test-only -v .
+        "
+      matrix: >-
+        [
+          {"arch":"x86_64","platform_name":"cygwin","os":"windows-2022","toolchain":"gcc","variant":"default","prepare":"curl -fsSL -o /c/setup-x86_64.exe https://cygwin.com/setup-x86_64.exe && /c/setup-x86_64.exe --quiet-mode --no-desktop --root C:/cygwin --local-package-dir C:/cygwin/cache --site https://mirrors.kernel.org/sourceware/cygwin/ --packages perl,perl-ExtUtils-CBuilder,gcc-g++,make,curl && rm -f /c/setup-x86_64.exe"}
+        ]
+
   results:
     name: Results
     if: always()
@@ -356,6 +379,7 @@ jobs:
       - omnios
       - haiku
       - windows
+      - cygwin
     uses: sanko/workflow-testing/.github/workflows/results-summary.yml@main
     with:
       title: 'Affix.pm CI Matrix'
