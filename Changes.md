@@ -7,6 +7,15 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ## [Unreleased]
 
+### Added
+
+- New `error( )` function that returns the most recent error from Affix itself, our JIT, or the OS when you don't feel like checking all three.
+- If the `Struct[ flag => UInt32 | 3, ... ]` syntax isn't self-documenting enough, I've added a new `Bitfield` type so that you can write `Struct[ flag => Bitfield[ UInt32, 1 ], ... ]` instead.
+
+### Changed
+
+- Minor clarification in variadic function docs.
+
 ## [v1.2.8] - 2026-10-29
 
 ### Fixed
