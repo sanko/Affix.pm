@@ -102,7 +102,9 @@ package Affix::Platform::Unix v1.2.8 {
         $name =~ s[^lib][];
         CORE::state $compiler;
         $compiler //= sub {
+            require ExtUtils::MakeMaker;
             for my $cc (qw[gcc cc]) {
+                next unless ExtUtils::MakeMaker->maybe_command($cc) || grep { -x "$_/$cc" } split /:/, ( $ENV{PATH} // '' );
                 if ( open( my $fh, '-|', $cc, '--version' ) ) {
                     my $line = <$fh>;
                     close $fh;

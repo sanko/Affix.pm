@@ -2845,18 +2845,26 @@ XS_INTERNAL(Affix_affix) {
             size_t arg_len = strlen(arg_sig);
             if (arg_len >= sig_remaining)
                 croak("Signature too long (buffer overflow)");
+
+            // If this argument is a VarArgs marker, ensure no preceding comma
+            if (arg_sig[0] == ';') {
+                if (sig_pos > 0 && signature_buf[sig_pos - 1] == ',')
+                    sig_pos--;
+                memcpy(signature_buf + sig_pos, arg_sig, arg_len);
+                sig_pos += arg_len;
+                sig_remaining -= arg_len;
+                continue;
+            }
+
             memcpy(signature_buf + sig_pos, arg_sig, arg_len);
             sig_pos += arg_len;
             sig_remaining -= arg_len;
 
-            // Logic to prevent adding commas around ';', which denotes VarArgs start
             if (i < num_args - 1) {
-                if (strEQ(arg_sig, ";"))
-                    continue;
                 SV ** next_sv_ptr = av_fetch(args_av, i + 1, 0);
                 if (next_sv_ptr) {
                     const char * next_sig = _get_string_from_type_obj(aTHX_ * next_sv_ptr);
-                    if (next_sig && strEQ(next_sig, ";"))
+                    if (next_sig && next_sig[0] == ';')
                         continue;
                 }
                 if (sig_remaining < 2)
@@ -4433,11 +4441,59 @@ XS_INTERNAL(Affix_get_last_error_message) {
         ST(0) = sv_2mortal(newSVpvf("System error: %s (code %ld)", buf, err.system_error_code));
     }
 #endif
-    else
+    else if (err.code != INFIX_CODE_SUCCESS)
         ST(0) = sv_2mortal(newSVpvf("Infix error code %d at position %zu", (int)err.code, err.position));
+    else
+        ST(0) = &PL_sv_undef;
     XSRETURN(1);
 }
 
+XS_INTERNAL(Affix_error) {
+    dXSARGS;
+    PERL_UNUSED_VAR(items);
+
+    // Check infix JIT/Parser error first
+    infix_error_details_t err = infix_get_last_error();
+    if (err.message[0] != '\0') {
+        ST(0) = sv_2mortal(newSVpv(err.message, 0));
+        XSRETURN(1);
+    }
+    if (err.code != INFIX_CODE_SUCCESS) {
+        ST(0) = sv_2mortal(newSVpvf("Infix error code %d at position %zu", (int)err.code, err.position));
+        XSRETURN(1);
+    }
+
+    // Check system error (errno on Unix, GetLastError on Windows)
+#if defined(INFIX_OS_WINDOWS)
+    DWORD win_err = GetLastError();
+    if (win_err != 0) {
+        char buf[256];
+        DWORD len = FormatMessageA(FORMAT_MESSAGE_FROM_SYSTEM | FORMAT_MESSAGE_IGNORE_INSERTS,
+                                   nullptr,
+                                   win_err,
+                                   0,
+                                   buf,
+                                   sizeof(buf),
+                                   nullptr);
+        if (len > 0) {
+            while (len > 0 && (buf[len - 1] == '\n' || buf[len - 1] == '\r'))
+                buf[--len] = '\0';
+            ST(0) = sv_2mortal(newSVpv(buf, len));
+            XSRETURN(1);
+        }
+    }
+#else
+    if (errno != 0) {
+        const char * msg = strerror(errno);
+        if (msg) {
+            ST(0) = sv_2mortal(newSVpv(msg, 0));
+            XSRETURN(1);
+        }
+    }
+#endif
+
+    XSRETURN_UNDEF;
+}
 
 XS_INTERNAL(Affix_find_symbol) {
     dXSARGS;
@@ -5911,6 +5967,7 @@ void boot_Affix(pTHX_ CV * cv) {
         // Library & core utils
         XSUB_EXPORT(load_library, "$", "lib");
         XSUB_EXPORT(find_symbol, "$$", "lib");
+        XSUB_EXPORT(error, "", "core");
         XSUB_EXPORT(get_last_error_message, "", "core");
 
         // Introspection

@@ -28,7 +28,7 @@ class    #
     field $ldflags;
     field $cppver = 'c++17';    # https://en.wikipedia.org/wiki/C%2B%2B20#Compiler_support
     field $cver   = 'c17';      # https://en.wikipedia.org/wiki/C17_(C_standard_revision)
-    field $make : param //= $Config{make};
+    field $make : param //= $Config{make} || 'dmake';
     #
     field $action : param //= 'build';
     field $meta : reader = CPAN::Meta->load_file('META.json');
@@ -144,7 +144,7 @@ class    #
         require TAP::Harness::Env;
         my %test_args = (
             ( verbosity => $verbose ),
-            ( jobs  => $jobs ),
+            ( $jobs ? ( jobs => $jobs ) : () ),
             ( color => -t STDOUT ),
             lib => [ map { rel2abs( catdir( 'blib', $_ ) ) } qw[arch lib] ],
         );
