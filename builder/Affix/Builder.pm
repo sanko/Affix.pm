@@ -68,7 +68,7 @@ class    #
             $cflags .= ' -fvar-tracking-assignments' unless $Config{osname} eq 'darwin';
         }
         elsif ( !$is_win ) {
-            $cflags  .= ' -DNDEBUG -DBOOST_DISABLE_ASSERTS -O3 -ftree-vectorize -ffast-math -fno-align-functions -fno-omit-frame-pointer';
+            $cflags .= ' -DNDEBUG -DBOOST_DISABLE_ASSERTS -O3 -ftree-vectorize -ffast-math -fno-align-functions -fno-omit-frame-pointer';
             $cflags .= ' -flto' unless ( $is_bsd || $is_sun );
         }
 
@@ -412,7 +412,7 @@ while ( @ARGV ) {
 
     # Detects if linking against librt is required (common on Linux/BSD/Solaris for shm_open)
     method check_for_lrt() {
-        return ''                                if $^O eq 'MSWin32';
+        return ''                                if $^O eq 'MSWin32' || $^O eq 'android';
         warn "Checking if -lrt is required...\n" if $verbose;
         my $cc        = $Config{cc} || 'cc';
         my $test_code = <<'END_C';
