@@ -11,6 +11,7 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 - New `error( )` function that returns the most recent error from Affix itself, our JIT, or the OS when you don't feel like checking all three.
 - If the `Struct[ flag => UInt32 | 3, ... ]` syntax isn't self-documenting enough, I've added a new `Bitfield` type so that you can write `Struct[ flag => Bitfield[ UInt32, 1 ], ... ]` instead.
+- New SIMD example (`eg/simd.pl`) which demonstrates 4D single-precision float vector math commonly used in 3D graphics, game physics, audio DSP, etc. Shows both the convienient mode with simple perl array refs and packed strings for higher performance.
 
 ### Changed
 
