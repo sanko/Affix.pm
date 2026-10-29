@@ -53,8 +53,8 @@ class    #
         my $is_bsd = $^O =~ /bsd/i;
         my $is_win = $^O =~ /MSWin32/i;
         my $is_sun = $^O =~ /(solaris|sunos)/i;
-        $cflags  = $is_bsd ? '' : '-fPIC ';
-        $ldflags = $is_bsd ? '' : ' -flto=auto ';
+        $cflags  = ( $is_bsd || $is_sun ) ? '' : '-fPIC ';
+        $ldflags = ( $is_bsd || $is_sun ) ? '' : ' -flto=auto ';
         $cflags .= ' -D__EXTENSIONS__ -D_LARGEFILE64_SOURCE' if $is_sun;
         if ( $debug > 0 ) {
             $cflags
@@ -68,8 +68,8 @@ class    #
             $cflags .= ' -fvar-tracking-assignments' unless $Config{osname} eq 'darwin';
         }
         elsif ( !$is_win ) {
-            $cflags
-                .= ' -DNDEBUG -DBOOST_DISABLE_ASSERTS -O3 -ftree-vectorize -ffast-math -fno-align-functions -fno-align-loops -fno-omit-frame-pointer -flto';
+            $cflags  .= ' -DNDEBUG -DBOOST_DISABLE_ASSERTS -O3 -ftree-vectorize -ffast-math -fno-align-functions -fno-omit-frame-pointer';
+            $cflags .= ' -flto' unless ( $is_bsd || $is_sun );
         }
 
         # Threading support (Critical for shm_open/librt on Linux)
