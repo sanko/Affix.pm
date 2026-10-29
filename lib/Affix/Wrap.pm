@@ -1071,6 +1071,7 @@ package Affix::Wrap v1.2.7 {
                 if   ( $Config{cc} =~ /gcc/i ) { return "$arch-pc-windows-gnu"; }
                 else                           { return "$arch-pc-windows-msvc"; }
             }
+            elsif ( $^O eq 'cygwin' ) { return "$arch-pc-cygwin"; }
             elsif ( $^O eq 'linux' )  { return "$arch-unknown-linux-gnu"; }
             elsif ( $^O eq 'darwin' ) { return "$arch-apple-darwin"; }
             my ($out) = Capture::Tiny::capture { system $clang, '-print-target-triple' };
@@ -1092,9 +1093,10 @@ package Affix::Wrap v1.2.7 {
 
         method _is_valid_file ($f) {
             return 0 unless defined $f && length $f;
-            return $f !~ m{^/usr/(include|lib|share|local/include)} &&
-                $f !~ m{^/System/Library} &&
-                $f !~ m{(Program Files|Strawberry|MinGW|Windows|cygwin|msys)}i;
+            return 0 if $f =~ m{^/usr/(include|lib|share|local/include)};
+            return 0 if $f =~ m{^/System/Library};
+            return 0 if $f =~ m{/(?:Windows|Program Files|Strawberry|MinGW)/}i;
+            return 1;
         }
 
         method parse( $entry_point, $ids //= [] ) {
@@ -1614,7 +1616,7 @@ package Affix::Wrap v1.2.7 {
                     $out .= "    $code;\n";
                 }
             }
-            $out .= "};\n1;\n";
+            $out .= "};\n1;\n";return ( $out, \@nodes );
         }
 
         method generate( $lib, $pkg, $file ) {

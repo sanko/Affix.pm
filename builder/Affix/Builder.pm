@@ -55,12 +55,7 @@ class    #
         my $is_sun = $^O =~ /(solaris|sunos)/i;
         $cflags  = $is_bsd ? '' : '-fPIC ';
         $ldflags = $is_bsd ? '' : ' -flto=auto ';
-
-
-            $cflags .= ' -D__EXTENSIONS__ -D_LARGEFILE64_SOURCE'  if $is_sun;
-
-
-
+        $cflags .= ' -D__EXTENSIONS__ -D_LARGEFILE64_SOURCE' if $is_sun;
         if ( $debug > 0 ) {
             $cflags
                 .= '-DDEBUG=' .
@@ -143,7 +138,8 @@ class    #
         0;
     }
 
-    method step_test() {
+    method step_test(%args) {
+        $jobs = $args{j} // $args{jobs} // $jobs;
         $self->step_build() unless -d 'blib';
         require TAP::Harness::Env;
         my %test_args = (

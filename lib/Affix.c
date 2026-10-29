@@ -31,7 +31,6 @@ static void _cleanup_arena(pTHX_ void * ptr) {
 }
 
 static MGVTBL Affix_cv_vtbl;
-static MGVTBL Affix_backend_vtbl;
 extern MGVTBL vtbl_sint8, vtbl_uint8, vtbl_sint16, vtbl_uint16, vtbl_sint32, vtbl_uint32, vtbl_sint64, vtbl_uint64,
     vtbl_float, vtbl_double, vtbl_float16, vtbl_bool, vtbl_sint128, vtbl_uint128, vtbl_void, vtbl_bitfield,
     vtbl_pointer, vtbl_array, string_vtable, wstring_vtable, vtbl_lazy_aggregate, vtbl_enum;
@@ -51,7 +50,6 @@ static __int128_t sv_to_int128(pTHX_ SV * sv) {
 
     STRLEN len;
     const char * s = SvPV(sv, len);
-    char * end;
     // Note: We assume base 10. Future me might implement a
     // custom parser here, but strtoll isn't enough either.
     __int128_t res = 0;
@@ -66,7 +64,7 @@ static __int128_t sv_to_int128(pTHX_ SV * sv) {
         s++;
     while (*s >= '0' && *s <= '9') {
         int digit = *s - '0';
-        if (res > (__int128_t)(((__uint128_t)0x7FFFFFFFFFFFFFFFULL << 64) | 0xFFFFFFFFFFFFFFFFULL - digit) / 10)
+        if (res > (__int128_t)((((__uint128_t)0x7FFFFFFFFFFFFFFFULL << 64) | (0xFFFFFFFFFFFFFFFFULL - digit)) / 10))
             croak("Integer overflow in int128 parsing");
         res = res * 10 + digit;
         s++;
@@ -89,7 +87,7 @@ static __uint128_t sv_to_uint128(pTHX_ SV * sv) {
 
     while (*s >= '0' && *s <= '9') {
         int digit = *s - '0';
-        if (res > (((__uint128_t)0xFFFFFFFFFFFFFFFFULL << 64) | 0xFFFFFFFFFFFFFFFFULL - digit) / 10)
+        if (res > ((((__uint128_t)0xFFFFFFFFFFFFFFFFULL << 64) | (0xFFFFFFFFFFFFFFFFULL - digit)) / 10))
             croak("Integer overflow in uint128 parsing");
         res = res * 10 + digit;
         s++;
@@ -1629,13 +1627,10 @@ static void writeback_pointer_generic(pTHX_ Affix * affix, const OutParamInfo * 
         AV * av = (AV *)perl_sv;
         size_t count = av_len(av) + 1;
         size_t elem_size = infix_type_get_size(info->pointee_type);
-        void * elem_ptr = nullptr;
         for (size_t i = 0; i < count; ++i) {
             SV ** item_ptr = av_fetch(av, i, 0);
-            if (item_ptr) {
-                elem_ptr = (char *)inner_ptr + (i * elem_size);
+            if (item_ptr)
                 ptr2sv(aTHX_ affix, (char *)inner_ptr + (i * elem_size), *item_ptr, info->pointee_type, false);
-            }
         }
         return;
     }
@@ -4410,7 +4405,7 @@ XS_INTERNAL(Affix_get_last_error_message) {
 
 XS_INTERNAL(Affix_find_symbol) {
     dXSARGS;
-    dMY_CXT;  // Require the thread-local context
+    //dMY_CXT;  // Require the thread-local context
     if (items != 2 || !sv_isobject(ST(0)) || !sv_derived_from(ST(0), "Affix::Lib"))
         croak_xs_usage(cv, "Affix_Lib_object, symbol_name");
     IV tmp = SvIV((SV *)SvRV(ST(0)));
@@ -4813,6 +4808,9 @@ XS_INTERNAL(Affix_register_types_raw) {
 XS_INTERNAL(Affix_dump_registry) {
     dXSARGS;
     dMY_CXT;
+
+    PERL_UNUSED_VAR(items);
+
     char * buffer;
     size_t size = 1024 * 128;  // 128KB
     Newxz(buffer, size, char);
@@ -4829,6 +4827,8 @@ XS_INTERNAL(Affix_dump_registry) {
 XS_INTERNAL(Affix_defined_types) {
     dXSARGS;
     dMY_CXT;
+
+    PERL_UNUSED_VAR(items);
     PERL_UNUSED_VAR(cv);
 
     size_t count = 0;
