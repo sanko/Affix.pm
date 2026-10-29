@@ -1,3 +1,10 @@
+/*
+|-------------------0----------------|--0---4----------------------------||
+|.----------0---3-------0---3---0----|----------3---0-------0---3---0---.||
+|.------2----------------------------|----------------------------------.||
+|---3--------------------------------|------------------3----------------||
+*/
+
 #include "Affix.h"
 #if defined(__sun) && !defined(alloca)
 #  include <alloca.h>    /* Solaris/Illumos only declare alloca() here (perl.h pulls it in on glibc/MSVC) */
@@ -12,15 +19,9 @@
 #else
 #  define AFFIX_ALLOCA(_size) alloca(_size)
 #endif
-/*
-|-------------------0----------------|--0---4----------------------------||
-|.----------0---3-------0---3---0----|----------3---0-------0---3---0---.||
-|.------2----------------------------|----------------------------------.||
-|---3--------------------------------|------------------3----------------||
-*/
 
-static void rebuild_backend_data(pTHX_ Affix_Backend * backend);
-static void rebuild_affix_data(pTHX_ Affix * affix);
+static c23_maybe_unused void rebuild_backend_data(pTHX_ Affix_Backend * backend);
+static c23_maybe_unused void rebuild_affix_data(pTHX_ Affix * affix);
 static const infix_type * _resolve_type(pTHX_ const infix_type * type);
 static infix_library_t * _get_lib_from_registry(pTHX_ const char * path);
 
@@ -315,7 +316,7 @@ static void pull_pointer_as_wstring(pTHX_ Affix * affix, SV * sv, const infix_ty
     // Worst case UTF-8 expansion: 1 wchar (4 bytes) -> 4 UTF-8 bytes.
     // +1 for null terminator.
     SvPVCLEAR(sv);
-    char * d = SvGROW(sv, (wlen * sizeof(wchar_t)) + 1);
+    char * d = SvGROW(sv, (wlen * UTF8_MAXBYTES) + 1);
     wchar_t * s = wstr;
 
     while (*s) {
@@ -841,8 +842,9 @@ static Affix_Opcode get_opcode_for_type(pTHX_ const infix_type * type) {
                 if (pointee->meta.primitive_id == INFIX_PRIMITIVE_SINT8 ||
                     pointee->meta.primitive_id == INFIX_PRIMITIVE_UINT8)
                     return OP_PUSH_PTR_CHAR;
-                // A pointer to a wchar_t-sized primitive is a wide string (WString).
-                if (infix_type_get_size(pointee) == sizeof(wchar_t))
+                if ((pointee->meta.primitive_id == INFIX_PRIMITIVE_UINT16 ||
+                     pointee->meta.primitive_id == INFIX_PRIMITIVE_UINT32) &&
+                    infix_type_get_size(pointee) == sizeof(wchar_t))
                     return OP_PUSH_PTR_WCHAR;
             }
             return OP_PUSH_POINTER;
@@ -941,10 +943,11 @@ static Affix_Opcode get_ret_opcode_for_type(pTHX_ const infix_type * type) {
                 pointee->meta.primitive_id == INFIX_PRIMITIVE_UINT8) {
                 return OP_RET_PTR_CHAR;
             }
-#if defined(INFIX_OS_WINDOWS)
-            if (infix_type_get_size(pointee) == sizeof(wchar_t))
+            if ((pointee->meta.primitive_id == INFIX_PRIMITIVE_UINT16 ||
+                 pointee->meta.primitive_id == INFIX_PRIMITIVE_UINT32) &&
+                infix_type_get_size(pointee) == sizeof(wchar_t))
                 return OP_RET_PTR_WCHAR;
-#endif
+
         }
         return OP_RET_PTR;
     }
@@ -1207,6 +1210,35 @@ static void plan_step_push_pointer(pTHX_ Affix * affix,
             *(const char **)c_arg_ptr = SvPV_nolen(sv);
             return;
         }
+        // Wide string pointer (wchar_t* / WString)
+        if (pointee_type->category == INFIX_TYPE_PRIMITIVE &&
+            (pointee_type->meta.primitive_id == INFIX_PRIMITIVE_UINT16 ||
+             pointee_type->meta.primitive_id == INFIX_PRIMITIVE_UINT32) &&
+            infix_type_get_size(pointee_type) == sizeof(wchar_t)) {
+            STRLEN wlen;
+            U8 * s = (U8 *)SvPVutf8(sv, wlen);
+            U8 * e = s + wlen;
+            size_t el_sz = sizeof(wchar_t);
+            wchar_t * wbuf = (wchar_t *)infix_arena_alloc(affix->call_args_arena, (wlen + 1) * el_sz, el_sz);
+            wchar_t * d = wbuf;
+            while (s < e) {
+                STRLEN rlen;
+                UV uv = utf8_to_uvchr_buf(s, e, &rlen);
+                if (rlen == 0)
+                    break;
+                if (el_sz == 2 && uv > 0xFFFF) {
+                    uv -= 0x10000;
+                    *d++ = (wchar_t)((uv >> 10) + 0xD800);
+                    *d++ = (wchar_t)((uv & 0x3FF) + 0xDC00);
+                }
+                else
+                    *d++ = (wchar_t)uv;
+                s += rlen;
+            }
+            *d = 0;
+            *(wchar_t **)c_arg_ptr = wbuf;
+            return;
+        }
     }
     sv_dump(sv);
     char signature_buf[256];
@@ -1440,7 +1472,7 @@ static void plan_step_push_callback(pTHX_ Affix * affix,
     push_reverse_trampoline(aTHX_ affix, type, sv, c_arg_ptr);
 }
 
-static void plan_step_call_c_function(pTHX_ Affix * affix,
+static c23_maybe_unused void plan_step_call_c_function(pTHX_ Affix * affix,
                                       Affix_Plan_Step * step,
                                       SV ** perl_stack_frame,
                                       void * args_buffer,
@@ -1968,21 +2000,25 @@ CASE_OP_PUSH_PTR_WCHAR:                                                         
                 STRLEN len;                                                                                     \
                 U8 * s = (U8 *)SvPVutf8(sv, len);                                                               \
                 U8 * e = s + len;                                                                               \
-                Newx(*(void **)ptr, len + 1, wchar_t);                                                          \
-                wchar_t * d = *(void **)ptr;                                                                    \
+                size_t el_sz = sizeof(wchar_t);                                                                 \
+                wchar_t * wbuf = (wchar_t *)infix_arena_alloc(affix->call_args_arena, (len + 1) * el_sz, el_sz);\
+                wchar_t * d = wbuf;                                                                             \
                 while (s < e) {                                                                                 \
-                    UV uv = utf8_to_uvchr_buf(s, e, nullptr);                                                   \
-                    if (sizeof(wchar_t) == 2 && uv > 0xFFFF) {                                                  \
+                    STRLEN rlen;                                                                                \
+                    UV uv = utf8_to_uvchr_buf(s, e, &rlen);                                                     \
+                    if (rlen == 0)                                                                              \
+                        break;                                                                                  \
+                    if (el_sz == 2 && uv > 0xFFFF) {                                                            \
                         uv -= 0x10000;                                                                          \
                         *d++ = (wchar_t)((uv >> 10) + 0xD800);                                                  \
                         *d++ = (wchar_t)((uv & 0x3FF) + 0xDC00);                                                \
                     }                                                                                           \
                     else                                                                                        \
                         *d++ = (wchar_t)uv;                                                                     \
-                    s += UTF8SKIP(s);                                                                           \
+                    s += rlen;                                                                                  \
                 }                                                                                               \
                 *d = 0;                                                                                         \
-                SAVEFREEPV(*(void **)ptr);                                                                      \
+                *(wchar_t **)ptr = wbuf;                                                                        \
             }                                                                                                   \
             else if (!SvOK(sv))                                                                                 \
                 *(void **)ptr = nullptr;                                                                        \
@@ -3205,7 +3241,7 @@ XS_INTERNAL(Affix_Bundled_DESTROY) {
     XSRETURN_EMPTY;
 }
 
-XS_INTERNAL(Affix_DESTROY) {
+c23_maybe_unused XS_INTERNAL(Affix_DESTROY) {
     dXSARGS;
     //dMY_CXT;
     PERL_UNUSED_VAR(items);
@@ -3327,7 +3363,7 @@ static void pull_union(pTHX_ Affix * affix, SV * sv, const infix_type * type, vo
 }
 
 // Helper for portability if strnlen isn't available
-static size_t _safe_strnlen(const char * s, size_t maxlen) {
+static c23_maybe_unused size_t _safe_strnlen(const char * s, size_t maxlen) {
     size_t len;
     for (len = 0; len < maxlen; len++, s++)
         if (!*s)
@@ -3520,7 +3556,7 @@ static void pull_pointer_as_string(pTHX_ Affix * affix, SV * sv, const infix_typ
         sv_setpv(sv, (const char *)c_ptr);
 }
 
-static void pull_pointer_as_struct(pTHX_ Affix * affix, SV * sv, const infix_type * type, void * p, bool readonly) {
+static c23_maybe_unused void pull_pointer_as_struct(pTHX_ Affix * affix, SV * sv, const infix_type * type, void * p, bool readonly) {
     void * c_ptr = *(void **)p;
     if (c_ptr == nullptr)
         sv_setsv(sv, &PL_sv_undef);
@@ -3545,7 +3581,7 @@ static void pull_struct_as_live(pTHX_ Affix * affix, SV * sv, const infix_type *
     SvREFCNT_dec(rv);
 }
 #endif
-static void pull_pointer_as_array(pTHX_ Affix * affix, SV * sv, const infix_type * type, void * p, bool readonly) {
+static c23_maybe_unused void pull_pointer_as_array(pTHX_ Affix * affix, SV * sv, const infix_type * type, void * p, bool readonly) {
     void * c_ptr = *(void **)p;
     if (c_ptr == nullptr)
         sv_setsv(sv, &PL_sv_undef);
@@ -3782,7 +3818,6 @@ static const Affix_Pull pull_handlers[] = {[INFIX_PRIMITIVE_BOOL] = pull_bool,
 #endif
 };
 
-
 Affix_Pull get_pull_handler(pTHX_ const infix_type * type) {
     const char * name = infix_type_get_name(type);
     if (!name && type->category == INFIX_TYPE_NAMED_REFERENCE)
@@ -3821,11 +3856,13 @@ Affix_Pull get_pull_handler(pTHX_ const infix_type * type) {
 
             if (pointee_type->category == INFIX_TYPE_PRIMITIVE) {
                 if (pointee_type->meta.primitive_id == INFIX_PRIMITIVE_SINT8 ||
-                    pointee_type->meta.primitive_id == INFIX_PRIMITIVE_UINT8) {
+                    pointee_type->meta.primitive_id == INFIX_PRIMITIVE_UINT8)
                     return pull_pointer_as_string;
-                }
             }
-
+            if ((pointee_type->meta.primitive_id == INFIX_PRIMITIVE_UINT16 ||
+                pointee_type->meta.primitive_id == INFIX_PRIMITIVE_UINT32) &&
+                infix_type_get_size(pointee_type) == sizeof(wchar_t))
+                return pull_pointer_as_wstring;
             /* Structural StringList Detection (char **) */
             if (is_string_list_type(aTHX_ type))
                 return pull_stringlist;

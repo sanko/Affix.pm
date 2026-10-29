@@ -3,7 +3,6 @@ Language: Cpp
 AccessModifierOffset: -4
 AlignAfterOpenBracket: Align
 AlignConsecutiveMacros:
-  Enabled: false
   AcrossEmptyLines: false
   AcrossComments: false
   AlignCompound: false
