@@ -76,6 +76,7 @@ class    #
         if ( !$is_win ) {
             $cflags  .= ' -pthread';
             $ldflags .= ' -pthread';
+            $ldflags .= ' -Wl,-z,nobtcfi' if $^O eq 'openbsd';    # XXX - Temp BTI/IBT workaround https://www.openbsd.org/innovations.html
         }
     }
     method write_file( $filename, $content ) { path($filename)->spew_raw($content) or die "Could not open $filename: $!\n" }

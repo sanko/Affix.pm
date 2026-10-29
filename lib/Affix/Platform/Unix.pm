@@ -74,7 +74,7 @@ package Affix::Platform::Unix v1.3.0 {
         # The bare '-l' guess can come back empty on Solaris/Illumos: dl_findfile's
         # dirlist rarely holds the 64-bit subdir where the real libs live, and the
         # unversioned libc/libm there are symlinks. Probe the explicit dirs instead.
-        if ( $^O eq 'solaris' ) {
+        if ( $^O =~ /(?:solaris|sunos)/i ) {
             my $arch_dir = ( $Config{archname} =~ /^(?:sparc|sun4)/i ) ? 'sparcv9' : '64';
             my @dirs;
             for my $base ( split /[ \t]+/, $Config{libpth} // '' ) {

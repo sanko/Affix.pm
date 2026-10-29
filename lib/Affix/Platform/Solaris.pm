@@ -4,5 +4,9 @@ package Affix::Platform::Solaris v1.3.0 {
     use parent 'Exporter';
     our @EXPORT_OK   = qw[find_library];
     our %EXPORT_TAGS = ( all => \@EXPORT_OK );
+    #
+    sub find_library ( $name, $version //= '' ) {
+        return Affix::Platform::Unix::find_library( $name, $version );
+    }
 };
 1;
