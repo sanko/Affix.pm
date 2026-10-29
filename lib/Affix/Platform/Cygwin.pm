@@ -1,4 +1,4 @@
-package Affix::Platform::Cygwin v1.2.7 {
+package Affix::Platform::Cygwin v1.2.8 {
     use v5.40;
     use DynaLoader;
     use parent 'Affix::Platform::Unix';

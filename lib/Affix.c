@@ -20,7 +20,6 @@
 #  define AFFIX_ALLOCA(_size) alloca(_size)
 #endif
 
-static c23_maybe_unused void rebuild_backend_data(pTHX_ Affix_Backend * backend);
 static c23_maybe_unused void rebuild_affix_data(pTHX_ Affix * affix);
 static const infix_type * _resolve_type(pTHX_ const infix_type * type);
 static infix_library_t * _get_lib_from_registry(pTHX_ const char * path);
@@ -1484,7 +1483,7 @@ static c23_maybe_unused void plan_step_call_c_function(pTHX_ Affix * affix,
     affix->cif(ret_buffer, c_args);
 }
 
-static void plan_step_pull_return_value(pTHX_ Affix * affix,
+static c23_maybe_unused void plan_step_pull_return_value(pTHX_ Affix * affix,
                                         Affix_Plan_Step * step,
                                         SV ** perl_stack_frame,
                                         void * args_buffer,

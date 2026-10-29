@@ -362,7 +362,8 @@ jobs:
         "
       matrix: >-
         [
-          {"arch":"x86_64","platform_name":"cygwin","os":"windows-2022","toolchain":"gcc","variant":"default","prepare":"curl -fsSL -o /c/setup-x86_64.exe https://cygwin.com/setup-x86_64.exe && /c/setup-x86_64.exe --quiet-mode --no-desktop --root C:/cygwin --local-package-dir C:/cygwin/cache --site https://mirrors.kernel.org/sourceware/cygwin/ --packages perl,perl-ExtUtils-CBuilder,gcc-g++,make,curl,libcrypt-devel && rm -f /c/setup-x86_64.exe"}
+          {"arch":"x86_64","platform_name":"cygwin","os":"windows-2022","toolchain":"gcc","variant":"default","prepare":"curl -fsSL -o /c/setup-x86_64.exe https://cygwin.com/setup-x86_64.exe && /c/setup-x86_64.exe --quiet-mode --no-desktop --root C:/cygwin --local-package-dir C:/cygwin/cache --site https://mirrors.kernel.org/sourceware/cygwin/ --packages perl,perl-ExtUtils-CBuilder,gcc-g++,make,curl,libcrypt-devel && rm -f /c/setup-x86_64.exe"},
+          {"arch":"x86_64","platform_name":"cygwin","os":"windows-2022","toolchain":"clang","variant":"default","prepare":"curl -fsSL -o /c/setup-x86_64.exe https://cygwin.com/setup-x86_64.exe && /c/setup-x86_64.exe --quiet-mode --no-desktop --root C:/cygwin --local-package-dir C:/cygwin/cache --site https://mirrors.kernel.org/sourceware/cygwin/ --packages perl,perl-ExtUtils-CBuilder,clang,make,curl,libcrypt-devel && rm -f /c/setup-x86_64.exe"}
         ]
 
   results:
