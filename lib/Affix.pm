@@ -24,6 +24,7 @@ package Affix v1.2.7 {    # 'FFI' is my middle name!
         my $platform
             = 'Affix::Platform::' .
             ( ( $^O eq 'MSWin32' ) ? 'Windows' :
+                $^O eq 'cygwin'                                                                   ? 'Cygwin' :
                 $^O eq 'darwin'                                                                   ? 'MacOS' :
                 $^O eq 'haiku'                                                                    ? 'Haiku' :
                 ( $^O eq 'freebsd' || $^O eq 'openbsd' || $^O eq 'netbsd' || $^O eq 'dragonfly' ) ? 'BSD' :
@@ -188,7 +189,7 @@ package Affix v1.2.7 {    # 'FFI' is my middle name!
     }
 
     # Abstract
-    CORE::state $wchar_size = $Config{wcharsize} // ( $^O eq 'MSWin32' ? 2 : 4 );
+    CORE::state $wchar_size = $Config{wcharsize} // ( ( $^O eq 'MSWin32' || $^O eq 'cygwin' ) ? 2 : 4 );
     sub Void () { Affix::Type::Primitive->new( name => 'void' ) }
     sub Bool () { Affix::Type::Primitive->new( name => 'bool' ) }
     sub Char () { Affix::Type::Primitive->new( name => 'char' ) }
