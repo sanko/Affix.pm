@@ -1864,7 +1864,7 @@ XS_INTERNAL(XS_main_offsetof_member) {
     XSRETURN(1);
 }
 
-XS_INTERNAL(XS_main_cast) {
+c23_maybe_unused XS_INTERNAL(XS_main_cast) {
     dVAR;
     dXSARGS;
     if (items != 2)

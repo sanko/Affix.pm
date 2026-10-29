@@ -1495,6 +1495,10 @@ package Affix::Wrap v1.2.7 {
                     system( 'clang', '--version', '>', File::Spec->devnull, '2>&1' );
                 };
                 my $use_clang = ( $exit == 0 );
+                if ( $use_clang && $^O eq 'cygwin' ) {
+                    my $which = `which clang 2>/dev/null` // '';
+                    $use_clang = 0 unless $which =~ m{^/(usr/)?bin/clang};
+                }
                 $driver = $use_clang ? Affix::Wrap::Driver::Clang->new( project_files => $project_files ) :
                     Affix::Wrap::Driver::Regex->new( project_files => $project_files );
             }
@@ -1518,8 +1522,7 @@ package Affix::Wrap v1.2.7 {
             }
             my %cache;
             my $resolve;
-            $resolve = sub {
-                my ($token) = @_;
+            $resolve = sub($token) {
                 return undef unless defined $token;
                 $token =~ s/^\s+|\s+$//g;
                 return oct($token)    if $token =~ /^0x[\da-fA-F]+$/i;
@@ -1616,7 +1619,8 @@ package Affix::Wrap v1.2.7 {
                     $out .= "    $code;\n";
                 }
             }
-            $out .= "};\n1;\n";return ( $out, \@nodes );
+            $out .= "};\n1;\n";
+            return ( $out, \@nodes );
         }
 
         method generate( $lib, $pkg, $file ) {

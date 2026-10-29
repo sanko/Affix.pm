@@ -3207,7 +3207,7 @@ XS_INTERNAL(Affix_Bundled_DESTROY) {
 
 XS_INTERNAL(Affix_DESTROY) {
     dXSARGS;
-    dMY_CXT;
+    //dMY_CXT;
     PERL_UNUSED_VAR(items);
     Affix * affix;
     STMT_START {
@@ -3887,7 +3887,7 @@ void ptr2sv(pTHX_ Affix * affix, void * c_ptr, SV * perl_sv, const infix_type * 
     h(aTHX_ affix, perl_sv, type, c_ptr, readonly);
 }
 
-static int _get_pointer_depth(const infix_type * t) {
+static c23_maybe_unused int _get_pointer_depth(const infix_type * t) {
     int depth = 0;
     while (t && t->category == INFIX_TYPE_POINTER) {
         depth++;
@@ -4980,7 +4980,7 @@ XS_INTERNAL(Affix_malloc) {
 
 XS_INTERNAL(Affix_calloc) {
     dXSARGS;
-    dMY_CXT;
+    //dMY_CXT;
     if (items != 2)
         croak_xs_usage(cv, "count, size");
 
