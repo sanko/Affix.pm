@@ -3,6 +3,7 @@ no warnings 'experimental';
 use blib;
 use Affix               qw[:all];
 use Test2::Tools::Affix qw[:all];
+use Test2::V0 -no_srand => 1;
 use Config;
 use Benchmark qw[:all];
 $|++;
@@ -195,7 +196,7 @@ if ($has_live) {
         qr/live|access|write/, 'Live vs Copy Aggregates';
 }
 my $live_ptr   = get_ptr();
-my $live_array = calloc( 10, Int );
+my $live_array = cast( calloc( 10, sizeof(Int) ), Array [ Int, 10 ] );
 like fastest(
     $bench_count,
     ptr_deref_magic  => sub { my $v          = $$live_ptr },
