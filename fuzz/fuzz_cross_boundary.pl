@@ -31,75 +31,75 @@ my @ROUNDTRIPS = (
         c_name => 'rt_int8',
         gen    => sub { int( rand(256) ) - 128 },
         c_code => "DLLEXPORT int8_t rt_int8(int8_t v) { return v; }",
-        sig    => [ [ Int() ], Int() ],
+        sig    => [ [ Int() ], Int() ]
     },
     {   name   => 'uint8_t_roundtrip',
         c_name => 'rt_uint8',
         gen    => sub { int( rand(256) ) },
         c_code => "DLLEXPORT uint8_t rt_uint8(uint8_t v) { return v; }",
-        sig    => [ [ UInt() ], UInt() ],
+        sig    => [ [ UInt() ], UInt() ]
     },
     {   name   => 'int16_t_roundtrip',
         c_name => 'rt_int16',
         gen    => sub { int( rand(65536) ) - 32768 },
         c_code => "DLLEXPORT int16_t rt_int16(int16_t v) { return v; }",
-        sig    => [ [ Short() ], Short() ],
+        sig    => [ [ Short() ], Short() ]
     },
     {   name   => 'uint16_t_roundtrip',
         c_name => 'rt_uint16',
         gen    => sub { int( rand(65536) ) },
         c_code => "DLLEXPORT uint16_t rt_uint16(uint16_t v) { return v; }",
-        sig    => [ [ UShort() ], UShort() ],
+        sig    => [ [ UShort() ], UShort() ]
     },
     {   name   => 'int32_t_roundtrip',
         c_name => 'rt_int32',
         gen    => sub { int( rand( 2**32 ) ) - 2**31 },
         c_code => "DLLEXPORT int32_t rt_int32(int32_t v) { return v; }",
-        sig    => [ [ Int() ], Int() ],
+        sig    => [ [ Int() ], Int() ]
     },
     {   name   => 'uint32_t_roundtrip',
         c_name => 'rt_uint32',
         gen    => sub { int( rand( 2**32 ) ) },
         c_code => "DLLEXPORT uint32_t rt_uint32(uint32_t v) { return v; }",
-        sig    => [ [ UInt() ], UInt() ],
+        sig    => [ [ UInt() ], UInt() ]
     },
     {   name   => 'int64_t_roundtrip',
         c_name => 'rt_int64',
         gen    => sub { int( rand( 2**62 ) ) - 2**61 },
         c_code => "DLLEXPORT int64_t rt_int64(int64_t v) { return v; }",
-        sig    => [ [ LongLong() ], LongLong() ],
+        sig    => [ [ LongLong() ], LongLong() ]
     },
     {   name   => 'uint64_t_roundtrip',
         c_name => 'rt_uint64',
         gen    => sub { int( rand( 2**63 ) ) },
         c_code => "DLLEXPORT uint64_t rt_uint64(uint64_t v) { return v; }",
-        sig    => [ [ ULongLong() ], ULongLong() ],
+        sig    => [ [ ULongLong() ], ULongLong() ]
     },
     {   name   => 'float_roundtrip',
         c_name => 'rt_float',
         gen    => sub { sprintf( "%.2f", rand(100) - 50 ) },
         c_code => "DLLEXPORT float rt_float(float v) { return v; }",
         sig    => [ [ Float() ], Float() ],
-        verify => sub ( $got, $expected ) { abs( $got - $expected ) < 0.01 },
+        verify => sub ( $got, $expected ) { abs( $got - $expected ) < 0.01 }
     },
     {   name   => 'double_roundtrip',
         c_name => 'rt_double',
         gen    => sub { sprintf( "%.4f", rand(1000) - 500 ) },
         c_code => "DLLEXPORT double rt_double(double v) { return v; }",
         sig    => [ [ Double() ], Double() ],
-        verify => sub ( $got, $expected ) { abs( $got - $expected ) < 0.01 },
+        verify => sub ( $got, $expected ) { abs( $got - $expected ) < 0.01 }
     },
     {   name   => 'bool_roundtrip',
         c_name => 'rt_bool',
         gen    => sub { int( rand(2) ) },
         c_code => "DLLEXPORT bool rt_bool(bool v) { return v; }",
-        sig    => [ [ Bool() ], Bool() ],
+        sig    => [ [ Bool() ], Bool() ]
     },
     {   name   => 'char_roundtrip',
         c_name => 'rt_char',
         gen    => sub { int( rand(128) ) },
         c_code => "DLLEXPORT char rt_char(char v) { return v; }",
-        sig    => [ [ Char() ], Char() ],
+        sig    => [ [ Char() ], Char() ]
     },
     {   name   => 'pointer_roundtrip',
         c_name => 'rt_ptr',
@@ -111,7 +111,7 @@ my @ROUNDTRIPS = (
             return [$pin];
         },
         c_code => "DLLEXPORT int rt_ptr(int *v) { return v ? *v : -1; }",
-        sig    => [ [ Pointer [ Int() ] ], Int() ],
+        sig    => [ [ Pointer [ Int() ] ], Int() ]
     },
     {   name   => 'string_roundtrip',
         c_name => 'rt_str',
@@ -120,7 +120,7 @@ my @ROUNDTRIPS = (
         },
         c_code => "DLLEXPORT int rt_str(const char *s) { return s ? (int)strlen(s) : -1; }",
         sig    => [ [ String() ], Int() ],
-        verify => sub ( $got, $expected ) { $got == length($expected) },
+        verify => sub ( $got, $expected ) { $got == length($expected) }
     },
     {   name   => 'struct_roundtrip',
         c_name => 'rt_struct',
@@ -136,7 +136,7 @@ END_C
         sig    => [ [ Struct [ x => Int(), y => Double() ] ], Struct [ x => Int(), y => Double() ] ],
         verify => sub ( $got, $expected ) {
             $got->{x} == $expected->{x} && abs( $got->{y} - $expected->{y} ) < 0.01;
-        },
+        }
     },
     {   name   => 'union_roundtrip',
         c_name => 'rt_union',
@@ -151,7 +151,7 @@ END_C
 typedef union { int i; float f; } RTUnion;
 DLLEXPORT int rt_union(RTUnion *u) { return u ? u->i : -1; }
 END_C
-        sig => [ [ Pointer [ Union [ i => Int(), f => Float() ] ] ], Int() ],
+        sig => [ [ Pointer [ Union [ i => Int(), f => Float() ] ] ], Int() ]
     },
     {   name   => 'enum_roundtrip',
         c_name => 'rt_enum',
@@ -160,7 +160,7 @@ END_C
 typedef enum { RTE_A=0, RTE_B=10, RTE_C=20 } RTEnum;
 DLLEXPORT int rt_enum(RTEnum e) { return (int)e; }
 END_C
-        sig => [ [ Int() ], Int() ],
+        sig => [ [ Int() ], Int() ]
     },
     {   name   => 'callback_roundtrip',
         c_name => 'rt_cb',
@@ -171,19 +171,19 @@ END_C
         },
         c_code => "typedef int (*rtcb)(int, int); DLLEXPORT int rt_cb(rtcb f, int a, int b) { return f(a, b); }",
         sig    => [ [ Callback [ [ Int(), Int() ] => Int() ], Int(), Int() ], Int() ],
-        verify => sub ( $got, $cb, $a, $b ) { $got == $a + $b },
+        verify => sub ( $got, $cb, $a, $b ) { $got == $a + $b }
     },
     {   name   => 'long_roundtrip',
         c_name => 'rt_long',
         gen    => sub { int( rand( 2**31 ) ) - 2**30 },
         c_code => "DLLEXPORT long rt_long(long v) { return v; }",
-        sig    => [ [ Long() ], Long() ],
+        sig    => [ [ Long() ], Long() ]
     },
     {   name   => 'longlong_roundtrip',
         c_name => 'rt_longlong',
         gen    => sub { int( rand( 2**62 ) ) - 2**61 },
         c_code => "DLLEXPORT long long rt_longlong(long long v) { return v; }",
-        sig    => [ [ LongLong() ], LongLong() ],
+        sig    => [ [ LongLong() ], LongLong() ]
     }
 );
 
@@ -225,7 +225,7 @@ DLLEXPORT $ret->[0] rt_multi($pstr) {
     return p0;
 }
 END_C
-    return { c_code => $c_code, c_name => 'rt_multi', perl_args => \@a_args, perl_ret => $ret->[1]->(), values => \@values, };
+    return { c_code => $c_code, c_name => 'rt_multi', perl_args => \@a_args, perl_ret => $ret->[1]->(), values => \@values };
 }
 
 # Main

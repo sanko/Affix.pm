@@ -244,7 +244,7 @@ package    #
                 header    => [ 'function', 'path', 'line' ],
                 rows      => [
                     map { [ $_->{fn}, ( defined $_->{dir} && defined $_->{file} ) ? join '/', $_->{dir}, $_->{file} : '', $_->{line} // '' ] } @$blah
-                ],
+                ]
                 ) :
                 '';
         }

@@ -319,7 +319,7 @@ EOF
                     [ 'Evil pkg',                           'space in name' ],
                     [ "Evil\tpkg",                          'tab in name' ],
                     [ 'Evil::pkg#',                         'comment char in name' ],
-                    [ "Evil::pkg\nsystem('echo PWNED')",    'newline injection' ],
+                    [ "Evil::pkg\nsystem('echo PWNED')",    'newline injection' ]
                 );
                 for my $t (@bad_pkgs) {
                     my ( $bad_pkg, $desc ) = @$t;
@@ -333,7 +333,7 @@ EOF
                     [ 'Good',     'simple name' ],
                     [ 'GoodName', 'single word' ],
                     [ 'Test123',  'alphanumeric' ],
-                    [ '_private', 'leading underscore' ],
+                    [ '_private', 'leading underscore' ]
                 );
                 for my $t (@good_pkgs) {
                     my ( $good_pkg, $desc ) = @$t;
@@ -363,7 +363,7 @@ EOF
                     [ 'Evil; system("echo PWNED")', 'semicolon, no ::' ],
                     [ 'Evil pkg',                   'space, no ::' ],
                     [ 'Evil::system("echo PWNED")', 'parens in name' ],
-                    [ 'Evil->pkg',                  'arrow instead of ::' ],
+                    [ 'Evil->pkg',                  'arrow instead of ::' ]
                 );
                 for my $t (@borderline) {
                     my ( $bad, $desc ) = @$t;

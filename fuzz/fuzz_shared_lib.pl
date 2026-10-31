@@ -444,7 +444,7 @@ sub generate_nested_struct_fn {
                 }
                 $captured_a0 = $inner_h{a0};
                 return { inner => \%inner_h, z => $outer_gen->() };
-            },
+            }
         ],
         verify => sub ($result) {
             is $result, $captured_a0, 'nested struct inner.a0 roundtrip';
@@ -499,7 +499,7 @@ sub generate_struct_array_member_fn {
         gen_values => [
             sub {
                 return { arr => [@arr_vals], x => $scalar_val };
-            },
+            }
         ],
         verify => sub ($result) {
             is $result, $expected, 'struct array member roundtrip';
@@ -549,7 +549,7 @@ END_C
                 push @keep_alive, $mem;
                 return $pin;
             }
-        ],
+        ]
     };
 }
 
@@ -631,7 +631,7 @@ END_C
         sig_ret    => 'int',
         perl_args  => [ Int() ],
         perl_ret   => Int(),
-        gen_values => [ sub { pick( 0 .. $nelems - 1 ) * 10 } ],
+        gen_values => [ sub { pick( 0 .. $nelems - 1 ) * 10 } ]
     };
 }
 
@@ -684,7 +684,7 @@ END_C
                 diag "GOT:     $got (str=\"$result\")";
                 diag "EXPECTED: $val ($name)";
             }
-        },
+        }
     };
 }
 
@@ -718,7 +718,7 @@ END_C
         sig_ret    => $ret_type->{sig},
         perl_args  => \@perl_args,
         perl_ret   => $ret_type->{perl}->(),
-        gen_values => \@gen_values,
+        gen_values => \@gen_values
     };
 }
 
@@ -760,7 +760,7 @@ END_C
                 return $pin;
             }
         ],
-        verify => $verify,
+        verify => $verify
     };
 }
 
@@ -795,7 +795,7 @@ END_C
             },
             sub {$v1},
             sub {$v2}
-        ],
+        ]
     };
 }
 
@@ -837,7 +837,7 @@ END_C
             sub {
                 my $i = int( rand($nelems) );
                 return $enum_vals[$i];    # pass enum numeric value
-            },
+            }
         ],
         verify => sub ($result) {
 
@@ -851,7 +851,7 @@ END_C
                 diag "GOT: $result";
                 diag "EXPECTED one of: " . join( ", ", @enum_vals );
             }
-        },
+        }
     };
 }
 
@@ -916,13 +916,13 @@ END_C
                 }
                 $captured_struct = \%h;
                 return \%h;
-            },
+            }
         ],
         verify => sub ($result) {
             my $expected = $captured_struct->{m0};
             is( $result, $expected,
                 "callback struct-by-value roundtrip (expected: $expected, got: " . ( defined $result ? $result : 'undef' ) . ")" );
-        },
+        }
     };
 }
 
@@ -984,7 +984,7 @@ END_C
                 diag "callback struct ret: got=$result expected=$val";
             }
             ok( $ok, "callback struct-return roundtrip" );
-        },
+        }
     };
 }
 
@@ -1048,7 +1048,7 @@ END_C
                 diag "bitfield sum: got=$result expected=$expected widths=[@widths] values=[@values]";
             }
             ok( $ok, "bitfield struct roundtrip" );
-        },
+        }
     };
 }
 
@@ -1075,7 +1075,7 @@ END_C
                 diag "longdouble: got=$result expected=$val";
             }
             ok( $ok, "long double roundtrip" );
-        },
+        }
     };
 }
 
@@ -1112,7 +1112,7 @@ END_C
                 diag "complex: got=[$got_re,$got_im] expected=[$re,$im]";
             }
             ok( $ok, "complex ${c_type} roundtrip" );
-        },
+        }
     };
 }
 
@@ -1130,7 +1130,7 @@ sub generate_simd_fn {
             sig    => 'v[2:double]',
             prec   => 4
         },
-        { c_vec => 'int __attribute__((vector_size(16)))', count => 4, base_c => 'int', perl => sub { Int() }, sig => 'v[4:int]', prec => 0 },
+        { c_vec => 'int __attribute__((vector_size(16)))', count => 4, base_c => 'int', perl => sub { Int() }, sig => 'v[4:int]', prec => 0 }
     );
     my $spec   = pick(@specs);
     my $c_code = <<"END_C";
@@ -1160,7 +1160,7 @@ END_C
                 diag "SIMD: got=[" . join( ',', @$result ) . "] expected=[@vals]";
             }
             ok( $ok, "SIMD vector roundtrip" );
-        },
+        }
     };
 }
 
@@ -1216,7 +1216,7 @@ END_C
                 diag "float16: got=$result expected=$val";
             }
             ok( $ok, "float16 roundtrip via pointer" );
-        },
+        }
     };
 }
 
@@ -1305,7 +1305,7 @@ END_C
                 diag "flexible array: got=$result expected=$expected vals=[@vals]";
             }
             ok( $ok, "flexible array member roundtrip" );
-        },
+        }
     };
 }
 
@@ -1333,7 +1333,7 @@ END_C
                 diag "wstring: got=$result expected=" . length($test_str) . " str=$test_str";
             }
             ok( $ok, "wide string length roundtrip" );
-        },
+        }
     };
 }
 
@@ -1398,7 +1398,7 @@ END_C
                 diag "struct+callback: got=$result expected=$expected ret_size=$ret_size";
             }
             ok( $ok, "struct with callback pointer roundtrip" );
-        },
+        }
     };
 }
 
@@ -1458,7 +1458,7 @@ END_C
                 diag "deep_ptr($depth): got=$result expected=$val";
             }
             ok( $ok, "deeply nested pointer roundtrip" );
-        },
+        }
     };
 }
 
@@ -1498,7 +1498,7 @@ END_C
                 diag "void_ptr: got=$got expected=$val";
             }
             ok( $ok, "void pointer roundtrip" );
-        },
+        }
     };
 }
 
@@ -1519,7 +1519,7 @@ END_C
         perl_args  => [ String() ],
         perl_ret   => Int(),
         gen_values => [ sub {$test_str} ],
-        verify     => sub ($result) { ok( $result == length($test_str), "string length roundtrip" ) },
+        verify     => sub ($result) { ok( $result == length($test_str), "string length roundtrip" ) }
     };
 }
 
@@ -1586,7 +1586,7 @@ END_C
                 diag "GOT:     " . join( ", ", map {"$_=$result->{$_}"} sort keys %$result );
                 diag "EXPECTED:" . join( ", ", map {"$_=$expected{$_}"} sort keys %expected );
             }
-        },
+        }
     };
 }
 
@@ -1639,7 +1639,7 @@ END_C
         ],
         verify => $is_float ?
             sub ($result) { ok( abs( $result - $val ) < 0.01, "roundtrip" ) }
-        : sub ($result) { ok( $result == $val, "roundtrip" ) },
+        : sub ($result) { ok( $result == $val, "roundtrip" ) }
     };
 }
 
@@ -1689,7 +1689,7 @@ END_C
         ],
         verify => $is_float ?
             sub ($result) { ok( abs( $result - $val ) < 0.01, "roundtrip" ) }
-        : sub ($result) { ok( $result == $val, "roundtrip" ) },
+        : sub ($result) { ok( $result == $val, "roundtrip" ) }
     };
 }
 
@@ -1732,7 +1732,7 @@ END_C
                 diag "array sum: got=$result expected=$expected count=$count type=$base->{c}";
             }
             ok( $ok, "array sum roundtrip" );
-        },
+        }
     };
 }
 
@@ -1776,7 +1776,7 @@ END_C
                 sub ( $x, $y ) { $x * $y }
             },
             sub {$v1},
-            sub {$v2},
+            sub {$v2}
         ],
         verify => sub ($result) {
             my $add      = unpack( 'l', pack( 'l', $v1 + $v2 ) );
@@ -1787,7 +1787,7 @@ END_C
                 diag "multi_cb: got=$result expected=$expected (v1=$v1 v2=$v2 add=$add mul=$mul)";
             }
             ok( $ok, "multi-callback roundtrip" );
-        },
+        }
     };
 }
 
@@ -1849,7 +1849,7 @@ END_C
                 diag "struct_multi_cb: got=$result expected=$expected";
             }
             ok( $ok, "struct with multiple callbacks roundtrip" );
-        },
+        }
     };
 }
 
@@ -1912,7 +1912,7 @@ END_C
                 diag "linked_list($depth): got=$result expected=$expected vals=[@vals]";
             }
             ok( $ok, "linked list sum roundtrip" );
-        },
+        }
     };
 }
 
@@ -1962,7 +1962,7 @@ END_C
                 }
             },
             sub {$m0_val},
-            sub {$m1_val},
+            sub {$m1_val}
         ],
         verify => sub ($result) {
             my $expected = unpack( 'l', pack( 'l', $m0_val + $m1_val ) );
@@ -1971,7 +1971,7 @@ END_C
                 diag "cb_passing_struct_ptr: got=$result expected=$expected";
             }
             ok( $ok, "callback receiving struct pointer roundtrip" );
-        },
+        }
     };
 }
 
@@ -2029,7 +2029,7 @@ END_C
                 diag "deep_nest: got=$result expected=$expected";
             }
             ok( $ok, "deeply nested struct-pointer-callback roundtrip" );
-        },
+        }
     };
 }
 

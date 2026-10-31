@@ -5548,7 +5548,7 @@ XS_INTERNAL(Affix_memchr) {
     }
     int val = (int)SvIV(ST(1));
     size_t n = (size_t)SvUV(ST(2));
-    void * res = memchr(ptr, val, n);
+    void * res = (void*) memchr(ptr, val, n);
     if (res) {
         SV * sv = newSV(0);
         SV * owner = _borrow_lifeline(aTHX_ ST(0));
