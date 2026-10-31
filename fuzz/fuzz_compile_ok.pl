@@ -131,7 +131,9 @@ sub gen_valid_spec {
         args     => [ affix_for($arg) ],
         ret      => affix_for($ret),
         gen_args => sub { [$value] },
-        verify   => $flt ? sub ( $got, $vals ) { abs( $got - $vals->[0] ) < 0.01 } : sub ( $got, $vals ) { $got == $vals->[0] },
+        verify   => $flt ?
+            sub ( $got, $vals ) { abs( $got - $vals->[0] ) < 0.01 }
+        : sub ( $got, $vals ) { $got == $vals->[0] }
     };
 }
 
@@ -202,7 +204,7 @@ DLLEXPORT int cfuzz_big(int idx) {
             ret      => Int(),
             args     => [ Int() ],
             gen_args => sub { [ int( rand($size) ) ] },
-            verify   => sub ( $got, $vals ) { $got == 0 },
+            verify   => sub ( $got, $vals ) { $got == 0 }
         };
     }
     elsif ( $variant eq 'many_params' ) {
@@ -221,7 +223,7 @@ DLLEXPORT int cfuzz_many($pstr) {
             ret      => Int(),
             args     => [ ( Int() ) x $n ],
             gen_args => sub { [@vals] },
-            verify   => sub ( $got, $vals ) { my $s = 0; $s += $_ for @$vals; $got == $s },
+            verify   => sub ( $got, $vals ) { my $s = 0; $s += $_ for @$vals; $got == $s }
         };
     }
     elsif ( $variant eq 'empty_body' ) {
@@ -233,7 +235,7 @@ DLLEXPORT int cfuzz_empty(void) { return 0; }
             ret      => Int(),
             args     => [],
             gen_args => sub { [] },
-            verify   => sub ( $got, $vals ) { $got == 0 },
+            verify   => sub ( $got, $vals ) { $got == 0 }
         };
     }
     elsif ( $variant eq 'deep_nesting' ) {
@@ -254,7 +256,7 @@ DLLEXPORT $code
             ret      => Int(),
             args     => [ Int() ],
             gen_args => sub { [ int( rand(101) ) ] },
-            verify   => sub ( $got, $vals ) { my $x = $vals->[0]; $got == ( $x >= 20 ? $x : 0 ) },
+            verify   => sub ( $got, $vals ) { my $x = $vals->[0]; $got == ( $x >= 20 ? $x : 0 ) }
         };
     }
     elsif ( $variant eq 'string_buf' ) {
@@ -274,7 +276,7 @@ DLLEXPORT int cfuzz_strbuf(const char *s) {
             ret      => Int(),
             args     => [ String() ],
             gen_args => sub { [$str] },
-            verify   => sub ( $got, $vals ) { $got == length( $vals->[0] ) },
+            verify   => sub ( $got, $vals ) { $got == length( $vals->[0] ) }
         };
     }
     return gen_valid_spec();

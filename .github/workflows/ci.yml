@@ -43,7 +43,7 @@ jobs:
     with:
       checkout_submodules: 'recursive'
       task: |
-        export AUTOMATED_TESTING=1 AUTHOR_TESTING=0
+        export AUTOMATED_TESTING=1 AUTHOR_TESTING=1
         #~ Bootstrap cpanm via its canonical one-liner; on a writable perl (a
         #~ source build) it lands in the perl's own bin dir, which the runner
         #~ puts on PATH. Distro perl is read-only to the runner user, so
@@ -104,7 +104,7 @@ jobs:
     with:
       checkout_submodules: 'recursive'
       task: |
-        export AUTOMATED_TESTING=1 AUTHOR_TESTING=0
+        export AUTOMATED_TESTING=1 AUTHOR_TESTING=1
         #~ Bootstrap cpanm via its canonical one-liner; it installs into the
         #~ active (source-built) perl's bin dir, which the runner puts on PATH.
         curl -L https://cpanmin.us | perl - --notest App::cpanminus
@@ -328,7 +328,7 @@ jobs:
     with:
       checkout_submodules: 'recursive'
       task: |
-        export AUTOMATED_TESTING=1 AUTHOR_TESTING=0
+        export AUTOMATED_TESTING=1 AUTHOR_TESTING=1
         if [ -x "/c/cygwin/bin/bash.exe" ]; then
           /c/cygwin/bin/bash.exe --login -eo pipefail -o igncr -c "
             set -e

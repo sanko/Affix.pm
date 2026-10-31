@@ -5,6 +5,12 @@ All notable changes to Affix.pm will be documented in this file.
 The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.1.0/),
 and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0.html).
 
+## [Unreleased]
+
+### Fixed
+
+- Wrapped-call performance regression introduced in v1.2.4: every call eagerly created and destroyed two temporary arenas. They are now created only when an argument actually needs heap marshalling, and small return values use the stack, restoring throughput to pre-v1.2.4 levels without giving up the leak fix.
+
 ## [v1.3.0] - 2026-10-29
 
 ### Fixed
