@@ -1,5 +1,5 @@
 package    #
-    Test2::Tools::Affix v1.3.0 {
+    Test2::Tools::Affix v1.4.0 {
     use v5.40;
     use blib;
     use Affix;
