@@ -273,7 +273,7 @@ EOF
             like $content, qr/affix \$lib, ('static_func'|\[_static_func => 'static_func'\]) => \[Int\], Int;/, 'Function affix generated';
 
             # Syntax check
-            my ( undef, undef, $exit ) = capture { system $^X, '-Ilib', '-c', $pm_file->stringify };
+            my ( undef, undef, $exit ) = capture { system $^X, '-Mblib', '-c', $pm_file->stringify };
             is $exit >> 8, 0, 'Generated code syntax check OK';
         };
         subtest 'Security: _generate_code injection prevention (C1)' => sub {
@@ -304,7 +304,7 @@ EOF
                 like $content, qr/q\[.*\\\].*\]/, 'Closing bracket escaped inside q[...]';
 
                 # The entire file must compile — proves the payload is inert
-                my ( undef, undef, $exit ) = capture { system $^X, '-Ilib', '-c', $pm_file->stringify };
+                my ( undef, undef, $exit ) = capture { system $^X, '-Mblib', '-c', $pm_file->stringify };
                 is $exit >> 8, 0, 'Generated code compiles despite malicious lib';
             };
 
@@ -381,7 +381,7 @@ EOF
 
                 # Backslashes are doubled when escaped for q[...] (\\ -> \\\\)
                 like $content, qr/q\[.*C:\\\\Users\\\\Test\\\\lib\.dll\]/, 'Windows path safely quoted';
-                my ( undef, undef, $exit ) = capture { system $^X, '-Ilib', '-c', $pm_file->stringify };
+                my ( undef, undef, $exit ) = capture { system $^X, '-Mblib', '-c', $pm_file->stringify };
                 is $exit >> 8, 0, 'Generated code compiles with Windows path';
             };
 
