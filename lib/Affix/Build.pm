@@ -55,9 +55,11 @@ package Affix::Build v1.4.0 {
                 ( $self->_can_run(qw[g++ clang++ c++ icpx]) || $self->_can_run(qw[cc gcc clang icx cl]) || 'c++' );
 
             # Parse global flags...
-            @cflags   = map { chomp; $_ } grep { defined && length } Text::ParseWords::parse_line( q/ /, 1, $flags->{cflags}   // '' );
-            @cxxflags = map { chomp; $_ } grep { defined && length } Text::ParseWords::parse_line( q/ /, 1, $flags->{cxxflags} // '' );
-            @ldflags  = map { chomp; $_ } grep { defined && length } Text::ParseWords::parse_line( q/ /, 1, $flags->{ldflags}  // '' );
+            # keep => 0 strips shell-style quotes so a flag like -L"/path with spaces"
+            # reaches the compiler as one argument without the literal quote characters.
+            @cflags   = map { chomp; $_ } grep { defined && length } Text::ParseWords::parse_line( q/ /, 0, $flags->{cflags}   // '' );
+            @cxxflags = map { chomp; $_ } grep { defined && length } Text::ParseWords::parse_line( q/ /, 0, $flags->{cxxflags} // '' );
+            @ldflags  = map { chomp; $_ } grep { defined && length } Text::ParseWords::parse_line( q/ /, 0, $flags->{ldflags}  // '' );
         }
 
         method add ( $input, %args ) {

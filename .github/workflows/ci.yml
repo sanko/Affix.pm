@@ -244,6 +244,7 @@ jobs:
       checkout_submodules: 'recursive'
       task: |
         export AUTOMATED_TESTING=1 AUTHOR_TESTING=0
+        perl -MConfig -e 'print "perl=$] useithreads=$Config{useithreads} useshrplib=$Config{useshrplib} libperl=$Config{libperl}\n"'
         #~ Bootstrap cpanm via a file download, never `curl | perl`: some remote
         #~ sh's run under pipefail, and curl's EPIPE (23) after a clean pipe
         #~ install aborts the whole run even though it succeeded. cpanm lands in
@@ -262,7 +263,8 @@ jobs:
       matrix: >-
         [
           {"platform_name":"solaris","os":"solaris","arch":"x86_64","toolchain":"gcc","perl_version":"5.40.2","variant":"stock","prepare":"pkg install -v --accept perl-538 gcc developer/build/make bash web/curl"},
-          {"platform_name":"solaris","os":"solaris","arch":"x86_64","toolchain":"gcc","perl_version":"5.40.2","configure":"-A'ccflags=-D__EXTENSIONS__'","variant":"configured-extensions","prepare":"pkg install -v --accept perl-538 gcc developer/build/make bash web/curl"}
+          {"platform_name":"solaris","os":"solaris","arch":"x86_64","toolchain":"gcc","perl_version":"5.40.2","configure":"-A'ccflags=-D__EXTENSIONS__'","variant":"configured-extensions","prepare":"pkg install -v --accept perl-538 gcc developer/build/make bash web/curl"},
+          {"platform_name":"solaris","os":"solaris","arch":"x86_64","toolchain":"gcc","perl_version":"5.40.2","configure":"-Dusethreads -Duseshrplib -A'ccflags=-D__EXTENSIONS__'","variant":"threads-shared","prepare":"pkg install -v --accept perl-538 gcc developer/build/make bash web/curl"}
         ]
 
   omnios:
@@ -273,6 +275,7 @@ jobs:
       checkout_submodules: 'recursive'
       task: |
         export AUTOMATED_TESTING=1 AUTHOR_TESTING=0
+        perl -MConfig -e 'print "perl=$] useithreads=$Config{useithreads} useshrplib=$Config{useshrplib} libperl=$Config{libperl}\n"'
         #~ Bootstrap cpanm via a file download, never `curl | perl`: some remote
         #~ sh's run under pipefail, and curl's EPIPE (23) after a clean pipe
         #~ install aborts the whole run even though it succeeded. cpanm lands in
@@ -291,7 +294,8 @@ jobs:
       matrix: >-
         [
           {"platform_name":"omnios","os":"omnios","arch":"x86_64","toolchain":"gcc","perl_version":"5.40.2","configure":"-A'ccflags=-D__EXTENSIONS__ -fno-lto'","prepare":"pkg install -v --accept developer/gcc13 system/header developer/build/make web/curl"},
-          {"platform_name":"omnios","os":"omnios","arch":"x86_64","toolchain":"gcc","perl_version":"5.40.2","variant":"dmake","prepare":"pkg install -v --accept developer/gcc13 system/header developer/build/make web/curl"}
+          {"platform_name":"omnios","os":"omnios","arch":"x86_64","toolchain":"gcc","perl_version":"5.40.2","variant":"dmake","prepare":"pkg install -v --accept developer/gcc13 system/header developer/build/make web/curl"},
+          {"platform_name":"omnios","os":"omnios","arch":"x86_64","toolchain":"gcc","perl_version":"5.40.2","configure":"-Dusethreads -Duseshrplib -A'ccflags=-D__EXTENSIONS__ -fno-lto'","variant":"threads-shared","prepare":"pkg install -v --accept developer/gcc13 system/header developer/build/make web/curl"}
         ]
 
   haiku:
