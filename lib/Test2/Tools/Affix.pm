@@ -2,7 +2,7 @@ package    #
     Test2::Tools::Affix v1.4.1 {
     use v5.40;
     use blib;
-    use Affix;
+    use Affix qw[:all];
     use Affix::Build;
     use Test2::API              qw[context run_subtest];
     use Test2::Tools::Basic     qw[ok plan skip_all done_testing diag note pass fail];
@@ -12,9 +12,9 @@ package    #
     use Test2::Tools::Warnings  qw[warns];
     use Test2::Plugin::UTF8;
     use Test2::IPC;
-    use Path::Tiny qw[path tempfile];
-    use Exporter 'import';
-    use Capture::Tiny ':all';
+    use Path::Tiny    qw[path tempfile];
+    use Exporter      qw[import];
+    use Capture::Tiny qw[:all];
     our @CARP_NOT;
     our @EXPORT      = qw[compile_ok affix_ok leaks];
     our %EXPORT_TAGS = ( all => \@EXPORT );
