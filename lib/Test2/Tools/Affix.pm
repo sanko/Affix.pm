@@ -132,7 +132,7 @@ package    #
     use strict;
     use warnings;
     use lib %s;
-    use Affix;
+    use Affix qw[:all];
     no Test2::Plugin::ExitSummary;
     use Test2::V0;
     pass "generate valgrind suppressions";
@@ -306,7 +306,7 @@ no Test2::Plugin::ExitSummary; # I wish
 use Test2::Tools::Affix;
 # Test2::API::test2_stack()->top->{count} = %d;
 $|++;
-my $exit = sub {use Affix; Affix::set_destruct_level(3); %s;}->();
+my $exit = sub {use Affix qw[:all]; Affix::set_destruct_level(3); %s;}->();
 # Test2::API::test2_stack()->top->{count}++;
 done_testing;
 exit !$exit;
