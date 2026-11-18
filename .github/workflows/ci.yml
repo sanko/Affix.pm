@@ -244,6 +244,7 @@ jobs:
       checkout_submodules: 'recursive'
       task: |
         export AUTOMATED_TESTING=1 AUTHOR_TESTING=0
+        perl -MConfig -e 'print "perl=$] useithreads=$Config{useithreads} useshrplib=$Config{useshrplib} libperl=$Config{libperl}\n"'
         #~ Bootstrap cpanm via a file download, never `curl | perl`: some remote
         #~ sh's run under pipefail, and curl's EPIPE (23) after a clean pipe
         #~ install aborts the whole run even though it succeeded. cpanm lands in
@@ -262,7 +263,8 @@ jobs:
       matrix: >-
         [
           {"platform_name":"solaris","os":"solaris","arch":"x86_64","toolchain":"gcc","perl_version":"5.40.2","variant":"stock","prepare":"pkg install -v --accept perl-538 gcc developer/build/make bash web/curl"},
-          {"platform_name":"solaris","os":"solaris","arch":"x86_64","toolchain":"gcc","perl_version":"5.40.2","configure":"-A'ccflags=-D__EXTENSIONS__'","variant":"configured-extensions","prepare":"pkg install -v --accept perl-538 gcc developer/build/make bash web/curl"}
+          {"platform_name":"solaris","os":"solaris","arch":"x86_64","toolchain":"gcc","perl_version":"5.40.2","configure":"-A'ccflags=-D__EXTENSIONS__'","variant":"configured-extensions","prepare":"pkg install -v --accept perl-538 gcc developer/build/make bash web/curl"},
+          {"platform_name":"solaris","os":"solaris","arch":"x86_64","toolchain":"gcc","perl_version":"5.40.2","configure":"-Dusethreads -Duseshrplib -A'ccflags=-D__EXTENSIONS__'","variant":"threads-shared","prepare":"pkg install -v --accept perl-538 gcc developer/build/make bash web/curl"}
         ]
 
   omnios:
@@ -273,6 +275,7 @@ jobs:
       checkout_submodules: 'recursive'
       task: |
         export AUTOMATED_TESTING=1 AUTHOR_TESTING=0
+        perl -MConfig -e 'print "perl=$] useithreads=$Config{useithreads} useshrplib=$Config{useshrplib} libperl=$Config{libperl}\n"'
         #~ Bootstrap cpanm via a file download, never `curl | perl`: some remote
         #~ sh's run under pipefail, and curl's EPIPE (23) after a clean pipe
         #~ install aborts the whole run even though it succeeded. cpanm lands in
@@ -291,7 +294,64 @@ jobs:
       matrix: >-
         [
           {"platform_name":"omnios","os":"omnios","arch":"x86_64","toolchain":"gcc","perl_version":"5.40.2","configure":"-A'ccflags=-D__EXTENSIONS__ -fno-lto'","prepare":"pkg install -v --accept developer/gcc13 system/header developer/build/make web/curl"},
-          {"platform_name":"omnios","os":"omnios","arch":"x86_64","toolchain":"gcc","perl_version":"5.40.2","variant":"dmake","prepare":"pkg install -v --accept developer/gcc13 system/header developer/build/make web/curl"}
+          {"platform_name":"omnios","os":"omnios","arch":"x86_64","toolchain":"gcc","perl_version":"5.40.2","variant":"dmake","prepare":"pkg install -v --accept developer/gcc13 system/header developer/build/make web/curl"},
+          {"platform_name":"omnios","os":"omnios","arch":"x86_64","toolchain":"gcc","perl_version":"5.40.2","configure":"-Dusethreads -Duseshrplib -A'ccflags=-D__EXTENSIONS__ -fno-lto'","variant":"threads-shared","prepare":"pkg install -v --accept developer/gcc13 system/header developer/build/make web/curl"}
+        ]
+
+  #~ Diagnostic leg for the threads-shared SEGV. Keeps the exact failing
+  #~ configuration and adds -g only (debug info, no codegen/timing change) so
+  #~ gdb can name frames. The crashing test is run under gdb and every thread's
+  #~ stack is dumped into the job log. continue_on_error keeps this probe from
+  #~ colouring the PR; it is deliberately absent from `results.needs`.
+  omnios-backtrace:
+    name: OmniOS backtrace
+    uses: sanko/workflow-testing/.github/workflows/run-vm.yml@main
+    with:
+      os_version: 'r151050'
+      checkout_submodules: 'recursive'
+      continue_on_error: true
+      task: |
+        export AUTOMATED_TESTING=1 AUTHOR_TESTING=0
+        perl -MConfig -e 'print "perl=$] useithreads=$Config{useithreads} useshrplib=$Config{useshrplib} libperl=$Config{libperl} ccflags=$Config{ccflags}\n"'
+        command -v gdb
+        gdb --version | head -n 1
+        #~ Bootstrap cpanm via a file download, never `curl | perl`: some remote
+        #~ sh's run under pipefail, and curl's EPIPE (23) after a clean pipe
+        #~ install aborts the whole run even though it succeeded. cpanm lands in
+        #~ the active perl's sitebin/scriptdir, which is not on PATH everywhere,
+        #~ so re-export those dirs after bootstrapping.
+        if command -v curl >/dev/null 2>&1; then curl -fsSL https://cpanmin.us -o /tmp/cpanmin.pl
+        elif command -v wget >/dev/null 2>&1; then wget -qO /tmp/cpanmin.pl https://cpanmin.us
+        elif command -v fetch >/dev/null 2>&1; then fetch -o /tmp/cpanmin.pl https://cpanmin.us
+        else echo 'no http downloader available' >&2; exit 1; fi
+        perl /tmp/cpanmin.pl --notest App::cpanminus Module::Build::Tiny
+        rm -f /tmp/cpanmin.pl
+        export PATH="$(dirname "$(perl -e 'print $^X')"):$(perl -MConfig -e 'print "$Config{sitebin}:$Config{scriptdir}:"' 2>/dev/null):$PATH"
+        command -v cpanm
+        cpanm --installdeps --notest -v .
+        #~ Build with the plain flags so the crash matches the failing
+        #~ threads-shared leg; the perl itself carries -g (see configure below),
+        #~ which gives gdb line numbers without changing generated code/timing.
+        perl Build.PL
+        ./Build
+        #~ Run the crashing test under gdb and dump every thread's stack.
+        #~ set +e so the inferior's status never hides the backtrace.
+        set +e
+        gdb -q --batch \
+          -ex 'set pagination off' \
+          -ex 'set confirm off' \
+          -ex 'set print thread-events off' \
+          -ex 'run' \
+          -ex 'bt full' \
+          -ex 'info threads' \
+          -ex 'thread apply all bt full' \
+          --args "$(perl -e 'print $^X')" -Mblib t/027_thread_safety.t
+        gdb_status=$?
+        set -e
+        echo "== gdb exit status: $gdb_status"
+      matrix: >-
+        [
+          {"platform_name":"omnios","os":"omnios","arch":"x86_64","toolchain":"gcc","perl_version":"5.40.2","configure":"-Dusethreads -Duseshrplib -A'ccflags=-D__EXTENSIONS__ -fno-lto -g'","variant":"backtrace","prepare":"pkg install -v --accept developer/gcc13 system/header developer/build/make web/curl; pkg install -v --accept developer/debug/gdb || pkg install -v --accept developer/gdb || true"}
         ]
 
   haiku:
