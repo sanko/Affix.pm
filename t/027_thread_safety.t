@@ -7,6 +7,7 @@ use Affix qw[:all];
 use Config;
 #
 $|++;
+require threads if $Config{useithreads};
 #
 subtest 'os threads' => sub {
     typedef Callback_t => Callback [ [Int] => Void ];
@@ -109,7 +110,6 @@ subtest 'os threads' => sub {
 #
 subtest ithreads => sub {
     skip_all 'No ithreads', 1 unless $Config{useithreads};
-    require threads;
 
     # Test core affix cloning and usage across threads
     ok affix libc(), [ abs => 'absolute' ], [Int] => Int;
