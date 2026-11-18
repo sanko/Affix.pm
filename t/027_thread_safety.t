@@ -7,6 +7,11 @@ use Affix qw[:all];
 use Config;
 #
 $|++;
+
+# Load threads up front, before the foreign-thread callback subtest below.
+# On OmniOS/illumos ithreads builds, requiring threads.pm after a C-created
+# thread has called into Perl and exited faults in libc's localeconv() while
+# Perl parses "use 5.008;". Loading it here keeps that parse out of the window.
 require threads if $Config{useithreads};
 #
 subtest 'os threads' => sub {
