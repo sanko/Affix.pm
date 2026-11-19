@@ -363,10 +363,17 @@ jobs:
         export AUTOMATED_TESTING=1 AUTHOR_TESTING=1
         if [ -n "$AFFIX_CYGWIN" ]; then
           [ -x "/c/cygwin/bin/bash.exe" ] || { echo 'Cygwin was requested but bash.exe is missing' >&2; exit 1; }
+          mkdir -p /c/cygwin/tmp
           cat > /c/cygwin/tmp/affix-task.sh <<'AFFIX_CYGWIN_TASK'
           set -e
-          cd "$(cygpath -u "$GITHUB_WORKSPACE")"
+          #~ git-bash rewrites POSIX-looking arguments when it launches a
+          #~ native .exe, so MSYS_NO_PATHCONV below passes the Cygwin path
+          #~ through untouched. Force Cygwin's own tools ahead of any
+          #~ inherited Strawberry entries before doing anything else.
+          export PATH="/usr/local/bin:/usr/bin:/bin:$PATH"
           perl -MConfig -e 'print qq(perl=$^X os=$^O version=$] archname=$Config{archname}\n)'
+          perl -e 'die "expected Cygwin perl, got $^O\n" unless $^O eq "cygwin"'
+          cd "$(cygpath -u "$GITHUB_WORKSPACE")"
           curl -fsSL https://cpanmin.us -o /tmp/cpanmin.pl
           perl /tmp/cpanmin.pl --notest App::cpanminus Module::Build::Tiny
           rm -f /tmp/cpanmin.pl
@@ -375,7 +382,7 @@ jobs:
           cpanm --installdeps --notest -v .
           cpanm --test-only -v .
         AFFIX_CYGWIN_TASK
-          /c/cygwin/bin/bash.exe --login -eo pipefail -o igncr /tmp/affix-task.sh
+          MSYS_NO_PATHCONV=1 MSYS2_ARG_CONV_EXCL='*' /c/cygwin/bin/bash.exe --login -eo pipefail -o igncr /cygdrive/c/cygwin/tmp/affix-task.sh
           rm -f /c/cygwin/tmp/affix-task.sh
         else
           export PATH="/c/Strawberry/perl/site/bin:/c/Strawberry/perl/bin:/c/Strawberry/c/bin:$PATH"
