@@ -9,9 +9,7 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ### Fixed
 
-- The Cygwin CI leg actually runs Cygwin Perl now. It had been booting a VM, asserting that native Perl was installed, and then never running a single Cygwin test. The task is now launched through Cygwin's bash with a Cygwin-only `PATH`, and Git Bash argument conversion is disabled so the POSIX script path survives intact.
-- A failure to open a library reported a bare `Failed to locate symbol '...'` warning instead of the loader's error, even though the diagnostic was meant to include it. `wrap()` now keeps the `dlopen()` error so the message names the real cause.
-- `t/018_sv_type.t` embeds Perl in a small shared library. On NetBSD/pkgsrc (aarch64), `libperl.so` lives only in Perl's `CORE` directory, which is not on the dynamic loader's default search path, so `dlopen()` could not resolve it. The shim now carries an rpath for that directory.
+- `affix(...)`/`wrap(...)` now keep the `dlopen(...)` error on failure.
 
 ## [v1.4.1] - 2026-11-18
 
