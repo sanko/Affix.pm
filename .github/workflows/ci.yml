@@ -368,9 +368,11 @@ jobs:
           set -e
           #~ git-bash rewrites POSIX-looking arguments when it launches a
           #~ native .exe, so MSYS_NO_PATHCONV below passes the Cygwin path
-          #~ through untouched. Force Cygwin's own tools ahead of any
-          #~ inherited Strawberry entries before doing anything else.
-          export PATH="/usr/local/bin:/usr/bin:/bin:$PATH"
+          #~ through untouched. Use only Cygwin tools: the inherited PATH
+          #~ contains Strawberry/native Windows compilers (gfortran, rustc,
+          #~ go, nasm, ...) that cannot open Cygwin /tmp paths and make the
+          #~ optional toolchain probes in t/017 pick the wrong binaries.
+          export PATH="/usr/local/bin:/usr/bin:/bin"
           perl -MConfig -e 'print qq(perl=$^X os=$^O version=$] archname=$Config{archname}\n)'
           perl -e 'die "expected Cygwin perl, got $^O\n" unless $^O eq "cygwin"'
           cd "$(cygpath -u "$GITHUB_WORKSPACE")"
