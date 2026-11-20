@@ -1,0 +1,101 @@
+name: Benchmark Showdown
+
+permissions:
+  contents: read
+
+on:
+  workflow_dispatch:
+    inputs:
+      seconds:
+        description: CPU seconds spent on each implementation
+        type: number
+        default: 5
+        min: 1
+        max: 60
+jobs:
+  linux:
+    name: Linux
+    uses: sanko/workflow-testing/.github/workflows/run-direct.yml@main
+    with:
+      checkout_submodules: 'recursive'
+      task: |
+        set -e
+        export AUTOMATED_TESTING=1 AUTHOR_TESTING=0
+        export AFFIX_BENCH_SECONDS='${{ inputs.seconds }}'
+        perl -e 'print qq(perl=$^X version=$] archname=$Config{archname} os=$^O\n)'
+        curl -L https://cpanmin.us | perl - --notest App::cpanminus
+        command -v cpanm
+        cpanm --notest -q Inline::C FFI::Platypus
+        cpanm --installdeps --notest --with-suggests --with-recommends --with-configure -q .
+        cpanm --notest -q .
+        perl -Mblib eg/benchmarks/bindings.pl 2>&1 | tee benchmark.txt
+        {
+          echo "### $RAW_NAME — sin(double) -> double"
+          echo
+          echo '```text'
+          cat benchmark.txt
+          echo '```'
+        } >> "$GITHUB_STEP_SUMMARY"
+      matrix: >-
+        [
+          {"name":"x64","arch":"x86_64","platform_name":"linux","os":"ubuntu-24.04","toolchain":"gcc","perl_version":"5.42.0","configure":"-Dusethreads","prepare":"sudo apt-get update -y && sudo apt-get install -y build-essential libperl-dev libcrypt-dev libffi-dev"},
+          {"name":"arm64","arch":"aarch64","platform_name":"linux","os":"ubuntu-24.04-arm","toolchain":"gcc","perl_version":"5.42.0","configure":"-Dusethreads","prepare":"sudo apt-get update -y && sudo apt-get install -y build-essential libperl-dev libcrypt-dev libffi-dev"}
+        ]
+
+  macos:
+    name: macOS
+    uses: sanko/workflow-testing/.github/workflows/run-direct.yml@main
+    with:
+      checkout_submodules: 'recursive'
+      task: |
+        set -e
+        export AUTOMATED_TESTING=1 AUTHOR_TESTING=0
+        export AFFIX_BENCH_SECONDS='${{ inputs.seconds }}'
+        perl -e 'print qq(perl=$^X version=$] archname=$Config{archname} os=$^O\n)'
+        curl -L https://cpanmin.us | perl - --notest App::cpanminus
+        command -v cpanm
+        cpanm --notest -q Inline::C FFI::Platypus
+        cpanm --installdeps --notest --with-suggests --with-recommends --with-configure -q .
+        cpanm --notest -q .
+        perl -Mblib eg/benchmarks/bindings.pl 2>&1 | tee benchmark.txt
+        {
+          echo "### $RAW_NAME — sin(double) -> double"
+          echo
+          echo '```text'
+          cat benchmark.txt
+          echo '```'
+        } >> "$GITHUB_STEP_SUMMARY"
+      matrix: >-
+        [
+          {"name":"x64","arch":"x86_64","platform_name":"macos","os":"macos-15-intel","toolchain":"clang","perl_version":"5.42.0","configure":"-Dusethreads"},
+          {"name":"arm64","arch":"aarch64","platform_name":"macos","os":"macos-15","toolchain":"clang","perl_version":"5.42.0","configure":"-Dusethreads"}
+        ]
+
+  windows:
+    name: Windows
+    uses: sanko/workflow-testing/.github/workflows/run-direct.yml@main
+    with:
+      checkout_submodules: 'recursive'
+      task: |
+        set -e
+        export AUTOMATED_TESTING=1 AUTHOR_TESTING=0
+        export AFFIX_BENCH_SECONDS='${{ inputs.seconds }}'
+        perl -e 'print qq(perl=$^X version=$] archname=$Config{archname} os=$^O\n)'
+        curl -L https://cpanmin.us | perl - --notest App::cpanminus
+        command -v cpanm
+        cpanm --notest -q Inline::C FFI::Platypus
+        cpanm --installdeps --notest --with-suggests --with-recommends --with-configure -q .
+        cpanm --notest -q .
+        perl -Mblib eg/benchmarks/bindings.pl 2>&1 | tee benchmark.txt
+        {
+          echo "### $RAW_NAME — sin(double) -> double"
+          echo
+          echo '```text'
+          cat benchmark.txt
+          echo '```'
+        } >> "$GITHUB_STEP_SUMMARY"
+      matrix: >-
+        [
+          {"name":"x64","arch":"x86_64","platform_name":"windows","os":"windows-2022","toolchain":"gcc","variant":"5.42.3.1","prepare":"curl -sL -o /c/strawberry.zip https://github.com/StrawberryPerl/Perl-Dist-Strawberry/releases/download/SP_54231_64bit/strawberry-perl-5.42.3.1-64bit-portable.zip && rm -rf /c/Strawberry; powershell -NoProfile -Command Expand-Archive -Path C:/strawberry.zip -DestinationPath C:/Strawberry -Force -ErrorAction Stop; rm -f /c/strawberry.zip"},
+          {"name":"arm64","arch":"aarch64","platform_name":"windows","os":"windows-11-arm","toolchain":"gcc","variant":"5.42.3.1","prepare":"choco install make -y; curl -sL -o /c/strawberry.zip https://github.com/StrawberryPerl/Perl-Dist-Strawberry/releases/download/SP_54231_64bit/strawberry-perl-5.42.3.1-64bit-portable.zip && rm -rf /c/Strawberry; powershell -NoProfile -Command Expand-Archive -Path C:/strawberry.zip -DestinationPath C:/Strawberry -Force -ErrorAction Stop; rm -f /c/strawberry.zip"}
+        ]
