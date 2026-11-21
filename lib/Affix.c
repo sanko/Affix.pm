@@ -2266,6 +2266,81 @@ CASE_OP_DONE:                                                                   
 GENERATE_TRIGGER_XSUB(Affix_trigger_stack, 1)
 GENERATE_TRIGGER_XSUB(Affix_trigger_arena, 0)
 
+/*
+ * Specialized monolithic XSUBs for the most common scalar signatures.
+ * These skip the generic dispatch loop, the three stack allocations and the
+ * return-opcode switch. They are installed at affix()/wrap() time and remain
+ * in effect for ithread clones (the CV's XSUB address is unchanged).
+ */
+static void Affix_fast_double_double(pTHX_ CV * cv) {
+    if (UNLIKELY(PL_dirty))
+        return;
+    dSP;
+    dAXMARK;
+    dXSTARG;
+    Affix * affix = (Affix *)CvXSUBANY(cv).any_ptr;
+
+    if (UNLIKELY(!affix->infix))
+        rebuild_affix_data(aTHX_ affix);
+    if (UNLIKELY((SP - MARK) != 1))
+        croak("Wrong number of arguments. Expected 1, got %d", (int)(SP - MARK));
+
+    double arg = SvNV(ST(0));
+    double ret;
+    void * c_args[1] = { &arg };
+    affix->cif(&ret, c_args);
+
+    sv_setnv(TARG, ret);
+    ST(0) = TARG;
+    XSRETURN(1);
+}
+
+static void Affix_fast_sint32_sint32(pTHX_ CV * cv) {
+    if (UNLIKELY(PL_dirty))
+        return;
+    dSP;
+    dAXMARK;
+    dXSTARG;
+    Affix * affix = (Affix *)CvXSUBANY(cv).any_ptr;
+
+    if (UNLIKELY(!affix->infix))
+        rebuild_affix_data(aTHX_ affix);
+    if (UNLIKELY((SP - MARK) != 1))
+        croak("Wrong number of arguments. Expected 1, got %d", (int)(SP - MARK));
+
+    int32_t arg = (int32_t)SvIV(ST(0));
+    int32_t ret;
+    void * c_args[1] = { &arg };
+    affix->cif(&ret, c_args);
+
+    sv_setiv(TARG, (IV)ret);
+    ST(0) = TARG;
+    XSRETURN(1);
+}
+
+static void Affix_fast_ptr_char_sint32(pTHX_ CV * cv) {
+    if (UNLIKELY(PL_dirty))
+        return;
+    dSP;
+    dAXMARK;
+    dXSTARG;
+    Affix * affix = (Affix *)CvXSUBANY(cv).any_ptr;
+
+    if (UNLIKELY(!affix->infix))
+        rebuild_affix_data(aTHX_ affix);
+    if (UNLIKELY((SP - MARK) != 1))
+        croak("Wrong number of arguments. Expected 1, got %d", (int)(SP - MARK));
+
+    const char * arg = SvPV_nolen(ST(0));
+    int32_t ret;
+    void * c_args[1] = { (void *)&arg };
+    affix->cif(&ret, c_args);
+
+    sv_setiv(TARG, (IV)ret);
+    ST(0) = TARG;
+    XSRETURN(1);
+}
+
 static void _lib_registry_inc_ref(pTHX_ infix_library_t * lib) {
     dMY_CXT;
     if (MY_CXT.lib_registry == nullptr)
@@ -2397,6 +2472,7 @@ static int Affix_cv_dup(pTHX_ MAGIC * mg, CLONE_PARAMS * param) {
     new_affix->plan_length = old_affix->plan_length;
     new_affix->total_args_size = old_affix->total_args_size;
     new_affix->ret_opcode = old_affix->ret_opcode;
+    new_affix->fast_xsub = old_affix->fast_xsub;
     new_affix->maybe_lazy_args = old_affix->maybe_lazy_args;
     new_affix->all_plain_scalars = old_affix->all_plain_scalars;
     new_affix->num_out_params = old_affix->num_out_params;
@@ -3242,6 +3318,21 @@ XS_INTERNAL(Affix_affix) {
     affix->num_out_params = out_param_count;
     affix->all_plain_scalars = all_plain_scalars && (out_param_count == 0);
     affix->maybe_lazy_args = maybe_lazy_args;
+
+    /* Select a monolithic XSUB for signatures whose whole call can be
+     * expressed without the generic plan. Only exact one-argument scalar
+     * shapes are handled; everything else keeps the generic trigger. */
+    affix->fast_xsub = nullptr;
+    if (!is_variadic && affix->num_args == 1 && affix->num_out_params == 0) {
+        Affix_Opcode push = affix->plan[0].opcode;
+        if (push == OP_PUSH_DOUBLE && affix->ret_opcode == OP_RET_DOUBLE)
+            affix->fast_xsub = Affix_fast_double_double;
+        else if (push == OP_PUSH_SINT32 && affix->ret_opcode == OP_RET_SINT32)
+            affix->fast_xsub = Affix_fast_sint32_sint32;
+        else if (push == OP_PUSH_PTR_CHAR && affix->ret_opcode == OP_RET_SINT32)
+            affix->fast_xsub = Affix_fast_ptr_char_sint32;
+    }
+
     if (out_param_count > 0) {
         affix->out_param_info = safemalloc(sizeof(OutParamInfo) * out_param_count);
         memcpy(affix->out_param_info, temp_out_info, sizeof(OutParamInfo) * out_param_count);
@@ -3267,6 +3358,8 @@ XS_INTERNAL(Affix_affix) {
     XSUBADDR_t trigger;
     if (is_variadic)
         trigger = Affix_trigger_variadic;
+    else if (affix->fast_xsub)
+        trigger = affix->fast_xsub;
     else
         trigger = (affix->total_args_size <= 512) ? Affix_trigger_stack : Affix_trigger_arena;
 
