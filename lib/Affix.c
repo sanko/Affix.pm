@@ -1783,6 +1783,25 @@ Affix_Out_Param_Writer get_out_param_writer(const infix_type * pointee_type) {
 #define DEFINE_DISPATCH_TABLE()
 #endif
 
+// Byte-order-aware offset for pointing at the low bytes of an SV's IV/UV union.
+// On little-endian, the low-order bytes are at offset 0; on big-endian they are
+// at (sizeof(IV) - target_size). BYTEORDER is defined by perl's config.h.
+#if BYTEORDER == 0x12345678 || BYTEORDER == 0x1234
+#  define AFFIX_INT_BYTE_OFFSET(iv_size, target_size) 0
+#else
+#  define AFFIX_INT_BYTE_OFFSET(iv_size, target_size) ((iv_size) - (target_size))
+#endif
+
+// Attempt to point c_args directly at the SV's IV slot when it holds a valid
+// public integer value. The trampoline reads only the target type's bytes with
+// the correct sign/zero extension, so low-byte truncation matches the fallback.
+#define AFFIX_TRY_DIRECT_INT(sv, flags, target_size, dest)                                       \
+    if (LIKELY((flags & SVf_IOK) && !(flags & SVs_GMG) && !SvROK(sv) &&                          \
+               (target_size) <= sizeof(IV))) {                                                   \
+        dest = (void *)((char *)&SvIVX(sv) + AFFIX_INT_BYTE_OFFSET(sizeof(IV), (target_size)));  \
+        DISPATCH();                                                                              \
+    }
+
 // Forward declaration for the lazy rebuilder
 static void rebuild_affix_data(pTHX_ Affix * affix);
 
@@ -1884,6 +1903,8 @@ CASE_OP_PUSH_SINT8:                                                             
         {                                                                                                       \
             SV * sv = ST(step->data.index);                                                                     \
             void * ptr = (char *)args_buffer + step->data.c_arg_offset;                                         \
+            U32 flags = SvFLAGS(sv);                                                                            \
+            AFFIX_TRY_DIRECT_INT(sv, flags, sizeof(int8_t), c_args[step->data.index])                           \
             *(int8_t *)ptr = (int8_t)SvIV(sv);                                                                  \
             c_args[step->data.index] = ptr;                                                                     \
             DISPATCH();                                                                                         \
@@ -1892,6 +1913,8 @@ CASE_OP_PUSH_UINT8:                                                             
         {                                                                                                       \
             SV * sv = ST(step->data.index);                                                                     \
             void * ptr = (char *)args_buffer + step->data.c_arg_offset;                                         \
+            U32 flags = SvFLAGS(sv);                                                                            \
+            AFFIX_TRY_DIRECT_INT(sv, flags, sizeof(uint8_t), c_args[step->data.index])                          \
             *(uint8_t *)ptr = (uint8_t)SvUV(sv);                                                                \
             c_args[step->data.index] = ptr;                                                                     \
             DISPATCH();                                                                                         \
@@ -1900,6 +1923,8 @@ CASE_OP_PUSH_SINT16:                                                            
         {                                                                                                       \
             SV * sv = ST(step->data.index);                                                                     \
             void * ptr = (char *)args_buffer + step->data.c_arg_offset;                                         \
+            U32 flags = SvFLAGS(sv);                                                                            \
+            AFFIX_TRY_DIRECT_INT(sv, flags, sizeof(int16_t), c_args[step->data.index])                          \
             *(int16_t *)ptr = (int16_t)SvIV(sv);                                                                \
             c_args[step->data.index] = ptr;                                                                     \
             DISPATCH();                                                                                         \
@@ -1908,6 +1933,8 @@ CASE_OP_PUSH_UINT16:                                                            
         {                                                                                                       \
             SV * sv = ST(step->data.index);                                                                     \
             void * ptr = (char *)args_buffer + step->data.c_arg_offset;                                         \
+            U32 flags = SvFLAGS(sv);                                                                            \
+            AFFIX_TRY_DIRECT_INT(sv, flags, sizeof(uint16_t), c_args[step->data.index])                         \
             *(uint16_t *)ptr = (uint16_t)SvUV(sv);                                                              \
             c_args[step->data.index] = ptr;                                                                     \
             DISPATCH();                                                                                         \
@@ -1916,6 +1943,8 @@ CASE_OP_PUSH_SINT32:                                                            
         {                                                                                                       \
             SV * sv = ST(step->data.index);                                                                     \
             void * ptr = (char *)args_buffer + step->data.c_arg_offset;                                         \
+            U32 flags = SvFLAGS(sv);                                                                            \
+            AFFIX_TRY_DIRECT_INT(sv, flags, sizeof(int32_t), c_args[step->data.index])                          \
             *(int32_t *)ptr = (int32_t)SvIV(sv);                                                                \
             c_args[step->data.index] = ptr;                                                                     \
             DISPATCH();                                                                                         \
@@ -1924,6 +1953,8 @@ CASE_OP_PUSH_UINT32:                                                            
         {                                                                                                       \
             SV * sv = ST(step->data.index);                                                                     \
             void * ptr = (char *)args_buffer + step->data.c_arg_offset;                                         \
+            U32 flags = SvFLAGS(sv);                                                                            \
+            AFFIX_TRY_DIRECT_INT(sv, flags, sizeof(uint32_t), c_args[step->data.index])                         \
             *(uint32_t *)ptr = (uint32_t)SvUV(sv);                                                              \
             c_args[step->data.index] = ptr;                                                                     \
             DISPATCH();                                                                                         \
@@ -1932,6 +1963,8 @@ CASE_OP_PUSH_SINT64:                                                            
         {                                                                                                       \
             SV * sv = ST(step->data.index);                                                                     \
             void * ptr = (char *)args_buffer + step->data.c_arg_offset;                                         \
+            U32 flags = SvFLAGS(sv);                                                                            \
+            AFFIX_TRY_DIRECT_INT(sv, flags, sizeof(int64_t), c_args[step->data.index])                          \
             *(int64_t *)ptr = (int64_t)SvIV(sv);                                                                \
             c_args[step->data.index] = ptr;                                                                     \
             DISPATCH();                                                                                         \
@@ -1940,6 +1973,8 @@ CASE_OP_PUSH_UINT64:                                                            
         {                                                                                                       \
             SV * sv = ST(step->data.index);                                                                     \
             void * ptr = (char *)args_buffer + step->data.c_arg_offset;                                         \
+            U32 flags = SvFLAGS(sv);                                                                            \
+            AFFIX_TRY_DIRECT_INT(sv, flags, sizeof(uint64_t), c_args[step->data.index])                         \
             *(uint64_t *)ptr = (uint64_t)SvUV(sv);                                                              \
             c_args[step->data.index] = ptr;                                                                     \
             DISPATCH();                                                                                         \
