@@ -28,12 +28,19 @@ jobs:
         cpanm --notest -q Inline::C FFI::Platypus
         cpanm --installdeps --notest --with-suggests --with-recommends --with-configure -q .
         cpanm --notest -q .
-        perl -Mblib eg/benchmarks/bindings.pl 2>&1 | tee benchmark.txt
+        perl -Mblib eg/benchmarks/bindings.pl 2>&1 | tee benchmark-bindings.txt
+        perl -Mblib eg/benchmarks/multi_arg.pl 2>&1 | tee benchmark-multi-arg.txt
         {
-          echo "### $RAW_NAME — sin(double) -> double"
+          echo "### $RAW_NAME — bindings: sin/abs/strlen"
           echo
           echo '```text'
-          cat benchmark.txt
+          cat benchmark-bindings.txt
+          echo '```'
+          echo
+          echo "### $RAW_NAME — scalar specializations"
+          echo
+          echo '```text'
+          cat benchmark-multi-arg.txt
           echo '```'
         } >> "$GITHUB_STEP_SUMMARY"
       matrix: >-
@@ -57,12 +64,19 @@ jobs:
         cpanm --notest -q Inline::C FFI::Platypus
         cpanm --installdeps --notest --with-suggests --with-recommends --with-configure -q .
         cpanm --notest -q .
-        perl -Mblib eg/benchmarks/bindings.pl 2>&1 | tee benchmark.txt
+        perl -Mblib eg/benchmarks/bindings.pl 2>&1 | tee benchmark-bindings.txt
+        perl -Mblib eg/benchmarks/multi_arg.pl 2>&1 | tee benchmark-multi-arg.txt
         {
-          echo "### $RAW_NAME — sin(double) -> double"
+          echo "### $RAW_NAME — bindings: sin/abs/strlen"
           echo
           echo '```text'
-          cat benchmark.txt
+          cat benchmark-bindings.txt
+          echo '```'
+          echo
+          echo "### $RAW_NAME — scalar specializations"
+          echo
+          echo '```text'
+          cat benchmark-multi-arg.txt
           echo '```'
         } >> "$GITHUB_STEP_SUMMARY"
       matrix: >-
@@ -86,12 +100,19 @@ jobs:
         cpanm --notest -q Inline::C FFI::Platypus
         cpanm --installdeps --notest --with-suggests --with-recommends --with-configure -q .
         cpanm --notest -q .
-        perl -Mblib eg/benchmarks/bindings.pl 2>&1 | tee benchmark.txt
+        perl -Mblib eg/benchmarks/bindings.pl 2>&1 | tee benchmark-bindings.txt
+        perl -Mblib eg/benchmarks/multi_arg.pl 2>&1 | tee benchmark-multi-arg.txt
         {
-          echo "### $RAW_NAME — sin(double) -> double"
+          echo "### $RAW_NAME — bindings: sin/abs/strlen"
           echo
           echo '```text'
-          cat benchmark.txt
+          cat benchmark-bindings.txt
+          echo '```'
+          echo
+          echo "### $RAW_NAME — scalar specializations"
+          echo
+          echo '```text'
+          cat benchmark-multi-arg.txt
           echo '```'
         } >> "$GITHUB_STEP_SUMMARY"
       matrix: >-

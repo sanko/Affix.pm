@@ -7,6 +7,16 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ## [Unreleased]
 
+I've added specialized monolithic XSUBs for many ordinary scalar calls which is how I'd planned early versions of Dyn.pm to behave. Because benchmarks matter.
+
+### Added
+
+- Another silly benchmark in `eg/benchmarks/bindings.pl` which pits Affix, Inline::C, FFI::Platypus, and XS (as dealt with by ExtUtils::ParseXS and ExtUtils::CBuilder) against each other in an arbitrary race.
+
+### Changed
+
+- `Double`, `Float`, `Int32` and `UInt32` now have direct typed call paths for arity 1-3, plus mixed `double`/`int32` pairs and `Void` returns. The selected XSUB calls the target through a typed C function pointer, skipping generic argument dispatch, stack staging, the `infix` trampoline and the return-opcode switch. Pointers, lvalues, enums, structs, callbacks, out-parameters, variadics and strings still use the generic marshaller so Affix's write-back and pointer magic is unchanged.
+
 ## [v1.4.2] - 2026-11-19
 
 ### Fixed
