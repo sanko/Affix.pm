@@ -160,15 +160,26 @@ and portability cost.
 | `44863288263` | `bench/opt-235` r1 (#2 + #3 + #5) | First six-platform validation of the coalesced-allocation change |
 | `44868560954` | `bench/opt-235` r2 | Repeat to separate code effects from runner noise |
 | `44868609619` | `bench/sv-return` (#4) | Six-platform validation of direct TARG writes |
+| `44868609619` rerun | `bench/sv-return` (#4) | Repeat under a heavily loaded runner; Linux x64 Affix/XS `sin` reached 0.98 |
+| `44904811037` | current `dev` (C code identical to baseline) | Control under current runner state: Linux x64 Affix/XS `sin` fell to 0.56 |
 
 Conclusions:
 
 - The macOS arm64 `sin` drop seen in all three later runs is environmental:
   it appears in `sv-return` too, which shares none of the 2/3/5 changes.
-- The Linux arm64 `strlen` drop is a genuine code effect: it appears in both
-  opt-235 runs in plain `Affix` and `Affix wrap` only, while every reference
-  implementation stays flat and `sv-return` returns to baseline.
+- The Linux arm64 `strlen` drop remains the best-supported code effect: it
+  appears in both opt-235 runs in plain `Affix` and `Affix wrap` only, while
+  every reference implementation stays flat and `sv-return` returns to
+  baseline. The newly documented Affix-only run variance makes this less
+  certain than the original rejection implied, but not enough to revisit it.
 - Local single-machine A/B is useful for screening but not for landing: idea 4
   and ideas 2/3/5 both looked good locally and failed on arm64 in CI.
 - Runner drift between runs can exceed 40%; always compare against XS and
   Inline::C *within the same run* before attributing a change to code.
+- Even that correction is insufficient on its own. Run `44904811037` used C
+  code identical to the canonical baseline, yet Linux x64 `sin` Affix
+  throughput was 17.25M vs 21.50M and the Affix/XS ratio swung from 0.73 to
+  0.56, while XS, Inline::C and FFI::Platypus stayed within 5% of baseline.
+  Drift correction therefore reported a spurious -22% "regression" for
+  unchanged code. Single-run Affix/XS ratios on identical code span 0.56-0.98;
+  no article claim should rest on one of them.
