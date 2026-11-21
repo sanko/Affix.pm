@@ -10,16 +10,19 @@ Ranked roughly by expected payoff / effort.
 ---
 
 ### 1. Specialized monolithic XSUBs for common signatures
-**Status:** Implemented on branch `bench/mono-xsub` (commit `6e3815c`, refined
-in the following commit) for `double -> double` and `int -> int` only. Six-platform
-run `44907830140` (10-second samples) showed drift-corrected gains versus the
-canonical baseline: sin +15% Linux x64, +43% macOS x64, +19% Windows x64,
-+15% Windows arm64, +5% Linux arm64; abs +15% / +40% / +8% / +14% / +8%
-respectively. The `String -> Int32` specialization was dropped: it showed no
-gain because the generic `OP_PUSH_PTR_CHAR` case already points at `SvPVX`
-directly. macOS arm64 `sin` was inconclusive (plain and wrapped forms diverged
-with identical code). Linux arm64 `strlen` stayed at baseline. Awaiting a
-confirmation run after dropping the string specialization.
+**Status:** IMPLEMENTED on `dev` (commits `6e3815c` and `00c36d8`) for
+`double -> double` and `int -> int` only. Two six-platform runs support it:
+`44907830140` (10-second samples, three specializations) and `44911485489`
+(5-second confirmation, string specialization dropped). In the confirmation
+run, drift-corrected gains versus the canonical baseline were sin +32% Linux
+x64, +1% Linux arm64, +19% macOS x64, +16% Windows x64, +19% Windows arm64;
+abs +11% / +20% / +19% / +12% / +13% respectively. macOS arm64 `sin` remains
+noisy (-20% drift-corrected, but the plain and wrapped forms converged and
+Inline::C dropped sharply), so no claim is made for that cell. The
+`String -> Int32` specialization was dropped: the generic `OP_PUSH_PTR_CHAR`
+case already points at `SvPVX` directly and the specialized copy showed no
+gain. Linux arm64 `strlen` is unchanged code and varies run-to-run; the
+regression that rejected ideas 2/3/5 did not reappear.
 **Payoff:** High. **Effort:** High.
 
 The current `GENERATE_TRIGGER_XSUB` is fully generic: a computed-goto dispatch
@@ -165,12 +168,14 @@ and portability cost.
 
 | Run | Code | Purpose |
 |---|---|---|
-| `44849630164` | canonical baseline (`8c6cf0f` / `652cda5`) | Article dataset; tree identical to current `dev` C code |
+| `44849630164` | canonical baseline (`8c6cf0f` / `652cda5`) | Article dataset; C code identical to `dev` before the monolithic-XSUB change |
 | `44863288263` | `bench/opt-235` r1 (#2 + #3 + #5) | First six-platform validation of the coalesced-allocation change |
 | `44868560954` | `bench/opt-235` r2 | Repeat to separate code effects from runner noise |
 | `44868609619` | `bench/sv-return` (#4) | Six-platform validation of direct TARG writes |
 | `44868609619` rerun | `bench/sv-return` (#4) | Repeat under a heavily loaded runner; Linux x64 Affix/XS `sin` reached 0.98 |
-| `44904811037` | current `dev` (C code identical to baseline) | Control under current runner state: Linux x64 Affix/XS `sin` fell to 0.56 |
+| `44904811037` | `dev` control (C code identical to baseline) | Control under current runner state: Linux x64 Affix/XS `sin` fell to 0.56 |
+| `44907830140` | `bench/mono-xsub` (3 specializations, 10s samples) | First validation of idea #1; string specialization showed no gain |
+| `44911485489` | `bench/mono-xsub` refined (2 specializations, 5s samples) | Confirmation run; sin/abs gains held after restoring the generic string path |
 
 Conclusions:
 
@@ -181,6 +186,9 @@ Conclusions:
   every reference implementation stays flat and `sv-return` returns to
   baseline. The newly documented Affix-only run variance makes this less
   certain than the original rejection implied, but not enough to revisit it.
+- Idea #1 is the first structural change to survive cross-platform validation:
+  both mono-xsub runs showed sin/abs gains on five of six platforms, and the
+  confirmation run restored the generic string path without losing them.
 - Local single-machine A/B is useful for screening but not for landing: idea 4
   and ideas 2/3/5 both looked good locally and failed on arm64 in CI.
 - Runner drift between runs can exceed 40%; always compare against XS and
