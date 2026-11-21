@@ -55,8 +55,8 @@ require Inline;
 require Inline::C;
 require FFI::Platypus;
 
-#~ Windows keeps the generated DLL mapped until process exit, so leave the
-#~ directory behind there rather than warning during File::Temp's cleanup.
+# Windows keeps the generated DLL mapped until process exit, so leave the directory behind there rather than warning
+# during File::Temp's cleanup.
 my $tmp = tempdir( CLEANUP => ( $^O eq 'MSWin32' ? 0 : 1 ) );
 
 sub build_xs ($dir) {
@@ -110,7 +110,7 @@ END_XS
         lib_file    => "$auto/BenchXS.$Config{dlext}",
         module_name => 'BenchXS',
 
-        #~ libc provides the math symbols on Windows; Unix needs libm.
+        # libc provides the math symbols on Windows; Unix needs libm.
         extra_link_flags => ( $^O eq 'MSWin32' ? '' : '-lm' )
     );
     unshift @INC, $dir;
@@ -141,18 +141,18 @@ double inline_sin(double x) { return sin(x); }
 int inline_abs(int x) { return abs(x); }
 int inline_strlen(const char *s) { return (int)strlen(s); }
 END_C
-my $inline_sin = \&main::inline_sin;
-my $inline_abs = \&main::inline_abs;
+my $inline_sin    = \&main::inline_sin;
+my $inline_abs    = \&main::inline_abs;
 my $inline_strlen = \&main::inline_strlen;
 
 #~ undef searches the running perl executable and the C library it is
 #~ linked against, so this works without a platform-specific libm name.
 my $ffi = FFI::Platypus->new( api => 2, lib => undef );
-$ffi->attach( [ sin => 'platypus_sin' ] => ['double'] => 'double' );
-$ffi->attach( [ abs => 'platypus_abs' ] => ['int'] => 'int' );
+$ffi->attach( [ sin    => 'platypus_sin' ]    => ['double'] => 'double' );
+$ffi->attach( [ abs    => 'platypus_abs' ]    => ['int']    => 'int' );
 $ffi->attach( [ strlen => 'platypus_strlen' ] => ['string'] => 'int' );
 my $platypus_function = $ffi->function( sin => ['double'] => 'double' );
-my $platypus_abs_fn   = $ffi->function( abs => ['int'] => 'int' );
+my $platypus_abs_fn   = $ffi->function( abs => ['int']    => 'int' );
 my %impl              = (
     Affix_wrap               => $affix_sin,
     Affix                    => \&main::affix_sin,
@@ -163,12 +163,12 @@ my %impl              = (
     'FFI::Platypus'          => \&main::platypus_sin,
     'FFI::Platypus function' => sub { $platypus_function->call( $_[0] ) }
 );
-say "sin(double) -> double, $SECONDS CPU seconds per implementation";
 say "perl $^V ($Config{archname}), $^O";
 say "Affix $Affix::VERSION";
 say "Inline $Inline::VERSION / Inline::C $Inline::C::VERSION";
 say "FFI::Platypus $FFI::Platypus::VERSION";
 say '';
+say "sin(double) -> double, $SECONDS CPU seconds per implementation";
 
 for my $x ( 0, 0.5, 1, -2.25 ) {
     my $expected = CORE::sin($x);
@@ -177,7 +177,7 @@ for my $x ( 0, 0.5, 1, -2.25 ) {
         die "$name: sin($x) returned $got, expected $expected\n" if abs( $got - $expected ) > 1e-12;
     }
 }
-say 'All eight implementations agree.';
+say 'All implementations agree.';
 say 'We can just run benchmarks now...';
 cmpthese(
     -$SECONDS,
@@ -209,7 +209,7 @@ for my $x ( -7, 0, 42, -12345 ) {
         die "$name: abs($x) returned $got, expected $expected\n" if $got != $expected;
     }
 }
-say 'All five implementations agree.';
+say 'All implementations agree.';
 say 'We can just run benchmarks now...';
 cmpthese(
     -$SECONDS,
@@ -238,7 +238,7 @@ for my $s ( '', 'a', 'hello', 'abcdefghij' ) {
         die "$name: strlen('$s') returned $got, expected $expected\n" if $got != $expected;
     }
 }
-say 'All five implementations agree.';
+say 'All implementations agree.';
 say 'We can just run benchmarks now...';
 cmpthese(
     -$SECONDS,
