@@ -10,7 +10,16 @@ Ranked roughly by expected payoff / effort.
 ---
 
 ### 1. Specialized monolithic XSUBs for common signatures
-**Status:** Ideas only — not prototyped.
+**Status:** Implemented on branch `bench/mono-xsub` (commit `6e3815c`, refined
+in the following commit) for `double -> double` and `int -> int` only. Six-platform
+run `44907830140` (10-second samples) showed drift-corrected gains versus the
+canonical baseline: sin +15% Linux x64, +43% macOS x64, +19% Windows x64,
++15% Windows arm64, +5% Linux arm64; abs +15% / +40% / +8% / +14% / +8%
+respectively. The `String -> Int32` specialization was dropped: it showed no
+gain because the generic `OP_PUSH_PTR_CHAR` case already points at `SvPVX`
+directly. macOS arm64 `sin` was inconclusive (plain and wrapped forms diverged
+with identical code). Linux arm64 `strlen` stayed at baseline. Awaiting a
+confirmation run after dropping the string specialization.
 **Payoff:** High. **Effort:** High.
 
 The current `GENERATE_TRIGGER_XSUB` is fully generic: a computed-goto dispatch

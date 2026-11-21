@@ -2318,29 +2318,6 @@ static void Affix_fast_sint32_sint32(pTHX_ CV * cv) {
     XSRETURN(1);
 }
 
-static void Affix_fast_ptr_char_sint32(pTHX_ CV * cv) {
-    if (UNLIKELY(PL_dirty))
-        return;
-    dSP;
-    dAXMARK;
-    dXSTARG;
-    Affix * affix = (Affix *)CvXSUBANY(cv).any_ptr;
-
-    if (UNLIKELY(!affix->infix))
-        rebuild_affix_data(aTHX_ affix);
-    if (UNLIKELY((SP - MARK) != 1))
-        croak("Wrong number of arguments. Expected 1, got %d", (int)(SP - MARK));
-
-    const char * arg = SvPV_nolen(ST(0));
-    int32_t ret;
-    void * c_args[1] = { (void *)&arg };
-    affix->cif(&ret, c_args);
-
-    sv_setiv(TARG, (IV)ret);
-    ST(0) = TARG;
-    XSRETURN(1);
-}
-
 static void _lib_registry_inc_ref(pTHX_ infix_library_t * lib) {
     dMY_CXT;
     if (MY_CXT.lib_registry == nullptr)
@@ -3329,8 +3306,9 @@ XS_INTERNAL(Affix_affix) {
             affix->fast_xsub = Affix_fast_double_double;
         else if (push == OP_PUSH_SINT32 && affix->ret_opcode == OP_RET_SINT32)
             affix->fast_xsub = Affix_fast_sint32_sint32;
-        else if (push == OP_PUSH_PTR_CHAR && affix->ret_opcode == OP_RET_SINT32)
-            affix->fast_xsub = Affix_fast_ptr_char_sint32;
+        /* String -> int is deliberately left on the generic path: the
+         * generic OP_PUSH_PTR_CHAR case already uses the SV's buffer
+         * directly, and a specialized copy showed no gain. */
     }
 
     if (out_param_count > 0) {
