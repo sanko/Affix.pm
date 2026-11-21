@@ -2267,45 +2267,218 @@ GENERATE_TRIGGER_XSUB(Affix_trigger_stack, 1)
 GENERATE_TRIGGER_XSUB(Affix_trigger_arena, 0)
 
 /*
- * Specialized monolithic XSUBs for the most common scalar signatures.
- * These skip the generic dispatch loop, the three stack allocations and the
- * return-opcode switch. They are installed at affix()/wrap() time and remain
- * in effect for ithread clones (the CV's XSUB address is unchanged).
+ * Specialized monolithic XSUBs for signatures whose entire call can be
+ * expressed as a typed C function pointer. They skip the generic dispatch
+ * loop, the three stack allocations, the infix trampoline and the return-opcode
+ * switch. They are installed at affix()/wrap() time and remain in effect for
+ * ithread clones (CvXSUBANY holds the stable target address).
+ *
+ * Only plain scalar signatures are eligible; pointers, lvalues, enums,
+ * structs, callbacks, out-params and variadic calls keep the generic path so
+ * Affix's marshalling magic is preserved.
  */
-static void Affix_fast_double_double(pTHX_ CV * cv) {
-    if (UNLIKELY(PL_dirty))
-        return;
-    dXSARGS;
-    dXSTARG;
+#define AFFIX_FAST_TO_DOUBLE(sv) SvNV(sv)
+#define AFFIX_FAST_TO_FLOAT(sv)  ((float)SvNV(sv))
+#define AFFIX_FAST_TO_SINT32(sv) ((int32_t)SvIV(sv))
+#define AFFIX_FAST_TO_UINT32(sv) ((uint32_t)SvUV(sv))
 
-    if (UNLIKELY(items != 1))
-        croak("Wrong number of arguments. Expected 1, got %" IVdf, (IV)items);
+#define AFFIX_FAST_SET_NV(targ, val) sv_setnv((targ), (double)(val))
+#define AFFIX_FAST_SET_IV(targ, val) sv_setiv((targ), (IV)(val))
+#define AFFIX_FAST_SET_UV(targ, val) sv_setuv((targ), (UV)(val))
 
-    typedef double (*fn_t)(double);
-    fn_t fn = (fn_t)CvXSUBANY(cv).any_ptr;
-    double ret = fn(SvNV(ST(0)));
+#define AFFIX_FAST_CHECK(n)                                                                     \
+    if (UNLIKELY(items != (n)))                                                                 \
+        croak("Wrong number of arguments. Expected " #n ", got %" IVdf, (IV)items)
 
-    sv_setnv(TARG, ret);
-    ST(0) = TARG;
-    XSRETURN(1);
-}
+/* Conversions are deliberately in separate statements: SvNV/SvIV can invoke
+ * magic, so left-to-right evaluation order is observable. */
+#define AFFIX_DEFINE_FAST_1(name, A, conv_a, R, set_r)                                           \
+    static void name(pTHX_ CV * cv) {                                                            \
+        if (UNLIKELY(PL_dirty))                                                                  \
+            return;                                                                              \
+        dXSARGS;                                                                                 \
+        dXSTARG;                                                                                 \
+        AFFIX_FAST_CHECK(1);                                                                     \
+        typedef R (*fn_t)(A);                                                                    \
+        fn_t fn = (fn_t)CvXSUBANY(cv).any_ptr;                                                   \
+        A a = conv_a(ST(0));                                                                     \
+        R ret = fn(a);                                                                           \
+        set_r(TARG, ret);                                                                        \
+        ST(0) = TARG;                                                                            \
+        XSRETURN(1);                                                                             \
+    }
 
-static void Affix_fast_sint32_sint32(pTHX_ CV * cv) {
-    if (UNLIKELY(PL_dirty))
-        return;
-    dXSARGS;
-    dXSTARG;
+#define AFFIX_DEFINE_FAST_2(name, A, conv_a, B, conv_b, R, set_r)                                \
+    static void name(pTHX_ CV * cv) {                                                            \
+        if (UNLIKELY(PL_dirty))                                                                  \
+            return;                                                                              \
+        dXSARGS;                                                                                 \
+        dXSTARG;                                                                                 \
+        AFFIX_FAST_CHECK(2);                                                                     \
+        typedef R (*fn_t)(A, B);                                                                 \
+        fn_t fn = (fn_t)CvXSUBANY(cv).any_ptr;                                                   \
+        A a = conv_a(ST(0));                                                                     \
+        B b = conv_b(ST(1));                                                                     \
+        R ret = fn(a, b);                                                                        \
+        set_r(TARG, ret);                                                                        \
+        ST(0) = TARG;                                                                            \
+        XSRETURN(1);                                                                             \
+    }
 
-    if (UNLIKELY(items != 1))
-        croak("Wrong number of arguments. Expected 1, got %" IVdf, (IV)items);
+#define AFFIX_DEFINE_FAST_3(name, A, conv_a, B, conv_b, C, conv_c, R, set_r)                     \
+    static void name(pTHX_ CV * cv) {                                                            \
+        if (UNLIKELY(PL_dirty))                                                                  \
+            return;                                                                              \
+        dXSARGS;                                                                                 \
+        dXSTARG;                                                                                 \
+        AFFIX_FAST_CHECK(3);                                                                     \
+        typedef R (*fn_t)(A, B, C);                                                              \
+        fn_t fn = (fn_t)CvXSUBANY(cv).any_ptr;                                                   \
+        A a = conv_a(ST(0));                                                                     \
+        B b = conv_b(ST(1));                                                                     \
+        C c = conv_c(ST(2));                                                                     \
+        R ret = fn(a, b, c);                                                                     \
+        set_r(TARG, ret);                                                                        \
+        ST(0) = TARG;                                                                            \
+        XSRETURN(1);                                                                             \
+    }
 
-    typedef int32_t (*fn_t)(int32_t);
-    fn_t fn = (fn_t)CvXSUBANY(cv).any_ptr;
-    int32_t ret = fn((int32_t)SvIV(ST(0)));
+#define AFFIX_DEFINE_FAST_VOID_1(name, A, conv_a)                                                \
+    static void name(pTHX_ CV * cv) {                                                            \
+        if (UNLIKELY(PL_dirty))                                                                  \
+            return;                                                                              \
+        dXSARGS;                                                                                 \
+        dXSTARG;                                                                                 \
+        AFFIX_FAST_CHECK(1);                                                                     \
+        typedef void (*fn_t)(A);                                                                 \
+        fn_t fn = (fn_t)CvXSUBANY(cv).any_ptr;                                                   \
+        A a = conv_a(ST(0));                                                                     \
+        fn(a);                                                                                   \
+        sv_setsv(TARG, &PL_sv_undef);                                                            \
+        ST(0) = TARG;                                                                            \
+        XSRETURN(1);                                                                             \
+    }
 
-    sv_setiv(TARG, (IV)ret);
-    ST(0) = TARG;
-    XSRETURN(1);
+#define AFFIX_DEFINE_FAST_VOID_2(name, A, conv_a, B, conv_b)                                     \
+    static void name(pTHX_ CV * cv) {                                                            \
+        if (UNLIKELY(PL_dirty))                                                                  \
+            return;                                                                              \
+        dXSARGS;                                                                                 \
+        dXSTARG;                                                                                 \
+        AFFIX_FAST_CHECK(2);                                                                     \
+        typedef void (*fn_t)(A, B);                                                              \
+        fn_t fn = (fn_t)CvXSUBANY(cv).any_ptr;                                                   \
+        A a = conv_a(ST(0));                                                                     \
+        B b = conv_b(ST(1));                                                                     \
+        fn(a, b);                                                                                \
+        sv_setsv(TARG, &PL_sv_undef);                                                            \
+        ST(0) = TARG;                                                                            \
+        XSRETURN(1);                                                                             \
+    }
+
+#define AFFIX_DEFINE_FAST_VOID_3(name, A, conv_a, B, conv_b, C, conv_c)                          \
+    static void name(pTHX_ CV * cv) {                                                            \
+        if (UNLIKELY(PL_dirty))                                                                  \
+            return;                                                                              \
+        dXSARGS;                                                                                 \
+        dXSTARG;                                                                                 \
+        AFFIX_FAST_CHECK(3);                                                                     \
+        typedef void (*fn_t)(A, B, C);                                                           \
+        fn_t fn = (fn_t)CvXSUBANY(cv).any_ptr;                                                   \
+        A a = conv_a(ST(0));                                                                     \
+        B b = conv_b(ST(1));                                                                     \
+        C c = conv_c(ST(2));                                                                     \
+        fn(a, b, c);                                                                             \
+        sv_setsv(TARG, &PL_sv_undef);                                                            \
+        ST(0) = TARG;                                                                            \
+        XSRETURN(1);                                                                             \
+    }
+
+/* Scalar returns. */
+AFFIX_DEFINE_FAST_1(Affix_fast_double_double, double, AFFIX_FAST_TO_DOUBLE, double, AFFIX_FAST_SET_NV)
+AFFIX_DEFINE_FAST_1(Affix_fast_sint32_sint32, int32_t, AFFIX_FAST_TO_SINT32, int32_t, AFFIX_FAST_SET_IV)
+AFFIX_DEFINE_FAST_1(Affix_fast_uint32_uint32, uint32_t, AFFIX_FAST_TO_UINT32, uint32_t, AFFIX_FAST_SET_UV)
+AFFIX_DEFINE_FAST_1(Affix_fast_float_float, float, AFFIX_FAST_TO_FLOAT, float, AFFIX_FAST_SET_NV)
+
+AFFIX_DEFINE_FAST_2(Affix_fast_double_pair_double, double, AFFIX_FAST_TO_DOUBLE, double, AFFIX_FAST_TO_DOUBLE, double, AFFIX_FAST_SET_NV)
+AFFIX_DEFINE_FAST_2(Affix_fast_sint32_pair_sint32, int32_t, AFFIX_FAST_TO_SINT32, int32_t, AFFIX_FAST_TO_SINT32, int32_t, AFFIX_FAST_SET_IV)
+AFFIX_DEFINE_FAST_2(Affix_fast_uint32_pair_uint32, uint32_t, AFFIX_FAST_TO_UINT32, uint32_t, AFFIX_FAST_TO_UINT32, uint32_t, AFFIX_FAST_SET_UV)
+AFFIX_DEFINE_FAST_2(Affix_fast_float_pair_float, float, AFFIX_FAST_TO_FLOAT, float, AFFIX_FAST_TO_FLOAT, float, AFFIX_FAST_SET_NV)
+AFFIX_DEFINE_FAST_2(Affix_fast_double_sint32_double, double, AFFIX_FAST_TO_DOUBLE, int32_t, AFFIX_FAST_TO_SINT32, double, AFFIX_FAST_SET_NV)
+AFFIX_DEFINE_FAST_2(Affix_fast_sint32_double_double, int32_t, AFFIX_FAST_TO_SINT32, double, AFFIX_FAST_TO_DOUBLE, double, AFFIX_FAST_SET_NV)
+
+AFFIX_DEFINE_FAST_3(Affix_fast_double_triple_double, double, AFFIX_FAST_TO_DOUBLE, double, AFFIX_FAST_TO_DOUBLE, double, AFFIX_FAST_TO_DOUBLE, double, AFFIX_FAST_SET_NV)
+AFFIX_DEFINE_FAST_3(Affix_fast_sint32_triple_sint32, int32_t, AFFIX_FAST_TO_SINT32, int32_t, AFFIX_FAST_TO_SINT32, int32_t, AFFIX_FAST_TO_SINT32, int32_t, AFFIX_FAST_SET_IV)
+AFFIX_DEFINE_FAST_3(Affix_fast_uint32_triple_uint32, uint32_t, AFFIX_FAST_TO_UINT32, uint32_t, AFFIX_FAST_TO_UINT32, uint32_t, AFFIX_FAST_TO_UINT32, uint32_t, AFFIX_FAST_SET_UV)
+AFFIX_DEFINE_FAST_3(Affix_fast_float_triple_float, float, AFFIX_FAST_TO_FLOAT, float, AFFIX_FAST_TO_FLOAT, float, AFFIX_FAST_TO_FLOAT, float, AFFIX_FAST_SET_NV)
+
+/* Void returns preserve the generic path's single undef result. */
+AFFIX_DEFINE_FAST_VOID_1(Affix_fast_void_double, double, AFFIX_FAST_TO_DOUBLE)
+AFFIX_DEFINE_FAST_VOID_1(Affix_fast_void_sint32, int32_t, AFFIX_FAST_TO_SINT32)
+AFFIX_DEFINE_FAST_VOID_1(Affix_fast_void_uint32, uint32_t, AFFIX_FAST_TO_UINT32)
+
+AFFIX_DEFINE_FAST_VOID_2(Affix_fast_void_double_pair, double, AFFIX_FAST_TO_DOUBLE, double, AFFIX_FAST_TO_DOUBLE)
+AFFIX_DEFINE_FAST_VOID_2(Affix_fast_void_sint32_pair, int32_t, AFFIX_FAST_TO_SINT32, int32_t, AFFIX_FAST_TO_SINT32)
+AFFIX_DEFINE_FAST_VOID_2(Affix_fast_void_uint32_pair, uint32_t, AFFIX_FAST_TO_UINT32, uint32_t, AFFIX_FAST_TO_UINT32)
+
+AFFIX_DEFINE_FAST_VOID_3(Affix_fast_void_double_triple, double, AFFIX_FAST_TO_DOUBLE, double, AFFIX_FAST_TO_DOUBLE, double, AFFIX_FAST_TO_DOUBLE)
+AFFIX_DEFINE_FAST_VOID_3(Affix_fast_void_sint32_triple, int32_t, AFFIX_FAST_TO_SINT32, int32_t, AFFIX_FAST_TO_SINT32, int32_t, AFFIX_FAST_TO_SINT32)
+AFFIX_DEFINE_FAST_VOID_3(Affix_fast_void_uint32_triple, uint32_t, AFFIX_FAST_TO_UINT32, uint32_t, AFFIX_FAST_TO_UINT32, uint32_t, AFFIX_FAST_TO_UINT32)
+
+#undef AFFIX_DEFINE_FAST_1
+#undef AFFIX_DEFINE_FAST_2
+#undef AFFIX_DEFINE_FAST_3
+#undef AFFIX_DEFINE_FAST_VOID_1
+#undef AFFIX_DEFINE_FAST_VOID_2
+#undef AFFIX_DEFINE_FAST_VOID_3
+#undef AFFIX_FAST_CHECK
+
+static XSUBADDR_t _select_fast_xsub(const Affix * affix) {
+    const Affix_Opcode a = affix->num_args > 0 ? affix->plan[0].opcode : OP_DONE;
+    const Affix_Opcode b = affix->num_args > 1 ? affix->plan[1].opcode : OP_DONE;
+    const Affix_Opcode c = affix->num_args > 2 ? affix->plan[2].opcode : OP_DONE;
+
+    if (affix->ret_opcode == OP_RET_VOID) {
+        if (affix->num_args == 1) {
+            if (a == OP_PUSH_DOUBLE) return Affix_fast_void_double;
+            if (a == OP_PUSH_SINT32) return Affix_fast_void_sint32;
+            if (a == OP_PUSH_UINT32) return Affix_fast_void_uint32;
+        }
+        else if (affix->num_args == 2) {
+            if (a == OP_PUSH_DOUBLE && b == OP_PUSH_DOUBLE) return Affix_fast_void_double_pair;
+            if (a == OP_PUSH_SINT32 && b == OP_PUSH_SINT32) return Affix_fast_void_sint32_pair;
+            if (a == OP_PUSH_UINT32 && b == OP_PUSH_UINT32) return Affix_fast_void_uint32_pair;
+        }
+        else if (affix->num_args == 3) {
+            if (a == OP_PUSH_DOUBLE && b == OP_PUSH_DOUBLE && c == OP_PUSH_DOUBLE) return Affix_fast_void_double_triple;
+            if (a == OP_PUSH_SINT32 && b == OP_PUSH_SINT32 && c == OP_PUSH_SINT32) return Affix_fast_void_sint32_triple;
+            if (a == OP_PUSH_UINT32 && b == OP_PUSH_UINT32 && c == OP_PUSH_UINT32) return Affix_fast_void_uint32_triple;
+        }
+        return nullptr;
+    }
+
+    if (affix->num_args == 1) {
+        if (a == OP_PUSH_DOUBLE && affix->ret_opcode == OP_RET_DOUBLE) return Affix_fast_double_double;
+        if (a == OP_PUSH_SINT32 && affix->ret_opcode == OP_RET_SINT32) return Affix_fast_sint32_sint32;
+        if (a == OP_PUSH_UINT32 && affix->ret_opcode == OP_RET_UINT32) return Affix_fast_uint32_uint32;
+        if (a == OP_PUSH_FLOAT  && affix->ret_opcode == OP_RET_FLOAT)  return Affix_fast_float_float;
+    }
+    else if (affix->num_args == 2) {
+        if (a == OP_PUSH_DOUBLE && b == OP_PUSH_DOUBLE && affix->ret_opcode == OP_RET_DOUBLE) return Affix_fast_double_pair_double;
+        if (a == OP_PUSH_SINT32 && b == OP_PUSH_SINT32 && affix->ret_opcode == OP_RET_SINT32) return Affix_fast_sint32_pair_sint32;
+        if (a == OP_PUSH_UINT32 && b == OP_PUSH_UINT32 && affix->ret_opcode == OP_RET_UINT32) return Affix_fast_uint32_pair_uint32;
+        if (a == OP_PUSH_FLOAT  && b == OP_PUSH_FLOAT  && affix->ret_opcode == OP_RET_FLOAT)  return Affix_fast_float_pair_float;
+        if (a == OP_PUSH_DOUBLE && b == OP_PUSH_SINT32 && affix->ret_opcode == OP_RET_DOUBLE) return Affix_fast_double_sint32_double;
+        if (a == OP_PUSH_SINT32 && b == OP_PUSH_DOUBLE && affix->ret_opcode == OP_RET_DOUBLE) return Affix_fast_sint32_double_double;
+    }
+    else if (affix->num_args == 3) {
+        if (a == OP_PUSH_DOUBLE && b == OP_PUSH_DOUBLE && c == OP_PUSH_DOUBLE && affix->ret_opcode == OP_RET_DOUBLE) return Affix_fast_double_triple_double;
+        if (a == OP_PUSH_SINT32 && b == OP_PUSH_SINT32 && c == OP_PUSH_SINT32 && affix->ret_opcode == OP_RET_SINT32) return Affix_fast_sint32_triple_sint32;
+        if (a == OP_PUSH_UINT32 && b == OP_PUSH_UINT32 && c == OP_PUSH_UINT32 && affix->ret_opcode == OP_RET_UINT32) return Affix_fast_uint32_triple_uint32;
+        if (a == OP_PUSH_FLOAT  && b == OP_PUSH_FLOAT  && c == OP_PUSH_FLOAT  && affix->ret_opcode == OP_RET_FLOAT)  return Affix_fast_float_triple_float;
+    }
+    /* String -> int stays generic: OP_PUSH_PTR_CHAR already uses SvPVX. */
+    return nullptr;
 }
 
 static void _lib_registry_inc_ref(pTHX_ infix_library_t * lib) {
@@ -3292,19 +3465,12 @@ XS_INTERNAL(Affix_affix) {
     affix->maybe_lazy_args = maybe_lazy_args;
 
     /* Select a monolithic XSUB for signatures whose whole call can be
-     * expressed without the generic plan. Only exact one-argument scalar
-     * shapes are handled; everything else keeps the generic trigger. */
+     * expressed without the generic plan. Everything else keeps the generic
+     * trigger, including pointers, lvalues, enums, structs, callbacks, output
+     * parameters, variadic calls, and unsupported scalar shapes. */
     affix->fast_xsub = nullptr;
-    if (!is_variadic && affix->num_args == 1 && affix->num_out_params == 0) {
-        Affix_Opcode push = affix->plan[0].opcode;
-        if (push == OP_PUSH_DOUBLE && affix->ret_opcode == OP_RET_DOUBLE)
-            affix->fast_xsub = Affix_fast_double_double;
-        else if (push == OP_PUSH_SINT32 && affix->ret_opcode == OP_RET_SINT32)
-            affix->fast_xsub = Affix_fast_sint32_sint32;
-        /* String -> int is deliberately left on the generic path: the
-         * generic OP_PUSH_PTR_CHAR case already uses the SV's buffer
-         * directly, and a specialized copy showed no gain. */
-    }
+    if (!is_variadic && affix->num_out_params == 0 && affix->all_plain_scalars)
+        affix->fast_xsub = _select_fast_xsub(affix);
 
     if (out_param_count > 0) {
         affix->out_param_info = safemalloc(sizeof(OutParamInfo) * out_param_count);
