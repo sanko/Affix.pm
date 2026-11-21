@@ -20,6 +20,14 @@
 #  define AFFIX_ALLOCA(_size) alloca(_size)
 #endif
 
+/* Idea #4: use Perl's own TARG fast paths instead of the out-of-line
+ * sv_setiv/sv_setuv/sv_setnv calls for scalar return values.  These are the
+ * same macros pp.h uses; they write the scalar body directly when TARG is
+ * already typed and fall back to the mg variants otherwise. */
+#define AFFIX_SET_IV(sv, val) TARGi((IV)(val), 1)
+#define AFFIX_SET_UV(sv, val) TARGu((UV)(val), 1)
+#define AFFIX_SET_NV(sv, val) TARGn((NV)(val), 1)
+
 static c23_maybe_unused void rebuild_affix_data(pTHX_ Affix * affix);
 static const infix_type * _resolve_type(pTHX_ const infix_type * type);
 static infix_library_t * _get_lib_from_registry(pTHX_ const char * path);
@@ -2171,28 +2179,28 @@ CASE_OP_DONE:                                                                   
             sv_setbool(TARG, *(bool *)ret_buffer);                                                              \
             break;                                                                                              \
         case OP_RET_SINT8:                                                                                      \
-            sv_setiv(TARG, *(int8_t *)ret_buffer);                                                              \
+            AFFIX_SET_IV(TARG, *(int8_t *)ret_buffer);                                                          \
             break;                                                                                              \
         case OP_RET_UINT8:                                                                                      \
-            sv_setuv(TARG, *(uint8_t *)ret_buffer);                                                             \
+            AFFIX_SET_UV(TARG, *(uint8_t *)ret_buffer);                                                         \
             break;                                                                                              \
         case OP_RET_SINT16:                                                                                     \
-            sv_setiv(TARG, *(int16_t *)ret_buffer);                                                             \
+            AFFIX_SET_IV(TARG, *(int16_t *)ret_buffer);                                                         \
             break;                                                                                              \
         case OP_RET_UINT16:                                                                                     \
-            sv_setuv(TARG, *(uint16_t *)ret_buffer);                                                            \
+            AFFIX_SET_UV(TARG, *(uint16_t *)ret_buffer);                                                        \
             break;                                                                                              \
         case OP_RET_SINT32:                                                                                     \
-            sv_setiv(TARG, *(int32_t *)ret_buffer);                                                             \
+            AFFIX_SET_IV(TARG, *(int32_t *)ret_buffer);                                                         \
             break;                                                                                              \
         case OP_RET_UINT32:                                                                                     \
-            sv_setuv(TARG, *(uint32_t *)ret_buffer);                                                            \
+            AFFIX_SET_UV(TARG, *(uint32_t *)ret_buffer);                                                        \
             break;                                                                                              \
         case OP_RET_SINT64:                                                                                     \
-            sv_setiv(TARG, *(int64_t *)ret_buffer);                                                             \
+            AFFIX_SET_IV(TARG, *(int64_t *)ret_buffer);                                                         \
             break;                                                                                              \
         case OP_RET_UINT64:                                                                                     \
-            sv_setuv(TARG, *(uint64_t *)ret_buffer);                                                            \
+            AFFIX_SET_UV(TARG, *(uint64_t *)ret_buffer);                                                        \
             break;                                                                                              \
         case OP_RET_SINT128:                                                                                    \
             sv_from_int128_safe(TARG, ret_buffer);                                                              \
@@ -2201,13 +2209,13 @@ CASE_OP_DONE:                                                                   
             sv_from_uint128_safe(TARG, ret_buffer);                                                             \
             break;                                                                                              \
         case OP_RET_FLOAT:                                                                                      \
-            sv_setnv(TARG, (double)*(float *)ret_buffer);                                                       \
+            AFFIX_SET_NV(TARG, (double)*(float *)ret_buffer);                                                   \
             break;                                                                                              \
         case OP_RET_FLOAT16:                                                                                    \
-            sv_setnv(TARG, (double)half_to_float(*(infix_float16_t *)ret_buffer));                              \
+            AFFIX_SET_NV(TARG, (double)half_to_float(*(infix_float16_t *)ret_buffer));                          \
             break;                                                                                              \
         case OP_RET_DOUBLE:                                                                                     \
-            sv_setnv(TARG, *(double *)ret_buffer);                                                              \
+            AFFIX_SET_NV(TARG, *(double *)ret_buffer);                                                          \
             break;                                                                                              \
         case OP_RET_PTR:                                                                                        \
             {                                                                                                   \
