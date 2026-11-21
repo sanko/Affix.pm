@@ -7,6 +7,18 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ## [Unreleased]
 
+"Speed and power!"
+ - Jezza
+
+### Added
+
+- Specialized monolithic XSUBs for ordinary scalar calls. `Double`, `Float`, `Int32` and `UInt32` now have direct typed call paths for arity 1-3, plus mixed `double`/`int32` pairs and `Void` returns. The selected XSUB calls the target through a typed C function pointer, skipping generic argument dispatch, stack staging, the infix trampoline and the return-opcode switch. Pointers, lvalues, enums, structs, callbacks, out-parameters, variadics and strings still use the generic marshaller, so Affix's write-back and pointer semantics are unchanged. This is how I was doing things back when this was still Dyn.pm.
+
+### Changed
+
+- Normal scalar bindings choose a specialized XSUB at bind time when the exact signature is eligible; everything else falls back to the generic trigger. The specialized path keeps its `PL_dirty` guard and exact-arity checks.
+- CI automatic pushes are limited to `main` and `dev` and pull-request triggers are gone. Benchmarks never run on push or schedule: the benchmark workflow is `workflow_dispatch`-only.
+
 ## [v1.4.2] - 2026-11-19
 
 ### Fixed
