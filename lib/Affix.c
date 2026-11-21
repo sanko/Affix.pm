@@ -1808,6 +1808,7 @@ static void rebuild_affix_data(pTHX_ Affix * affix);
             croak("Wrong number of arguments. Expected %d, got %d", (int)affix->num_args, (int)(SP - MARK));    \
                                                                                                                 \
         register Affix_Plan_Step * step = affix->plan;                                                          \
+        if (UNLIKELY(affix->maybe_lazy_args)) {                                                          \
         for (I32 i = 0; i < items; i++) {                                                                       \
             SV * arg = ST(i);                                                                                   \
             SV * target = (arg && SvROK(arg)) ? SvRV(arg) : arg;                                                \
@@ -1820,6 +1821,7 @@ static void rebuild_affix_data(pTHX_ Affix * affix);
             }                                                                                                   \
         }                                                                                                       \
                                                                                                                 \
+        }                                                                                                  \
         /* The argument arena is built on demand by _affix_call_args_arena().
          * Resetting it here also drops any pointer left over from an earlier
          * call whose scope has already released it. */                                                      \
@@ -1830,7 +1832,8 @@ static void rebuild_affix_data(pTHX_ Affix * affix);
         if (USE_STACK_ALLOC && affix->total_args_size <= 2048) {                                                \
             /* Fast path: Stack allocation if under 2k */                                                       \
             args_buffer = AFFIX_ALLOCA(affix->total_args_size);                                                 \
-            memset(args_buffer, 0, affix->total_args_size);                                                     \
+            if (!affix->all_plain_scalars)                                                                      \
+                memset(args_buffer, 0, affix->total_args_size);                                                     \
         }                                                                                                       \
         else {                                                                                                  \
             /* Slow path: Arena allocation */                                                                   \
@@ -1845,7 +1848,8 @@ static void rebuild_affix_data(pTHX_ Affix * affix);
             Newx(c_args, affix->num_args, void *);                                                              \
             SAVEFREEPV(c_args);                                                                                 \
         }                                                                                                       \
-        memset(c_args, 0, c_args_alloc_size);                                                                   \
+        if (!affix->all_plain_scalars)                                                                          \
+            memset(c_args, 0, c_args_alloc_size);                                                                   \
                                                                                                                 \
         size_t ret_size = affix->ret_type->size;                                                                \
         size_t ret_align = affix->ret_type->alignment;                                                          \
@@ -1857,7 +1861,8 @@ static void rebuild_affix_data(pTHX_ Affix * affix);
             UV addr = PTR2UV(raw);                                                                              \
             addr = ((addr + (UV)ret_align - 1) / (UV)ret_align) * (UV)ret_align;                                \
             ret_buffer = INT2PTR(void *, addr);                                                                 \
-            memset(ret_buffer, 0, ret_size);                                                                    \
+            if (!affix->all_plain_scalars)                                                                      \
+                memset(ret_buffer, 0, ret_size);                                                                    \
         }                                                                                                       \
         else {                                                                                                  \
             ret_buffer = infix_arena_calloc(_affix_call_args_arena(aTHX_ affix), 1, ret_size, ret_align);       \
@@ -1982,6 +1987,12 @@ CASE_OP_PUSH_DOUBLE:                                                            
             SV * sv = ST(step->data.index);                                                                     \
             void * ptr = (char *)args_buffer + step->data.c_arg_offset;                                         \
             U32 flags = SvFLAGS(sv);                                                                            \
+            /* Point the generic trampoline at the SV's NV when it is safe to do so. */                         \
+            if (LIKELY((flags & SVf_NOK) && !(flags & SVs_GMG) && !SvROK(sv) &&                                 \
+                       (sizeof(NV) == sizeof(double)))) {                                                      \
+                c_args[step->data.index] = (void *)&SvNVX(sv);                                                  \
+                DISPATCH();                                                                                     \
+            }                                                                                                   \
             if (LIKELY(flags & SVf_NOK))                                                                        \
                 *(double *)ptr = SvNVX(sv);                                                                     \
             else if (flags & SVf_IOK)                                                                           \
@@ -2348,6 +2359,8 @@ static int Affix_cv_dup(pTHX_ MAGIC * mg, CLONE_PARAMS * param) {
     new_affix->plan_length = old_affix->plan_length;
     new_affix->total_args_size = old_affix->total_args_size;
     new_affix->ret_opcode = old_affix->ret_opcode;
+    new_affix->maybe_lazy_args = old_affix->maybe_lazy_args;
+    new_affix->all_plain_scalars = old_affix->all_plain_scalars;
     new_affix->num_out_params = old_affix->num_out_params;
     new_affix->num_fixed_args = old_affix->num_fixed_args;
     new_affix->ret_readonly = old_affix->ret_readonly;
@@ -3121,6 +3134,8 @@ XS_INTERNAL(Affix_affix) {
 
     size_t current_offset = 0;
     size_t out_param_count = 0;
+    bool all_plain_scalars = true;
+    bool maybe_lazy_args = false;
     OutParamInfo * temp_out_info = safemalloc(sizeof(OutParamInfo) * (affix->num_args > 0 ? affix->num_args : 1));
 
     for (size_t i = 0; i < affix->num_args; ++i) {
@@ -3149,6 +3164,13 @@ XS_INTERNAL(Affix_affix) {
         affix->plan[i].opcode = get_opcode_for_type(aTHX_ original_type);
         affix->plan[i].data.type = original_type;  // Now points to persistent memory
         affix->plan[i].data.index = i;
+
+        if (original_type->category == INFIX_TYPE_PRIMITIVE)
+            all_plain_scalars = all_plain_scalars && true;
+        else {
+            all_plain_scalars = false;
+            maybe_lazy_args = true;
+        }
 
         if (original_type->category == INFIX_TYPE_POINTER) {
             const infix_type * pointee = original_type->meta.pointer_info.pointee_type;
@@ -3180,6 +3202,8 @@ XS_INTERNAL(Affix_affix) {
     affix->total_args_size = current_offset;
 
     affix->num_out_params = out_param_count;
+    affix->all_plain_scalars = all_plain_scalars && (out_param_count == 0);
+    affix->maybe_lazy_args = maybe_lazy_args;
     if (out_param_count > 0) {
         affix->out_param_info = safemalloc(sizeof(OutParamInfo) * out_param_count);
         memcpy(affix->out_param_info, temp_out_info, sizeof(OutParamInfo) * out_param_count);

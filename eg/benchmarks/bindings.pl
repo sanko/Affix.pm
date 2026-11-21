@@ -13,7 +13,7 @@ $|++;
 
 =head1 NAME
 
-eg/benchmarks/bindings.pl - compare six ways to call C from Perl
+eg/benchmarks/bindings.pl - compare eight ways to call C from Perl
 
 =head1 SYNOPSIS
 
@@ -24,11 +24,11 @@ Set C<AFFIX_BENCH_SECONDS> to change the time spent per implementation (default:
 
 =head1 DESCRIPTION
 
-Calls C<sin(double) -E<gt> double> from libm/libc six ways:
+Calls C<sin(double) -E<gt> double> from libm/libc eight ways:
 
 =over 4
 
-=item * Affix C<affix(...)> and C<wrap(...)>
+=item * Affix C<affix(...)>, C<wrap(...)>, C<direct_affix(...)> and C<direct_wrap(...)>
 
 =item * Inline::C
 
@@ -38,9 +38,13 @@ Calls C<sin(double) -E<gt> double> from libm/libc six ways:
 
 =back
 
+The C<direct_*> cases use Affix's experimental direct-marshalling backend, whose JIT trampoline reads Perl stack
+values straight into CPU registers instead of staging them in an argument buffer. Its performance is ABI-dependent:
+it helps on SysV x64 (Linux/macOS) but can be slower on Windows x64.
+
 The XSUB and Inline::C cases are compiled into a temporary directory at startup. Both inherit Perl's own
 C<$Config{optimize}> (normally C<-O2>) through L<ExtUtils::CBuilder> and Inline::C, so neither native path gets
-special optimization flags. All six results are checked against Perl's built-in C<sin> before timing, so a broken
+special optimization flags. All eight results are checked against Perl's built-in C<sin> before timing, so a broken
 binding can't silently skew the numbers.
 
 =cut
@@ -105,6 +109,8 @@ END_XS
 }
 my $affix_sin = wrap( libm, 'sin', [Double] => Double );
 affix libm, [ sin => 'affix_sin' ], [Double] => Double;
+my $direct_sin = direct_wrap( libm, 'sin', [Double] => Double );
+direct_affix libm, [ sin => 'direct_affix_sin' ], '(double) -> double';
 my $xs_sin = build_xs($tmp);
 Inline->bind( C => <<'END_C' );
 #include <math.h>
@@ -120,6 +126,8 @@ my $platypus_function = $ffi->function( sin => ['double'] => 'double' );
 my %impl              = (
     Affix_wrap               => $affix_sin,
     Affix                    => \&main::affix_sin,
+    Affix_direct_wrap        => $direct_sin,
+    Affix_direct_affix       => \&main::direct_affix_sin,
     XS                       => $xs_sin,
     'Inline::C'              => $inline_sin,
     'FFI::Platypus'          => \&main::platypus_sin,
@@ -139,15 +147,17 @@ for my $x ( 0, 0.5, 1, -2.25 ) {
         die "$name: sin($x) returned $got, expected $expected\n" if abs( $got - $expected ) > 1e-12;
     }
 }
-say 'All six implementations agree.';
+say 'All eight implementations agree.';
 say 'We can just run benchmarks now...';
 cmpthese(
     -$SECONDS,
-    {   Affix              => sub { $impl{Affix}->(0.5) },
-        'Affix wrap'       => sub { $impl{Affix_wrap}->(0.5) },
-        XS                 => sub { $impl{XS}->(0.5) },
-        'Inline::C'        => sub { $impl{'Inline::C'}->(0.5) },
-        'FFI::Platypus'    => sub { $impl{'FFI::Platypus'}->(0.5) },
-        'FFI::Platypus fn' => sub { $impl{'FFI::Platypus function'}->(0.5) }
+    {   Affix                => sub { $impl{Affix}->(0.5) },
+        'Affix wrap'         => sub { $impl{Affix_wrap}->(0.5) },
+        'Affix direct_wrap'  => sub { $impl{Affix_direct_wrap}->(0.5) },
+        'Affix direct_affix' => sub { $impl{Affix_direct_affix}->(0.5) },
+        XS                   => sub { $impl{XS}->(0.5) },
+        'Inline::C'          => sub { $impl{'Inline::C'}->(0.5) },
+        'FFI::Platypus'      => sub { $impl{'FFI::Platypus'}->(0.5) },
+        'FFI::Platypus fn'   => sub { $impl{'FFI::Platypus function'}->(0.5) }
     }
 );
