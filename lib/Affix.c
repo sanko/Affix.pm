@@ -1819,9 +1819,6 @@ static void rebuild_affix_data(pTHX_ Affix * affix);
             rebuild_affix_data(aTHX_ affix);                                                                    \
                                                                                                                 \
         I32 items = (I32)(SP - MARK);                                                                           \
-        /* LAZY REBUILD: If we are in a new thread and data hasn't been built yet */                            \
-        if (UNLIKELY(!affix->infix))                                                                            \
-            rebuild_affix_data(aTHX_ affix);                                                                    \
                                                                                                                 \
         if (UNLIKELY((SP - MARK) != affix->num_args))                                                           \
             croak("Wrong number of arguments. Expected %d, got %d", (int)affix->num_args, (int)(SP - MARK));    \
@@ -1846,47 +1843,52 @@ static void rebuild_affix_data(pTHX_ Affix * affix);
          * call whose scope has already released it. */                                                      \
         affix->call_args_arena = nullptr;                                                                       \
                                                                                                                 \
-        /* ALLOCATION STRATEGY */                                                                               \
-        void * args_buffer;                                                                                     \
-        if (USE_STACK_ALLOC && affix->total_args_size <= 2048) {                                                \
-            /* Fast path: Stack allocation if under 2k */                                                       \
-            args_buffer = AFFIX_ALLOCA(affix->total_args_size);                                                 \
-            if (!affix->all_plain_scalars)                                                                      \
-                memset(args_buffer, 0, affix->total_args_size);                                                     \
-        }                                                                                                       \
-        else {                                                                                                  \
-            /* Slow path: Arena allocation */                                                                   \
-            args_buffer = infix_arena_calloc(_affix_call_args_arena(aTHX_ affix), 1, affix->total_args_size, 64);\
-        }                                                                                                       \
-                                                                                                                \
-        size_t c_args_alloc_size = affix->num_args * sizeof(void *);                                            \
-        register void ** c_args;                                                                                \
-        if (c_args_alloc_size <= 2048)                                                                          \
-            c_args = (void **)AFFIX_ALLOCA(c_args_alloc_size);                                                  \
-        else {                                                                                                  \
-            Newx(c_args, affix->num_args, void *);                                                              \
-            SAVEFREEPV(c_args);                                                                                 \
-        }                                                                                                       \
-        if (!affix->all_plain_scalars)                                                                          \
-            memset(c_args, 0, c_args_alloc_size);                                                                   \
-                                                                                                                \
-        size_t ret_size = affix->ret_type->size;                                                                \
+        /* ALLOCATION STRATEGY: coalesced stack allocation for the common case */                                \
+        size_t args_sz = affix->total_args_size;                                                                \
+        size_t c_args_sz = affix->num_args * sizeof(void *);                                                    \
+        size_t ret_sz = affix->ret_type->size;                                                                  \
         size_t ret_align = affix->ret_type->alignment;                                                          \
-        if (ret_align < 1)                                                                                      \
+        if (UNLIKELY(ret_align < 1))                                                                            \
             ret_align = 1;                                                                                      \
+        void * args_buffer;                                                                                     \
+        register void ** c_args;                                                                                \
         void * ret_buffer;                                                                                      \
-        if (ret_size <= 2048) {                                                                                 \
-            char * raw = (char *)AFFIX_ALLOCA(ret_size + ret_align);                                            \
-            UV addr = PTR2UV(raw);                                                                              \
-            addr = ((addr + (UV)ret_align - 1) / (UV)ret_align) * (UV)ret_align;                                \
-            ret_buffer = INT2PTR(void *, addr);                                                                 \
-            if (!affix->all_plain_scalars)                                                                      \
-                memset(ret_buffer, 0, ret_size);                                                                    \
+        if (USE_STACK_ALLOC && args_sz <= 2048 && c_args_sz <= 2048 && ret_sz <= 2048 && ret_align <= 16) {   \
+            /* One alloca, three aligned regions; ret aligned to a constant 16 bytes. */                        \
+            size_t off_cargs = (args_sz + 15) & ~(size_t)15;                                                    \
+            size_t off_ret = (off_cargs + c_args_sz + 15) & ~(size_t)15;                                        \
+            char * block = (char *)AFFIX_ALLOCA(off_ret + ret_sz + 16);                                         \
+            args_buffer = block;                                                                                \
+            c_args = (void **)(block + off_cargs);                                                              \
+            UV addr = PTR2UV(block + off_ret);                                                                  \
+            ret_buffer = INT2PTR(void *, (addr + 15) & ~(UV)15);                                                \
         }                                                                                                       \
         else {                                                                                                  \
-            ret_buffer = infix_arena_calloc(_affix_call_args_arena(aTHX_ affix), 1, ret_size, ret_align);       \
+            if (USE_STACK_ALLOC && args_sz <= 2048)                                                             \
+                args_buffer = AFFIX_ALLOCA(args_sz);                                                            \
+            else                                                                                                \
+                args_buffer = infix_arena_calloc(_affix_call_args_arena(aTHX_ affix), 1, args_sz, 64);         \
+            if (c_args_sz <= 2048)                                                                              \
+                c_args = (void **)AFFIX_ALLOCA(c_args_sz);                                                      \
+            else {                                                                                              \
+                Newx(c_args, affix->num_args, void *);                                                          \
+                SAVEFREEPV(c_args);                                                                             \
+            }                                                                                                   \
+            if (ret_sz <= 2048) {                                                                               \
+                char * raw = (char *)AFFIX_ALLOCA(ret_sz + ret_align);                                          \
+                UV addr = PTR2UV(raw);                                                                          \
+                addr = ((addr + (UV)ret_align - 1) / (UV)ret_align) * (UV)ret_align;                            \
+                ret_buffer = INT2PTR(void *, addr);                                                             \
+            }                                                                                                   \
+            else                                                                                                \
+                ret_buffer = infix_arena_calloc(_affix_call_args_arena(aTHX_ affix), 1, ret_sz, ret_align);     \
         }                                                                                                       \
-                                                                                                                \
+        if (!affix->all_plain_scalars) {                                                                        \
+            memset(args_buffer, 0, args_sz);                                                                    \
+            memset(c_args, 0, c_args_sz);                                                                       \
+            memset(ret_buffer, 0, ret_sz);                                                                      \
+        }                                                                                                       \
+                                                                                                                 \
         DEFINE_DISPATCH_TABLE();                                                                                \
                                                                                                                 \
         DISPATCH_START();                                                                                       \
