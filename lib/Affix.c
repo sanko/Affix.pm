@@ -1878,7 +1878,7 @@ static void rebuild_affix_data(pTHX_ Affix * affix);
         if (ret_size <= 2048) {                                                                                 \
             char * raw = (char *)AFFIX_ALLOCA(ret_size + ret_align);                                            \
             UV addr = PTR2UV(raw);                                                                              \
-            addr = (addr + (UV)ret_align - 1) & ~((UV)ret_align - 1);                                            \
+            addr = ((addr + (UV)ret_align - 1) / (UV)ret_align) * (UV)ret_align;                                \
             ret_buffer = INT2PTR(void *, addr);                                                                 \
             if (!affix->all_plain_scalars)                                                                      \
                 memset(ret_buffer, 0, ret_size);                                                                    \
@@ -2704,7 +2704,7 @@ void Affix_trigger_variadic(pTHX_ CV * cv) {
     if (ret_size <= 2048) {
         char * raw = (char *)AFFIX_ALLOCA(ret_size + ret_align);
         UV addr = PTR2UV(raw);
-        addr = (addr + (UV)ret_align - 1) & ~((UV)ret_align - 1);
+        addr = ((addr + (UV)ret_align - 1) / (UV)ret_align) * (UV)ret_align;
         ret_buffer = INT2PTR(void *, addr);
         memset(ret_buffer, 0, ret_size);
     }
