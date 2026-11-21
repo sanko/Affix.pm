@@ -2055,6 +2055,11 @@ CASE_OP_PUSH_PTR_CHAR:                                                          
         {                                                                                                       \
             SV * sv = ST(step->data.index);                                                                     \
             void * ptr = (char *)args_buffer + step->data.c_arg_offset;                                         \
+            /* Point the trampoline straight at the SV's PV slot when it holds a plain string. */               \
+            if (LIKELY(SvPOK_nog(sv) && !SvROK(sv))) {                                                           \
+                c_args[step->data.index] = (void *)&SvPVX(sv);                                                  \
+                DISPATCH();                                                                                     \
+            }                                                                                                   \
             c_args[step->data.index] = ptr;                                                                     \
             if (SvPOK(sv))                                                                                      \
                 *(const char **)ptr = SvPV_nolen(sv);                                                           \
@@ -2122,10 +2127,8 @@ CASE_OP_PUSH_POINTER:                                                           
         }                                                                                                       \
 CASE_OP_PUSH_SV:                                                                                                \
         {                                                                                                       \
-            SV * sv = ST(step->data.index);                                                                     \
-            void * ptr = (char *)args_buffer + step->data.c_arg_offset;                                         \
-            c_args[step->data.index] = ptr;                                                                     \
-            *(SV **)ptr = sv;                                                                                   \
+            /* The Perl stack slot is already an SV **; hand it to the trampoline directly. */                  \
+            c_args[step->data.index] = &ST(step->data.index);                                                   \
             DISPATCH();                                                                                         \
         }                                                                                                       \
 CASE_OP_PUSH_VECTOR:                                                                                            \
