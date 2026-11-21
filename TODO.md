@@ -36,11 +36,13 @@ marshaller-call problem.
 ---
 
 ### 2. Constant-16 return alignment
-**Status:** Implemented in scratch worktree `affix-opt-235` (combined with #3
-and #5). Full suite passes (385 tests). Local Windows x64 A/B (4 trials each,
-3 CPU-sec): sin +15–16%, abs ~flat, strlen +4–5% — but noisy, and the `sin`
-result is partly driven by a low baseline outlier. **Cross-platform CI
-validation still required before landing.** No push has been made.
+**Status:** REJECTED. Implemented on branch `bench/opt-235` (combined with #3
+and #5) and validated on all six platforms in CI runs `44863288263` and
+`44868560954`. Full suite passed (385 tests), but the combined change produced
+a reproducible 10–11% drop in Linux arm64 plain `Affix` *and* `Affix wrap`
+`strlen` throughput while XS, Inline::C and FFI::Platypus stayed flat. That is
+the same signature that got Idea 4 reverted. The branch was dropped; `dev` is
+unchanged. Individual contribution of #2 was not isolated.
 **Payoff:** Low-Medium. **Effort:** Low.
 
 Idea 4 (runtime bitmask alignment, commit `05b04a9`, later reverted in
@@ -57,8 +59,10 @@ both the original division and Idea 4.
 ---
 
 ### 3. Remove the redundant rebuild check
-**Status:** Implemented in scratch worktree `affix-opt-235` (combined with #2
-and #5). Part of the A/B above; individual contribution not isolated.
+**Status:** REJECTED as part of `bench/opt-235` (combined with #2 and #5).
+Individual contribution not isolated; the combined change regressed Linux arm64
+`strlen`, so none of the three were landed. The reasoning still appears sound
+and this could be retried alone, but the gain is only one branch per call.
 **Payoff:** Low. **Effort:** Trivial.
 
 The XSUB prologue checks `if (UNLIKELY(!affix->infix)) rebuild_affix_data(...)`
@@ -69,7 +73,13 @@ unreachable. Removing it saves one branch per call.
 ---
 
 ### 4. Direct SV field writes for scalar returns
-**Status:** Ideas only — not prototyped.
+**Status:** REJECTED. Implemented on branch `bench/sv-return` (commit `cbb969d`)
+using Perl's own `TARGi` / `TARGu` / `TARGn` fast-path macros. Full suite passed
+(385 tests). CI run `44868609619` and a local Windows x64 A/B showed consistent
+regressions on Windows x64 (−7% to −12% drift-corrected) and macOS `strlen`
+(−27% to −40%). Likely cause: when `dXSTARG` yields a fresh mortal in void
+context, the macros fall back to the slower `sv_set*_mg` variants instead of the
+original `sv_set*`. The branch was dropped; `dev` is unchanged.
 **Payoff:** Low-Medium. **Effort:** Moderate.
 
 `sv_setiv(TARG, x)` / `sv_setnv(TARG, x)` are real function calls with
@@ -80,11 +90,10 @@ call per invocation. Needs careful Perl-version guarding.
 ---
 
 ### 5. Coalesce the three `alloca` calls
-**Status:** Implemented in scratch worktree `affix-opt-235` (with #2 and #3).
-Combined A/B above; falls back to the original per-buffer paths when any
-buffer exceeds 2 KiB or `ret_align > 16` (correctness fix applied after the
-benchmark — all benchmark types have alignment <= 16, so the A/B remains
-valid). Full suite passes. **Cross-platform CI validation required.**
+**Status:** REJECTED as part of `bench/opt-235` (with #2 and #3). The coalesced
+path had a correctness guard (`ret_align > 16` fallback) and passed all 385
+tests, but the combined change caused the Linux arm64 `strlen` regression
+described in #2. Individual contribution not isolated.
 **Payoff:** Low. **Effort:** Moderate.
 
 `args_buffer`, `c_args`, and `ret_buffer` are three separate stack
@@ -140,3 +149,26 @@ and portability cost.
   competitive everywhere (plain/direct ratio 0.85–1.18 across the six
   platforms), so auto-switching would be a regression on some of them. The
   thread-clone concern also still needs a closer look.
+
+---
+
+## Benchmark runs used for these decisions
+
+| Run | Code | Purpose |
+|---|---|---|
+| `44849630164` | canonical baseline (`8c6cf0f` / `652cda5`) | Article dataset; tree identical to current `dev` C code |
+| `44863288263` | `bench/opt-235` r1 (#2 + #3 + #5) | First six-platform validation of the coalesced-allocation change |
+| `44868560954` | `bench/opt-235` r2 | Repeat to separate code effects from runner noise |
+| `44868609619` | `bench/sv-return` (#4) | Six-platform validation of direct TARG writes |
+
+Conclusions:
+
+- The macOS arm64 `sin` drop seen in all three later runs is environmental:
+  it appears in `sv-return` too, which shares none of the 2/3/5 changes.
+- The Linux arm64 `strlen` drop is a genuine code effect: it appears in both
+  opt-235 runs in plain `Affix` and `Affix wrap` only, while every reference
+  implementation stays flat and `sv-return` returns to baseline.
+- Local single-machine A/B is useful for screening but not for landing: idea 4
+  and ideas 2/3/5 both looked good locally and failed on arm64 in CI.
+- Runner drift between runs can exceed 40%; always compare against XS and
+  Inline::C *within the same run* before attributing a change to code.
