@@ -2275,20 +2275,15 @@ GENERATE_TRIGGER_XSUB(Affix_trigger_arena, 0)
 static void Affix_fast_double_double(pTHX_ CV * cv) {
     if (UNLIKELY(PL_dirty))
         return;
-    dSP;
-    dAXMARK;
+    dXSARGS;
     dXSTARG;
-    Affix * affix = (Affix *)CvXSUBANY(cv).any_ptr;
 
-    if (UNLIKELY(!affix->infix))
-        rebuild_affix_data(aTHX_ affix);
-    if (UNLIKELY((SP - MARK) != 1))
-        croak("Wrong number of arguments. Expected 1, got %d", (int)(SP - MARK));
+    if (UNLIKELY(items != 1))
+        croak("Wrong number of arguments. Expected 1, got %" IVdf, (IV)items);
 
-    double arg = SvNV(ST(0));
-    double ret;
-    void * c_args[1] = { &arg };
-    affix->cif(&ret, c_args);
+    typedef double (*fn_t)(double);
+    fn_t fn = (fn_t)CvXSUBANY(cv).any_ptr;
+    double ret = fn(SvNV(ST(0)));
 
     sv_setnv(TARG, ret);
     ST(0) = TARG;
@@ -2298,20 +2293,15 @@ static void Affix_fast_double_double(pTHX_ CV * cv) {
 static void Affix_fast_sint32_sint32(pTHX_ CV * cv) {
     if (UNLIKELY(PL_dirty))
         return;
-    dSP;
-    dAXMARK;
+    dXSARGS;
     dXSTARG;
-    Affix * affix = (Affix *)CvXSUBANY(cv).any_ptr;
 
-    if (UNLIKELY(!affix->infix))
-        rebuild_affix_data(aTHX_ affix);
-    if (UNLIKELY((SP - MARK) != 1))
-        croak("Wrong number of arguments. Expected 1, got %d", (int)(SP - MARK));
+    if (UNLIKELY(items != 1))
+        croak("Wrong number of arguments. Expected 1, got %" IVdf, (IV)items);
 
-    int32_t arg = (int32_t)SvIV(ST(0));
-    int32_t ret;
-    void * c_args[1] = { &arg };
-    affix->cif(&ret, c_args);
+    typedef int32_t (*fn_t)(int32_t);
+    fn_t fn = (fn_t)CvXSUBANY(cv).any_ptr;
+    int32_t ret = fn((int32_t)SvIV(ST(0)));
 
     sv_setiv(TARG, (IV)ret);
     ST(0) = TARG;
@@ -2479,9 +2469,14 @@ static int Affix_cv_dup(pTHX_ MAGIC * mg, CLONE_PARAMS * param) {
     new_affix->owner_perl = aTHX;
 #endif
 
-    // Update the new CV's fast access pointer
+    // Update the new CV's fast access pointer. Specialized XSUBs call the
+    // target through a typed C function pointer, so no per-thread rebuild is
+    // needed and the hot path needs no Affix pointer dereference.
     CV * new_cv = (CV *)mg->mg_obj;
-    CvXSUBANY(new_cv).any_ptr = (void *)new_affix;
+    if (new_affix->fast_xsub)
+        CvXSUBANY(new_cv).any_ptr = old_affix->target_addr;
+    else
+        CvXSUBANY(new_cv).any_ptr = (void *)new_affix;
 
     return 1;
 }
@@ -3368,8 +3363,9 @@ XS_INTERNAL(Affix_affix) {
     MAGIC * mg = sv_magicext((SV *)cv_new, nullptr, PERL_MAGIC_ext, &Affix_cv_vtbl, nullptr, 0);
     mg->mg_ptr = (char *)affix;
 
-    // Set optimization pointer
-    CvXSUBANY(cv_new).any_ptr = (void *)affix;
+    // Set optimization pointer. Specialized XSUBs call the target directly
+    // through a typed C function pointer; generic triggers keep the Affix pointer.
+    CvXSUBANY(cv_new).any_ptr = affix->fast_xsub ? (void *)affix->target_addr : (void *)affix;
 
     //
     SV * obj = (ix == 1 || ix == 3) ? newRV_noinc(MUTABLE_SV(cv_new)) : newRV_inc(MUTABLE_SV(cv_new));
